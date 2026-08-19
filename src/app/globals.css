@@ -1,0 +1,54 @@
+@import "tailwindcss";
+
+/* MC Advogados — identidade oficial (logo_mc.jpg + paleta já usada nos
+   relatórios do escritório). Tema claro fixo — sem alternância automática
+   por prefers-color-scheme, é um painel B2B profissional. */
+:root {
+  --background: #f7f8fa;
+  --foreground: #171f2e;
+  --surface: #ffffff;
+  --border: #e3e6ec;
+
+  --navy: #0b2545;
+  --navy-foreground: #ffffff;
+  --gold: #c9a84c;
+  --gold-foreground: #171f2e;
+
+  --status-success: #16a34a;
+  --status-success-bg: #ecfdf3;
+  --status-pending: #d97706;
+  --status-pending-bg: #fffaeb;
+  --status-danger: #dc2626;
+  --status-danger-bg: #fef2f2;
+  --status-info: #2563eb;
+  --status-info-bg: #eff6ff;
+}
+
+@theme inline {
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-surface: var(--surface);
+  --color-border: var(--border);
+
+  --color-navy: var(--navy);
+  --color-navy-foreground: var(--navy-foreground);
+  --color-gold: var(--gold);
+  --color-gold-foreground: var(--gold-foreground);
+
+  --color-status-success: var(--status-success);
+  --color-status-success-bg: var(--status-success-bg);
+  --color-status-pending: var(--status-pending);
+  --color-status-pending-bg: var(--status-pending-bg);
+  --color-status-danger: var(--status-danger);
+  --color-status-danger-bg: var(--status-danger-bg);
+  --color-status-info: var(--status-info);
+  --color-status-info-bg: var(--status-info-bg);
+
+  --font-sans: var(--font-geist-sans);
+  --font-mono: var(--font-geist-mono);
+}
+
+body {
+  background: var(--background);
+  color: var(--foreground);
+}
