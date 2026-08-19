@@ -1,4 +1,5 @@
 import Image from "next/image";
+import Link from "next/link";
 
 export default function Home() {
   return (
@@ -21,8 +22,29 @@ export default function Home() {
         <div className="mt-3 h-px w-12 bg-gold" />
 
         <p className="mt-4 text-sm text-navy-foreground/70">
-          Portal de clientes em construção.
+          Prévia de telas com dados fictícios — autenticação real ainda não conectada.
         </p>
+
+        <div className="mt-8 flex w-full flex-col gap-3">
+          <Link
+            href="/login"
+            className="rounded-lg bg-gold px-4 py-2.5 text-sm font-medium text-gold-foreground transition-colors hover:opacity-90"
+          >
+            Tela de login
+          </Link>
+          <Link
+            href="/dashboard"
+            className="rounded-lg border border-white/20 px-4 py-2.5 text-sm font-medium text-navy-foreground transition-colors hover:bg-white/10"
+          >
+            Ver dashboard do cliente
+          </Link>
+          <Link
+            href="/admin"
+            className="rounded-lg border border-white/20 px-4 py-2.5 text-sm font-medium text-navy-foreground transition-colors hover:bg-white/10"
+          >
+            Ver painel administrativo
+          </Link>
+        </div>
       </div>
     </div>
   );
