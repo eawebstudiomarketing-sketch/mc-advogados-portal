@@ -1,18 +1,27 @@
-import { mockTimeEntries } from "@/lib/mock-data";
+import Link from "next/link";
+import { listTimeEntries } from "@/lib/data/time-entries";
+import { ACTIVITY_TYPE_LABEL } from "@/lib/activity-type";
+import { formatDate } from "@/lib/mock-data";
 
-export default function AdminTimesheetPage() {
-  const totalHoras = mockTimeEntries.reduce((s, t) => s + t.hours, 0);
+export default async function AdminTimesheetPage() {
+  const entries = await listTimeEntries();
+  const totalHoras = entries.reduce((s, t) => s + Number(t.hours), 0);
 
   return (
     <div>
       <div className="mb-6 flex items-center justify-between">
         <div>
           <h1 className="text-xl font-semibold text-navy">Timesheet</h1>
-          <p className="text-sm text-foreground/50">Agosto de 2026 · {totalHoras}h lançadas</p>
+          <p className="text-sm text-foreground/50">
+            {entries.length === 0 ? "Nenhum lançamento ainda" : `${totalHoras}h lançadas no total`}
+          </p>
         </div>
-        <button className="rounded-lg bg-navy px-4 py-2 text-sm font-medium text-navy-foreground hover:bg-navy/90">
+        <Link
+          href="/admin/timesheet/new"
+          className="rounded-lg bg-navy px-4 py-2 text-sm font-medium text-navy-foreground hover:bg-navy/90"
+        >
           Lançar horas
-        </button>
+        </Link>
       </div>
 
       <div className="overflow-x-auto rounded-xl border border-border bg-surface shadow-sm">
@@ -28,12 +37,19 @@ export default function AdminTimesheetPage() {
             </tr>
           </thead>
           <tbody className="divide-y divide-border">
-            {mockTimeEntries.map((t) => (
+            {entries.length === 0 && (
+              <tr>
+                <td colSpan={6} className="px-5 py-8 text-center text-sm text-foreground/50">
+                  Nenhum lançamento de horas ainda.
+                </td>
+              </tr>
+            )}
+            {entries.map((t) => (
               <tr key={t.id} className="hover:bg-background">
-                <td className="px-5 py-3 font-medium text-foreground">{t.clientName}</td>
-                <td className="px-5 py-3 text-foreground/70">{t.advogado}</td>
-                <td className="px-5 py-3 text-foreground/70">{t.activityType}</td>
-                <td className="px-5 py-3 text-foreground/70">{new Date(t.date + "T00:00:00").toLocaleDateString("pt-BR")}</td>
+                <td className="px-5 py-3 font-medium text-foreground">{t.clients?.name}</td>
+                <td className="px-5 py-3 text-foreground/70">{t.profiles?.full_name}</td>
+                <td className="px-5 py-3 text-foreground/70">{ACTIVITY_TYPE_LABEL[t.activity_type]}</td>
+                <td className="px-5 py-3 text-foreground/70">{formatDate(t.date)}</td>
                 <td className="px-5 py-3 tabular-nums text-foreground/70">{t.hours}h</td>
                 <td className="px-5 py-3 text-foreground/70">{t.billable ? "Sim" : "Não"}</td>
               </tr>
