@@ -7,6 +7,7 @@ import { listProcesses } from "@/lib/data/processes";
 import { listDocuments } from "@/lib/data/documents";
 import { listFinancialRecords } from "@/lib/data/financial";
 import { listTimeEntries } from "@/lib/data/time-entries";
+import { listReports } from "@/lib/data/reports";
 import { ACTIVITY_TYPE_LABEL } from "@/lib/activity-type";
 import { formatCurrency } from "@/lib/mock-data";
 
@@ -19,15 +20,19 @@ export default async function DashboardPage() {
   const profile = await requireRole(["client"]);
   const clientId = profile.client_id!;
 
-  const [atividades, processos, documentos, financeiro, timeEntries] = await Promise.all([
+  const [atividades, processos, documentos, financeiro, timeEntries, reports] = await Promise.all([
     listActivities({ clientId }),
     listProcesses({ clientId }),
     listDocuments({ clientId }),
     listFinancialRecords({ clientId }),
     listTimeEntries({ clientId }),
+    listReports({ clientId }),
   ]);
 
   const now = new Date();
+  const relatorioDoMes = reports.find(
+    (r) => r.reference_month === now.getMonth() + 1 && r.reference_year === now.getFullYear()
+  );
   const horasMes = timeEntries
     .filter((t) => {
       const d = new Date(t.date + "T00:00:00");
@@ -59,9 +64,18 @@ export default async function DashboardPage() {
           <h1 className="text-xl font-semibold text-navy capitalize">{mesReferencia}</h1>
           <p className="text-sm text-foreground/50">Resumo do mês</p>
         </div>
-        <button className="rounded-lg border border-border bg-surface px-3 py-2 text-sm font-medium text-navy hover:bg-navy hover:text-navy-foreground">
-          Baixar relatório do mês
-        </button>
+        {relatorioDoMes?.downloadUrl ? (
+          <a
+            href={relatorioDoMes.downloadUrl}
+            target="_blank"
+            rel="noreferrer"
+            className="rounded-lg border border-border bg-surface px-3 py-2 text-sm font-medium text-navy hover:bg-navy hover:text-navy-foreground"
+          >
+            Baixar relatório do mês
+          </a>
+        ) : (
+          <span className="text-xs text-foreground/40">Relatório deste mês ainda não disponível</span>
+        )}
       </div>
 
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
