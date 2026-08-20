@@ -9,9 +9,11 @@ import { listDocuments } from "@/lib/data/documents";
 import { listContracts } from "@/lib/data/contracts";
 import { listFinancialRecords } from "@/lib/data/financial";
 import { listTimeEntries } from "@/lib/data/time-entries";
+import { getClientPortalUser } from "@/lib/data/team";
 import { getProfile } from "@/lib/dal";
 import { ACTIVITY_TYPE_LABEL } from "@/lib/activity-type";
 import { formatCurrency } from "@/lib/mock-data";
+import { PortalAccessInvite } from "./portal-access";
 
 export default async function AdminClientDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
@@ -19,7 +21,7 @@ export default async function AdminClientDetailPage({ params }: { params: Promis
   const profile = await getProfile();
   const isAdmin = profile?.role === "admin";
 
-  const [client, activities, processes, documents, contracts, timeEntries, financial] = await Promise.all([
+  const [client, activities, processes, documents, contracts, timeEntries, financial, portalUser] = await Promise.all([
     getClient(id),
     listActivities({ clientId: id }),
     listProcesses({ clientId: id }),
@@ -27,6 +29,7 @@ export default async function AdminClientDetailPage({ params }: { params: Promis
     listContracts({ clientId: id }),
     listTimeEntries({ clientId: id }),
     isAdmin ? listFinancialRecords({ clientId: id }) : Promise.resolve(null),
+    isAdmin ? getClientPortalUser(id) : Promise.resolve(null),
   ]);
   if (!client) notFound();
 
@@ -175,6 +178,24 @@ export default async function AdminClientDetailPage({ params }: { params: Promis
               </li>
             ))}
           </ul>
+        </div>
+      )}
+
+      {isAdmin && (
+        <div className="mt-6 rounded-xl border border-border bg-surface p-5 shadow-sm">
+          <h2 className="text-sm font-semibold text-navy">Acesso ao portal</h2>
+          {portalUser ? (
+            <p className="mt-3 text-sm text-foreground/70">
+              {portalUser.full_name} ({portalUser.email}) já tem acesso ao portal do cliente.
+            </p>
+          ) : (
+            <>
+              <p className="mt-3 text-sm text-foreground/50">
+                Este cliente ainda não tem acesso ao portal. Convide o contato principal:
+              </p>
+              <PortalAccessInvite clientId={client.id} />
+            </>
+          )}
         </div>
       )}
     </div>
