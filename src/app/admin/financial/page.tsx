@@ -1,26 +1,41 @@
+import Link from "next/link";
 import { StatCard } from "@/components/ui/stat-card";
 import { StatusBadge } from "@/components/ui/status-badge";
-import { mockFinanceiro, formatCurrency, formatDate } from "@/lib/mock-data";
+import { listFinancialRecords } from "@/lib/data/financial";
+import { markAsPaidAction } from "./actions";
+import { requireRole } from "@/lib/dal";
+import { formatCurrency, formatDate } from "@/lib/mock-data";
 
-export default function AdminFinancialPage() {
-  const recebido = mockFinanceiro.filter((f) => f.status === "pago").reduce((s, f) => s + f.amount, 0);
-  const pendente = mockFinanceiro.filter((f) => f.status === "pendente").reduce((s, f) => s + f.amount, 0);
-  const atrasado = mockFinanceiro.filter((f) => f.status === "atrasado").reduce((s, f) => s + f.amount, 0);
+export default async function AdminFinancialPage() {
+  // Financeiro é a única área sem acesso de advogado — sem isso, um
+  // advogado logado veria a lista vazia (RLS bloqueia a query) e pareceria
+  // que não há nenhum lançamento, quando na verdade ele só não tem acesso.
+  await requireRole(["admin"]);
+  const records = await listFinancialRecords();
+
+  const recebido = records.filter((f) => f.status === "paid").reduce((s, f) => s + Number(f.amount), 0);
+  const pendente = records.filter((f) => f.status === "pending").reduce((s, f) => s + Number(f.amount), 0);
+  const atrasado = records.filter((f) => f.status === "overdue").reduce((s, f) => s + Number(f.amount), 0);
 
   return (
     <div>
       <div className="mb-6 flex items-center justify-between">
         <div>
           <h1 className="text-xl font-semibold text-navy">Financeiro</h1>
-          <p className="text-sm text-foreground/50">Agosto de 2026</p>
+          <p className="text-sm text-foreground/50">
+            {records.length === 0 ? "Nenhum lançamento ainda" : `${records.length} lançamentos`}
+          </p>
         </div>
-        <button className="rounded-lg border border-border bg-surface px-4 py-2 text-sm font-medium text-navy hover:bg-navy hover:text-navy-foreground">
+        <Link
+          href="/admin/financial/new"
+          className="rounded-lg border border-border bg-surface px-4 py-2 text-sm font-medium text-navy hover:bg-navy hover:text-navy-foreground"
+        >
           Novo lançamento
-        </button>
+        </Link>
       </div>
 
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
-        <StatCard label="Recebido no mês" value={formatCurrency(recebido)} tone="success" />
+        <StatCard label="Recebido" value={formatCurrency(recebido)} tone="success" />
         <StatCard label="A receber" value={formatCurrency(pendente)} tone="pending" />
         <StatCard label="Em atraso" value={formatCurrency(atrasado)} tone="danger" />
       </div>
@@ -38,18 +53,30 @@ export default function AdminFinancialPage() {
             </tr>
           </thead>
           <tbody className="divide-y divide-border">
-            {mockFinanceiro.map((f) => (
+            {records.length === 0 && (
+              <tr>
+                <td colSpan={6} className="px-5 py-8 text-center text-sm text-foreground/50">
+                  Nenhum lançamento financeiro ainda.
+                </td>
+              </tr>
+            )}
+            {records.map((f) => (
               <tr key={f.id} className="hover:bg-background">
-                <td className="px-5 py-3 font-medium text-foreground">{f.clientName}</td>
+                <td className="px-5 py-3 font-medium text-foreground">{f.clients?.name}</td>
                 <td className="px-5 py-3 text-foreground/70">{f.description}</td>
-                <td className="px-5 py-3 text-foreground/70">{formatDate(f.dueDate)}</td>
-                <td className="px-5 py-3 tabular-nums text-foreground/70">{formatCurrency(f.amount)}</td>
+                <td className="px-5 py-3 text-foreground/70">{formatDate(f.due_date)}</td>
+                <td className="px-5 py-3 tabular-nums text-foreground/70">{formatCurrency(Number(f.amount))}</td>
                 <td className="px-5 py-3">
                   <StatusBadge status={f.status} />
                 </td>
                 <td className="px-5 py-3">
-                  {f.status !== "pago" && (
-                    <button className="text-xs font-medium text-navy hover:underline">Enviar lembrete</button>
+                  {f.status !== "paid" && (
+                    <form action={markAsPaidAction}>
+                      <input type="hidden" name="id" value={f.id} />
+                      <button type="submit" className="text-xs font-medium text-navy hover:underline">
+                        Marcar como pago
+                      </button>
+                    </form>
                   )}
                 </td>
               </tr>
