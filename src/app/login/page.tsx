@@ -1,6 +1,7 @@
 "use client";
 
 import Image from "next/image";
+import Link from "next/link";
 import { useActionState } from "react";
 import { useSearchParams } from "next/navigation";
 import { login, type LoginState } from "./actions";
@@ -66,7 +67,9 @@ export default function LoginPage() {
         </form>
 
         <p className="mt-5 text-center text-xs text-foreground/40">
-          Esqueceu a senha? Fale com a equipe MC Advogados.
+          <Link href="/forgot-password" className="hover:text-foreground/60">
+            Esqueci minha senha
+          </Link>
         </p>
       </div>
     </div>
