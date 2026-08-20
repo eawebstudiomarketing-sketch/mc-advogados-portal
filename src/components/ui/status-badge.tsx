@@ -8,6 +8,7 @@ const STATUS_MAP: Record<string, { label: string; fg: string; bg: string }> = {
 
   atrasado: { label: "Atrasado", fg: "text-status-danger", bg: "bg-status-danger-bg" },
   cancelado: { label: "Cancelado", fg: "text-status-danger", bg: "bg-status-danger-bg" },
+  cancelada: { label: "Cancelada", fg: "text-status-danger", bg: "bg-status-danger-bg" },
   inativo: { label: "Inativo", fg: "text-status-danger", bg: "bg-status-danger-bg" },
 
   em_andamento: { label: "Em andamento", fg: "text-status-info", bg: "bg-status-info-bg" },
