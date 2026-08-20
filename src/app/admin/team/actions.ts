@@ -74,6 +74,36 @@ export async function inviteClientPortalUserAction(
   return { error: null };
 }
 
+export async function removeStaffAction(formData: FormData): Promise<void> {
+  const profile = await requireRole(["admin"]);
+
+  const profileId = formData.get("profile_id");
+  const userId = formData.get("user_id");
+  if (typeof profileId !== "string" || !profileId) return;
+  if (typeof userId !== "string" || !userId) return;
+  if (profileId === profile.id) return; // não deixa remover o próprio acesso
+
+  const admin = createAdminClient();
+  await admin.auth.admin.deleteUser(userId); // cascade apaga o profile também
+
+  revalidatePath("/admin/team");
+}
+
+export async function removeClientPortalUserAction(formData: FormData): Promise<void> {
+  await requireRole(["admin"]);
+
+  const userId = formData.get("user_id");
+  const clientId = formData.get("client_id");
+  if (typeof userId !== "string" || !userId) return;
+
+  const admin = createAdminClient();
+  await admin.auth.admin.deleteUser(userId);
+
+  if (typeof clientId === "string" && clientId) {
+    revalidatePath(`/admin/clients/${clientId}`);
+  }
+}
+
 async function inviteAndCreateProfile(params: {
   email: string;
   fullName: string;

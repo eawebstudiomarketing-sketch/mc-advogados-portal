@@ -1,4 +1,5 @@
 import Image from "next/image";
+import Link from "next/link";
 import { logout } from "@/app/logout/actions";
 
 export function ClientShell({
@@ -29,6 +30,9 @@ export function ClientShell({
               <p className="text-sm font-medium text-foreground">{userName}</p>
               <p className="text-xs text-foreground/50">{clientName}</p>
             </div>
+            <Link href="/account" className="text-xs text-foreground/40 hover:text-foreground/70">
+              Minha conta
+            </Link>
             <form action={logout}>
               <button type="submit" className="text-xs text-foreground/40 hover:text-foreground/70">
                 Sair

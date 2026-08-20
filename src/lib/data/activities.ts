@@ -19,3 +19,13 @@ export async function listActivities(filter?: { clientId?: string }): Promise<Ac
   if (error) throw error;
   return data;
 }
+
+export async function getActivity(id: string): Promise<Activity | null> {
+  const supabase = await createClient();
+  const { data } = await supabase
+    .from("activities")
+    .select("*, clients(name), profiles(full_name)")
+    .eq("id", id)
+    .maybeSingle();
+  return data;
+}

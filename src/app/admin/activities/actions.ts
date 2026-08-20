@@ -67,3 +67,58 @@ export async function updateActivityStatusAction(formData: FormData): Promise<vo
 
   revalidatePath("/admin/activities");
 }
+
+export type UpdateActivityState = { error: string | null };
+
+export async function updateActivityAction(
+  _prevState: UpdateActivityState,
+  formData: FormData
+): Promise<UpdateActivityState> {
+  await requireRole(["admin", "advogado"]);
+
+  const id = formData.get("id");
+  const title = formData.get("title");
+  const description = formData.get("description");
+  const type = formData.get("type");
+  const deadline = formData.get("deadline");
+
+  if (typeof id !== "string" || !id) {
+    return { error: "Atividade inválida." };
+  }
+  if (typeof title !== "string" || !title.trim()) {
+    return { error: "Informe o título da atividade." };
+  }
+  if (typeof type !== "string" || !ACTIVITY_TYPES.includes(type as never)) {
+    return { error: "Selecione o tipo de atividade." };
+  }
+
+  const supabase = await createClient();
+  const { error } = await supabase
+    .from("activities")
+    .update({
+      title: title.trim(),
+      description: typeof description === "string" && description.trim() ? description.trim() : null,
+      type: type as Database["public"]["Enums"]["activity_type"],
+      deadline: typeof deadline === "string" && deadline ? deadline : null,
+    })
+    .eq("id", id);
+
+  if (error) {
+    return { error: "Não foi possível salvar as alterações. Tente novamente." };
+  }
+
+  revalidatePath("/admin/activities");
+  redirect("/admin/activities");
+}
+
+export async function deleteActivityAction(formData: FormData): Promise<void> {
+  await requireRole(["admin", "advogado"]);
+
+  const id = formData.get("id");
+  if (typeof id !== "string" || !id) return;
+
+  const supabase = await createClient();
+  await supabase.from("activities").delete().eq("id", id);
+
+  revalidatePath("/admin/activities");
+}

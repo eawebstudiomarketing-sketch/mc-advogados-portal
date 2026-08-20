@@ -1,6 +1,8 @@
 import Link from "next/link";
 import { listDocuments } from "@/lib/data/documents";
 import { DOCUMENT_CATEGORY_LABEL } from "@/lib/document-category";
+import { deleteDocumentAction } from "./actions";
+import { ConfirmSubmitButton } from "@/components/ui/confirm-submit-button";
 
 export default async function AdminDocumentsPage() {
   const documents = await listDocuments();
@@ -51,17 +53,29 @@ export default async function AdminDocumentsPage() {
                 <td className="px-5 py-3 text-foreground/70">
                   {new Date(d.created_at).toLocaleDateString("pt-BR")}
                 </td>
-                <td className="px-5 py-3 text-right">
-                  {d.downloadUrl && (
-                    <a
-                      href={d.downloadUrl}
-                      target="_blank"
-                      rel="noreferrer"
-                      className="font-medium text-navy hover:underline"
-                    >
-                      Baixar
-                    </a>
-                  )}
+                <td className="px-5 py-3">
+                  <div className="flex items-center justify-end gap-3">
+                    {d.downloadUrl && (
+                      <a
+                        href={d.downloadUrl}
+                        target="_blank"
+                        rel="noreferrer"
+                        className="text-xs font-medium text-navy hover:underline"
+                      >
+                        Baixar
+                      </a>
+                    )}
+                    <Link href={`/admin/documents/${d.id}/edit`} className="text-xs font-medium text-navy hover:underline">
+                      Editar
+                    </Link>
+                    <ConfirmSubmitButton
+                      action={deleteDocumentAction}
+                      hiddenFields={{ id: d.id, file_path: d.file_path }}
+                      confirmMessage={`Excluir o documento "${d.title}"? O arquivo também será apagado.`}
+                      label="Excluir"
+                      className="text-xs font-medium text-status-danger hover:underline"
+                    />
+                  </div>
                 </td>
               </tr>
             ))}

@@ -2,7 +2,7 @@ import "server-only";
 import { createClient } from "@/lib/supabase/server";
 import type { Database } from "@/lib/supabase/types";
 
-type DocumentRow = Database["public"]["Tables"]["documents"]["Row"] & {
+export type DocumentRow = Database["public"]["Tables"]["documents"]["Row"] & {
   clients: { name: string } | null;
   profiles: { full_name: string } | null;
 };
@@ -29,4 +29,14 @@ export async function listDocuments(filter?: { clientId?: string }): Promise<Doc
       return { ...doc, downloadUrl: signed?.signedUrl ?? null };
     })
   );
+}
+
+export async function getDocument(id: string): Promise<DocumentRow | null> {
+  const supabase = await createClient();
+  const { data } = await supabase
+    .from("documents")
+    .select("*, clients(name), profiles(full_name)")
+    .eq("id", id)
+    .maybeSingle();
+  return data;
 }

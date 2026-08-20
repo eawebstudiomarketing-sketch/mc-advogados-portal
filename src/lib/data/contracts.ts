@@ -17,3 +17,9 @@ export async function listContracts(filter?: { clientId?: string }): Promise<Con
   if (error) throw error;
   return data;
 }
+
+export async function getContract(id: string): Promise<Contract | null> {
+  const supabase = await createClient();
+  const { data } = await supabase.from("contracts").select("*, clients(name)").eq("id", id).maybeSingle();
+  return data;
+}

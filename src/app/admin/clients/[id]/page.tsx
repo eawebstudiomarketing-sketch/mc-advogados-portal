@@ -10,10 +10,12 @@ import { listContracts } from "@/lib/data/contracts";
 import { listFinancialRecords } from "@/lib/data/financial";
 import { listTimeEntries } from "@/lib/data/time-entries";
 import { getClientPortalUser } from "@/lib/data/team";
+import { removeClientPortalUserAction } from "@/app/admin/team/actions";
 import { getProfile } from "@/lib/dal";
 import { ACTIVITY_TYPE_LABEL } from "@/lib/activity-type";
 import { formatCurrency } from "@/lib/mock-data";
 import { PortalAccessInvite } from "./portal-access";
+import { ConfirmSubmitButton } from "@/components/ui/confirm-submit-button";
 
 export default async function AdminClientDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
@@ -185,9 +187,18 @@ export default async function AdminClientDetailPage({ params }: { params: Promis
         <div className="mt-6 rounded-xl border border-border bg-surface p-5 shadow-sm">
           <h2 className="text-sm font-semibold text-navy">Acesso ao portal</h2>
           {portalUser ? (
-            <p className="mt-3 text-sm text-foreground/70">
-              {portalUser.full_name} ({portalUser.email}) já tem acesso ao portal do cliente.
-            </p>
+            <div className="mt-3 flex items-center justify-between gap-3">
+              <p className="text-sm text-foreground/70">
+                {portalUser.full_name} ({portalUser.email}) já tem acesso ao portal do cliente.
+              </p>
+              <ConfirmSubmitButton
+                action={removeClientPortalUserAction}
+                hiddenFields={{ user_id: portalUser.user_id, client_id: client.id }}
+                confirmMessage={`Remover o acesso de ${portalUser.full_name} ao portal?`}
+                label="Remover acesso"
+                className="shrink-0 text-xs font-medium text-status-danger hover:underline"
+              />
+            </div>
           ) : (
             <>
               <p className="mt-3 text-sm text-foreground/50">

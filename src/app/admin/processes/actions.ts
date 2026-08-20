@@ -51,3 +51,63 @@ export async function createProcessAction(
   revalidatePath("/admin/processes");
   redirect("/admin/processes");
 }
+
+export type UpdateProcessState = { error: string | null };
+
+export async function updateProcessAction(
+  _prevState: UpdateProcessState,
+  formData: FormData
+): Promise<UpdateProcessState> {
+  await requireRole(["admin", "advogado"]);
+
+  const id = formData.get("id");
+  const numeroProcesso = formData.get("numero_processo");
+  const varaTribunal = formData.get("vara_tribunal");
+  const area = formData.get("area");
+  const fase = formData.get("fase");
+  const status = formData.get("status");
+
+  if (typeof id !== "string" || !id) {
+    return { error: "Processo inválido." };
+  }
+  if (typeof numeroProcesso !== "string" || !numeroProcesso.trim()) {
+    return { error: "Informe o número do processo." };
+  }
+  if (typeof area !== "string" || !PROCESS_AREAS.includes(area as never)) {
+    return { error: "Selecione a área do processo." };
+  }
+
+  const supabase = await createClient();
+  const { error } = await supabase
+    .from("processes")
+    .update({
+      numero_processo: numeroProcesso.trim(),
+      vara_tribunal: typeof varaTribunal === "string" && varaTribunal.trim() ? varaTribunal.trim() : null,
+      area: area as Database["public"]["Enums"]["process_area"],
+      fase: typeof fase === "string" && fase.trim() ? fase.trim() : null,
+      status: typeof status === "string" && status.trim() ? status.trim() : "ativo",
+    })
+    .eq("id", id);
+
+  if (error) {
+    if (error.code === "23505") {
+      return { error: "Já existe um processo cadastrado com esse número." };
+    }
+    return { error: "Não foi possível salvar as alterações. Tente novamente." };
+  }
+
+  revalidatePath("/admin/processes");
+  redirect("/admin/processes");
+}
+
+export async function deleteProcessAction(formData: FormData): Promise<void> {
+  await requireRole(["admin", "advogado"]);
+
+  const id = formData.get("id");
+  if (typeof id !== "string" || !id) return;
+
+  const supabase = await createClient();
+  await supabase.from("processes").delete().eq("id", id);
+
+  revalidatePath("/admin/processes");
+}

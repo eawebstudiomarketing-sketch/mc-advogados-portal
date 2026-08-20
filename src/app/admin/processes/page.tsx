@@ -2,6 +2,8 @@ import Link from "next/link";
 import { listProcesses } from "@/lib/data/processes";
 import { PROCESS_AREA_LABEL } from "@/lib/process-area";
 import { StatusBadge } from "@/components/ui/status-badge";
+import { deleteProcessAction } from "./actions";
+import { ConfirmSubmitButton } from "@/components/ui/confirm-submit-button";
 
 export default async function AdminProcessesPage() {
   const processes = await listProcesses();
@@ -34,12 +36,13 @@ export default async function AdminProcessesPage() {
               <th className="px-5 py-3 font-medium">Fase</th>
               <th className="px-5 py-3 font-medium">Responsável</th>
               <th className="px-5 py-3 font-medium">Status</th>
+              <th className="px-5 py-3 font-medium"></th>
             </tr>
           </thead>
           <tbody className="divide-y divide-border">
             {processes.length === 0 && (
               <tr>
-                <td colSpan={7} className="px-5 py-8 text-center text-sm text-foreground/50">
+                <td colSpan={8} className="px-5 py-8 text-center text-sm text-foreground/50">
                   Nenhum processo cadastrado ainda.
                 </td>
               </tr>
@@ -54,6 +57,20 @@ export default async function AdminProcessesPage() {
                 <td className="px-5 py-3 text-foreground/70">{p.profiles?.full_name ?? "—"}</td>
                 <td className="px-5 py-3">
                   <StatusBadge status={p.status} />
+                </td>
+                <td className="px-5 py-3">
+                  <div className="flex items-center justify-end gap-3">
+                    <Link href={`/admin/processes/${p.id}/edit`} className="text-xs font-medium text-navy hover:underline">
+                      Editar
+                    </Link>
+                    <ConfirmSubmitButton
+                      action={deleteProcessAction}
+                      hiddenFields={{ id: p.id }}
+                      confirmMessage={`Excluir o processo "${p.numero_processo}"?`}
+                      label="Excluir"
+                      className="text-xs font-medium text-status-danger hover:underline"
+                    />
+                  </div>
                 </td>
               </tr>
             ))}

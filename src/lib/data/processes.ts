@@ -18,3 +18,13 @@ export async function listProcesses(filter?: { clientId?: string }): Promise<Pro
   if (error) throw error;
   return data;
 }
+
+export async function getProcess(id: string): Promise<Process | null> {
+  const supabase = await createClient();
+  const { data } = await supabase
+    .from("processes")
+    .select("*, clients(name), profiles(full_name)")
+    .eq("id", id)
+    .maybeSingle();
+  return data;
+}

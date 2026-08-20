@@ -69,11 +69,16 @@ export function AdminShell({
         <div className="border-t border-white/10 px-5 py-4">
           <p className="text-xs font-medium text-white">{userName}</p>
           <p className="text-xs text-navy-foreground/60">{ROLE_LABEL[userRole] ?? userRole}</p>
-          <form action={logout} className="mt-2">
-            <button type="submit" className="text-xs text-navy-foreground/60 hover:text-white">
-              Sair
-            </button>
-          </form>
+          <div className="mt-2 flex items-center gap-3">
+            <Link href="/account" className="text-xs text-navy-foreground/60 hover:text-white">
+              Minha conta
+            </Link>
+            <form action={logout}>
+              <button type="submit" className="text-xs text-navy-foreground/60 hover:text-white">
+                Sair
+              </button>
+            </form>
+          </div>
         </div>
       </aside>
 
