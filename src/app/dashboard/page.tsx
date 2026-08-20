@@ -1,5 +1,3 @@
-import Link from "next/link";
-import { ClientShell } from "@/components/layout/client-shell";
 import { StatCard } from "@/components/ui/stat-card";
 import { BarChart } from "@/components/ui/bar-chart";
 import { StatusBadge } from "@/components/ui/status-badge";
@@ -22,7 +20,7 @@ export default function DashboardPage() {
   const proximoVencimento = financeiro.find((f) => f.status !== "pago");
 
   return (
-    <ClientShell>
+    <>
       <div className="mb-6 flex items-center justify-between">
         <div>
           <h1 className="text-xl font-semibold text-navy">Agosto de 2026</h1>
@@ -96,10 +94,6 @@ export default function DashboardPage() {
           </ul>
         </div>
       </div>
-
-      <p className="mt-8 text-center text-xs text-foreground/30">
-        <Link href="/login" className="hover:text-foreground/60">Sair</Link>
-      </p>
-    </ClientShell>
+    </>
   );
 }

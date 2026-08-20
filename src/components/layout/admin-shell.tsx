@@ -3,6 +3,12 @@
 import Image from "next/image";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
+import { logout } from "@/app/logout/actions";
+
+const ROLE_LABEL: Record<string, string> = {
+  admin: "admin",
+  advogado: "advogado",
+};
 
 const NAV_ITEMS = [
   { href: "/admin", label: "Visão geral" },
@@ -17,7 +23,15 @@ const NAV_ITEMS = [
   { href: "/admin/team", label: "Equipe" },
 ];
 
-export function AdminShell({ children }: { children: React.ReactNode }) {
+export function AdminShell({
+  children,
+  userName,
+  userRole,
+}: {
+  children: React.ReactNode;
+  userName: string;
+  userRole: string;
+}) {
   const pathname = usePathname();
 
   return (
@@ -53,8 +67,13 @@ export function AdminShell({ children }: { children: React.ReactNode }) {
         </nav>
 
         <div className="border-t border-white/10 px-5 py-4">
-          <p className="text-xs font-medium text-white">Dr. Maurício Cardoso</p>
-          <p className="text-xs text-navy-foreground/60">admin</p>
+          <p className="text-xs font-medium text-white">{userName}</p>
+          <p className="text-xs text-navy-foreground/60">{ROLE_LABEL[userRole] ?? userRole}</p>
+          <form action={logout} className="mt-2">
+            <button type="submit" className="text-xs text-navy-foreground/60 hover:text-white">
+              Sair
+            </button>
+          </form>
         </div>
       </aside>
 

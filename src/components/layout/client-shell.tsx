@@ -1,7 +1,14 @@
 import Image from "next/image";
 import { currentClient } from "@/lib/mock-data";
+import { logout } from "@/app/logout/actions";
 
-export function ClientShell({ children }: { children: React.ReactNode }) {
+export function ClientShell({
+  children,
+  userName,
+}: {
+  children: React.ReactNode;
+  userName: string;
+}) {
   return (
     <div className="min-h-screen bg-background">
       <header className="border-b border-border bg-surface">
@@ -16,9 +23,16 @@ export function ClientShell({ children }: { children: React.ReactNode }) {
             </div>
           </div>
 
-          <div className="text-right leading-tight">
-            <p className="text-sm font-medium text-foreground">{currentClient.name}</p>
-            <p className="text-xs text-foreground/50">{currentClient.plano}</p>
+          <div className="flex items-center gap-4">
+            <div className="text-right leading-tight">
+              <p className="text-sm font-medium text-foreground">{userName}</p>
+              <p className="text-xs text-foreground/50">{currentClient.name}</p>
+            </div>
+            <form action={logout}>
+              <button type="submit" className="text-xs text-foreground/40 hover:text-foreground/70">
+                Sair
+              </button>
+            </form>
           </div>
         </div>
       </header>

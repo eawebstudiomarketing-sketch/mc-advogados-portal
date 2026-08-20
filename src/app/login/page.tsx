@@ -1,6 +1,17 @@
+"use client";
+
 import Image from "next/image";
+import { useActionState } from "react";
+import { useSearchParams } from "next/navigation";
+import { login, type LoginState } from "./actions";
+
+const initialState: LoginState = { error: null };
 
 export default function LoginPage() {
+  const [state, formAction, pending] = useActionState(login, initialState);
+  const searchParams = useSearchParams();
+  const next = searchParams.get("next") ?? "";
+
   return (
     <div className="flex min-h-screen items-center justify-center bg-background px-6">
       <div className="w-full max-w-sm rounded-2xl border border-border bg-surface p-8 shadow-sm">
@@ -12,13 +23,16 @@ export default function LoginPage() {
           <p className="mt-1 text-sm text-foreground/50">Acesse com seu e-mail e senha</p>
         </div>
 
-        <form className="mt-6 space-y-4">
+        <form action={formAction} className="mt-6 space-y-4">
+          <input type="hidden" name="next" value={next} />
+
           <div>
             <label htmlFor="email" className="mb-1.5 block text-sm font-medium text-foreground/80">
               E-mail
             </label>
             <input
               id="email"
+              name="email"
               type="email"
               autoComplete="email"
               placeholder="voce@email.com"
@@ -32,6 +46,7 @@ export default function LoginPage() {
             </label>
             <input
               id="password"
+              name="password"
               type="password"
               autoComplete="current-password"
               placeholder="••••••••"
@@ -39,11 +54,14 @@ export default function LoginPage() {
             />
           </div>
 
+          {state.error && <p className="text-sm text-status-danger">{state.error}</p>}
+
           <button
             type="submit"
-            className="w-full rounded-lg bg-navy px-4 py-2.5 text-sm font-medium text-navy-foreground transition-colors hover:bg-navy/90"
+            disabled={pending}
+            className="w-full rounded-lg bg-navy px-4 py-2.5 text-sm font-medium text-navy-foreground transition-colors hover:bg-navy/90 disabled:opacity-60"
           >
-            Entrar
+            {pending ? "Entrando..." : "Entrar"}
           </button>
         </form>
 
