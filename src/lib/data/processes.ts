@@ -7,12 +7,14 @@ export type Process = Database["public"]["Tables"]["processes"]["Row"] & {
   profiles: { full_name: string } | null;
 };
 
-export async function listProcesses(): Promise<Process[]> {
+export async function listProcesses(filter?: { clientId?: string }): Promise<Process[]> {
   const supabase = await createClient();
-  const { data, error } = await supabase
+  let query = supabase
     .from("processes")
     .select("*, clients(name), profiles(full_name)")
     .order("created_at", { ascending: false });
+  if (filter?.clientId) query = query.eq("client_id", filter.clientId);
+  const { data, error } = await query;
   if (error) throw error;
   return data;
 }

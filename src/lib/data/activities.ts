@@ -7,13 +7,15 @@ export type Activity = Database["public"]["Tables"]["activities"]["Row"] & {
   profiles: { full_name: string } | null;
 };
 
-export async function listActivities(): Promise<Activity[]> {
+export async function listActivities(filter?: { clientId?: string }): Promise<Activity[]> {
   const supabase = await createClient();
-  const { data, error } = await supabase
+  let query = supabase
     .from("activities")
     .select("*, clients(name), profiles(full_name)")
     .order("deadline", { ascending: true, nullsFirst: false })
     .order("created_at", { ascending: false });
+  if (filter?.clientId) query = query.eq("client_id", filter.clientId);
+  const { data, error } = await query;
   if (error) throw error;
   return data;
 }

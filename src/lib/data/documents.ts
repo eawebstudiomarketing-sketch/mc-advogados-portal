@@ -11,12 +11,14 @@ export type DocumentWithUrl = DocumentRow & { downloadUrl: string | null };
 
 const SIGNED_URL_TTL_SECONDS = 60 * 60;
 
-export async function listDocuments(): Promise<DocumentWithUrl[]> {
+export async function listDocuments(filter?: { clientId?: string }): Promise<DocumentWithUrl[]> {
   const supabase = await createClient();
-  const { data, error } = await supabase
+  let query = supabase
     .from("documents")
     .select("*, clients(name), profiles(full_name)")
     .order("created_at", { ascending: false });
+  if (filter?.clientId) query = query.eq("client_id", filter.clientId);
+  const { data, error } = await query;
   if (error) throw error;
 
   return Promise.all(

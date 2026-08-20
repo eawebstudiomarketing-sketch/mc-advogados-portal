@@ -1,12 +1,44 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { StatusBadge } from "@/components/ui/status-badge";
+import { StatCard } from "@/components/ui/stat-card";
 import { getClient } from "@/lib/data/clients";
+import { listActivities } from "@/lib/data/activities";
+import { listProcesses } from "@/lib/data/processes";
+import { listDocuments } from "@/lib/data/documents";
+import { listContracts } from "@/lib/data/contracts";
+import { listFinancialRecords } from "@/lib/data/financial";
+import { listTimeEntries } from "@/lib/data/time-entries";
+import { getProfile } from "@/lib/dal";
+import { ACTIVITY_TYPE_LABEL } from "@/lib/activity-type";
+import { formatCurrency } from "@/lib/mock-data";
 
 export default async function AdminClientDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
-  const client = await getClient(id);
+
+  const profile = await getProfile();
+  const isAdmin = profile?.role === "admin";
+
+  const [client, activities, processes, documents, contracts, timeEntries, financial] = await Promise.all([
+    getClient(id),
+    listActivities({ clientId: id }),
+    listProcesses({ clientId: id }),
+    listDocuments({ clientId: id }),
+    listContracts({ clientId: id }),
+    listTimeEntries({ clientId: id }),
+    isAdmin ? listFinancialRecords({ clientId: id }) : Promise.resolve(null),
+  ]);
   if (!client) notFound();
+
+  const now = new Date();
+  const horasMes = timeEntries
+    .filter((t) => {
+      const d = new Date(t.date + "T00:00:00");
+      return d.getMonth() === now.getMonth() && d.getFullYear() === now.getFullYear();
+    })
+    .reduce((s, t) => s + Number(t.hours), 0);
+
+  const proximoVencimento = financial?.find((f) => f.status !== "paid") ?? null;
 
   return (
     <div>
@@ -21,35 +53,130 @@ export default async function AdminClientDetailPage({ params }: { params: Promis
             {client.tipo_pessoa} · {client.documento} · {client.email_contact}
           </p>
         </div>
-        <StatusBadge status={client.active ? "ativo" : "inativo"} />
+        <div className="flex items-center gap-3">
+          <StatusBadge status={client.active ? "ativo" : "inativo"} />
+          {isAdmin && (
+            <Link
+              href={`/admin/clients/${client.id}/edit`}
+              className="rounded-lg border border-border bg-surface px-3 py-1.5 text-xs font-medium text-navy hover:bg-navy hover:text-navy-foreground"
+            >
+              Editar
+            </Link>
+          )}
+        </div>
       </div>
 
-      <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
+      <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
+        <StatCard label="Horas no mês" value={`${horasMes}h`} />
+        <StatCard label="Atividades abertas" value={String(activities.filter((a) => a.status !== "concluida").length)} />
+        {isAdmin && (
+          <StatCard
+            label="Situação financeira"
+            value={proximoVencimento ? formatCurrency(Number(proximoVencimento.amount)) : "Em dia"}
+            tone={proximoVencimento?.status === "overdue" ? "danger" : proximoVencimento ? "pending" : "success"}
+          />
+        )}
+      </div>
+
+      <div className="mt-6 grid grid-cols-1 gap-4 lg:grid-cols-2">
         <div className="rounded-xl border border-border bg-surface p-5 shadow-sm">
           <h2 className="text-sm font-semibold text-navy">Atividades</h2>
-          <p className="mt-3 text-sm text-foreground/50">Módulo ainda não conectado ao Supabase.</p>
+          <ul className="mt-3 divide-y divide-border">
+            {activities.length === 0 && <p className="py-3 text-sm text-foreground/50">Nenhuma atividade registrada.</p>}
+            {activities.map((a) => (
+              <li key={a.id} className="flex items-center justify-between gap-3 py-3">
+                <div>
+                  <p className="text-sm text-foreground">{a.title}</p>
+                  <p className="text-xs text-foreground/50">
+                    {ACTIVITY_TYPE_LABEL[a.type]} · {a.profiles?.full_name}
+                  </p>
+                </div>
+                <StatusBadge status={a.status} />
+              </li>
+            ))}
+          </ul>
         </div>
 
         <div className="rounded-xl border border-border bg-surface p-5 shadow-sm">
           <h2 className="text-sm font-semibold text-navy">Processos</h2>
-          <p className="mt-3 text-sm text-foreground/50">Módulo ainda não conectado ao Supabase.</p>
+          <ul className="mt-3 divide-y divide-border">
+            {processes.length === 0 && <p className="py-3 text-sm text-foreground/50">Nenhum processo em andamento.</p>}
+            {processes.map((p) => (
+              <li key={p.id} className="py-3">
+                <p className="text-sm text-foreground">{p.numero_processo}</p>
+                <p className="text-xs text-foreground/50">{p.vara_tribunal ?? "—"} · {p.fase ?? "—"}</p>
+              </li>
+            ))}
+          </ul>
         </div>
 
         <div className="rounded-xl border border-border bg-surface p-5 shadow-sm">
           <h2 className="text-sm font-semibold text-navy">Documentos</h2>
-          <p className="mt-3 text-sm text-foreground/50">Módulo ainda não conectado ao Supabase.</p>
+          <ul className="mt-3 divide-y divide-border">
+            {documents.length === 0 && <p className="py-3 text-sm text-foreground/50">Nenhum documento anexado.</p>}
+            {documents.map((d) => (
+              <li key={d.id} className="flex items-center justify-between gap-3 py-3">
+                <div>
+                  <p className="text-sm text-foreground">{d.title}</p>
+                  <p className="text-xs text-foreground/50">
+                    {new Date(d.created_at).toLocaleDateString("pt-BR")}
+                  </p>
+                </div>
+                {d.downloadUrl && (
+                  <a href={d.downloadUrl} target="_blank" rel="noreferrer" className="text-xs font-medium text-navy hover:underline">
+                    Baixar
+                  </a>
+                )}
+              </li>
+            ))}
+          </ul>
         </div>
 
         <div className="rounded-xl border border-border bg-surface p-5 shadow-sm">
           <h2 className="text-sm font-semibold text-navy">Contratos</h2>
-          <p className="mt-3 text-sm text-foreground/50">Módulo ainda não conectado ao Supabase.</p>
+          <ul className="mt-3 divide-y divide-border">
+            {contracts.length === 0 && <p className="py-3 text-sm text-foreground/50">Nenhum contrato cadastrado.</p>}
+            {contracts.map((c) => (
+              <li key={c.id} className="flex items-center justify-between gap-3 py-3">
+                <div>
+                  <p className="text-sm text-foreground">{c.title}</p>
+                  <p className="text-xs text-foreground/50">
+                    Desde {new Date(c.start_date + "T00:00:00").toLocaleDateString("pt-BR")}
+                  </p>
+                </div>
+                <span className="text-sm font-medium tabular-nums text-foreground/70">
+                  {c.value ? formatCurrency(Number(c.value)) : "—"}
+                </span>
+              </li>
+            ))}
+          </ul>
         </div>
       </div>
 
-      <div className="mt-6 rounded-xl border border-border bg-surface p-5 shadow-sm">
-        <h2 className="text-sm font-semibold text-navy">Financeiro</h2>
-        <p className="mt-3 text-sm text-foreground/50">Módulo ainda não conectado ao Supabase.</p>
-      </div>
+      {isAdmin && financial && (
+        <div className="mt-6 rounded-xl border border-border bg-surface p-5 shadow-sm">
+          <h2 className="text-sm font-semibold text-navy">Financeiro</h2>
+          <ul className="mt-3 divide-y divide-border">
+            {financial.length === 0 && <p className="py-3 text-sm text-foreground/50">Nenhum lançamento financeiro.</p>}
+            {financial.map((f) => (
+              <li key={f.id} className="flex items-center justify-between gap-3 py-3">
+                <div>
+                  <p className="text-sm text-foreground">{f.description}</p>
+                  <p className="text-xs text-foreground/50">
+                    Vencimento {new Date(f.due_date + "T00:00:00").toLocaleDateString("pt-BR")}
+                  </p>
+                </div>
+                <div className="flex items-center gap-3">
+                  <span className="text-sm font-medium tabular-nums text-foreground/70">
+                    {formatCurrency(Number(f.amount))}
+                  </span>
+                  <StatusBadge status={f.status} />
+                </div>
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
     </div>
   );
 }
