@@ -1,13 +1,14 @@
 import Image from "next/image";
-import { currentClient } from "@/lib/mock-data";
 import { logout } from "@/app/logout/actions";
 
 export function ClientShell({
   children,
   userName,
+  clientName,
 }: {
   children: React.ReactNode;
   userName: string;
+  clientName: string;
 }) {
   return (
     <div className="min-h-screen bg-background">
@@ -26,7 +27,7 @@ export function ClientShell({
           <div className="flex items-center gap-4">
             <div className="text-right leading-tight">
               <p className="text-sm font-medium text-foreground">{userName}</p>
-              <p className="text-xs text-foreground/50">{currentClient.name}</p>
+              <p className="text-xs text-foreground/50">{clientName}</p>
             </div>
             <form action={logout}>
               <button type="submit" className="text-xs text-foreground/40 hover:text-foreground/70">
