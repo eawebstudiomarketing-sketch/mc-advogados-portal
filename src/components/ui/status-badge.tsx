@@ -1,14 +1,17 @@
 const STATUS_MAP: Record<string, { label: string; fg: string; bg: string }> = {
   pago: { label: "Pago", fg: "text-status-success", bg: "bg-status-success-bg" },
   ativo: { label: "Ativo", fg: "text-status-success", bg: "bg-status-success-bg" },
+  active: { label: "Ativo", fg: "text-status-success", bg: "bg-status-success-bg" },
   concluida: { label: "Concluída", fg: "text-status-success", bg: "bg-status-success-bg" },
 
   pendente: { label: "Pendente", fg: "text-status-pending", bg: "bg-status-pending-bg" },
   aberta: { label: "Aberta", fg: "text-status-pending", bg: "bg-status-pending-bg" },
+  expired: { label: "Expirado", fg: "text-status-pending", bg: "bg-status-pending-bg" },
 
   atrasado: { label: "Atrasado", fg: "text-status-danger", bg: "bg-status-danger-bg" },
   cancelado: { label: "Cancelado", fg: "text-status-danger", bg: "bg-status-danger-bg" },
   cancelada: { label: "Cancelada", fg: "text-status-danger", bg: "bg-status-danger-bg" },
+  cancelled: { label: "Cancelado", fg: "text-status-danger", bg: "bg-status-danger-bg" },
   inativo: { label: "Inativo", fg: "text-status-danger", bg: "bg-status-danger-bg" },
 
   em_andamento: { label: "Em andamento", fg: "text-status-info", bg: "bg-status-info-bg" },
