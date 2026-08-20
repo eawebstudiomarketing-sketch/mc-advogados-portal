@@ -3,6 +3,7 @@ import { StatCard } from "@/components/ui/stat-card";
 import { StatusBadge } from "@/components/ui/status-badge";
 import { listFinancialRecords } from "@/lib/data/financial";
 import { markAsPaidAction } from "./actions";
+import { ReminderButton } from "./reminder-button";
 import { requireRole } from "@/lib/dal";
 import { formatCurrency, formatDate } from "@/lib/mock-data";
 
@@ -71,12 +72,15 @@ export default async function AdminFinancialPage() {
                 </td>
                 <td className="px-5 py-3">
                   {f.status !== "paid" && (
-                    <form action={markAsPaidAction}>
-                      <input type="hidden" name="id" value={f.id} />
-                      <button type="submit" className="text-xs font-medium text-navy hover:underline">
-                        Marcar como pago
-                      </button>
-                    </form>
+                    <div className="flex flex-col items-end gap-1.5">
+                      <form action={markAsPaidAction}>
+                        <input type="hidden" name="id" value={f.id} />
+                        <button type="submit" className="text-xs font-medium text-navy hover:underline">
+                          Marcar como pago
+                        </button>
+                      </form>
+                      <ReminderButton id={f.id} />
+                    </div>
                   )}
                 </td>
               </tr>

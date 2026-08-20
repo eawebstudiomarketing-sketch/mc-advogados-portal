@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { listReports } from "@/lib/data/reports";
 import { requireRole } from "@/lib/dal";
+import { SendReportButton } from "./send-report-button";
 
 const MESES = ["", "Janeiro", "Fevereiro", "Março", "Abril", "Maio", "Junho", "Julho", "Agosto", "Setembro", "Outubro", "Novembro", "Dezembro"];
 
@@ -51,11 +52,14 @@ export default async function AdminReportsPage() {
                   {new Date(r.created_at).toLocaleDateString("pt-BR")}
                 </td>
                 <td className="px-5 py-3">
-                  {r.downloadUrl && (
-                    <a href={r.downloadUrl} target="_blank" rel="noreferrer" className="text-xs font-medium text-navy hover:underline">
-                      Baixar PDF
-                    </a>
-                  )}
+                  <div className="flex flex-col items-end gap-1.5">
+                    {r.downloadUrl && (
+                      <a href={r.downloadUrl} target="_blank" rel="noreferrer" className="text-xs font-medium text-navy hover:underline">
+                        Baixar PDF
+                      </a>
+                    )}
+                    <SendReportButton reportId={r.id} alreadySent={!!r.sent_at} />
+                  </div>
                 </td>
               </tr>
             ))}
