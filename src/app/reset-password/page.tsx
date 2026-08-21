@@ -1,16 +1,32 @@
 "use client";
 
-import { useState, type FormEvent } from "react";
+import { useEffect, useState, type FormEvent } from "react";
 import Image from "next/image";
 import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
 
 export default function ResetPasswordPage() {
+  const [supabase] = useState(() => createClient());
+  const [ready, setReady] = useState(false);
   const [password, setPassword] = useState("");
   const [confirm, setConfirm] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [pending, setPending] = useState(false);
   const router = useRouter();
+
+  // O link do e-mail traz o token de recuperação no hash da URL — o
+  // client do Supabase processa isso de forma assíncrona ao montar e
+  // dispara o evento PASSWORD_RECOVERY quando a sessão fica pronta. Só
+  // depois disso dá pra chamar updateUser com sucesso.
+  useEffect(() => {
+    const { data: subscription } = supabase.auth.onAuthStateChange((event) => {
+      if (event === "PASSWORD_RECOVERY") setReady(true);
+    });
+    supabase.auth.getSession().then(({ data }) => {
+      if (data.session) setReady(true);
+    });
+    return () => subscription.subscription.unsubscribe();
+  }, [supabase]);
 
   async function handleSubmit(e: FormEvent) {
     e.preventDefault();
@@ -26,7 +42,6 @@ export default function ResetPasswordPage() {
     }
 
     setPending(true);
-    const supabase = createClient();
     const { error: updateError } = await supabase.auth.updateUser({ password });
     setPending(false);
 
@@ -48,47 +63,51 @@ export default function ResetPasswordPage() {
           <h1 className="mt-4 text-lg font-semibold text-navy">Definir nova senha</h1>
         </div>
 
-        <form onSubmit={handleSubmit} className="mt-6 space-y-4">
-          <div>
-            <label htmlFor="password" className="mb-1.5 block text-sm font-medium text-foreground/80">
-              Nova senha
-            </label>
-            <input
-              id="password"
-              type="password"
-              autoComplete="new-password"
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-              placeholder="••••••••"
-              className="w-full rounded-lg border border-border bg-background px-3 py-2 text-sm text-foreground placeholder:text-foreground/30 focus:border-navy focus:outline-none focus:ring-1 focus:ring-navy"
-            />
-          </div>
+        {!ready ? (
+          <p className="mt-6 text-center text-sm text-foreground/50">Validando o link...</p>
+        ) : (
+          <form onSubmit={handleSubmit} className="mt-6 space-y-4">
+            <div>
+              <label htmlFor="password" className="mb-1.5 block text-sm font-medium text-foreground/80">
+                Nova senha
+              </label>
+              <input
+                id="password"
+                type="password"
+                autoComplete="new-password"
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                placeholder="••••••••"
+                className="w-full rounded-lg border border-border bg-background px-3 py-2 text-sm text-foreground placeholder:text-foreground/30 focus:border-navy focus:outline-none focus:ring-1 focus:ring-navy"
+              />
+            </div>
 
-          <div>
-            <label htmlFor="confirm" className="mb-1.5 block text-sm font-medium text-foreground/80">
-              Confirmar senha
-            </label>
-            <input
-              id="confirm"
-              type="password"
-              autoComplete="new-password"
-              value={confirm}
-              onChange={(e) => setConfirm(e.target.value)}
-              placeholder="••••••••"
-              className="w-full rounded-lg border border-border bg-background px-3 py-2 text-sm text-foreground placeholder:text-foreground/30 focus:border-navy focus:outline-none focus:ring-1 focus:ring-navy"
-            />
-          </div>
+            <div>
+              <label htmlFor="confirm" className="mb-1.5 block text-sm font-medium text-foreground/80">
+                Confirmar senha
+              </label>
+              <input
+                id="confirm"
+                type="password"
+                autoComplete="new-password"
+                value={confirm}
+                onChange={(e) => setConfirm(e.target.value)}
+                placeholder="••••••••"
+                className="w-full rounded-lg border border-border bg-background px-3 py-2 text-sm text-foreground placeholder:text-foreground/30 focus:border-navy focus:outline-none focus:ring-1 focus:ring-navy"
+              />
+            </div>
 
-          {error && <p className="text-sm text-status-danger">{error}</p>}
+            {error && <p className="text-sm text-status-danger">{error}</p>}
 
-          <button
-            type="submit"
-            disabled={pending}
-            className="w-full rounded-lg bg-navy px-4 py-2.5 text-sm font-medium text-navy-foreground transition-colors hover:bg-navy/90 disabled:opacity-60"
-          >
-            {pending ? "Salvando..." : "Salvar nova senha"}
-          </button>
-        </form>
+            <button
+              type="submit"
+              disabled={pending}
+              className="w-full rounded-lg bg-navy px-4 py-2.5 text-sm font-medium text-navy-foreground transition-colors hover:bg-navy/90 disabled:opacity-60"
+            >
+              {pending ? "Salvando..." : "Salvar nova senha"}
+            </button>
+          </form>
+        )}
       </div>
     </div>
   );

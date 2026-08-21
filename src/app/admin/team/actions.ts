@@ -112,7 +112,10 @@ async function inviteAndCreateProfile(params: {
 }): Promise<{ error: string | null }> {
   const admin = createAdminClient();
 
-  const { data: invited, error: inviteError } = await admin.auth.admin.inviteUserByEmail(params.email);
+  const siteUrl = process.env.NEXT_PUBLIC_SITE_URL ?? "http://localhost:3000";
+  const { data: invited, error: inviteError } = await admin.auth.admin.inviteUserByEmail(params.email, {
+    redirectTo: `${siteUrl}/reset-password`,
+  });
   if (inviteError || !invited.user) {
     const message = inviteError?.message?.toLowerCase() ?? "";
     if (message.includes("already") || message.includes("registered") || message.includes("exists")) {

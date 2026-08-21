@@ -4,6 +4,7 @@ import { useState, type FormEvent } from "react";
 import { createClient } from "@/lib/supabase/client";
 
 export function AccountForm() {
+  const [supabase] = useState(() => createClient());
   const [password, setPassword] = useState("");
   const [confirm, setConfirm] = useState("");
   const [error, setError] = useState<string | null>(null);
@@ -25,7 +26,6 @@ export function AccountForm() {
     }
 
     setPending(true);
-    const supabase = createClient();
     const { error: updateError } = await supabase.auth.updateUser({ password });
     setPending(false);
 
