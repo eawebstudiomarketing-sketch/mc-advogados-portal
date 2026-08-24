@@ -1,8 +1,10 @@
 import Link from "next/link";
 import { listClients } from "@/lib/data/clients";
+import { requireRole } from "@/lib/dal";
 import { ReportForm } from "./report-form";
 
 export default async function NewReportPage() {
+  await requireRole(["admin"]);
   const clients = await listClients();
 
   return (

@@ -12,7 +12,7 @@ const ROLE_LABEL: Record<string, string> = {
 
 const NAV_ITEMS = [
   { href: "/admin", label: "Visão geral" },
-  { href: "/admin/clients", label: "Clientes" },
+  { href: "/admin/clients", label: "Clientes", adminOnly: true },
   { href: "/admin/timesheet", label: "Timesheet" },
   { href: "/admin/activities", label: "Atividades" },
   { href: "/admin/processes", label: "Processos" },

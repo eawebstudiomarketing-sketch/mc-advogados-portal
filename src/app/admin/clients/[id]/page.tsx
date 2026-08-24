@@ -11,7 +11,7 @@ import { listFinancialRecords } from "@/lib/data/financial";
 import { listTimeEntries } from "@/lib/data/time-entries";
 import { getClientPortalUser } from "@/lib/data/team";
 import { removeClientPortalUserAction } from "@/app/admin/team/actions";
-import { getProfile } from "@/lib/dal";
+import { requireRole } from "@/lib/dal";
 import { ACTIVITY_TYPE_LABEL } from "@/lib/activity-type";
 import { formatCurrency } from "@/lib/mock-data";
 import { PortalAccessInvite } from "./portal-access";
@@ -20,8 +20,8 @@ import { ConfirmSubmitButton } from "@/components/ui/confirm-submit-button";
 export default async function AdminClientDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
 
-  const profile = await getProfile();
-  const isAdmin = profile?.role === "admin";
+  await requireRole(["admin"]);
+  const isAdmin = true;
 
   const [client, activities, processes, documents, contracts, timeEntries, financial, portalUser] = await Promise.all([
     getClient(id),

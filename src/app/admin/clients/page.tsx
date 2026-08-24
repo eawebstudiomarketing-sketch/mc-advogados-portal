@@ -1,10 +1,11 @@
 import Link from "next/link";
 import { StatusBadge } from "@/components/ui/status-badge";
 import { listClients } from "@/lib/data/clients";
-import { getProfile } from "@/lib/dal";
+import { requireRole } from "@/lib/dal";
 
 export default async function AdminClientsPage() {
-  const [clients, profile] = await Promise.all([listClients(), getProfile()]);
+  await requireRole(["admin"]);
+  const clients = await listClients();
 
   return (
     <div>
@@ -15,14 +16,12 @@ export default async function AdminClientsPage() {
             {clients.length} {clients.length === 1 ? "cliente cadastrado" : "clientes cadastrados"}
           </p>
         </div>
-        {profile?.role === "admin" && (
-          <Link
-            href="/admin/clients/new"
-            className="rounded-lg bg-navy px-4 py-2 text-sm font-medium text-navy-foreground hover:bg-navy/90"
-          >
-            Novo cliente
-          </Link>
-        )}
+        <Link
+          href="/admin/clients/new"
+          className="rounded-lg bg-navy px-4 py-2 text-sm font-medium text-navy-foreground hover:bg-navy/90"
+        >
+          Novo cliente
+        </Link>
       </div>
 
       <div className="overflow-x-auto rounded-xl border border-border bg-surface shadow-sm">
