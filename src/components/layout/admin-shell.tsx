@@ -18,9 +18,12 @@ const NAV_ITEMS = [
   { href: "/admin/processes", label: "Processos" },
   { href: "/admin/documents", label: "Documentos" },
   { href: "/admin/contracts", label: "Contratos" },
-  { href: "/admin/financial", label: "Financeiro" },
-  { href: "/admin/reports", label: "Relatórios" },
-  { href: "/admin/team", label: "Equipe" },
+  // Financeiro/Relatórios/Equipe são admin-only (páginas já bloqueiam
+  // advogado via requireRole) — filtrados abaixo, não faz sentido mostrar
+  // um link que sempre bate num "acesso negado".
+  { href: "/admin/financial", label: "Financeiro", adminOnly: true },
+  { href: "/admin/reports", label: "Relatórios", adminOnly: true },
+  { href: "/admin/team", label: "Equipe", adminOnly: true },
 ];
 
 export function AdminShell({
@@ -48,7 +51,7 @@ export function AdminShell({
         </div>
 
         <nav className="flex-1 space-y-0.5 px-3">
-          {NAV_ITEMS.map((item) => {
+          {NAV_ITEMS.filter((item) => !item.adminOnly || userRole === "admin").map((item) => {
             const active = item.href === "/admin" ? pathname === "/admin" : pathname.startsWith(item.href);
             return (
               <Link
