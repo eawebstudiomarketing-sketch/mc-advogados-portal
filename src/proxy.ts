@@ -52,5 +52,24 @@ export async function proxy(request: NextRequest) {
 }
 
 export const config = {
-  matcher: ["/((?!_next/static|_next/image|favicon.ico|brand/).*)"],
+  matcher: [
+    {
+      // Requests de prefetch do <Link> (Next.js dispara um prefetch em
+      // paralelo pra cada link visível, ex: os itens do menu lateral) não
+      // devem gatilhar renovação de sessão — o resultado é descartado se o
+      // usuário nunca navegar pra lá, e várias renovações concorrentes
+      // usando o mesmo refresh token (uso único) fazem uma delas falhar e
+      // limpar o cookie de sessão de verdade, derrubando o usuário no meio
+      // de uma ação real (ex: enviando um documento). A checagem de
+      // `request.headers` dentro da função não funciona pra isso — o
+      // Next.js remove esses headers do `request` antes do Proxy rodar,
+      // então o filtro só funciona aqui, no matcher. A DAL já garante a
+      // proteção de verdade dentro de cada página/layout de qualquer forma.
+      source: "/((?!_next/static|_next/image|favicon.ico|brand/).*)",
+      missing: [
+        { type: "header", key: "next-router-prefetch" },
+        { type: "header", key: "purpose", value: "prefetch" },
+      ],
+    },
+  ],
 };

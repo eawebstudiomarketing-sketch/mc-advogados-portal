@@ -1,17 +1,41 @@
 "use client";
 
-import { useActionState } from "react";
-import { createDocumentAction, type CreateDocumentState } from "../actions";
+import { useState } from "react";
+import { useRouter } from "next/navigation";
 import { DOCUMENT_CATEGORY_LABEL, DOCUMENT_CATEGORIES } from "@/lib/document-category";
 import type { Client } from "@/lib/data/clients";
 
-const initialState: CreateDocumentState = { error: null };
-
 export function DocumentForm({ clients }: { clients: Client[] }) {
-  const [state, formAction, pending] = useActionState(createDocumentAction, initialState);
+  const router = useRouter();
+  const [error, setError] = useState<string | null>(null);
+  const [pending, setPending] = useState(false);
+
+  const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
+    e.preventDefault();
+    setPending(true);
+    setError(null);
+
+    try {
+      const res = await fetch("/api/documents/upload", {
+        method: "POST",
+        body: new FormData(e.currentTarget),
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        setError(data.error ?? "Não foi possível enviar o documento. Tente novamente.");
+        return;
+      }
+      router.push("/admin/documents");
+      router.refresh();
+    } catch {
+      setError("Não foi possível enviar o documento. Tente novamente.");
+    } finally {
+      setPending(false);
+    }
+  };
 
   return (
-    <form action={formAction} className="max-w-md space-y-4 rounded-xl border border-border bg-surface p-6 shadow-sm">
+    <form onSubmit={handleSubmit} className="max-w-md space-y-4 rounded-xl border border-border bg-surface p-6 shadow-sm">
       <div>
         <label htmlFor="client_id" className="mb-1.5 block text-sm font-medium text-foreground/80">
           Cliente
@@ -72,7 +96,7 @@ export function DocumentForm({ clients }: { clients: Client[] }) {
         />
       </div>
 
-      {state.error && <p className="text-sm text-status-danger">{state.error}</p>}
+      {error && <p className="text-sm text-status-danger">{error}</p>}
 
       <button
         type="submit"

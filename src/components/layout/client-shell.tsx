@@ -1,6 +1,14 @@
+"use client";
+
 import Image from "next/image";
 import Link from "next/link";
+import { usePathname } from "next/navigation";
 import { logout } from "@/app/logout/actions";
+
+const NAV_ITEMS = [
+  { href: "/dashboard", label: "Visão geral" },
+  { href: "/dashboard/activities", label: "Atividades" },
+];
 
 export function ClientShell({
   children,
@@ -11,6 +19,8 @@ export function ClientShell({
   userName: string;
   clientName: string;
 }) {
+  const pathname = usePathname();
+
   return (
     <div className="min-h-screen bg-background">
       <header className="border-b border-border bg-surface">
@@ -40,6 +50,25 @@ export function ClientShell({
             </form>
           </div>
         </div>
+
+        <nav className="mx-auto flex max-w-5xl gap-1 px-6">
+          {NAV_ITEMS.map((item) => {
+            const active = item.href === "/dashboard" ? pathname === "/dashboard" : pathname.startsWith(item.href);
+            return (
+              <Link
+                key={item.href}
+                href={item.href}
+                className={`border-b-2 px-3 py-2.5 text-sm transition-colors ${
+                  active
+                    ? "border-navy font-medium text-navy"
+                    : "border-transparent text-foreground/50 hover:text-foreground/80"
+                }`}
+              >
+                {item.label}
+              </Link>
+            );
+          })}
+        </nav>
       </header>
 
       <main className="mx-auto max-w-5xl px-6 py-8">{children}</main>

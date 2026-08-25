@@ -1,19 +1,26 @@
 "use client";
 
-import { useRef } from "react";
+import { useRef, useState } from "react";
 import { updateContractStatusAction } from "./actions";
 import { CONTRACT_STATUS_LABEL, CONTRACT_STATUSES, type ContractStatus } from "@/lib/contract-status";
 
 export function StatusSelect({ id, status }: { id: string; status: ContractStatus }) {
   const formRef = useRef<HTMLFormElement>(null);
+  // Select controlado: `defaultValue` só se aplica na primeira montagem, então
+  // o revalidatePath do Server Action não refletia na tela (o banco salvava
+  // certo, a UI é que ficava com o valor antigo até um reload manual).
+  const [value, setValue] = useState(status);
 
   return (
     <form ref={formRef} action={updateContractStatusAction}>
       <input type="hidden" name="id" value={id} />
       <select
         name="status"
-        defaultValue={status}
-        onChange={() => formRef.current?.requestSubmit()}
+        value={value}
+        onChange={(e) => {
+          setValue(e.target.value as ContractStatus);
+          formRef.current?.requestSubmit();
+        }}
         className="rounded-lg border border-border bg-background px-2 py-1 text-xs text-foreground focus:border-navy focus:outline-none focus:ring-1 focus:ring-navy"
       >
         {CONTRACT_STATUSES.map((s) => (
