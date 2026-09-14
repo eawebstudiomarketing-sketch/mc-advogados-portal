@@ -327,6 +327,51 @@ export type Database = {
           },
         ]
       }
+      onboardings: {
+        Row: {
+          answers: Json
+          client_id: string
+          created_at: string
+          created_by: string | null
+          id: string
+          pdf_url: string | null
+          updated_at: string
+        }
+        Insert: {
+          answers?: Json
+          client_id: string
+          created_at?: string
+          created_by?: string | null
+          id?: string
+          pdf_url?: string | null
+          updated_at?: string
+        }
+        Update: {
+          answers?: Json
+          client_id?: string
+          created_at?: string
+          created_by?: string | null
+          id?: string
+          pdf_url?: string | null
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "onboardings_client_id_fkey"
+            columns: ["client_id"]
+            isOneToOne: false
+            referencedRelation: "clients"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "onboardings_created_by_fkey"
+            columns: ["created_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       processes: {
         Row: {
           area: Database["public"]["Enums"]["process_area"]

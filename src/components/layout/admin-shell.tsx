@@ -17,10 +17,11 @@ const NAV_ITEMS = [
   { href: "/admin/processes", label: "Processos" },
   { href: "/admin/documents", label: "Documentos" },
   { href: "/admin/contracts", label: "Contratos" },
-  // Financeiro/Relatórios/Equipe são admin-only (páginas já bloqueiam
-  // advogado via requireRole) — filtrados abaixo, não faz sentido mostrar
-  // um link que sempre bate num "acesso negado".
+  // Financeiro/Relatórios/Onboarding/Equipe são admin-only (páginas já
+  // bloqueiam advogado via requireRole) — filtrados abaixo, não faz sentido
+  // mostrar um link que sempre bate num "acesso negado".
   { href: "/admin/financial", label: "Financeiro", adminOnly: true },
+  { href: "/admin/onboarding", label: "Onboarding", adminOnly: true },
   { href: "/admin/reports", label: "Relatórios", adminOnly: true },
   { href: "/admin/team", label: "Equipe", adminOnly: true },
 ];

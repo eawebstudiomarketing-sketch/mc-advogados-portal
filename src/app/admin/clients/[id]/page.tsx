@@ -9,6 +9,7 @@ import { listDocuments } from "@/lib/data/documents";
 import { listContracts } from "@/lib/data/contracts";
 import { listFinancialRecords } from "@/lib/data/financial";
 import { listTimeEntries } from "@/lib/data/time-entries";
+import { listOnboardings } from "@/lib/data/onboardings";
 import { getClientPortalUser } from "@/lib/data/team";
 import { removeClientPortalUserAction } from "@/app/admin/team/actions";
 import { requireRole } from "@/lib/dal";
@@ -23,7 +24,7 @@ export default async function AdminClientDetailPage({ params }: { params: Promis
   await requireRole(["admin"]);
   const isAdmin = true;
 
-  const [client, activities, processes, documents, contracts, timeEntries, financial, portalUser] = await Promise.all([
+  const [client, activities, processes, documents, contracts, timeEntries, financial, portalUser, onboardings] = await Promise.all([
     getClient(id),
     listActivities({ clientId: id }),
     listProcesses({ clientId: id }),
@@ -32,6 +33,7 @@ export default async function AdminClientDetailPage({ params }: { params: Promis
     listTimeEntries({ clientId: id }),
     isAdmin ? listFinancialRecords({ clientId: id }) : Promise.resolve(null),
     isAdmin ? getClientPortalUser(id) : Promise.resolve(null),
+    isAdmin ? listOnboardings({ clientId: id }) : Promise.resolve(null),
   ]);
   if (!client) notFound();
 
@@ -176,6 +178,43 @@ export default async function AdminClientDetailPage({ params }: { params: Promis
                     {formatCurrency(Number(f.amount))}
                   </span>
                   <StatusBadge status={f.status} />
+                </div>
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
+
+      {isAdmin && onboardings && (
+        <div className="mt-6 rounded-xl border border-border bg-surface p-5 shadow-sm">
+          <div className="flex items-center justify-between">
+            <h2 className="text-sm font-semibold text-navy">Onboarding</h2>
+            <Link
+              href={`/admin/onboarding/new?clientId=${client.id}`}
+              className="text-xs font-medium text-navy hover:underline"
+            >
+              + Novo onboarding
+            </Link>
+          </div>
+          <ul className="mt-3 divide-y divide-border">
+            {onboardings.length === 0 && <p className="py-3 text-sm text-foreground/50">Onboarding ainda não feito.</p>}
+            {onboardings.map((o) => (
+              <li key={o.id} className="flex items-center justify-between gap-3 py-3">
+                <div>
+                  <p className="text-sm text-foreground">
+                    Feito em {new Date(o.created_at).toLocaleDateString("pt-BR")}
+                  </p>
+                  <p className="text-xs text-foreground/50">{o.profiles?.full_name ?? "—"}</p>
+                </div>
+                <div className="flex items-center gap-3">
+                  <Link href={`/admin/onboarding/${o.id}`} className="text-xs font-medium text-navy hover:underline">
+                    Ver
+                  </Link>
+                  {o.downloadUrl && (
+                    <a href={o.downloadUrl} target="_blank" rel="noreferrer" className="text-xs font-medium text-navy hover:underline">
+                      Baixar PDF
+                    </a>
+                  )}
                 </div>
               </li>
             ))}
