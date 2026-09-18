@@ -20,10 +20,46 @@ export async function POST(request: Request) {
   const profile = await requireRole(["admin", "advogado"]);
 
   const formData = await request.formData();
-  const clientId = formData.get("client_id");
+  let clientId = formData.get("client_id");
+  const activityId = formData.get("activity_id");
+  const processId = formData.get("process_id");
   const title = formData.get("title");
   const category = formData.get("category");
   const file = formData.get("file");
+
+  const supabaseForLookup = await createClient();
+
+  // Quando o envio vem da tela de uma atividade/processo específico, o
+  // cliente nunca é escolhido no formulário — é derivado aqui a partir do
+  // registro real, pra garantir que o documento fica no client_id certo
+  // mesmo que o campo escondido tenha sido alterado no navegador.
+  if (typeof activityId === "string" && activityId) {
+    const { data: activity } = await supabaseForLookup
+      .from("activities")
+      .select("client_id")
+      .eq("id", activityId)
+      .maybeSingle();
+    if (!activity) {
+      return NextResponse.json({ error: "Atividade não encontrada." }, { status: 400 });
+    }
+    if (!activity.client_id) {
+      return NextResponse.json(
+        { error: "Esta atividade não tem cliente vinculado, então ainda não é possível anexar documentos a ela." },
+        { status: 400 }
+      );
+    }
+    clientId = activity.client_id;
+  } else if (typeof processId === "string" && processId) {
+    const { data: processRow } = await supabaseForLookup
+      .from("processes")
+      .select("client_id")
+      .eq("id", processId)
+      .maybeSingle();
+    if (!processRow) {
+      return NextResponse.json({ error: "Processo não encontrado." }, { status: 400 });
+    }
+    clientId = processRow.client_id;
+  }
 
   if (typeof clientId !== "string" || !clientId) {
     return NextResponse.json({ error: "Selecione o cliente." }, { status: 400 });
@@ -38,7 +74,7 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "Selecione um arquivo." }, { status: 400 });
   }
 
-  const supabase = await createClient();
+  const supabase = supabaseForLookup;
   const filePath = `${clientId}/${Date.now()}-${sanitizeFileName(file.name)}`;
 
   const { error: uploadError } = await supabase.storage.from("documents").upload(filePath, file);
@@ -48,6 +84,8 @@ export async function POST(request: Request) {
 
   const { error: insertError } = await supabase.from("documents").insert({
     client_id: clientId,
+    activity_id: typeof activityId === "string" && activityId ? activityId : null,
+    process_id: typeof processId === "string" && processId ? processId : null,
     uploaded_by: profile.id,
     category: category as Database["public"]["Enums"]["document_category"],
     title: title.trim(),
@@ -60,5 +98,8 @@ export async function POST(request: Request) {
   }
 
   revalidatePath("/admin/documents");
-  return NextResponse.json({ ok: true });
+  if (typeof activityId === "string" && activityId) revalidatePath(`/admin/activities/${activityId}`);
+  if (typeof processId === "string" && processId) revalidatePath(`/admin/processes/${processId}`);
+  revalidatePath(`/admin/clients/${clientId}`);
+  return NextResponse.json({ ok: true, activityId, processId });
 }

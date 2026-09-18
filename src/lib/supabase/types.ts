@@ -153,33 +153,53 @@ export type Database = {
       }
       documents: {
         Row: {
+          activity_id: string | null
           category: Database["public"]["Enums"]["document_category"]
           client_id: string
           created_at: string
           file_path: string
           id: string
+          process_id: string | null
           title: string
           uploaded_by: string
         }
         Insert: {
+          activity_id?: string | null
           category: Database["public"]["Enums"]["document_category"]
           client_id: string
           created_at?: string
           file_path: string
           id?: string
+          process_id?: string | null
           title: string
           uploaded_by: string
         }
         Update: {
+          activity_id?: string | null
           category?: Database["public"]["Enums"]["document_category"]
           client_id?: string
           created_at?: string
           file_path?: string
           id?: string
+          process_id?: string | null
           title?: string
           uploaded_by?: string
         }
         Relationships: [
+          {
+            foreignKeyName: "documents_activity_id_fkey"
+            columns: ["activity_id"]
+            isOneToOne: false
+            referencedRelation: "activities"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "documents_process_id_fkey"
+            columns: ["process_id"]
+            isOneToOne: false
+            referencedRelation: "processes"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "documents_client_id_fkey"
             columns: ["client_id"]

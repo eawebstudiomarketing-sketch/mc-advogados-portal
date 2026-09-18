@@ -5,10 +5,25 @@ import { useRouter } from "next/navigation";
 import { DOCUMENT_CATEGORY_LABEL, DOCUMENT_CATEGORIES } from "@/lib/document-category";
 import type { Client } from "@/lib/data/clients";
 
-export function DocumentForm({ clients }: { clients: Client[] }) {
+export function DocumentForm({
+  clients,
+  activityId,
+  processId,
+  clientId,
+  scopeLabel,
+  returnTo,
+}: {
+  clients: Client[];
+  activityId?: string;
+  processId?: string;
+  clientId?: string;
+  scopeLabel?: string;
+  returnTo?: string;
+}) {
   const router = useRouter();
   const [error, setError] = useState<string | null>(null);
   const [pending, setPending] = useState(false);
+  const scoped = Boolean(activityId || processId);
 
   const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
@@ -25,7 +40,7 @@ export function DocumentForm({ clients }: { clients: Client[] }) {
         setError(data.error ?? "Não foi possível enviar o documento. Tente novamente.");
         return;
       }
-      router.push("/admin/documents");
+      router.push(returnTo ?? "/admin/documents");
       router.refresh();
     } catch {
       setError("Não foi possível enviar o documento. Tente novamente.");
@@ -36,22 +51,35 @@ export function DocumentForm({ clients }: { clients: Client[] }) {
 
   return (
     <form onSubmit={handleSubmit} className="max-w-md space-y-4 rounded-xl border border-border bg-surface p-6 shadow-sm">
-      <div>
-        <label htmlFor="client_id" className="mb-1.5 block text-sm font-medium text-foreground/80">
-          Cliente
-        </label>
-        <select
-          id="client_id"
-          name="client_id"
-          className="w-full rounded-lg border border-border bg-background px-3 py-2 text-sm text-foreground focus:border-navy focus:outline-none focus:ring-1 focus:ring-navy"
-        >
-          {clients.map((c) => (
-            <option key={c.id} value={c.id}>
-              {c.name}
-            </option>
-          ))}
-        </select>
-      </div>
+      {activityId && <input type="hidden" name="activity_id" value={activityId} />}
+      {processId && <input type="hidden" name="process_id" value={processId} />}
+
+      {scoped ? (
+        <div>
+          <p className="mb-1.5 block text-sm font-medium text-foreground/80">Cliente</p>
+          <p className="rounded-lg border border-border bg-background px-3 py-2 text-sm text-foreground/70">
+            {scopeLabel ?? "Definido automaticamente"}
+          </p>
+        </div>
+      ) : (
+        <div>
+          <label htmlFor="client_id" className="mb-1.5 block text-sm font-medium text-foreground/80">
+            Cliente
+          </label>
+          <select
+            id="client_id"
+            name="client_id"
+            defaultValue={clientId}
+            className="w-full rounded-lg border border-border bg-background px-3 py-2 text-sm text-foreground focus:border-navy focus:outline-none focus:ring-1 focus:ring-navy"
+          >
+            {clients.map((c) => (
+              <option key={c.id} value={c.id}>
+                {c.name}
+              </option>
+            ))}
+          </select>
+        </div>
+      )}
 
       <div>
         <label htmlFor="title" className="mb-1.5 block text-sm font-medium text-foreground/80">

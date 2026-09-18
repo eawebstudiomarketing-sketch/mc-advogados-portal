@@ -22,6 +22,8 @@ export default async function AdminOverviewPage() {
   const clientesAtivos = clients.filter((c) => c.active);
   const inadimplentes = financeiro?.filter((f) => f.status === "overdue") ?? [];
   const atividadesAbertas = activities.filter((a) => a.status !== "concluida");
+  const ATIVIDADES_PREVIEW = 5;
+  const atividadesAbertasPreview = atividadesAbertas.slice(0, ATIVIDADES_PREVIEW);
 
   const mesReferencia = new Date().toLocaleDateString("pt-BR", { month: "long", year: "numeric" });
 
@@ -82,17 +84,25 @@ export default async function AdminOverviewPage() {
             </Link>
           </div>
           <ul className="divide-y divide-border">
-            {atividadesAbertas.length === 0 && <p className="py-3 text-sm text-foreground/50">Nenhuma atividade em aberto.</p>}
-            {atividadesAbertas.map((a) => (
+            {atividadesAbertasPreview.length === 0 && <p className="py-3 text-sm text-foreground/50">Nenhuma atividade em aberto.</p>}
+            {atividadesAbertasPreview.map((a) => (
               <li key={a.id} className="flex items-center justify-between gap-3 py-3">
-                <div>
-                  <p className="text-sm text-foreground">{a.title}</p>
-                  <p className="text-xs text-foreground/50">{a.clients?.name} · {a.profiles?.full_name}</p>
-                </div>
+                <Link href={`/admin/activities/${a.id}`} className="text-sm text-foreground hover:text-navy hover:underline">
+                  {a.title}
+                  <span className="block text-xs text-foreground/50">{a.clients?.name} · {a.profiles?.full_name}</span>
+                </Link>
                 <StatusBadge status={a.status} />
               </li>
             ))}
           </ul>
+          {atividadesAbertas.length > ATIVIDADES_PREVIEW && (
+            <Link
+              href="/admin/activities"
+              className="mt-3 block text-center text-xs font-medium text-navy hover:underline"
+            >
+              Ver mais {atividadesAbertas.length - ATIVIDADES_PREVIEW} atividade(s)
+            </Link>
+          )}
         </div>
       </div>
 

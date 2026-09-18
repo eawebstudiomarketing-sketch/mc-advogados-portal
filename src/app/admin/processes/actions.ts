@@ -110,4 +110,5 @@ export async function deleteProcessAction(formData: FormData): Promise<void> {
   await supabase.from("processes").delete().eq("id", id);
 
   revalidatePath("/admin/processes");
+  redirect("/admin/processes");
 }

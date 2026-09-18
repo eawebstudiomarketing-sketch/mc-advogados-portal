@@ -121,4 +121,5 @@ export async function deleteActivityAction(formData: FormData): Promise<void> {
   await supabase.from("activities").delete().eq("id", id);
 
   revalidatePath("/admin/activities");
+  redirect("/admin/activities");
 }

@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import type { DragEvent } from "react";
+import Link from "next/link";
 import type { Activity } from "@/lib/data/activities";
 import { ACTIVITY_TYPE_LABEL } from "@/lib/activity-type";
 import { ACTIVITY_STATUS_LABEL, ACTIVITY_STATUSES, type ActivityStatus } from "@/lib/activity-status";
@@ -76,7 +77,9 @@ export function ActivitiesKanban({ activities }: { activities: Activity[] }) {
                   dragId === a.id ? "opacity-40" : ""
                 }`}
               >
-                <p className="text-sm font-medium text-foreground">{a.title}</p>
+                <Link href={`/admin/activities/${a.id}`} className="text-sm font-medium text-foreground hover:text-navy hover:underline">
+                  {a.title}
+                </Link>
                 <p className="mt-1 text-xs text-foreground/50">{a.clients?.name}</p>
                 <div className="mt-2 flex items-center justify-between text-xs text-foreground/40">
                   <span>{ACTIVITY_TYPE_LABEL[a.type]}</span>

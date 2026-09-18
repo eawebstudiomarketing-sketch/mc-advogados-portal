@@ -49,7 +49,11 @@ export default async function AdminProcessesPage() {
             )}
             {processes.map((p) => (
               <tr key={p.id} className="hover:bg-background">
-                <td className="px-5 py-3 font-medium text-foreground">{p.numero_processo}</td>
+                <td className="px-5 py-3 font-medium">
+                  <Link href={`/admin/processes/${p.id}`} className="text-navy hover:underline">
+                    {p.numero_processo}
+                  </Link>
+                </td>
                 <td className="px-5 py-3 text-foreground/70">{p.clients?.name}</td>
                 <td className="px-5 py-3 text-foreground/70">{p.vara_tribunal ?? "—"}</td>
                 <td className="px-5 py-3 text-foreground/70">{PROCESS_AREA_LABEL[p.area]}</td>

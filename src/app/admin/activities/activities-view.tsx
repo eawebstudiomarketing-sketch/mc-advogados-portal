@@ -60,7 +60,9 @@ export function ActivitiesView({ activities }: { activities: Activity[] }) {
               {activities.map((a) => (
                 <tr key={a.id} className="hover:bg-background">
                   <td className="px-5 py-3">
-                    <p className="font-medium text-foreground">{a.title}</p>
+                    <Link href={`/admin/activities/${a.id}`} className="font-medium text-navy hover:underline">
+                      {a.title}
+                    </Link>
                     <p className="text-xs text-foreground/50">{ACTIVITY_TYPE_LABEL[a.type]}</p>
                   </td>
                   <td className="px-5 py-3 text-foreground/70">{a.clients?.name}</td>

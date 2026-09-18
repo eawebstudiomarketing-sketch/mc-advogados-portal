@@ -93,7 +93,9 @@ export default async function AdminClientDetailPage({ params }: { params: Promis
             {activities.map((a) => (
               <li key={a.id} className="flex items-center justify-between gap-3 py-3">
                 <div>
-                  <p className="text-sm text-foreground">{a.title}</p>
+                  <Link href={`/admin/activities/${a.id}`} className="text-sm text-foreground hover:text-navy hover:underline">
+                    {a.title}
+                  </Link>
                   <p className="text-xs text-foreground/50">
                     {ACTIVITY_TYPE_LABEL[a.type]} · {a.profiles?.full_name}
                   </p>
@@ -110,7 +112,9 @@ export default async function AdminClientDetailPage({ params }: { params: Promis
             {processes.length === 0 && <p className="py-3 text-sm text-foreground/50">Nenhum processo em andamento.</p>}
             {processes.map((p) => (
               <li key={p.id} className="py-3">
-                <p className="text-sm text-foreground">{p.numero_processo}</p>
+                <Link href={`/admin/processes/${p.id}`} className="text-sm text-foreground hover:text-navy hover:underline">
+                  {p.numero_processo}
+                </Link>
                 <p className="text-xs text-foreground/50">{p.vara_tribunal ?? "—"} · {p.fase ?? "—"}</p>
               </li>
             ))}
@@ -118,7 +122,12 @@ export default async function AdminClientDetailPage({ params }: { params: Promis
         </div>
 
         <div className="rounded-xl border border-border bg-surface p-5 shadow-sm">
-          <h2 className="text-sm font-semibold text-navy">Documentos</h2>
+          <div className="flex items-center justify-between">
+            <h2 className="text-sm font-semibold text-navy">Documentos</h2>
+            <Link href={`/admin/documents/new?clientId=${client.id}`} className="text-xs font-medium text-navy hover:underline">
+              + Adicionar documento
+            </Link>
+          </div>
           <ul className="mt-3 divide-y divide-border">
             {documents.length === 0 && <p className="py-3 text-sm text-foreground/50">Nenhum documento anexado.</p>}
             {documents.map((d) => (
