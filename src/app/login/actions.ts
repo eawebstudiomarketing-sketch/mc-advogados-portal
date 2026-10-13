@@ -27,9 +27,14 @@ export async function login(_prevState: LoginState, formData: FormData): Promise
 
   const { data: profile } = await supabase
     .from("profiles")
-    .select("role")
+    .select("role, ativo")
     .eq("user_id", data.user.id)
     .single();
+
+  if (profile && !profile.ativo) {
+    await supabase.auth.signOut();
+    return { error: "Seu acesso ao portal foi desativado. Fale com o administrador." };
+  }
 
   const next = safeNextPath(formData.get("next"));
   redirect(next ?? (profile?.role === "client" ? "/dashboard" : "/admin"));

@@ -40,11 +40,11 @@ export function AccountForm() {
   }
 
   return (
-    <form onSubmit={handleSubmit} className="space-y-4 rounded-xl border border-border bg-surface p-6 shadow-sm">
-      <h2 className="text-sm font-semibold text-navy">Trocar senha</h2>
+    <form onSubmit={handleSubmit} className="space-y-4 ui-card p-6">
+      <h2 className="section-title">Trocar senha</h2>
 
       <div>
-        <label htmlFor="password" className="mb-1.5 block text-sm font-medium text-foreground/80">
+        <label htmlFor="password" className="ui-label">
           Nova senha
         </label>
         <input
@@ -54,12 +54,12 @@ export function AccountForm() {
           value={password}
           onChange={(e) => setPassword(e.target.value)}
           placeholder="••••••••"
-          className="w-full rounded-lg border border-border bg-background px-3 py-2 text-sm text-foreground placeholder:text-foreground/30 focus:border-navy focus:outline-none focus:ring-1 focus:ring-navy"
+          className="ui-input"
         />
       </div>
 
       <div>
-        <label htmlFor="confirm" className="mb-1.5 block text-sm font-medium text-foreground/80">
+        <label htmlFor="confirm" className="ui-label">
           Confirmar nova senha
         </label>
         <input
@@ -69,7 +69,7 @@ export function AccountForm() {
           value={confirm}
           onChange={(e) => setConfirm(e.target.value)}
           placeholder="••••••••"
-          className="w-full rounded-lg border border-border bg-background px-3 py-2 text-sm text-foreground placeholder:text-foreground/30 focus:border-navy focus:outline-none focus:ring-1 focus:ring-navy"
+          className="ui-input"
         />
       </div>
 
@@ -79,7 +79,7 @@ export function AccountForm() {
       <button
         type="submit"
         disabled={pending}
-        className="w-full rounded-lg bg-navy px-4 py-2.5 text-sm font-medium text-navy-foreground transition-colors hover:bg-navy/90 disabled:opacity-60"
+        className="ui-btn w-full py-2.5"
       >
         {pending ? "Salvando..." : "Salvar nova senha"}
       </button>

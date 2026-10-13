@@ -2,6 +2,7 @@
 
 import { useActionState } from "react";
 import { inviteStaffAction, type InviteUserState } from "../actions";
+import { VoltarInput } from "@/components/nav/back-button";
 
 const initialState: InviteUserState = { error: null };
 
@@ -9,9 +10,10 @@ export function NewStaffForm() {
   const [state, formAction, pending] = useActionState(inviteStaffAction, initialState);
 
   return (
-    <form action={formAction} className="max-w-md space-y-4 rounded-xl border border-border bg-surface p-6 shadow-sm">
+    <form action={formAction} className="max-w-xl space-y-5 ui-card p-6">
+      <VoltarInput />
       <div>
-        <label htmlFor="full_name" className="mb-1.5 block text-sm font-medium text-foreground/80">
+        <label htmlFor="full_name" className="ui-label">
           Nome completo
         </label>
         <input
@@ -19,12 +21,12 @@ export function NewStaffForm() {
           name="full_name"
           type="text"
           required
-          className="w-full rounded-lg border border-border bg-background px-3 py-2 text-sm text-foreground focus:border-navy focus:outline-none focus:ring-1 focus:ring-navy"
+          className="ui-input"
         />
       </div>
 
       <div>
-        <label htmlFor="email" className="mb-1.5 block text-sm font-medium text-foreground/80">
+        <label htmlFor="email" className="ui-label">
           E-mail
         </label>
         <input
@@ -32,19 +34,19 @@ export function NewStaffForm() {
           name="email"
           type="email"
           required
-          className="w-full rounded-lg border border-border bg-background px-3 py-2 text-sm text-foreground focus:border-navy focus:outline-none focus:ring-1 focus:ring-navy"
+          className="ui-input"
         />
       </div>
 
       <div>
-        <label htmlFor="role" className="mb-1.5 block text-sm font-medium text-foreground/80">
+        <label htmlFor="role" className="ui-label">
           Papel
         </label>
         <select
           id="role"
           name="role"
           defaultValue="advogado"
-          className="w-full rounded-lg border border-border bg-background px-3 py-2 text-sm text-foreground focus:border-navy focus:outline-none focus:ring-1 focus:ring-navy"
+          className="ui-input"
         >
           <option value="advogado">Advogado(a)</option>
           <option value="admin">Administrador</option>
@@ -56,12 +58,12 @@ export function NewStaffForm() {
       <button
         type="submit"
         disabled={pending}
-        className="w-full rounded-lg bg-navy px-4 py-2.5 text-sm font-medium text-navy-foreground transition-colors hover:bg-navy/90 disabled:opacity-60"
+        className="ui-btn w-full py-2.5"
       >
         {pending ? "Enviando convite..." : "Enviar convite"}
       </button>
 
-      <p className="text-xs text-foreground/40">
+      <p className="text-xs text-muted">
         A pessoa recebe um e-mail do Supabase com um link pra definir a própria senha e acessar o painel.
       </p>
     </form>

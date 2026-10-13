@@ -14,6 +14,33 @@ export type Database = {
   }
   public: {
     Tables: {
+      activity_deadline_alerts: {
+        Row: {
+          activity_id: string
+          deadline: string
+          id: string
+          sent_at: string
+          sent_to: string
+          tipo: string
+        }
+        Insert: {
+          activity_id: string
+          deadline: string
+          id?: string
+          sent_at?: string
+          sent_to: string
+          tipo: string
+        }
+        Update: {
+          activity_id?: string
+          deadline?: string
+          id?: string
+          sent_at?: string
+          sent_to?: string
+          tipo?: string
+        }
+        Relationships: []
+      }
       activities: {
         Row: {
           client_id: string
@@ -22,10 +49,12 @@ export type Database = {
           description: string | null
           id: string
           responsible_id: string
+          responsavel_id: string | null
           status: Database["public"]["Enums"]["activity_status"]
           title: string
           type: Database["public"]["Enums"]["activity_type"]
           updated_at: string
+          archived_at: string | null
         }
         Insert: {
           client_id: string
@@ -34,10 +63,12 @@ export type Database = {
           description?: string | null
           id?: string
           responsible_id: string
+          responsavel_id?: string | null
           status?: Database["public"]["Enums"]["activity_status"]
           title: string
           type: Database["public"]["Enums"]["activity_type"]
           updated_at?: string
+          archived_at?: string | null
         }
         Update: {
           client_id?: string
@@ -46,12 +77,21 @@ export type Database = {
           description?: string | null
           id?: string
           responsible_id?: string
+          responsavel_id?: string | null
           status?: Database["public"]["Enums"]["activity_status"]
           title?: string
           type?: Database["public"]["Enums"]["activity_type"]
           updated_at?: string
+          archived_at?: string | null
         }
         Relationships: [
+          {
+            foreignKeyName: "activities_responsavel_id_fkey"
+            columns: ["responsavel_id"]
+            isOneToOne: false
+            referencedRelation: "responsaveis"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "activities_client_id_fkey"
             columns: ["client_id"]
@@ -68,9 +108,36 @@ export type Database = {
           },
         ]
       }
+      client_handoffs: {
+        Row: {
+          client_id: string
+          handoff: Json | null
+          handoff_updated_at: string | null
+          triagem: string | null
+          triagem_updated_at: string | null
+        }
+        Insert: {
+          client_id: string
+          handoff?: Json | null
+          handoff_updated_at?: string | null
+          triagem?: string | null
+          triagem_updated_at?: string | null
+        }
+        Update: {
+          client_id?: string
+          handoff?: Json | null
+          handoff_updated_at?: string | null
+          triagem?: string | null
+          triagem_updated_at?: string | null
+        }
+        Relationships: []
+      }
       clients: {
         Row: {
           active: boolean
+          drive_folder_id: string | null
+          drive_import_folder_ids: string[]
+          drive_last_sync_at: string | null
           created_at: string
           documento: string
           email_contact: string
@@ -79,9 +146,17 @@ export type Database = {
           plan_start_date: string
           tipo_pessoa: Database["public"]["Enums"]["tipo_pessoa"]
           updated_at: string
+          triagem: string | null
+          triagem_updated_at: string | null
+          handoff: Json | null
+          handoff_updated_at: string | null
+          archived_at: string | null
         }
         Insert: {
           active?: boolean
+          drive_folder_id?: string | null
+          drive_import_folder_ids?: string[]
+          drive_last_sync_at?: string | null
           created_at?: string
           documento: string
           email_contact: string
@@ -90,9 +165,17 @@ export type Database = {
           plan_start_date?: string
           tipo_pessoa: Database["public"]["Enums"]["tipo_pessoa"]
           updated_at?: string
+          triagem?: string | null
+          triagem_updated_at?: string | null
+          handoff?: Json | null
+          handoff_updated_at?: string | null
+          archived_at?: string | null
         }
         Update: {
           active?: boolean
+          drive_folder_id?: string | null
+          drive_import_folder_ids?: string[]
+          drive_last_sync_at?: string | null
           created_at?: string
           documento?: string
           email_contact?: string
@@ -101,6 +184,11 @@ export type Database = {
           plan_start_date?: string
           tipo_pessoa?: Database["public"]["Enums"]["tipo_pessoa"]
           updated_at?: string
+          triagem?: string | null
+          triagem_updated_at?: string | null
+          handoff?: Json | null
+          handoff_updated_at?: string | null
+          archived_at?: string | null
         }
         Relationships: []
       }
@@ -151,39 +239,150 @@ export type Database = {
           },
         ]
       }
+      drive_connection: {
+        Row: {
+          account_email: string
+          connected_at: string
+          connected_by: string | null
+          id: boolean
+          refresh_token: string
+          root_folder_id: string
+        }
+        Insert: {
+          account_email: string
+          connected_at?: string
+          connected_by?: string | null
+          id?: boolean
+          refresh_token: string
+          root_folder_id: string
+        }
+        Update: {
+          account_email?: string
+          connected_at?: string
+          connected_by?: string | null
+          id?: boolean
+          refresh_token?: string
+          root_folder_id?: string
+        }
+        Relationships: []
+      }
+      drive_sync_runs: {
+        Row: {
+          clients_pending: number
+          clients_synced: number
+          exported: number
+          failed: number
+          finished_at: string | null
+          id: string
+          imported: number
+          note: string | null
+          started_at: string
+        }
+        Insert: {
+          clients_pending?: number
+          clients_synced?: number
+          exported?: number
+          failed?: number
+          finished_at?: string | null
+          id?: string
+          imported?: number
+          note?: string | null
+          started_at?: string
+        }
+        Update: {
+          clients_pending?: number
+          clients_synced?: number
+          exported?: number
+          failed?: number
+          finished_at?: string | null
+          id?: string
+          imported?: number
+          note?: string | null
+          started_at?: string
+        }
+        Relationships: []
+      }
+      documents_trash: {
+        Row: {
+          batch_id: string
+          client_id: string
+          data: Json
+          deleted_at: string
+          deleted_by: string | null
+          id: string
+          meta: Json | null
+          reason: string
+          title: string
+        }
+        Insert: {
+          batch_id: string
+          client_id: string
+          data: Json
+          deleted_at?: string
+          deleted_by?: string | null
+          id: string
+          meta?: Json | null
+          reason: string
+          title: string
+        }
+        Update: {
+          batch_id?: string
+          client_id?: string
+          data?: Json
+          deleted_at?: string
+          deleted_by?: string | null
+          id?: string
+          meta?: Json | null
+          reason?: string
+          title?: string
+        }
+        Relationships: []
+      }
       documents: {
         Row: {
           activity_id: string | null
           category: Database["public"]["Enums"]["document_category"]
           client_id: string
           created_at: string
+          drive_file_id: string | null
+          legacy_file_path: string | null
           file_path: string
           id: string
           process_id: string | null
           title: string
           uploaded_by: string
+          meeting_date: string | null
+          requested_item: string | null
         }
         Insert: {
           activity_id?: string | null
           category: Database["public"]["Enums"]["document_category"]
           client_id: string
           created_at?: string
+          drive_file_id?: string | null
           file_path: string
           id?: string
           process_id?: string | null
           title: string
           uploaded_by: string
+          legacy_file_path?: string | null
+          meeting_date?: string | null
+          requested_item?: string | null
         }
         Update: {
           activity_id?: string | null
           category?: Database["public"]["Enums"]["document_category"]
           client_id?: string
           created_at?: string
+          drive_file_id?: string | null
           file_path?: string
           id?: string
           process_id?: string | null
           title?: string
           uploaded_by?: string
+          legacy_file_path?: string | null
+          meeting_date?: string | null
+          requested_item?: string | null
         }
         Relationships: [
           {
@@ -302,6 +501,7 @@ export type Database = {
       monthly_reports: {
         Row: {
           client_id: string
+          drive_file_id: string | null
           created_at: string
           id: string
           pdf_url: string | null
@@ -319,6 +519,7 @@ export type Database = {
           reference_year: number
           sent_at?: string | null
           sent_by?: string | null
+          drive_file_id?: string | null
         }
         Update: {
           client_id?: string
@@ -329,6 +530,7 @@ export type Database = {
           reference_year?: number
           sent_at?: string | null
           sent_by?: string | null
+          drive_file_id?: string | null
         }
         Relationships: [
           {
@@ -347,15 +549,183 @@ export type Database = {
           },
         ]
       }
+      onboarding_demand_drafts: {
+        Row: {
+          action: string
+          activity_id: string | null
+          activity_type: Database["public"]["Enums"]["activity_type"]
+          client_id: string
+          created_at: string
+          deadline: string | null
+          id: string
+          next_step: string
+          onboarding_id: string | null
+          position: number
+          priority: Database["public"]["Enums"]["demand_priority"]
+          reason: string
+          status: Database["public"]["Enums"]["demand_draft_status"]
+          title: string
+          updated_at: string
+          sources: Json
+          instructions: string | null
+        }
+        Insert: {
+          action?: string
+          activity_id?: string | null
+          activity_type?: Database["public"]["Enums"]["activity_type"]
+          client_id: string
+          created_at?: string
+          deadline?: string | null
+          id?: string
+          next_step?: string
+          onboarding_id?: string | null
+          position?: number
+          priority?: Database["public"]["Enums"]["demand_priority"]
+          reason?: string
+          status?: Database["public"]["Enums"]["demand_draft_status"]
+          title: string
+          updated_at?: string
+          sources?: Json
+          instructions?: string | null
+        }
+        Update: {
+          action?: string
+          activity_id?: string | null
+          activity_type?: Database["public"]["Enums"]["activity_type"]
+          client_id?: string
+          created_at?: string
+          deadline?: string | null
+          id?: string
+          next_step?: string
+          onboarding_id?: string | null
+          position?: number
+          priority?: Database["public"]["Enums"]["demand_priority"]
+          reason?: string
+          status?: Database["public"]["Enums"]["demand_draft_status"]
+          title?: string
+          updated_at?: string
+          sources?: Json
+          instructions?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "onboarding_demand_drafts_onboarding_id_fkey"
+            columns: ["onboarding_id"]
+            isOneToOne: false
+            referencedRelation: "onboardings"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "onboarding_demand_drafts_client_id_fkey"
+            columns: ["client_id"]
+            isOneToOne: false
+            referencedRelation: "clients"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "onboarding_demand_drafts_activity_id_fkey"
+            columns: ["activity_id"]
+            isOneToOne: false
+            referencedRelation: "activities"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      responsaveis: {
+        Row: {
+          created_at: string
+          email: string
+          id: string
+          nome: string
+          profile_id: string | null
+        }
+        Insert: {
+          created_at?: string
+          email: string
+          id?: string
+          nome: string
+          profile_id?: string | null
+        }
+        Update: {
+          created_at?: string
+          email?: string
+          id?: string
+          nome?: string
+          profile_id?: string | null
+        }
+        Relationships: []
+      }
+      onboarding_perguntas_modelo: {
+        Row: {
+          created_at: string
+          created_by: string | null
+          id: string
+          stage_id: string
+          texto: string
+        }
+        Insert: {
+          created_at?: string
+          created_by?: string | null
+          id?: string
+          stage_id: string
+          texto: string
+        }
+        Update: {
+          created_at?: string
+          created_by?: string | null
+          id?: string
+          stage_id?: string
+          texto?: string
+        }
+        Relationships: []
+      }
+      equipe_clientes: {
+        Row: {
+          client_id: string
+          created_at: string
+          profile_id: string
+        }
+        Insert: {
+          client_id: string
+          created_at?: string
+          profile_id: string
+        }
+        Update: {
+          client_id?: string
+          created_at?: string
+          profile_id?: string
+        }
+        Relationships: []
+      }
+      equipe_permissoes: {
+        Row: {
+          permissoes: Json
+          profile_id: string
+          updated_at: string
+        }
+        Insert: {
+          permissoes?: Json
+          profile_id: string
+          updated_at?: string
+        }
+        Update: {
+          permissoes?: Json
+          profile_id?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
       onboardings: {
         Row: {
           answers: Json
           client_id: string
           created_at: string
           created_by: string | null
+          drive_file_id: string | null
           id: string
           pdf_url: string | null
           updated_at: string
+          questions: Json | null
         }
         Insert: {
           answers?: Json
@@ -365,6 +735,8 @@ export type Database = {
           id?: string
           pdf_url?: string | null
           updated_at?: string
+          drive_file_id?: string | null
+          questions?: Json | null
         }
         Update: {
           answers?: Json
@@ -374,6 +746,8 @@ export type Database = {
           id?: string
           pdf_url?: string | null
           updated_at?: string
+          drive_file_id?: string | null
+          questions?: Json | null
         }
         Relationships: [
           {
@@ -453,6 +827,8 @@ export type Database = {
           email: string
           full_name: string
           id: string
+          ativo: boolean
+          oculto: boolean
           role: Database["public"]["Enums"]["user_role"]
           user_id: string
         }
@@ -462,6 +838,8 @@ export type Database = {
           email: string
           full_name: string
           id?: string
+          ativo?: boolean
+          oculto?: boolean
           role: Database["public"]["Enums"]["user_role"]
           user_id: string
         }
@@ -471,6 +849,8 @@ export type Database = {
           email?: string
           full_name?: string
           id?: string
+          ativo?: boolean
+          oculto?: boolean
           role?: Database["public"]["Enums"]["user_role"]
           user_id?: string
         }
@@ -540,6 +920,14 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
+      restore_documents: {
+        Args: { p_batch: string }
+        Returns: { restored: number; skipped: number }[]
+      }
+      trash_documents: {
+        Args: { p_ids: string[]; p_reason: string; p_by: string | null; p_meta?: Json | null }
+        Returns: { batch_id: string; removed: number }[]
+      }
       current_profile_id: { Args: never; Returns: string }
       current_user_client_id: { Args: never; Returns: string }
       current_user_role: {
@@ -556,12 +944,15 @@ export type Database = {
         | "reuniao"
         | "pesquisa"
       contract_status: "active" | "expired" | "cancelled"
+      demand_draft_status: "rascunho" | "aprovada" | "descartada"
+      demand_priority: "alta" | "media" | "baixa"
       document_category:
         | "contrato"
         | "processo"
         | "financeiro"
         | "pessoal"
         | "outros"
+        | "ata"
       financial_status: "pending" | "paid" | "overdue" | "cancelled"
       process_area:
         | "trabalhista"
@@ -707,12 +1098,15 @@ export const Constants = {
         "pesquisa",
       ],
       contract_status: ["active", "expired", "cancelled"],
+      demand_draft_status: ["rascunho", "aprovada", "descartada"],
+      demand_priority: ["alta", "media", "baixa"],
       document_category: [
         "contrato",
         "processo",
         "financeiro",
         "pessoal",
         "outros",
+        "ata",
       ],
       financial_status: ["pending", "paid", "overdue", "cancelled"],
       process_area: [

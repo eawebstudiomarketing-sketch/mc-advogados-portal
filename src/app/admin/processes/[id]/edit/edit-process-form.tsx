@@ -4,6 +4,7 @@ import { useActionState } from "react";
 import { updateProcessAction, type UpdateProcessState } from "../../actions";
 import { PROCESS_AREA_LABEL, PROCESS_AREAS } from "@/lib/process-area";
 import type { Process } from "@/lib/data/processes";
+import { VoltarInput } from "@/components/nav/back-button";
 
 const initialState: UpdateProcessState = { error: null };
 
@@ -11,11 +12,12 @@ export function EditProcessForm({ process }: { process: Process }) {
   const [state, formAction, pending] = useActionState(updateProcessAction, initialState);
 
   return (
-    <form action={formAction} className="max-w-md space-y-4 rounded-xl border border-border bg-surface p-6 shadow-sm">
+    <form action={formAction} className="max-w-xl space-y-5 ui-card p-6">
+      <VoltarInput />
       <input type="hidden" name="id" value={process.id} />
 
       <div>
-        <label htmlFor="numero_processo" className="mb-1.5 block text-sm font-medium text-foreground/80">
+        <label htmlFor="numero_processo" className="ui-label">
           Número do processo
         </label>
         <input
@@ -24,19 +26,19 @@ export function EditProcessForm({ process }: { process: Process }) {
           type="text"
           required
           defaultValue={process.numero_processo}
-          className="w-full rounded-lg border border-border bg-background px-3 py-2 text-sm text-foreground focus:border-navy focus:outline-none focus:ring-1 focus:ring-navy"
+          className="ui-input"
         />
       </div>
 
       <div>
-        <label htmlFor="area" className="mb-1.5 block text-sm font-medium text-foreground/80">
+        <label htmlFor="area" className="ui-label">
           Área
         </label>
         <select
           id="area"
           name="area"
           defaultValue={process.area}
-          className="w-full rounded-lg border border-border bg-background px-3 py-2 text-sm text-foreground focus:border-navy focus:outline-none focus:ring-1 focus:ring-navy"
+          className="ui-input"
         >
           {PROCESS_AREAS.map((area) => (
             <option key={area} value={area}>
@@ -47,7 +49,7 @@ export function EditProcessForm({ process }: { process: Process }) {
       </div>
 
       <div>
-        <label htmlFor="vara_tribunal" className="mb-1.5 block text-sm font-medium text-foreground/80">
+        <label htmlFor="vara_tribunal" className="ui-label">
           Vara / Tribunal (opcional)
         </label>
         <input
@@ -55,12 +57,12 @@ export function EditProcessForm({ process }: { process: Process }) {
           name="vara_tribunal"
           type="text"
           defaultValue={process.vara_tribunal ?? ""}
-          className="w-full rounded-lg border border-border bg-background px-3 py-2 text-sm text-foreground focus:border-navy focus:outline-none focus:ring-1 focus:ring-navy"
+          className="ui-input"
         />
       </div>
 
       <div>
-        <label htmlFor="fase" className="mb-1.5 block text-sm font-medium text-foreground/80">
+        <label htmlFor="fase" className="ui-label">
           Fase (opcional)
         </label>
         <input
@@ -68,12 +70,12 @@ export function EditProcessForm({ process }: { process: Process }) {
           name="fase"
           type="text"
           defaultValue={process.fase ?? ""}
-          className="w-full rounded-lg border border-border bg-background px-3 py-2 text-sm text-foreground focus:border-navy focus:outline-none focus:ring-1 focus:ring-navy"
+          className="ui-input"
         />
       </div>
 
       <div>
-        <label htmlFor="status" className="mb-1.5 block text-sm font-medium text-foreground/80">
+        <label htmlFor="status" className="ui-label">
           Status
         </label>
         <input
@@ -81,7 +83,7 @@ export function EditProcessForm({ process }: { process: Process }) {
           name="status"
           type="text"
           defaultValue={process.status}
-          className="w-full rounded-lg border border-border bg-background px-3 py-2 text-sm text-foreground focus:border-navy focus:outline-none focus:ring-1 focus:ring-navy"
+          className="ui-input"
         />
       </div>
 
@@ -90,7 +92,7 @@ export function EditProcessForm({ process }: { process: Process }) {
       <button
         type="submit"
         disabled={pending}
-        className="w-full rounded-lg bg-navy px-4 py-2.5 text-sm font-medium text-navy-foreground transition-colors hover:bg-navy/90 disabled:opacity-60"
+        className="ui-btn w-full py-2.5"
       >
         {pending ? "Salvando..." : "Salvar alterações"}
       </button>

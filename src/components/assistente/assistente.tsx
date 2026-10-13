@@ -1,0 +1,512 @@
+"use client";
+
+import { Fragment, useEffect, useRef, useState } from "react";
+import { createPortal } from "react-dom";
+import Link from "next/link";
+import { usePathname, useRouter } from "next/navigation";
+import { toast } from "sonner";
+import { Sparkles, X, RotateCcw, CornerRightDown, ArrowUp, Check, AlertTriangle, Trash2, Wrench, Paperclip, FileText, Loader2 } from "lucide-react";
+import { createClient as criarSupabase } from "@/lib/supabase/client";
+import { AudioAnswer } from "@/components/ui/audio-answer";
+import { ROTULO_FERRAMENTA, FERRAMENTAS_DE_ESCRITA } from "@/lib/assistente/labels";
+import { AlcasRedimensionar, useJanelaMovel } from "./janela-movel";
+
+type Part = {
+  text?: string;
+  thought?: boolean;
+  functionCall?: { name?: string; args?: Record<string, unknown> };
+  functionResponse?: { name?: string; response?: { ok?: boolean; erro?: string; cancelado?: boolean } };
+};
+type Content = { role?: string; parts?: Part[] };
+type Pendente = { itens: { name: string; label: string; resumo: string }[] };
+type Anexo = { caminho: string; nome: string; enviando?: boolean };
+
+const RE_ANEXO = /\[Anexo: (.+?) \(anexo=[^)]+\)\]/g;
+
+const CHAVE = "mc:assistente";
+
+// ---------- markdown mínimo (negrito, links, listas, quebras) ----------
+function linha(texto: string, key: string, onLink: (href: string) => void) {
+  const nodes: React.ReactNode[] = [];
+  const re = /\[([^\]]+)\]\(([^)\s]+)\)|\*\*([^*]+)\*\*/g;
+  let ultimo = 0;
+  let m: RegExpExecArray | null;
+  let i = 0;
+  while ((m = re.exec(texto))) {
+    if (m.index > ultimo) nodes.push(texto.slice(ultimo, m.index));
+    if (m[1]) {
+      const href = m[2];
+      nodes.push(
+        href.startsWith("/") ? (
+          <Link key={`${key}-${i++}`} href={href} onClick={() => onLink(href)} className="font-medium text-navy-3 underline underline-offset-2">
+            {m[1]}
+          </Link>
+        ) : (
+          <a key={`${key}-${i++}`} href={href} target="_blank" rel="noreferrer" className="font-medium text-navy-3 underline underline-offset-2">
+            {m[1]}
+          </a>
+        )
+      );
+    } else nodes.push(<strong key={`${key}-${i++}`} className="font-semibold">{m[3]}</strong>);
+    ultimo = m.index + m[0].length;
+  }
+  if (ultimo < texto.length) nodes.push(texto.slice(ultimo));
+  return nodes;
+}
+
+function Markdown({ texto, onLink }: { texto: string; onLink: (href: string) => void }) {
+  const blocos = texto.trim().split(/\n{2,}/);
+  return (
+    <div className="space-y-2">
+      {blocos.map((b, bi) => {
+        const linhas = b.split("\n");
+        if (linhas.every((l) => /^\s*([-*•]|\d+[.)])\s+/.test(l))) {
+          return (
+            <ul key={bi} className="space-y-1">
+              {linhas.map((l, li) => (
+                <li key={li} className="flex gap-2">
+                  <span className="mt-[7px] h-1 w-1 shrink-0 rounded-full bg-gold" aria-hidden />
+                  <span>{linha(l.replace(/^\s*([-*•]|\d+[.)])\s+/, ""), `${bi}-${li}`, onLink)}</span>
+                </li>
+              ))}
+            </ul>
+          );
+        }
+        return (
+          <p key={bi}>
+            {linhas.map((l, li) => (
+              <Fragment key={li}>
+                {li > 0 && <br />}
+                {linha(l, `${bi}-${li}`, onLink)}
+              </Fragment>
+            ))}
+          </p>
+        );
+      })}
+    </div>
+  );
+}
+
+function lerSalvo(): Content[] {
+  try {
+    const s = sessionStorage.getItem(CHAVE);
+    return s ? (JSON.parse(s) as Content[]) : [];
+  } catch {
+    return [];
+  }
+}
+
+// Balão do assistente: conversa com o Gemini, que executa ações no portal.
+export function Assistente({ nome, modo = "flutuante" }: { nome: string; modo?: "flutuante" | "pagina" }) {
+  const pagina = modo === "pagina";
+  const router = useRouter();
+  const pathname = usePathname();
+  const [aberto, setAberto] = useState(pagina);
+  const janela = useJanelaMovel(aberto && !pagina);
+  const [anexos, setAnexos] = useState<Anexo[]>([]);
+  const arquivoRef = useRef<HTMLInputElement>(null);
+  const [history, setHistory] = useState<Content[]>([]);
+  const [texto, setTexto] = useState("");
+  const [pensando, setPensando] = useState(false);
+  const [pendente, setPendente] = useState<Pendente | null>(null);
+  const [montado, setMontado] = useState(false);
+  const fimRef = useRef<HTMLDivElement>(null);
+  const inputRef = useRef<HTMLTextAreaElement>(null);
+
+  useEffect(() => {
+    setMontado(true); // eslint-disable-line react-hooks/set-state-in-effect -- só para o portal no cliente
+    setHistory(lerSalvo());
+  }, []);
+
+  useEffect(() => {
+    try {
+      sessionStorage.setItem(CHAVE, JSON.stringify(history.slice(-60)));
+    } catch {}
+  }, [history]);
+
+  useEffect(() => {
+    fimRef.current?.scrollIntoView({ behavior: "smooth", block: "end" });
+  }, [history, pensando, pendente, aberto]);
+
+  useEffect(() => {
+    function atalho(e: KeyboardEvent) {
+      if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "j") {
+        e.preventDefault();
+        setAberto((a) => !a);
+      }
+      if (e.key === "Escape" && !pagina) setAberto(false);
+    }
+    window.addEventListener("keydown", atalho);
+    return () => window.removeEventListener("keydown", atalho);
+  }, [pagina]);
+
+  useEffect(() => {
+    if (aberto) setTimeout(() => inputRef.current?.focus(), 50);
+  }, [aberto]);
+
+  async function chamar(payload: { mensagem?: string; confirmacao?: { aprovado: boolean }; anexos?: Anexo[] }, base: Content[]) {
+    setPensando(true);
+    setPendente(null);
+    try {
+      const res = await fetch("/api/assistente", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ history: base, pathname, ...payload }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (data.history) setHistory(data.history);
+      if (!res.ok) {
+        toast.error(data.error ?? "O assistente não conseguiu responder.");
+        return;
+      }
+      if (data.pendente) setPendente(data.pendente);
+      if (data.aviso) toast.info(data.aviso);
+      const escreveu = (data.eventos ?? []).some((e: { tool: string; ok: boolean }) => e.ok && FERRAMENTAS_DE_ESCRITA.has(e.tool));
+      if (data.navegar) router.push(data.navegar);
+      else if (escreveu) router.refresh();
+    } catch {
+      toast.error("Falha de conexão com o assistente.");
+    } finally {
+      setPensando(false);
+    }
+  }
+
+  function enviar(msg?: string) {
+    const m = (msg ?? texto).trim();
+    const prontos = anexos.filter((a) => !a.enviando);
+    if ((!m && !prontos.length) || pensando || anexos.some((a) => a.enviando)) return;
+    setTexto("");
+    setAnexos([]);
+    const linhas = prontos.map((a) => `[Anexo: ${a.nome} (anexo=${a.caminho})]`);
+    const otimista: Content[] = [...history, { role: "user", parts: [{ text: [m || "Veja o anexo.", ...linhas].join("\n") }] }];
+    setHistory(otimista);
+    void chamar({ mensagem: m, anexos: prontos }, history);
+  }
+
+  // 📎 envia direto ao Storage (URL assinada), sem passar pelo limite da Vercel
+  async function anexar(lista: FileList | null) {
+    for (const file of Array.from(lista ?? []).slice(0, 5)) {
+      const temp: Anexo = { caminho: `tmp-${file.name}-${file.size}`, nome: file.name, enviando: true };
+      setAnexos((xs) => [...xs, temp]);
+      try {
+        const prep = await fetch("/api/assistente/anexo", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ nome: file.name, tamanho: file.size }),
+        });
+        const dados = await prep.json().catch(() => ({}));
+        if (!prep.ok) throw new Error(dados.error ?? "Não foi possível anexar.");
+        const { error } = await criarSupabase().storage.from("documents").uploadToSignedUrl(dados.caminho, dados.token, file, { contentType: file.type || undefined });
+        if (error) throw new Error("Falha ao enviar o arquivo.");
+        setAnexos((xs) => xs.map((x) => (x === temp ? { caminho: dados.caminho, nome: file.name } : x)));
+      } catch (e) {
+        setAnexos((xs) => xs.filter((x) => x !== temp));
+        toast.error(e instanceof Error ? e.message : "Não foi possível anexar.");
+      }
+    }
+    if (arquivoRef.current) arquivoRef.current.value = "";
+  }
+
+  function novaConversa() {
+    setAnexos([]);
+    setHistory([]);
+    setPendente(null);
+    setTexto("");
+  }
+
+  const naFicha = /^\/admin\/clients\/[0-9a-f-]{36}/i.test(pathname);
+  const txt = pagina ? "text-[15px]" : "text-[13.5px]";
+  const sugestoes = [
+    "Quais prazos vencem esta semana?",
+    naFicha ? "Resuma este cliente pra mim" : "Quais clientes têm demanda urgente na ficha de handoff?",
+    "Crie uma atividade de revisão de contrato para…",
+    "Ache o contrato social do cliente…",
+  ];
+
+  // monta a conversa visível a partir do histórico do Gemini
+  const itens: React.ReactNode[] = [];
+  history.forEach((c, ci) => {
+    const parts = c.parts ?? [];
+    if (c.role === "user") {
+      const bruto = parts.filter((p) => typeof p.text === "string").map((p) => p.text).join("\n");
+      const nomes = [...bruto.matchAll(RE_ANEXO)].map((m) => m[1]);
+      const t = bruto.replace(RE_ANEXO, "").replace(/\n+$/, "").replace(/^Veja o anexo\.$/, "");
+      if (t || nomes.length)
+        itens.push(
+          <div key={ci} className="flex flex-col items-end gap-1.5">
+            {nomes.map((n) => (
+              <span key={n} className="inline-flex max-w-[85%] items-center gap-1.5 rounded-xl bg-navy/[0.08] px-2.5 py-1.5 text-xs font-medium text-navy-3">
+                <FileText className="h-3.5 w-3.5 shrink-0" aria-hidden />
+                <span className="truncate">{n}</span>
+              </span>
+            ))}
+            {t && <div className={`max-w-[85%] whitespace-pre-wrap rounded-2xl rounded-br-md bg-navy leading-relaxed text-white ${pagina ? "px-4 py-2.5" : "px-3.5 py-2"} ${txt}`}>{t}</div>}
+          </div>
+        );
+      parts
+        .filter((p) => p.functionResponse?.response && p.functionResponse.response.ok === false)
+        .forEach((p, pi) =>
+          itens.push(
+            <div key={`${ci}-r${pi}`} className="flex items-center gap-1.5 text-xs text-status-danger">
+              <AlertTriangle className="h-3.5 w-3.5" aria-hidden />
+              {p.functionResponse?.response?.cancelado ? "Exclusão cancelada" : p.functionResponse?.response?.erro ?? "Falhou"}
+            </div>
+          )
+        );
+      return;
+    }
+    const chamadas = parts.filter((p) => p.functionCall);
+    if (chamadas.length)
+      itens.push(
+        <div key={`${ci}-f`} className="flex flex-wrap gap-1.5">
+          {chamadas.map((p, pi) => (
+            <span key={pi} className="inline-flex items-center gap-1 rounded-full bg-surface-2 px-2.5 py-1 text-[11.5px] font-medium text-muted ring-1 ring-border">
+              {(p.functionCall!.name ?? "").startsWith("excluir_") ? (
+                <Trash2 className="h-3 w-3 text-status-danger" aria-hidden />
+              ) : FERRAMENTAS_DE_ESCRITA.has(p.functionCall!.name ?? "") ? (
+                <Check className="h-3 w-3 text-status-success" aria-hidden />
+              ) : (
+                <Wrench className="h-3 w-3" aria-hidden />
+              )}
+              {ROTULO_FERRAMENTA[p.functionCall!.name ?? ""] ?? p.functionCall!.name}
+            </span>
+          ))}
+        </div>
+      );
+    const t = parts.filter((p) => typeof p.text === "string" && !p.thought).map((p) => p.text).join("\n");
+    if (t.trim())
+      itens.push(
+        <div key={`${ci}-t`} className="flex gap-2.5">
+          <span className="mt-0.5 flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-navy-2">
+            <Sparkles className="h-3 w-3 text-gold-2" aria-hidden />
+          </span>
+          <div className={`min-w-0 leading-relaxed text-foreground ${txt} ${pagina ? "max-w-[88%] rounded-2xl rounded-tl-md bg-surface px-4 py-3 shadow-sm ring-1 ring-border" : "flex-1"}`}>
+            <Markdown texto={t} onLink={() => {}} />
+          </div>
+        </div>
+      );
+  });
+
+  if (!montado) return null;
+
+  const conteudo = (
+    <>
+      {/* botão flutuante */}
+      {!pagina && (
+      <button
+        type="button"
+        onClick={() => setAberto((a) => !a)}
+        aria-label={aberto ? "Fechar assistente" : "Abrir assistente"}
+        aria-expanded={aberto}
+        data-tip={aberto ? undefined : "Assistente (Ctrl+J)"}
+        className={`fixed right-5 bottom-5 z-40 flex h-14 w-14 items-center justify-center rounded-full bg-navy-2 text-white shadow-lg ring-1 ring-gold/40 transition-transform duration-200 hover:scale-105 active:scale-95 ${
+          aberto ? "max-sm:hidden" : ""
+        }`}
+      >
+        {aberto ? <X className="h-5 w-5" aria-hidden /> : <Sparkles className="h-6 w-6 text-gold-2" aria-hidden />}
+      </button>
+      )}
+
+      {aberto && (
+        <section
+          ref={pagina ? undefined : janela.ref}
+          role="dialog"
+          aria-label="Assistente do portal"
+          style={pagina ? undefined : janela.estilo}
+          className={
+            pagina
+              ? "mx-auto flex h-[100dvh] w-full max-w-[680px] flex-col overflow-hidden bg-surface sm:border-x sm:border-border"
+              : `fixed z-40 flex animate-enter flex-col overflow-hidden bg-surface max-sm:inset-0 sm:rounded-2xl sm:border sm:border-border ${
+                  janela.rect ? "" : "sm:right-5 sm:bottom-24 sm:h-[min(640px,calc(100vh-8rem))] sm:w-[400px]"
+                } ${janela.mexendo ? "shadow-xl ring-2 ring-gold/30" : "shadow-lg"}`
+          }
+        >
+          {!pagina && <AlcasRedimensionar onRedimensionar={janela.onRedimensionar} />}
+          <header
+            onPointerDown={pagina ? undefined : janela.onArrastar}
+            className={`flex shrink-0 items-center gap-3 bg-navy-2 text-white ${pagina ? "px-4 pt-[max(0.75rem,env(safe-area-inset-top))] pb-3" : `px-4 py-3 sm:touch-none sm:select-none ${janela.mexendo ? "sm:cursor-grabbing" : "sm:cursor-grab"}`}`}
+            title={pagina ? undefined : "Arraste para mover"}
+          >
+            {pagina ? (
+              // eslint-disable-next-line @next/next/no-img-element -- ícone estático pequeno
+              <img src="/brand/app-192.png" alt="" width={38} height={38} className="h-[38px] w-[38px] rounded-full ring-1 ring-gold/40" />
+            ) : (
+              <span className="flex h-8 w-8 items-center justify-center rounded-full bg-white/10 ring-1 ring-gold/40">
+                <Sparkles className="h-4 w-4 text-gold-2" aria-hidden />
+              </span>
+            )}
+            <div className="min-w-0 flex-1 leading-tight">
+              <p className={`font-semibold ${pagina ? "text-[16px]" : "text-sm"}`}>Assistente MC</p>
+              <p className="flex items-center gap-1.5 text-[11.5px] text-white/60">
+                {pensando ? (
+                  "escrevendo…"
+                ) : (
+                  <>
+                    <span className="h-1.5 w-1.5 rounded-full bg-status-success" aria-hidden /> pronto para ajudar
+                  </>
+                )}
+              </p>
+            </div>
+            {!pagina && janela.rect && (
+              <button type="button" onClick={janela.restaurar} className="rounded-lg p-1.5 text-white/60 transition-colors hover:bg-white/10 hover:text-white max-sm:hidden" aria-label="Voltar ao canto padrão" data-tip="Voltar ao canto padrão">
+                <CornerRightDown className="h-4 w-4" />
+              </button>
+            )}
+            <button type="button" onClick={novaConversa} className="rounded-lg p-1.5 text-white/60 transition-colors hover:bg-white/10 hover:text-white" aria-label="Nova conversa" data-tip="Nova conversa">
+              <RotateCcw className="h-4 w-4" />
+            </button>
+            {!pagina && (
+              <button type="button" onClick={() => setAberto(false)} className="rounded-lg p-1.5 text-white/60 transition-colors hover:bg-white/10 hover:text-white" aria-label="Fechar" data-tip="Fechar">
+                <X className="h-4 w-4" />
+              </button>
+            )}
+          </header>
+
+          <div className={`flex-1 overflow-y-auto overscroll-contain ${pagina ? "space-y-4 bg-background px-4 py-5" : "space-y-3.5 px-4 py-4"}`}>
+            {history.length === 0 && (
+              <div className={pagina ? "flex min-h-full flex-col items-center justify-center px-2 pb-6 text-center" : "pt-2"}>
+                {pagina && (
+                  // eslint-disable-next-line @next/next/no-img-element -- ícone estático pequeno
+                  <img src="/brand/app-192.png" alt="" width={64} height={64} className="mb-4 h-16 w-16 rounded-2xl shadow-md" />
+                )}
+                <p className={`font-semibold text-foreground ${pagina ? "text-[22px] tracking-tight" : "text-[15px]"}`}>Oi, {nome}. O que vamos fazer?</p>
+                <p className="mt-1 text-[13px] text-muted">Escreva, fale ou anexe um arquivo/foto. Eu consulto e executo no portal; para excluir, peço sua confirmação.</p>
+                <div className={pagina ? "mt-6 flex flex-wrap justify-center gap-2" : "mt-4 flex flex-col gap-2"}>
+                  {sugestoes.map((s) => (
+                    <button
+                      key={s}
+                      type="button"
+                      onClick={() => (s.endsWith("…") ? (setTexto(s.replace("…", " ")), inputRef.current?.focus()) : enviar(s))}
+                      className={
+                        pagina
+                          ? "rounded-full border border-border bg-surface px-4 py-2 text-[14px] text-foreground shadow-sm transition-colors active:bg-surface-2"
+                          : "rounded-xl border border-border bg-surface px-3 py-2 text-left text-[13px] text-foreground transition-colors hover:border-border-strong hover:bg-surface-2"
+                      }
+                    >
+                      {s}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {itens}
+
+            {pendente && (
+              <div className="animate-enter rounded-2xl border border-status-danger/30 bg-status-danger-bg p-3.5">
+                <p className="flex items-center gap-1.5 text-[13px] font-semibold text-status-danger">
+                  <AlertTriangle className="h-4 w-4" aria-hidden /> Confirma a exclusão?
+                </p>
+                <ul className="mt-2 space-y-1">
+                  {pendente.itens.map((i, k) => (
+                    <li key={k} className="text-[13px] text-foreground">
+                      {i.resumo}
+                    </li>
+                  ))}
+                </ul>
+                <div className="mt-3 flex justify-end gap-2">
+                  <button type="button" onClick={() => void chamar({ confirmacao: { aprovado: false } }, history)} className="ui-btn-secondary px-3 py-1.5 text-xs">
+                    Cancelar
+                  </button>
+                  <button type="button" onClick={() => void chamar({ confirmacao: { aprovado: true } }, history)} className="ui-btn bg-status-danger px-3 py-1.5 text-xs hover:bg-status-danger/90">
+                    <Trash2 className="h-3.5 w-3.5" aria-hidden /> Confirmar exclusão
+                  </button>
+                </div>
+              </div>
+            )}
+
+            {pensando && (
+              <div className="flex items-center gap-2.5" role="status" aria-label="Pensando">
+                <span className="flex h-6 w-6 items-center justify-center rounded-full bg-navy-2">
+                  <Sparkles className="h-3 w-3 text-gold-2" aria-hidden />
+                </span>
+                <span className="flex gap-1">
+                  {[0, 1, 2].map((d) => (
+                    <span key={d} className="h-1.5 w-1.5 animate-bounce rounded-full bg-muted/60" style={{ animationDelay: `${d * 150}ms` }} />
+                  ))}
+                </span>
+              </div>
+            )}
+            <div ref={fimRef} />
+          </div>
+
+          <form
+            onSubmit={(e) => {
+              e.preventDefault();
+              enviar();
+            }}
+            className={`shrink-0 border-t border-border bg-surface ${pagina ? "px-3 pt-2.5 pb-[max(0.6rem,env(safe-area-inset-bottom))]" : "p-3"}`}
+          >
+            {anexos.length > 0 && (
+              <div className="mb-2 flex flex-wrap gap-1.5">
+                {anexos.map((a) => (
+                  <span key={a.caminho} className="inline-flex max-w-full items-center gap-1.5 rounded-lg bg-surface-2 py-1 pr-1 pl-2 text-xs text-foreground ring-1 ring-border">
+                    {a.enviando ? <Loader2 className="h-3.5 w-3.5 animate-spin text-muted" aria-hidden /> : <FileText className="h-3.5 w-3.5 text-navy-3" aria-hidden />}
+                    <span className="max-w-[180px] truncate">{a.nome}</span>
+                    <button type="button" onClick={() => setAnexos((xs) => xs.filter((x) => x !== a))} className="rounded p-0.5 text-muted hover:bg-border hover:text-foreground" aria-label={`Remover ${a.nome}`}>
+                      <X className="h-3 w-3" />
+                    </button>
+                  </span>
+                ))}
+              </div>
+            )}
+            <div
+              className={
+                pagina
+                  ? "flex items-end gap-1 rounded-[26px] bg-surface-2 px-1.5 py-1.5 ring-1 ring-border transition-shadow focus-within:ring-navy-3/50"
+                  : "flex items-end gap-2 rounded-2xl border border-border-strong bg-surface px-2 py-1.5 transition-shadow focus-within:border-navy-3 focus-within:shadow-[0_0_0_3px_rgba(19,50,90,0.12)]"
+              }
+            >
+              <textarea
+                ref={inputRef}
+                value={texto}
+                onChange={(e) => setTexto(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter" && !e.shiftKey) {
+                    e.preventDefault();
+                    enviar();
+                  }
+                }}
+                rows={1}
+                placeholder={pendente ? "Confirme ou cancele acima…" : pagina ? "Mensagem" : "Peça algo… (Enter envia)"}
+                disabled={!!pendente}
+                className={`max-h-32 flex-1 resize-none bg-transparent text-foreground outline-none focus-visible:outline-none placeholder:text-muted/70 [field-sizing:content] ${
+                  pagina ? "min-h-[40px] px-2.5 py-2 text-base" : "min-h-[36px] px-1.5 py-2 text-base sm:text-[13.5px]"
+                }`}
+              />
+              <input
+                ref={arquivoRef}
+                type="file"
+                multiple
+                accept=".pdf,.doc,.docx,.txt,.md,image/*"
+                className="hidden"
+                onChange={(e) => void anexar(e.target.files)}
+              />
+              <button
+                type="button"
+                onClick={() => arquivoRef.current?.click()}
+                disabled={!!pendente}
+                className={pagina ? "icon-btn h-10 w-10 rounded-full" : "icon-btn border border-border bg-surface"}
+                aria-label="Anexar arquivo ou foto"
+                data-tip="Anexar arquivo ou foto"
+              >
+                <Paperclip aria-hidden />
+              </button>
+              <AudioAnswer modo="comando" grande={pagina} onTexto={(t) => enviar(t)} />
+              <button
+                type="submit"
+                disabled={(!texto.trim() && !anexos.length) || pensando || !!pendente || anexos.some((a) => a.enviando)}
+                aria-label="Enviar"
+                className={`flex shrink-0 items-center justify-center rounded-full bg-navy text-white transition-colors hover:bg-navy-3 disabled:opacity-40 ${pagina ? "h-10 w-10" : "h-8 w-8"}`}
+              >
+                <ArrowUp className="h-4 w-4" />
+              </button>
+            </div>
+            {!pagina && <p className="mt-1.5 px-1 text-[10.5px] text-muted">Gemini pode errar. Confira o que for importante.</p>}
+          </form>
+        </section>
+      )}
+    </>
+  );
+  return pagina ? conteudo : createPortal(conteudo, document.body);
+}

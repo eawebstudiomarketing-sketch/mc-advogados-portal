@@ -3,6 +3,7 @@ import { cache } from "react";
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import type { Database } from "@/lib/supabase/types";
+import { primeiraTela, resolverPermissoes, type PermChave, type Permissoes } from "@/lib/permissoes";
 
 type Profile = Database["public"]["Tables"]["profiles"]["Row"];
 
@@ -37,6 +38,8 @@ export const getProfile = cache(async (): Promise<Profile | null> => {
 export async function requireProfile(): Promise<Profile> {
   const profile = await getProfile();
   if (!profile) redirect("/login");
+  // acesso desativado pelo admin: encerra a sessão
+  if (!profile.ativo) redirect("/api/sair?motivo=desativado");
   return profile;
 }
 
@@ -46,4 +49,31 @@ export async function requireRole(allowedRoles: Profile["role"][]): Promise<Prof
     redirect(profile.role === "client" ? "/dashboard" : "/admin");
   }
   return profile;
+}
+
+/** Permissões efetivas de quem está logado (admin: tudo). */
+export const getPermissoes = cache(async (): Promise<Permissoes | null> => {
+  const profile = await getProfile();
+  if (!profile || profile.role === "client") return null;
+  if (profile.role === "admin") return resolverPermissoes("admin", null);
+  const supabase = await createClient();
+  const { data } = await supabase.from("equipe_permissoes").select("permissoes").eq("profile_id", profile.id).maybeSingle();
+  return resolverPermissoes(profile.role, data?.permissoes);
+});
+
+/**
+ * Equipe (admin ou advogado) com as permissões pedidas; sem elas, volta para
+ * a primeira tela liberada. Use nas páginas e nas server actions.
+ */
+export async function exigirPermissao(...chaves: PermChave[]): Promise<{ profile: Profile; permissoes: Permissoes }> {
+  const profile = await requireRole(["admin", "advogado"]);
+  const permissoes = (await getPermissoes())!;
+  if (!chaves.every((c) => permissoes[c])) redirect(primeiraTela(permissoes));
+  return { profile, permissoes };
+}
+
+/** Para server actions que devolvem erro em vez de redirecionar. */
+export async function temPermissao(...chaves: PermChave[]): Promise<boolean> {
+  const permissoes = await getPermissoes();
+  return !!permissoes && chaves.every((c) => permissoes[c]);
 }

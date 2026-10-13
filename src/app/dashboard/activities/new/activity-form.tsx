@@ -3,6 +3,7 @@
 import { useActionState } from "react";
 import { createOwnActivityAction, type CreateActivityState } from "../actions";
 import { ACTIVITY_TYPE_LABEL, ACTIVITY_TYPES } from "@/lib/activity-type";
+import { VoltarInput } from "@/components/nav/back-button";
 
 const initialState: CreateActivityState = { error: null };
 
@@ -10,9 +11,10 @@ export function ActivityForm() {
   const [state, formAction, pending] = useActionState(createOwnActivityAction, initialState);
 
   return (
-    <form action={formAction} className="max-w-md space-y-4 rounded-xl border border-border bg-surface p-6 shadow-sm">
+    <form action={formAction} className="max-w-xl space-y-5 ui-card p-6">
+      <VoltarInput />
       <div>
-        <label htmlFor="title" className="mb-1.5 block text-sm font-medium text-foreground/80">
+        <label htmlFor="title" className="ui-label">
           Título
         </label>
         <input
@@ -20,18 +22,18 @@ export function ActivityForm() {
           name="title"
           type="text"
           required
-          className="w-full rounded-lg border border-border bg-background px-3 py-2 text-sm text-foreground focus:border-navy focus:outline-none focus:ring-1 focus:ring-navy"
+          className="ui-input"
         />
       </div>
 
       <div>
-        <label htmlFor="type" className="mb-1.5 block text-sm font-medium text-foreground/80">
+        <label htmlFor="type" className="ui-label">
           Tipo
         </label>
         <select
           id="type"
           name="type"
-          className="w-full rounded-lg border border-border bg-background px-3 py-2 text-sm text-foreground focus:border-navy focus:outline-none focus:ring-1 focus:ring-navy"
+          className="ui-input"
         >
           {ACTIVITY_TYPES.map((type) => (
             <option key={type} value={type}>
@@ -42,26 +44,26 @@ export function ActivityForm() {
       </div>
 
       <div>
-        <label htmlFor="deadline" className="mb-1.5 block text-sm font-medium text-foreground/80">
+        <label htmlFor="deadline" className="ui-label">
           Prazo (opcional)
         </label>
         <input
           id="deadline"
           name="deadline"
           type="date"
-          className="w-full rounded-lg border border-border bg-background px-3 py-2 text-sm text-foreground focus:border-navy focus:outline-none focus:ring-1 focus:ring-navy"
+          className="ui-input"
         />
       </div>
 
       <div>
-        <label htmlFor="description" className="mb-1.5 block text-sm font-medium text-foreground/80">
+        <label htmlFor="description" className="ui-label">
           Descrição (opcional)
         </label>
         <textarea
           id="description"
           name="description"
           rows={3}
-          className="w-full rounded-lg border border-border bg-background px-3 py-2 text-sm text-foreground focus:border-navy focus:outline-none focus:ring-1 focus:ring-navy"
+          className="ui-input"
         />
       </div>
 
@@ -70,7 +72,7 @@ export function ActivityForm() {
       <button
         type="submit"
         disabled={pending}
-        className="w-full rounded-lg bg-navy px-4 py-2.5 text-sm font-medium text-navy-foreground transition-colors hover:bg-navy/90 disabled:opacity-60"
+        className="ui-btn w-full py-2.5"
       >
         {pending ? "Salvando..." : "Criar atividade"}
       </button>

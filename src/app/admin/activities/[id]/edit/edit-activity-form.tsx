@@ -4,18 +4,22 @@ import { useActionState } from "react";
 import { updateActivityAction, type UpdateActivityState } from "../../actions";
 import { ACTIVITY_TYPE_LABEL, ACTIVITY_TYPES } from "@/lib/activity-type";
 import type { Activity } from "@/lib/data/activities";
+import type { Responsavel } from "@/lib/data/responsaveis";
+import { ResponsavelSelect } from "@/components/atividade/responsavel-select";
+import { VoltarInput } from "@/components/nav/back-button";
 
 const initialState: UpdateActivityState = { error: null };
 
-export function EditActivityForm({ activity }: { activity: Activity }) {
+export function EditActivityForm({ activity, responsaveis }: { activity: Activity; responsaveis: Responsavel[] }) {
   const [state, formAction, pending] = useActionState(updateActivityAction, initialState);
 
   return (
-    <form action={formAction} className="max-w-md space-y-4 rounded-xl border border-border bg-surface p-6 shadow-sm">
+    <form action={formAction} className="max-w-xl space-y-5 ui-card p-6">
       <input type="hidden" name="id" value={activity.id} />
+      <VoltarInput />
 
       <div>
-        <label htmlFor="title" className="mb-1.5 block text-sm font-medium text-foreground/80">
+        <label htmlFor="title" className="ui-label">
           Título
         </label>
         <input
@@ -24,19 +28,26 @@ export function EditActivityForm({ activity }: { activity: Activity }) {
           type="text"
           required
           defaultValue={activity.title}
-          className="w-full rounded-lg border border-border bg-background px-3 py-2 text-sm text-foreground focus:border-navy focus:outline-none focus:ring-1 focus:ring-navy"
+          className="ui-input"
         />
       </div>
 
       <div>
-        <label htmlFor="type" className="mb-1.5 block text-sm font-medium text-foreground/80">
+        <label htmlFor="responsavel_id" className="ui-label">
+          Responsável <span className="font-normal text-muted">· recebe os avisos de prazo por e-mail</span>
+        </label>
+        <ResponsavelSelect responsaveis={responsaveis} defaultValue={activity.responsavel_id} clientId={activity.client_id} />
+      </div>
+
+      <div>
+        <label htmlFor="type" className="ui-label">
           Tipo
         </label>
         <select
           id="type"
           name="type"
           defaultValue={activity.type}
-          className="w-full rounded-lg border border-border bg-background px-3 py-2 text-sm text-foreground focus:border-navy focus:outline-none focus:ring-1 focus:ring-navy"
+          className="ui-input"
         >
           {ACTIVITY_TYPES.map((type) => (
             <option key={type} value={type}>
@@ -47,7 +58,7 @@ export function EditActivityForm({ activity }: { activity: Activity }) {
       </div>
 
       <div>
-        <label htmlFor="deadline" className="mb-1.5 block text-sm font-medium text-foreground/80">
+        <label htmlFor="deadline" className="ui-label">
           Prazo (opcional)
         </label>
         <input
@@ -55,12 +66,12 @@ export function EditActivityForm({ activity }: { activity: Activity }) {
           name="deadline"
           type="date"
           defaultValue={activity.deadline ?? ""}
-          className="w-full rounded-lg border border-border bg-background px-3 py-2 text-sm text-foreground focus:border-navy focus:outline-none focus:ring-1 focus:ring-navy"
+          className="ui-input"
         />
       </div>
 
       <div>
-        <label htmlFor="description" className="mb-1.5 block text-sm font-medium text-foreground/80">
+        <label htmlFor="description" className="ui-label">
           Descrição (opcional)
         </label>
         <textarea
@@ -68,7 +79,7 @@ export function EditActivityForm({ activity }: { activity: Activity }) {
           name="description"
           rows={3}
           defaultValue={activity.description ?? ""}
-          className="w-full rounded-lg border border-border bg-background px-3 py-2 text-sm text-foreground focus:border-navy focus:outline-none focus:ring-1 focus:ring-navy"
+          className="ui-input"
         />
       </div>
 
@@ -77,7 +88,7 @@ export function EditActivityForm({ activity }: { activity: Activity }) {
       <button
         type="submit"
         disabled={pending}
-        className="w-full rounded-lg bg-navy px-4 py-2.5 text-sm font-medium text-navy-foreground transition-colors hover:bg-navy/90 disabled:opacity-60"
+        className="ui-btn w-full py-2.5"
       >
         {pending ? "Salvando..." : "Salvar alterações"}
       </button>

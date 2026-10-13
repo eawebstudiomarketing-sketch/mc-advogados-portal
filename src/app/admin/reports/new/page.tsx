@@ -1,24 +1,23 @@
 import Link from "next/link";
 import { listClients } from "@/lib/data/clients";
-import { requireRole } from "@/lib/dal";
+import { exigirPermissao } from "@/lib/dal";
 import { ReportForm } from "./report-form";
+import { BackButton } from "@/components/nav/back-button";
 
 export default async function NewReportPage() {
-  await requireRole(["admin"]);
+  await exigirPermissao("relatorios");
   const clients = await listClients();
 
   return (
     <div>
-      <Link href="/admin/reports" className="text-xs font-medium text-navy hover:underline">
-        ← Voltar para relatórios
-      </Link>
+      <BackButton fallback="/admin/reports" />
 
-      <h1 className="mt-3 mb-6 text-xl font-semibold text-navy">Gerar relatório</h1>
+      <h1 className="mt-3 mb-6 page-title">Gerar relatório</h1>
 
       {clients.length === 0 ? (
-        <p className="max-w-md rounded-xl border border-border bg-surface p-6 text-sm text-foreground/60 shadow-sm">
+        <p className="max-w-md ui-card p-6 text-sm text-muted">
           Nenhum cliente cadastrado ainda.{" "}
-          <Link href="/admin/clients/new" className="font-medium text-navy hover:underline">
+          <Link href="/admin/clients/new" className="font-medium text-navy-3 underline-offset-2 hover:underline">
             Cadastre um cliente
           </Link>{" "}
           antes de gerar um relatório.

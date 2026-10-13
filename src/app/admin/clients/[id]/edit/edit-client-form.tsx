@@ -3,6 +3,7 @@
 import { useActionState } from "react";
 import { updateClientAction, type UpdateClientState } from "../../actions";
 import type { Client } from "@/lib/data/clients";
+import { VoltarInput } from "@/components/nav/back-button";
 
 const initialState: UpdateClientState = { error: null };
 
@@ -10,11 +11,12 @@ export function EditClientForm({ client }: { client: Client }) {
   const [state, formAction, pending] = useActionState(updateClientAction, initialState);
 
   return (
-    <form action={formAction} className="max-w-md space-y-4 rounded-xl border border-border bg-surface p-6 shadow-sm">
+    <form action={formAction} className="max-w-xl space-y-5 ui-card p-6">
+      <VoltarInput />
       <input type="hidden" name="id" value={client.id} />
 
       <div>
-        <label htmlFor="name" className="mb-1.5 block text-sm font-medium text-foreground/80">
+        <label htmlFor="name" className="ui-label">
           Nome completo / Razão social
         </label>
         <input
@@ -23,19 +25,19 @@ export function EditClientForm({ client }: { client: Client }) {
           type="text"
           required
           defaultValue={client.name}
-          className="w-full rounded-lg border border-border bg-background px-3 py-2 text-sm text-foreground focus:border-navy focus:outline-none focus:ring-1 focus:ring-navy"
+          className="ui-input"
         />
       </div>
 
       <div>
-        <label htmlFor="tipo_pessoa" className="mb-1.5 block text-sm font-medium text-foreground/80">
+        <label htmlFor="tipo_pessoa" className="ui-label">
           Tipo de pessoa
         </label>
         <select
           id="tipo_pessoa"
           name="tipo_pessoa"
           defaultValue={client.tipo_pessoa}
-          className="w-full rounded-lg border border-border bg-background px-3 py-2 text-sm text-foreground focus:border-navy focus:outline-none focus:ring-1 focus:ring-navy"
+          className="ui-input"
         >
           <option value="PJ">Pessoa jurídica (PJ)</option>
           <option value="PF">Pessoa física (PF)</option>
@@ -43,7 +45,7 @@ export function EditClientForm({ client }: { client: Client }) {
       </div>
 
       <div>
-        <label htmlFor="documento" className="mb-1.5 block text-sm font-medium text-foreground/80">
+        <label htmlFor="documento" className="ui-label">
           CPF / CNPJ
         </label>
         <input
@@ -52,12 +54,12 @@ export function EditClientForm({ client }: { client: Client }) {
           type="text"
           required
           defaultValue={client.documento}
-          className="w-full rounded-lg border border-border bg-background px-3 py-2 text-sm text-foreground focus:border-navy focus:outline-none focus:ring-1 focus:ring-navy"
+          className="ui-input"
         />
       </div>
 
       <div>
-        <label htmlFor="email_contact" className="mb-1.5 block text-sm font-medium text-foreground/80">
+        <label htmlFor="email_contact" className="ui-label">
           E-mail de contato
         </label>
         <input
@@ -66,7 +68,7 @@ export function EditClientForm({ client }: { client: Client }) {
           type="email"
           required
           defaultValue={client.email_contact}
-          className="w-full rounded-lg border border-border bg-background px-3 py-2 text-sm text-foreground focus:border-navy focus:outline-none focus:ring-1 focus:ring-navy"
+          className="ui-input"
         />
       </div>
 
@@ -80,7 +82,7 @@ export function EditClientForm({ client }: { client: Client }) {
       <button
         type="submit"
         disabled={pending}
-        className="w-full rounded-lg bg-navy px-4 py-2.5 text-sm font-medium text-navy-foreground transition-colors hover:bg-navy/90 disabled:opacity-60"
+        className="ui-btn w-full py-2.5"
       >
         {pending ? "Salvando..." : "Salvar alterações"}
       </button>

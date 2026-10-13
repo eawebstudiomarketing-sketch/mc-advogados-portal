@@ -3,6 +3,7 @@
 import { useActionState } from "react";
 import { updateContractAction, type UpdateContractState } from "../../actions";
 import type { Contract } from "@/lib/data/contracts";
+import { VoltarInput } from "@/components/nav/back-button";
 
 const initialState: UpdateContractState = { error: null };
 
@@ -10,11 +11,12 @@ export function EditContractForm({ contract }: { contract: Contract }) {
   const [state, formAction, pending] = useActionState(updateContractAction, initialState);
 
   return (
-    <form action={formAction} className="max-w-md space-y-4 rounded-xl border border-border bg-surface p-6 shadow-sm">
+    <form action={formAction} className="max-w-xl space-y-5 ui-card p-6">
+      <VoltarInput />
       <input type="hidden" name="id" value={contract.id} />
 
       <div>
-        <label htmlFor="title" className="mb-1.5 block text-sm font-medium text-foreground/80">
+        <label htmlFor="title" className="ui-label">
           Título
         </label>
         <input
@@ -23,13 +25,13 @@ export function EditContractForm({ contract }: { contract: Contract }) {
           type="text"
           required
           defaultValue={contract.title}
-          className="w-full rounded-lg border border-border bg-background px-3 py-2 text-sm text-foreground focus:border-navy focus:outline-none focus:ring-1 focus:ring-navy"
+          className="ui-input"
         />
       </div>
 
       <div className="grid grid-cols-2 gap-4">
         <div>
-          <label htmlFor="start_date" className="mb-1.5 block text-sm font-medium text-foreground/80">
+          <label htmlFor="start_date" className="ui-label">
             Início
           </label>
           <input
@@ -37,11 +39,11 @@ export function EditContractForm({ contract }: { contract: Contract }) {
             name="start_date"
             type="date"
             defaultValue={contract.start_date}
-            className="w-full rounded-lg border border-border bg-background px-3 py-2 text-sm text-foreground focus:border-navy focus:outline-none focus:ring-1 focus:ring-navy"
+            className="ui-input"
           />
         </div>
         <div>
-          <label htmlFor="end_date" className="mb-1.5 block text-sm font-medium text-foreground/80">
+          <label htmlFor="end_date" className="ui-label">
             Fim (opcional)
           </label>
           <input
@@ -49,13 +51,13 @@ export function EditContractForm({ contract }: { contract: Contract }) {
             name="end_date"
             type="date"
             defaultValue={contract.end_date ?? ""}
-            className="w-full rounded-lg border border-border bg-background px-3 py-2 text-sm text-foreground focus:border-navy focus:outline-none focus:ring-1 focus:ring-navy"
+            className="ui-input"
           />
         </div>
       </div>
 
       <div>
-        <label htmlFor="value" className="mb-1.5 block text-sm font-medium text-foreground/80">
+        <label htmlFor="value" className="ui-label">
           Valor (opcional)
         </label>
         <input
@@ -65,12 +67,12 @@ export function EditContractForm({ contract }: { contract: Contract }) {
           step="0.01"
           min="0.01"
           defaultValue={contract.value ?? ""}
-          className="w-full rounded-lg border border-border bg-background px-3 py-2 text-sm text-foreground focus:border-navy focus:outline-none focus:ring-1 focus:ring-navy"
+          className="ui-input"
         />
       </div>
 
       <div>
-        <label htmlFor="description" className="mb-1.5 block text-sm font-medium text-foreground/80">
+        <label htmlFor="description" className="ui-label">
           Descrição (opcional)
         </label>
         <textarea
@@ -78,7 +80,7 @@ export function EditContractForm({ contract }: { contract: Contract }) {
           name="description"
           rows={3}
           defaultValue={contract.description ?? ""}
-          className="w-full rounded-lg border border-border bg-background px-3 py-2 text-sm text-foreground focus:border-navy focus:outline-none focus:ring-1 focus:ring-navy"
+          className="ui-input"
         />
       </div>
 
@@ -87,7 +89,7 @@ export function EditContractForm({ contract }: { contract: Contract }) {
       <button
         type="submit"
         disabled={pending}
-        className="w-full rounded-lg bg-navy px-4 py-2.5 text-sm font-medium text-navy-foreground transition-colors hover:bg-navy/90 disabled:opacity-60"
+        className="ui-btn w-full py-2.5"
       >
         {pending ? "Salvando..." : "Salvar alterações"}
       </button>

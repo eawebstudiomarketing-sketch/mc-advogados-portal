@@ -20,16 +20,16 @@ export default async function AdminFinancialPage() {
 
   return (
     <div>
-      <div className="mb-6 flex items-center justify-between">
+      <div className="mb-7 flex flex-wrap items-end justify-between gap-3">
         <div>
-          <h1 className="text-xl font-semibold text-navy">Financeiro</h1>
-          <p className="text-sm text-foreground/50">
+          <h1 className="page-title">Financeiro</h1>
+          <p className="text-sm text-muted">
             {records.length === 0 ? "Nenhum lançamento ainda" : `${records.length} lançamentos`}
           </p>
         </div>
         <Link
           href="/admin/financial/new"
-          className="rounded-lg border border-border bg-surface px-4 py-2 text-sm font-medium text-navy hover:bg-navy hover:text-navy-foreground"
+          className="ui-btn-secondary px-3 py-1.5 text-xs"
         >
           Novo lançamento
         </Link>
@@ -41,28 +41,28 @@ export default async function AdminFinancialPage() {
         <StatCard label="Em atraso" value={formatCurrency(atrasado)} tone="danger" />
       </div>
 
-      <div className="mt-6 overflow-x-auto rounded-xl border border-border bg-surface shadow-sm">
-        <table className="w-full text-left text-sm">
+      <div className="mt-6 overflow-x-auto ui-card">
+        <table className="ui-table">
           <thead>
-            <tr className="border-b border-border text-xs uppercase tracking-wide text-foreground/50">
-              <th className="px-5 py-3 font-medium">Cliente</th>
-              <th className="px-5 py-3 font-medium">Descrição</th>
-              <th className="px-5 py-3 font-medium">Vencimento</th>
-              <th className="px-5 py-3 font-medium">Valor</th>
-              <th className="px-5 py-3 font-medium">Status</th>
-              <th className="px-5 py-3 font-medium"></th>
+            <tr>
+              <th className="px-5 py-2.5 font-medium">Cliente</th>
+              <th className="px-5 py-2.5 font-medium">Descrição</th>
+              <th className="px-5 py-2.5 font-medium">Vencimento</th>
+              <th className="px-5 py-2.5 font-medium">Valor</th>
+              <th className="px-5 py-2.5 font-medium">Status</th>
+              <th className="px-5 py-2.5 font-medium"></th>
             </tr>
           </thead>
           <tbody className="divide-y divide-border">
             {records.length === 0 && (
               <tr>
-                <td colSpan={6} className="px-5 py-8 text-center text-sm text-foreground/50">
+                <td colSpan={6} className="px-5 py-12 text-center text-sm text-muted">
                   Nenhum lançamento financeiro ainda.
                 </td>
               </tr>
             )}
             {records.map((f) => (
-              <tr key={f.id} className="hover:bg-background">
+              <tr key={f.id}>
                 <td className="px-5 py-3 font-medium text-foreground">{f.clients?.name}</td>
                 <td className="px-5 py-3 text-foreground/70">{f.description}</td>
                 <td className="px-5 py-3 text-foreground/70">{formatDate(f.due_date)}</td>
@@ -75,7 +75,7 @@ export default async function AdminFinancialPage() {
                     <div className="flex flex-col items-end gap-1.5">
                       <form action={markAsPaidAction}>
                         <input type="hidden" name="id" value={f.id} />
-                        <button type="submit" className="text-xs font-medium text-navy hover:underline">
+                        <button type="submit" className="ui-link">
                           Marcar como pago
                         </button>
                       </form>

@@ -1,55 +1,58 @@
 import Link from "next/link";
+import { Pencil, Plus } from "lucide-react";
 import { listProcesses } from "@/lib/data/processes";
 import { PROCESS_AREA_LABEL } from "@/lib/process-area";
 import { StatusBadge } from "@/components/ui/status-badge";
 import { deleteProcessAction } from "./actions";
 import { ConfirmSubmitButton } from "@/components/ui/confirm-submit-button";
+import { exigirPermissao } from "@/lib/dal";
 
 export default async function AdminProcessesPage() {
+  await exigirPermissao("processos");
   const processes = await listProcesses();
 
   return (
     <div>
-      <div className="mb-6 flex items-center justify-between">
+      <div className="mb-7 flex flex-wrap items-end justify-between gap-3">
         <div>
-          <h1 className="text-xl font-semibold text-navy">Processos</h1>
-          <p className="text-sm text-foreground/50">
+          <h1 className="page-title">Processos</h1>
+          <p className="text-sm text-muted">
             {processes.length} {processes.length === 1 ? "processo cadastrado" : "processos cadastrados"}
           </p>
         </div>
         <Link
           href="/admin/processes/new"
-          className="rounded-lg bg-navy px-4 py-2 text-sm font-medium text-navy-foreground hover:bg-navy/90"
+          className="ui-btn"
         >
-          Novo processo
+          <Plus className="h-4 w-4" aria-hidden /> Novo processo
         </Link>
       </div>
 
-      <div className="overflow-x-auto rounded-xl border border-border bg-surface shadow-sm">
-        <table className="w-full text-left text-sm">
+      <div className="overflow-x-auto ui-card">
+        <table className="ui-table">
           <thead>
-            <tr className="border-b border-border text-xs uppercase tracking-wide text-foreground/50">
-              <th className="px-5 py-3 font-medium">Número</th>
-              <th className="px-5 py-3 font-medium">Cliente</th>
-              <th className="px-5 py-3 font-medium">Vara / Tribunal</th>
-              <th className="px-5 py-3 font-medium">Área</th>
-              <th className="px-5 py-3 font-medium">Fase</th>
-              <th className="px-5 py-3 font-medium">Responsável</th>
-              <th className="px-5 py-3 font-medium">Status</th>
-              <th className="px-5 py-3 font-medium"></th>
+            <tr>
+              <th className="px-5 py-2.5 font-medium">Número</th>
+              <th className="px-5 py-2.5 font-medium">Cliente</th>
+              <th className="px-5 py-2.5 font-medium">Vara / Tribunal</th>
+              <th className="px-5 py-2.5 font-medium">Área</th>
+              <th className="px-5 py-2.5 font-medium">Fase</th>
+              <th className="px-5 py-2.5 font-medium">Responsável</th>
+              <th className="px-5 py-2.5 font-medium">Status</th>
+              <th className="px-5 py-2.5 font-medium"></th>
             </tr>
           </thead>
           <tbody className="divide-y divide-border">
             {processes.length === 0 && (
               <tr>
-                <td colSpan={8} className="px-5 py-8 text-center text-sm text-foreground/50">
+                <td colSpan={8} className="px-5 py-12 text-center text-sm text-muted">
                   Nenhum processo cadastrado ainda.
                 </td>
               </tr>
             )}
             {processes.map((p) => (
-              <tr key={p.id} className="hover:bg-background">
-                <td className="px-5 py-3 font-medium">
+              <tr key={p.id}>
+                <td className="px-5 py-2.5 font-medium">
                   <Link href={`/admin/processes/${p.id}`} className="text-navy hover:underline">
                     {p.numero_processo}
                   </Link>
@@ -63,16 +66,14 @@ export default async function AdminProcessesPage() {
                   <StatusBadge status={p.status} />
                 </td>
                 <td className="px-5 py-3">
-                  <div className="flex items-center justify-end gap-3">
-                    <Link href={`/admin/processes/${p.id}/edit`} className="text-xs font-medium text-navy hover:underline">
-                      Editar
-                    </Link>
+                  <div className="flex items-center justify-end gap-0.5">
+                    <Link href={`/admin/processes/${p.id}/edit`} className="icon-btn" aria-label="Editar" data-tip="Editar"><Pencil aria-hidden /></Link>
                     <ConfirmSubmitButton
                       action={deleteProcessAction}
                       hiddenFields={{ id: p.id }}
                       confirmMessage={`Excluir o processo "${p.numero_processo}"?`}
                       label="Excluir"
-                      className="text-xs font-medium text-status-danger hover:underline"
+                      icon="trash"
                     />
                   </div>
                 </td>

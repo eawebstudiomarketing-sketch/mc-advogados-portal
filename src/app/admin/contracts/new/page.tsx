@@ -1,22 +1,23 @@
 import Link from "next/link";
 import { listClients } from "@/lib/data/clients";
 import { ContractForm } from "./contract-form";
+import { BackButton } from "@/components/nav/back-button";
+import { exigirPermissao } from "@/lib/dal";
 
 export default async function NewContractPage() {
+  await exigirPermissao("contratos");
   const clients = await listClients();
 
   return (
     <div>
-      <Link href="/admin/contracts" className="text-xs font-medium text-navy hover:underline">
-        ← Voltar para contratos
-      </Link>
+      <BackButton fallback="/admin/contracts" />
 
-      <h1 className="mt-3 mb-6 text-xl font-semibold text-navy">Novo contrato</h1>
+      <h1 className="mt-3 mb-6 page-title">Novo contrato</h1>
 
       {clients.length === 0 ? (
-        <p className="max-w-md rounded-xl border border-border bg-surface p-6 text-sm text-foreground/60 shadow-sm">
+        <p className="max-w-md ui-card p-6 text-sm text-muted">
           Nenhum cliente cadastrado ainda.{" "}
-          <Link href="/admin/clients/new" className="font-medium text-navy hover:underline">
+          <Link href="/admin/clients/new" className="font-medium text-navy-3 underline-offset-2 hover:underline">
             Cadastre um cliente
           </Link>{" "}
           antes de criar um contrato.

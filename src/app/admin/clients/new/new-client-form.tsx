@@ -9,9 +9,9 @@ export function NewClientForm() {
   const [state, formAction, pending] = useActionState(createClientAction, initialState);
 
   return (
-    <form action={formAction} className="max-w-md space-y-4 rounded-xl border border-border bg-surface p-6 shadow-sm">
+    <form action={formAction} className="max-w-xl space-y-5 ui-card p-6">
       <div>
-        <label htmlFor="name" className="mb-1.5 block text-sm font-medium text-foreground/80">
+        <label htmlFor="name" className="ui-label">
           Nome completo / Razão social
         </label>
         <input
@@ -19,19 +19,19 @@ export function NewClientForm() {
           name="name"
           type="text"
           required
-          className="w-full rounded-lg border border-border bg-background px-3 py-2 text-sm text-foreground focus:border-navy focus:outline-none focus:ring-1 focus:ring-navy"
+          className="ui-input"
         />
       </div>
 
       <div>
-        <label htmlFor="tipo_pessoa" className="mb-1.5 block text-sm font-medium text-foreground/80">
+        <label htmlFor="tipo_pessoa" className="ui-label">
           Tipo de pessoa
         </label>
         <select
           id="tipo_pessoa"
           name="tipo_pessoa"
           defaultValue="PJ"
-          className="w-full rounded-lg border border-border bg-background px-3 py-2 text-sm text-foreground focus:border-navy focus:outline-none focus:ring-1 focus:ring-navy"
+          className="ui-input"
         >
           <option value="PJ">Pessoa jurídica (PJ)</option>
           <option value="PF">Pessoa física (PF)</option>
@@ -39,7 +39,7 @@ export function NewClientForm() {
       </div>
 
       <div>
-        <label htmlFor="documento" className="mb-1.5 block text-sm font-medium text-foreground/80">
+        <label htmlFor="documento" className="ui-label">
           CPF / CNPJ
         </label>
         <input
@@ -48,12 +48,12 @@ export function NewClientForm() {
           type="text"
           required
           placeholder="000.000.000-00 ou 00.000.000/0000-00"
-          className="w-full rounded-lg border border-border bg-background px-3 py-2 text-sm text-foreground placeholder:text-foreground/30 focus:border-navy focus:outline-none focus:ring-1 focus:ring-navy"
+          className="ui-input"
         />
       </div>
 
       <div>
-        <label htmlFor="email_contact" className="mb-1.5 block text-sm font-medium text-foreground/80">
+        <label htmlFor="email_contact" className="ui-label">
           E-mail de contato
         </label>
         <input
@@ -61,7 +61,7 @@ export function NewClientForm() {
           name="email_contact"
           type="email"
           required
-          className="w-full rounded-lg border border-border bg-background px-3 py-2 text-sm text-foreground focus:border-navy focus:outline-none focus:ring-1 focus:ring-navy"
+          className="ui-input"
         />
       </div>
 
@@ -70,7 +70,7 @@ export function NewClientForm() {
       <button
         type="submit"
         disabled={pending}
-        className="w-full rounded-lg bg-navy px-4 py-2.5 text-sm font-medium text-navy-foreground transition-colors hover:bg-navy/90 disabled:opacity-60"
+        className="ui-btn w-full py-2.5"
       >
         {pending ? "Salvando..." : "Cadastrar cliente"}
       </button>

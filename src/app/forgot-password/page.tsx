@@ -18,7 +18,7 @@ export default function ForgotPasswordPage() {
             <Image src="/brand/logo_mc.jpg" alt="MC Advogados" width={56} height={56} priority />
           </div>
           <h1 className="mt-4 text-lg font-semibold text-navy">Esqueci minha senha</h1>
-          <p className="mt-1 text-sm text-foreground/50">Informe o e-mail da sua conta</p>
+          <p className="mt-1 text-sm text-muted">Informe o e-mail da sua conta</p>
         </div>
 
         {state.message ? (
@@ -28,7 +28,7 @@ export default function ForgotPasswordPage() {
         ) : (
           <form action={formAction} className="mt-6 space-y-4">
             <div>
-              <label htmlFor="email" className="mb-1.5 block text-sm font-medium text-foreground/80">
+              <label htmlFor="email" className="ui-label">
                 E-mail
               </label>
               <input
@@ -37,7 +37,7 @@ export default function ForgotPasswordPage() {
                 type="email"
                 autoComplete="email"
                 placeholder="voce@email.com"
-                className="w-full rounded-lg border border-border bg-background px-3 py-2 text-sm text-foreground placeholder:text-foreground/30 focus:border-navy focus:outline-none focus:ring-1 focus:ring-navy"
+                className="ui-input"
               />
             </div>
 
@@ -46,15 +46,15 @@ export default function ForgotPasswordPage() {
             <button
               type="submit"
               disabled={pending}
-              className="w-full rounded-lg bg-navy px-4 py-2.5 text-sm font-medium text-navy-foreground transition-colors hover:bg-navy/90 disabled:opacity-60"
+              className="ui-btn w-full py-2.5"
             >
               {pending ? "Enviando..." : "Enviar link de redefinição"}
             </button>
           </form>
         )}
 
-        <p className="mt-5 text-center text-xs text-foreground/40">
-          <Link href="/login" className="hover:text-foreground/60">
+        <p className="mt-5 text-center text-xs text-muted">
+          <Link href="/login" className="hover:text-muted">
             ← Voltar pro login
           </Link>
         </p>

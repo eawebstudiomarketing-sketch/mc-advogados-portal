@@ -1,17 +1,17 @@
-import Link from "next/link";
-import { requireRole } from "@/lib/dal";
+import { getPermissoes, requireRole } from "@/lib/dal";
 import { NewClientForm } from "./new-client-form";
+import { BackButton } from "@/components/nav/back-button";
 
 export default async function NewClientPage() {
-  await requireRole(["admin"]);
+  // qualquer pessoa da equipe pode cadastrar cliente
+  await requireRole(["admin", "advogado"]);
+  const permissoes = (await getPermissoes())!;
 
   return (
     <div>
-      <Link href="/admin/clients" className="text-xs font-medium text-navy hover:underline">
-        ← Voltar para clientes
-      </Link>
+      <BackButton fallback={permissoes.clientes ? "/admin/clients" : "/admin"} />
 
-      <h1 className="mt-3 mb-6 text-xl font-semibold text-navy">Novo cliente</h1>
+      <h1 className="mt-3 mb-6 page-title">Novo cliente</h1>
 
       <NewClientForm />
     </div>

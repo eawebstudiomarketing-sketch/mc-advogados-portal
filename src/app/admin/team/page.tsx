@@ -1,73 +1,96 @@
 import Link from "next/link";
-import { listStaff } from "@/lib/data/team";
+import { ShieldCheck, UserPlus } from "lucide-react";
+import { listDesignacoes, listPermissoesSalvas, listStaff } from "@/lib/data/team";
+import { listClients } from "@/lib/data/clients";
 import { requireRole } from "@/lib/dal";
+import { resolverPermissoes } from "@/lib/permissoes";
 import { removeStaffAction } from "./actions";
 import { ConfirmSubmitButton } from "@/components/ui/confirm-submit-button";
+import { MembroCard } from "./membro-card";
 
-const ROLE_LABEL: Record<string, string> = {
-  admin: "Administrador",
-  advogado: "Advogado(a)",
-};
-
+// Equipe (só admin): cada advogado com os clientes que cuida (só esses ele
+// enxerga) e o que pode ver/fazer no painel.
 export default async function AdminTeamPage() {
   const currentProfile = await requireRole(["admin"]);
-  const staff = await listStaff();
+  const [staff, clientes, designacoes, salvas] = await Promise.all([listStaff(), listClients(), listDesignacoes(), listPermissoesSalvas()]);
+  const admins = staff.filter((p) => p.role === "admin");
+  const advogados = staff.filter((p) => p.role === "advogado");
+  const listaClientes = clientes.map((c) => ({ id: c.id, name: c.name }));
+  const semDono = clientes.filter((c) => !advogados.some((a) => designacoes.get(a.id)?.includes(c.id))).length;
 
   return (
     <div>
-      <div className="mb-6 flex items-center justify-between">
+      <div className="mb-7 flex flex-wrap items-end justify-between gap-3">
         <div>
-          <h1 className="text-xl font-semibold text-navy">Equipe</h1>
-          <p className="text-sm text-foreground/50">
+          <h1 className="page-title">Equipe</h1>
+          <p className="text-sm text-muted">
             {staff.length} {staff.length === 1 ? "pessoa com acesso ao painel" : "pessoas com acesso ao painel"}
+            {semDono ? ` · ${semDono} ${semDono === 1 ? "cliente sem advogado (só você vê)" : "clientes sem advogado (só você vê)"}` : ""}
           </p>
         </div>
-        <Link
-          href="/admin/team/new"
-          className="rounded-lg bg-navy px-4 py-2 text-sm font-medium text-navy-foreground hover:bg-navy/90"
-        >
-          Convidar pessoa
+        <Link href="/admin/team/new" className="ui-btn">
+          <UserPlus className="h-4 w-4" aria-hidden /> Convidar pessoa
         </Link>
       </div>
 
-      <div className="overflow-x-auto rounded-xl border border-border bg-surface shadow-sm">
-        <table className="w-full text-left text-sm">
-          <thead>
-            <tr className="border-b border-border text-xs uppercase tracking-wide text-foreground/50">
-              <th className="px-5 py-3 font-medium">Nome</th>
-              <th className="px-5 py-3 font-medium">E-mail</th>
-              <th className="px-5 py-3 font-medium">Papel</th>
-              <th className="px-5 py-3 font-medium"></th>
-            </tr>
-          </thead>
-          <tbody className="divide-y divide-border">
-            {staff.length === 0 && (
-              <tr>
-                <td colSpan={4} className="px-5 py-8 text-center text-sm text-foreground/50">
-                  Nenhuma pessoa cadastrada ainda.
-                </td>
-              </tr>
+      <h2 className="section-title mb-3">Administradores</h2>
+      <div className="mb-8 space-y-2">
+        {admins.map((t) => (
+          <div key={t.id} className="ui-card flex flex-wrap items-center gap-3 px-5 py-4">
+            <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-navy text-sm font-semibold text-gold-2">
+              {t.full_name.replace(/^(Dr\.?|Dra\.?)\s+/i, "").slice(0, 2).toUpperCase()}
+            </span>
+            <div className="min-w-0 flex-1">
+              <p className="font-medium text-foreground">{t.full_name}</p>
+              <p className="truncate text-xs text-muted">{t.email}</p>
+            </div>
+            <span className="inline-flex items-center gap-1.5 rounded-full bg-navy/[0.06] px-2.5 py-1 text-xs font-medium text-navy-3">
+              <ShieldCheck className="h-3.5 w-3.5" aria-hidden /> Acesso total
+            </span>
+            {t.id !== currentProfile.id && (
+              <ConfirmSubmitButton
+                action={removeStaffAction}
+                hiddenFields={{ profile_id: t.id }}
+                confirmMessage={`Remover o acesso de ${t.full_name}? Essa ação não pode ser desfeita.`}
+                label="Remover acesso"
+                icon="user-x"
+              />
             )}
-            {staff.map((t) => (
-              <tr key={t.id} className="hover:bg-background">
-                <td className="px-5 py-3 font-medium text-foreground">{t.full_name}</td>
-                <td className="px-5 py-3 text-foreground/70">{t.email}</td>
-                <td className="px-5 py-3 text-foreground/70">{ROLE_LABEL[t.role] ?? t.role}</td>
-                <td className="px-5 py-3 text-right">
-                  {t.id !== currentProfile.id && (
-                    <ConfirmSubmitButton
-                      action={removeStaffAction}
-                      hiddenFields={{ profile_id: t.id, user_id: t.user_id }}
-                      confirmMessage={`Remover o acesso de ${t.full_name}? Essa ação não pode ser desfeita.`}
-                      label="Remover acesso"
-                      className="text-xs font-medium text-status-danger hover:underline"
-                    />
-                  )}
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
+          </div>
+        ))}
+      </div>
+
+      <h2 className="section-title mb-1">Advogados</h2>
+      <p className="mb-3 text-xs text-muted">
+        Cada advogado só enxerga os clientes designados a ele. Abra &ldquo;Clientes&rdquo; para escolher quais e &ldquo;O que pode ver e fazer&rdquo; para liberar ou bloquear telas e ações.
+      </p>
+      <div className="space-y-3">
+        {advogados.length === 0 && (
+          <p className="ui-card p-6 text-sm text-muted">
+            Nenhum advogado ainda.{" "}
+            <Link href="/admin/team/new" className="ui-link">
+              Convidar o primeiro
+            </Link>
+          </p>
+        )}
+        {advogados.map((t) => (
+          <MembroCard
+            key={t.id}
+            membro={{ id: t.id, nome: t.full_name, email: t.email, ativo: t.ativo }}
+            clientes={listaClientes}
+            designados={designacoes.get(t.id) ?? []}
+            permissoes={resolverPermissoes("advogado", salvas.get(t.id))}
+            acoes={
+              <ConfirmSubmitButton
+                action={removeStaffAction}
+                hiddenFields={{ profile_id: t.id }}
+                confirmMessage={`Remover de vez o acesso de ${t.full_name}? O login é apagado (prefira desativar).`}
+                label="Remover de vez"
+                icon="user-x"
+              />
+            }
+          />
+        ))}
       </div>
     </div>
   );

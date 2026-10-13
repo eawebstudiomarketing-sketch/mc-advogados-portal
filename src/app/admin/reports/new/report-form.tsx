@@ -13,15 +13,15 @@ export function ReportForm({ clients }: { clients: Client[] }) {
   const now = new Date();
 
   return (
-    <form action={formAction} className="max-w-md space-y-4 rounded-xl border border-border bg-surface p-6 shadow-sm">
+    <form action={formAction} className="max-w-xl space-y-5 ui-card p-6">
       <div>
-        <label htmlFor="client_id" className="mb-1.5 block text-sm font-medium text-foreground/80">
+        <label htmlFor="client_id" className="ui-label">
           Cliente
         </label>
         <select
           id="client_id"
           name="client_id"
-          className="w-full rounded-lg border border-border bg-background px-3 py-2 text-sm text-foreground focus:border-navy focus:outline-none focus:ring-1 focus:ring-navy"
+          className="ui-input"
         >
           {clients.map((c) => (
             <option key={c.id} value={c.id}>
@@ -33,14 +33,14 @@ export function ReportForm({ clients }: { clients: Client[] }) {
 
       <div className="grid grid-cols-2 gap-4">
         <div>
-          <label htmlFor="reference_month" className="mb-1.5 block text-sm font-medium text-foreground/80">
+          <label htmlFor="reference_month" className="ui-label">
             Mês de referência
           </label>
           <select
             id="reference_month"
             name="reference_month"
             defaultValue={now.getMonth() + 1}
-            className="w-full rounded-lg border border-border bg-background px-3 py-2 text-sm text-foreground focus:border-navy focus:outline-none focus:ring-1 focus:ring-navy"
+            className="ui-input"
           >
             {MESES.slice(1).map((m, i) => (
               <option key={m} value={i + 1}>
@@ -50,7 +50,7 @@ export function ReportForm({ clients }: { clients: Client[] }) {
           </select>
         </div>
         <div>
-          <label htmlFor="reference_year" className="mb-1.5 block text-sm font-medium text-foreground/80">
+          <label htmlFor="reference_year" className="ui-label">
             Ano
           </label>
           <input
@@ -59,7 +59,7 @@ export function ReportForm({ clients }: { clients: Client[] }) {
             type="number"
             defaultValue={now.getFullYear()}
             min="2020"
-            className="w-full rounded-lg border border-border bg-background px-3 py-2 text-sm text-foreground focus:border-navy focus:outline-none focus:ring-1 focus:ring-navy"
+            className="ui-input"
           />
         </div>
       </div>
@@ -69,13 +69,13 @@ export function ReportForm({ clients }: { clients: Client[] }) {
       <button
         type="submit"
         disabled={pending}
-        className="w-full rounded-lg bg-navy px-4 py-2.5 text-sm font-medium text-navy-foreground transition-colors hover:bg-navy/90 disabled:opacity-60"
+        className="ui-btn w-full py-2.5"
       >
         {pending ? "Gerando..." : "Gerar relatório"}
       </button>
 
-      <p className="text-xs text-foreground/40">
-        Gera um PDF com horas, atividades e lançamentos financeiros do cliente no mês selecionado. Se já existir um relatório pra esse período, ele é substituído.
+      <p className="text-xs text-muted">
+        Gera um PDF com as atividades do cliente: concluídas no mês selecionado, em andamento e a fazer. Se já existir um relatório pra esse período, ele é substituído.
       </p>
     </form>
   );

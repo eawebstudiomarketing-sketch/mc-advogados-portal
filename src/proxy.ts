@@ -1,7 +1,7 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { createServerClient } from "@supabase/ssr";
 
-const PROTECTED_PREFIXES = ["/admin", "/dashboard", "/account"];
+const PROTECTED_PREFIXES = ["/admin", "/dashboard", "/account", "/assistente"];
 
 // Checagem otimista apenas: só confirma que existe uma sessão válida e
 // aproveita pra renovar o token antes de expirar. A checagem de verdade

@@ -64,11 +64,11 @@ export default function ResetPasswordPage() {
         </div>
 
         {!ready ? (
-          <p className="mt-6 text-center text-sm text-foreground/50">Validando o link...</p>
+          <p className="mt-6 text-center text-sm text-muted">Validando o link...</p>
         ) : (
           <form onSubmit={handleSubmit} className="mt-6 space-y-4">
             <div>
-              <label htmlFor="password" className="mb-1.5 block text-sm font-medium text-foreground/80">
+              <label htmlFor="password" className="ui-label">
                 Nova senha
               </label>
               <input
@@ -78,12 +78,12 @@ export default function ResetPasswordPage() {
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
                 placeholder="••••••••"
-                className="w-full rounded-lg border border-border bg-background px-3 py-2 text-sm text-foreground placeholder:text-foreground/30 focus:border-navy focus:outline-none focus:ring-1 focus:ring-navy"
+                className="ui-input"
               />
             </div>
 
             <div>
-              <label htmlFor="confirm" className="mb-1.5 block text-sm font-medium text-foreground/80">
+              <label htmlFor="confirm" className="ui-label">
                 Confirmar senha
               </label>
               <input
@@ -93,7 +93,7 @@ export default function ResetPasswordPage() {
                 value={confirm}
                 onChange={(e) => setConfirm(e.target.value)}
                 placeholder="••••••••"
-                className="w-full rounded-lg border border-border bg-background px-3 py-2 text-sm text-foreground placeholder:text-foreground/30 focus:border-navy focus:outline-none focus:ring-1 focus:ring-navy"
+                className="ui-input"
               />
             </div>
 
@@ -102,7 +102,7 @@ export default function ResetPasswordPage() {
             <button
               type="submit"
               disabled={pending}
-              className="w-full rounded-lg bg-navy px-4 py-2.5 text-sm font-medium text-navy-foreground transition-colors hover:bg-navy/90 disabled:opacity-60"
+              className="ui-btn w-full py-2.5"
             >
               {pending ? "Salvando..." : "Salvar nova senha"}
             </button>

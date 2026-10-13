@@ -3,9 +3,10 @@
 import { redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
-import { requireRole } from "@/lib/dal";
+import { requireRole, exigirPermissao } from "@/lib/dal";
 import { CONTRACT_STATUSES } from "@/lib/contract-status";
 import type { Database } from "@/lib/supabase/types";
+import { destinoDeVolta } from "@/lib/voltar";
 
 export type CreateContractState = { error: string | null };
 
@@ -55,7 +56,7 @@ export async function createContractAction(
   }
 
   revalidatePath("/admin/contracts");
-  redirect("/admin/contracts");
+  redirect(destinoDeVolta(formData, "/admin/contracts"));
 }
 
 export async function updateContractStatusAction(formData: FormData): Promise<void> {
@@ -126,11 +127,11 @@ export async function updateContractAction(
   }
 
   revalidatePath("/admin/contracts");
-  redirect("/admin/contracts");
+  redirect(destinoDeVolta(formData, "/admin/contracts"));
 }
 
 export async function deleteContractAction(formData: FormData): Promise<void> {
-  await requireRole(["admin", "advogado"]);
+  await exigirPermissao("excluir");
 
   const id = formData.get("id");
   if (typeof id !== "string" || !id) return;

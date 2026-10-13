@@ -1,9 +1,10 @@
 "use client";
 
 import { useState } from "react";
-import { useRouter } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
 import { DOCUMENT_CATEGORY_LABEL, DOCUMENT_CATEGORIES } from "@/lib/document-category";
 import type { Client } from "@/lib/data/clients";
+import { telaAnterior } from "@/lib/navegacao";
 
 export function DocumentForm({
   clients,
@@ -21,6 +22,7 @@ export function DocumentForm({
   returnTo?: string;
 }) {
   const router = useRouter();
+  const pathname = usePathname();
   const [error, setError] = useState<string | null>(null);
   const [pending, setPending] = useState(false);
   const scoped = Boolean(activityId || processId);
@@ -40,7 +42,7 @@ export function DocumentForm({
         setError(data.error ?? "Não foi possível enviar o documento. Tente novamente.");
         return;
       }
-      router.push(returnTo ?? "/admin/documents");
+      router.push(telaAnterior(pathname) ?? returnTo ?? "/admin/documents");
       router.refresh();
     } catch {
       setError("Não foi possível enviar o documento. Tente novamente.");
@@ -50,27 +52,27 @@ export function DocumentForm({
   };
 
   return (
-    <form onSubmit={handleSubmit} className="max-w-md space-y-4 rounded-xl border border-border bg-surface p-6 shadow-sm">
+    <form onSubmit={handleSubmit} className="max-w-xl space-y-5 ui-card p-6">
       {activityId && <input type="hidden" name="activity_id" value={activityId} />}
       {processId && <input type="hidden" name="process_id" value={processId} />}
 
       {scoped ? (
         <div>
-          <p className="mb-1.5 block text-sm font-medium text-foreground/80">Cliente</p>
+          <p className="ui-label">Cliente</p>
           <p className="rounded-lg border border-border bg-background px-3 py-2 text-sm text-foreground/70">
             {scopeLabel ?? "Definido automaticamente"}
           </p>
         </div>
       ) : (
         <div>
-          <label htmlFor="client_id" className="mb-1.5 block text-sm font-medium text-foreground/80">
+          <label htmlFor="client_id" className="ui-label">
             Cliente
           </label>
           <select
             id="client_id"
             name="client_id"
             defaultValue={clientId}
-            className="w-full rounded-lg border border-border bg-background px-3 py-2 text-sm text-foreground focus:border-navy focus:outline-none focus:ring-1 focus:ring-navy"
+            className="ui-input"
           >
             {clients.map((c) => (
               <option key={c.id} value={c.id}>
@@ -82,7 +84,7 @@ export function DocumentForm({
       )}
 
       <div>
-        <label htmlFor="title" className="mb-1.5 block text-sm font-medium text-foreground/80">
+        <label htmlFor="title" className="ui-label">
           Título
         </label>
         <input
@@ -90,18 +92,18 @@ export function DocumentForm({
           name="title"
           type="text"
           required
-          className="w-full rounded-lg border border-border bg-background px-3 py-2 text-sm text-foreground focus:border-navy focus:outline-none focus:ring-1 focus:ring-navy"
+          className="ui-input"
         />
       </div>
 
       <div>
-        <label htmlFor="category" className="mb-1.5 block text-sm font-medium text-foreground/80">
+        <label htmlFor="category" className="ui-label">
           Categoria
         </label>
         <select
           id="category"
           name="category"
-          className="w-full rounded-lg border border-border bg-background px-3 py-2 text-sm text-foreground focus:border-navy focus:outline-none focus:ring-1 focus:ring-navy"
+          className="ui-input"
         >
           {DOCUMENT_CATEGORIES.map((cat) => (
             <option key={cat} value={cat}>
@@ -112,7 +114,7 @@ export function DocumentForm({
       </div>
 
       <div>
-        <label htmlFor="file" className="mb-1.5 block text-sm font-medium text-foreground/80">
+        <label htmlFor="file" className="ui-label">
           Arquivo
         </label>
         <input
@@ -129,7 +131,7 @@ export function DocumentForm({
       <button
         type="submit"
         disabled={pending}
-        className="w-full rounded-lg bg-navy px-4 py-2.5 text-sm font-medium text-navy-foreground transition-colors hover:bg-navy/90 disabled:opacity-60"
+        className="ui-btn w-full py-2.5"
       >
         {pending ? "Enviando..." : "Enviar documento"}
       </button>

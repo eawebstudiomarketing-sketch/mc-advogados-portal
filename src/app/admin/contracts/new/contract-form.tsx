@@ -3,6 +3,7 @@
 import { useActionState } from "react";
 import { createContractAction, type CreateContractState } from "../actions";
 import type { Client } from "@/lib/data/clients";
+import { VoltarInput } from "@/components/nav/back-button";
 
 const initialState: CreateContractState = { error: null };
 
@@ -11,15 +12,16 @@ export function ContractForm({ clients }: { clients: Client[] }) {
   const today = new Date().toISOString().slice(0, 10);
 
   return (
-    <form action={formAction} className="max-w-md space-y-4 rounded-xl border border-border bg-surface p-6 shadow-sm">
+    <form action={formAction} className="max-w-xl space-y-5 ui-card p-6">
+      <VoltarInput />
       <div>
-        <label htmlFor="client_id" className="mb-1.5 block text-sm font-medium text-foreground/80">
+        <label htmlFor="client_id" className="ui-label">
           Cliente
         </label>
         <select
           id="client_id"
           name="client_id"
-          className="w-full rounded-lg border border-border bg-background px-3 py-2 text-sm text-foreground focus:border-navy focus:outline-none focus:ring-1 focus:ring-navy"
+          className="ui-input"
         >
           {clients.map((c) => (
             <option key={c.id} value={c.id}>
@@ -30,7 +32,7 @@ export function ContractForm({ clients }: { clients: Client[] }) {
       </div>
 
       <div>
-        <label htmlFor="title" className="mb-1.5 block text-sm font-medium text-foreground/80">
+        <label htmlFor="title" className="ui-label">
           Título
         </label>
         <input
@@ -39,13 +41,13 @@ export function ContractForm({ clients }: { clients: Client[] }) {
           type="text"
           required
           placeholder="Assessoria Jurídica Mensal"
-          className="w-full rounded-lg border border-border bg-background px-3 py-2 text-sm text-foreground placeholder:text-foreground/30 focus:border-navy focus:outline-none focus:ring-1 focus:ring-navy"
+          className="ui-input"
         />
       </div>
 
       <div className="grid grid-cols-2 gap-4">
         <div>
-          <label htmlFor="start_date" className="mb-1.5 block text-sm font-medium text-foreground/80">
+          <label htmlFor="start_date" className="ui-label">
             Início
           </label>
           <input
@@ -53,24 +55,24 @@ export function ContractForm({ clients }: { clients: Client[] }) {
             name="start_date"
             type="date"
             defaultValue={today}
-            className="w-full rounded-lg border border-border bg-background px-3 py-2 text-sm text-foreground focus:border-navy focus:outline-none focus:ring-1 focus:ring-navy"
+            className="ui-input"
           />
         </div>
         <div>
-          <label htmlFor="end_date" className="mb-1.5 block text-sm font-medium text-foreground/80">
+          <label htmlFor="end_date" className="ui-label">
             Fim (opcional)
           </label>
           <input
             id="end_date"
             name="end_date"
             type="date"
-            className="w-full rounded-lg border border-border bg-background px-3 py-2 text-sm text-foreground focus:border-navy focus:outline-none focus:ring-1 focus:ring-navy"
+            className="ui-input"
           />
         </div>
       </div>
 
       <div>
-        <label htmlFor="value" className="mb-1.5 block text-sm font-medium text-foreground/80">
+        <label htmlFor="value" className="ui-label">
           Valor (opcional)
         </label>
         <input
@@ -80,19 +82,19 @@ export function ContractForm({ clients }: { clients: Client[] }) {
           step="0.01"
           min="0.01"
           placeholder="1800,00"
-          className="w-full rounded-lg border border-border bg-background px-3 py-2 text-sm text-foreground placeholder:text-foreground/30 focus:border-navy focus:outline-none focus:ring-1 focus:ring-navy"
+          className="ui-input"
         />
       </div>
 
       <div>
-        <label htmlFor="description" className="mb-1.5 block text-sm font-medium text-foreground/80">
+        <label htmlFor="description" className="ui-label">
           Descrição (opcional)
         </label>
         <textarea
           id="description"
           name="description"
           rows={3}
-          className="w-full rounded-lg border border-border bg-background px-3 py-2 text-sm text-foreground focus:border-navy focus:outline-none focus:ring-1 focus:ring-navy"
+          className="ui-input"
         />
       </div>
 
@@ -101,7 +103,7 @@ export function ContractForm({ clients }: { clients: Client[] }) {
       <button
         type="submit"
         disabled={pending}
-        className="w-full rounded-lg bg-navy px-4 py-2.5 text-sm font-medium text-navy-foreground transition-colors hover:bg-navy/90 disabled:opacity-60"
+        className="ui-btn w-full py-2.5"
       >
         {pending ? "Salvando..." : "Criar contrato"}
       </button>

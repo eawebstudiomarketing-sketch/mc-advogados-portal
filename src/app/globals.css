@@ -1,38 +1,61 @@
 @import "tailwindcss";
 
-/* MC Advogados — identidade oficial (logo_mc.jpg + paleta já usada nos
-   relatórios do escritório). Tema claro fixo — sem alternância automática
-   por prefers-color-scheme, é um painel B2B profissional. */
+/* MC Advogados — sistema visual do portal (redesenho out/2026).
+   Ferramenta de gestão no padrão das consagradas (Linear/Notion): fundo
+   neutro frio, superfícies brancas, navy da marca para ação principal e
+   navegação, dourado só para seleção, foco de atenção e marca. Tema claro
+   fixo: o painel é usado em escritório, durante o expediente. */
 :root {
-  --background: #f7f8fa;
-  --foreground: #171f2e;
+  --background: #f4f5f7;
+  --foreground: #0f1a2a;
   --surface: #ffffff;
-  --border: #e3e6ec;
+  --surface-2: #f9fafb;
+  --border: #e4e7ec;
+  --border-strong: #d3d8e0;
+  --muted: #5d6878;
 
   --navy: #0b2545;
+  --navy-2: #0a1b31;
+  --navy-3: #13325a;
   --navy-foreground: #ffffff;
-  --gold: #c9a84c;
+  --gold: #c6a24f;
+  --gold-2: #e1cd93;
+  --gold-soft: #f7f0dc;
+  --gold-ink: #7a5f22;
   --gold-foreground: #171f2e;
 
-  --status-success: #16a34a;
-  --status-success-bg: #ecfdf3;
-  --status-pending: #d97706;
-  --status-pending-bg: #fffaeb;
-  --status-danger: #dc2626;
-  --status-danger-bg: #fef2f2;
-  --status-info: #2563eb;
-  --status-info-bg: #eff6ff;
+  --status-success: #15803d;
+  --status-success-bg: #e9f8ef;
+  --status-pending: #b45309;
+  --status-pending-bg: #fdf5e6;
+  --status-danger: #c81e1e;
+  --status-danger-bg: #fdeeee;
+  --status-info: #1d4ed8;
+  --status-info-bg: #ebf1fe;
+
+  --shadow-sm: 0 1px 2px rgba(15, 26, 42, 0.05);
+  --shadow-md: 0 1px 2px rgba(15, 26, 42, 0.04), 0 6px 16px -6px rgba(15, 26, 42, 0.1);
+  --shadow-lg: 0 2px 4px rgba(15, 26, 42, 0.04), 0 18px 40px -12px rgba(15, 26, 42, 0.22);
+  --ease-out: cubic-bezier(0.16, 1, 0.3, 1);
 }
 
 @theme inline {
   --color-background: var(--background);
   --color-foreground: var(--foreground);
   --color-surface: var(--surface);
+  --color-surface-2: var(--surface-2);
   --color-border: var(--border);
+  --color-border-strong: var(--border-strong);
+  --color-muted: var(--muted);
 
   --color-navy: var(--navy);
+  --color-navy-2: var(--navy-2);
+  --color-navy-3: var(--navy-3);
   --color-navy-foreground: var(--navy-foreground);
   --color-gold: var(--gold);
+  --color-gold-2: var(--gold-2);
+  --color-gold-soft: var(--gold-soft);
+  --color-gold-ink: var(--gold-ink);
   --color-gold-foreground: var(--gold-foreground);
 
   --color-status-success: var(--status-success);
@@ -44,11 +67,315 @@
   --color-status-info: var(--status-info);
   --color-status-info-bg: var(--status-info-bg);
 
+  --shadow-sm: var(--shadow-sm);
+  --shadow-md: var(--shadow-md);
+  --shadow-lg: var(--shadow-lg);
+  --ease-out: var(--ease-out);
+
   --font-sans: var(--font-geist-sans);
   --font-mono: var(--font-geist-mono);
+
+  --animate-enter: enter 220ms var(--ease-out) both;
+  --animate-page: page-in 200ms var(--ease-out) both;
+  --animate-shimmer: shimmer 1.4s linear infinite;
+}
+
+@keyframes enter {
+  from {
+    opacity: 0;
+    transform: translateY(4px);
+  }
+}
+
+/* entrada de tela: só opacidade. Transform num ancestral prenderia elementos
+   position:fixed (barras flutuantes) dentro da página. */
+@keyframes page-in {
+  from {
+    opacity: 0;
+  }
+}
+
+@keyframes shimmer {
+  from {
+    background-position: 200% 0;
+  }
+  to {
+    background-position: -200% 0;
+  }
 }
 
 body {
   background: var(--background);
   color: var(--foreground);
+  font-feature-settings: "cv11", "ss01";
+}
+
+::selection {
+  background: var(--gold-2);
+  color: var(--navy-2);
+}
+
+@layer base {
+  :focus-visible {
+    outline: 2px solid var(--navy-3);
+    outline-offset: 2px;
+  }
+}
+
+* {
+  scrollbar-width: thin;
+  scrollbar-color: var(--border-strong) transparent;
+}
+
+input,
+textarea,
+select {
+  caret-color: var(--navy-3);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    transition-duration: 0.01ms !important;
+  }
+}
+
+/* ---------- vocabulário de componentes (usado em todas as telas) ---------- */
+
+/* título de página */
+@utility page-title {
+  font-size: 1.375rem;
+  line-height: 1.75rem;
+  font-weight: 650;
+  letter-spacing: -0.02em;
+  color: var(--foreground);
+}
+
+/* título de seção dentro de cartão */
+@utility section-title {
+  font-size: 0.875rem;
+  line-height: 1.25rem;
+  font-weight: 600;
+  color: var(--foreground);
+}
+
+/* cartão padrão */
+@utility ui-card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  box-shadow: var(--shadow-sm);
+}
+
+/* rótulo de campo */
+@utility ui-label {
+  display: block;
+  margin-bottom: 0.375rem;
+  font-size: 0.8125rem;
+  font-weight: 550;
+  color: #344054;
+}
+
+/* campo de formulário */
+@utility ui-input {
+  width: 100%;
+  border-radius: 10px;
+  border: 1px solid var(--border-strong);
+  background: var(--surface);
+  padding: 0.5rem 0.75rem;
+  font-size: 0.875rem;
+  line-height: 1.375rem;
+  color: var(--foreground);
+  box-shadow: var(--shadow-sm);
+  transition:
+    border-color 150ms var(--ease-out),
+    box-shadow 150ms var(--ease-out);
+  &::placeholder {
+    color: #98a2b3;
+  }
+  &:hover {
+    border-color: #b9c0cc;
+  }
+  &:focus {
+    outline: none;
+    border-color: var(--navy-3);
+    box-shadow: 0 0 0 3px rgba(19, 50, 90, 0.14);
+  }
+  &:disabled {
+    background: var(--surface-2);
+    color: var(--muted);
+  }
+}
+
+/* botão principal */
+@utility ui-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  border-radius: 10px;
+  background: var(--navy);
+  padding: 0.5rem 1rem;
+  font-size: 0.875rem;
+  font-weight: 550;
+  color: #fff;
+  box-shadow:
+    0 1px 2px rgba(11, 37, 69, 0.25),
+    inset 0 1px 0 rgba(255, 255, 255, 0.08);
+  transition:
+    background-color 150ms var(--ease-out),
+    transform 150ms var(--ease-out),
+    box-shadow 150ms var(--ease-out);
+  &:hover {
+    background: var(--navy-3);
+  }
+  &:active {
+    transform: translateY(1px);
+  }
+  &:disabled {
+    opacity: 0.6;
+    cursor: not-allowed;
+    transform: none;
+  }
+}
+
+/* botão secundário */
+@utility ui-btn-secondary {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  border-radius: 10px;
+  border: 1px solid var(--border-strong);
+  background: var(--surface);
+  padding: 0.4375rem 0.875rem;
+  font-size: 0.8125rem;
+  font-weight: 550;
+  color: var(--foreground);
+  box-shadow: var(--shadow-sm);
+  transition:
+    background-color 150ms var(--ease-out),
+    border-color 150ms var(--ease-out);
+  &:hover {
+    background: var(--surface-2);
+    border-color: #b9c0cc;
+  }
+  &:disabled {
+    opacity: 0.6;
+  }
+}
+
+/* link de ação dentro de cartões */
+@utility ui-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+  font-size: 0.8125rem;
+  font-weight: 550;
+  color: var(--navy-3);
+  border-radius: 6px;
+  transition: color 150ms var(--ease-out);
+  &:hover {
+    color: var(--navy);
+    text-decoration: underline;
+    text-underline-offset: 3px;
+  }
+}
+
+/* tabela */
+@utility ui-table {
+  width: 100%;
+  text-align: left;
+  font-size: 0.875rem;
+  & thead tr {
+    border-bottom: 1px solid var(--border);
+    background: var(--surface-2);
+  }
+  & th {
+    font-size: 0.75rem;
+    font-weight: 550;
+    letter-spacing: 0.01em;
+    color: var(--muted);
+  }
+  & tbody tr {
+    transition: background-color 120ms var(--ease-out);
+  }
+  & tbody tr:hover {
+    background: #f7f8fa;
+  }
+}
+
+/* esqueleto de carregamento */
+@utility skeleton {
+  border-radius: 8px;
+  background: linear-gradient(90deg, #eceef2 0%, #f6f7f9 50%, #eceef2 100%);
+  background-size: 200% 100%;
+  animation: var(--animate-shimmer);
+}
+
+/* botão só com ícone (Editar, Baixar, Excluir…); a dica vem de data-tip */
+@utility icon-btn {
+  display: inline-flex;
+  height: 2rem;
+  width: 2rem;
+  flex-shrink: 0;
+  align-items: center;
+  justify-content: center;
+  border-radius: 9px;
+  color: var(--muted);
+  transition:
+    background-color 150ms var(--ease-out),
+    color 150ms var(--ease-out);
+  &:hover {
+    background: #eceef2;
+    color: var(--foreground);
+  }
+  & svg {
+    width: 1rem;
+    height: 1rem;
+  }
+}
+
+@utility icon-btn-danger {
+  &:hover {
+    background: var(--status-danger-bg);
+    color: var(--status-danger);
+  }
+}
+
+@layer base {
+/* dica ao passar o mouse / focar pelo teclado: <a data-tip="Baixar"> */
+[data-tip] {
+  position: relative;
+}
+[data-tip]::after {
+  content: attr(data-tip);
+  position: absolute;
+  bottom: calc(100% + 6px);
+  left: 50%;
+  z-index: 40;
+  transform: translate(-50%, 3px);
+  white-space: nowrap;
+  pointer-events: none;
+  border-radius: 7px;
+  background: var(--navy-2);
+  padding: 4px 8px;
+  font-size: 11px;
+  font-weight: 500;
+  line-height: 1.2;
+  color: #fff;
+  box-shadow: 0 4px 12px -2px rgba(10, 27, 49, 0.35);
+  opacity: 0;
+  transition:
+    opacity 120ms var(--ease-out),
+    transform 120ms var(--ease-out);
+}
+[data-tip]:hover::after,
+[data-tip]:focus-visible::after {
+  opacity: 1;
+  transform: translate(-50%, 0);
+  transition-delay: 250ms;
+}
 }

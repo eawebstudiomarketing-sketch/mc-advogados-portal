@@ -8,6 +8,7 @@ import { getClient } from "@/lib/data/clients";
 import { getClientPortalUser } from "@/lib/data/team";
 import { getResendClient } from "@/lib/email/resend";
 import { formatCurrency } from "@/lib/mock-data";
+import { destinoDeVolta } from "@/lib/voltar";
 
 export type CreateFinancialRecordState = { error: string | null };
 
@@ -52,7 +53,7 @@ export async function createFinancialRecordAction(
   }
 
   revalidatePath("/admin/financial");
-  redirect("/admin/financial");
+  redirect(destinoDeVolta(formData, "/admin/financial"));
 }
 
 export async function markAsPaidAction(formData: FormData): Promise<void> {

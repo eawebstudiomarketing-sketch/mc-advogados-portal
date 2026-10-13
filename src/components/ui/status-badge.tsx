@@ -1,32 +1,33 @@
-const STATUS_MAP: Record<string, { label: string; fg: string; bg: string }> = {
-  pago: { label: "Pago", fg: "text-status-success", bg: "bg-status-success-bg" },
-  paid: { label: "Pago", fg: "text-status-success", bg: "bg-status-success-bg" },
-  ativo: { label: "Ativo", fg: "text-status-success", bg: "bg-status-success-bg" },
-  active: { label: "Ativo", fg: "text-status-success", bg: "bg-status-success-bg" },
-  concluida: { label: "Concluída", fg: "text-status-success", bg: "bg-status-success-bg" },
+const STATUS_MAP: Record<string, { label: string; fg: string; bg: string; dot: string }> = {
+  pago: { label: "Pago", fg: "text-status-success", bg: "bg-status-success-bg", dot: "bg-status-success" },
+  paid: { label: "Pago", fg: "text-status-success", bg: "bg-status-success-bg", dot: "bg-status-success" },
+  ativo: { label: "Ativo", fg: "text-status-success", bg: "bg-status-success-bg", dot: "bg-status-success" },
+  active: { label: "Ativo", fg: "text-status-success", bg: "bg-status-success-bg", dot: "bg-status-success" },
+  concluida: { label: "Concluída", fg: "text-status-success", bg: "bg-status-success-bg", dot: "bg-status-success" },
 
-  pendente: { label: "Pendente", fg: "text-status-pending", bg: "bg-status-pending-bg" },
-  pending: { label: "Pendente", fg: "text-status-pending", bg: "bg-status-pending-bg" },
-  aberta: { label: "Aberta", fg: "text-status-pending", bg: "bg-status-pending-bg" },
-  expired: { label: "Expirado", fg: "text-status-pending", bg: "bg-status-pending-bg" },
+  pendente: { label: "Pendente", fg: "text-status-pending", bg: "bg-status-pending-bg", dot: "bg-status-pending" },
+  pending: { label: "Pendente", fg: "text-status-pending", bg: "bg-status-pending-bg", dot: "bg-status-pending" },
+  aberta: { label: "A fazer", fg: "text-status-pending", bg: "bg-status-pending-bg", dot: "bg-status-pending" },
+  expired: { label: "Expirado", fg: "text-status-pending", bg: "bg-status-pending-bg", dot: "bg-status-pending" },
 
-  atrasado: { label: "Atrasado", fg: "text-status-danger", bg: "bg-status-danger-bg" },
-  overdue: { label: "Atrasado", fg: "text-status-danger", bg: "bg-status-danger-bg" },
-  cancelado: { label: "Cancelado", fg: "text-status-danger", bg: "bg-status-danger-bg" },
-  cancelada: { label: "Cancelada", fg: "text-status-danger", bg: "bg-status-danger-bg" },
-  cancelled: { label: "Cancelado", fg: "text-status-danger", bg: "bg-status-danger-bg" },
-  inativo: { label: "Inativo", fg: "text-status-danger", bg: "bg-status-danger-bg" },
+  atrasado: { label: "Atrasado", fg: "text-status-danger", bg: "bg-status-danger-bg", dot: "bg-status-danger" },
+  overdue: { label: "Atrasado", fg: "text-status-danger", bg: "bg-status-danger-bg", dot: "bg-status-danger" },
+  cancelado: { label: "Cancelado", fg: "text-muted", bg: "bg-surface-2", dot: "bg-border-strong" },
+  cancelada: { label: "Cancelada", fg: "text-muted", bg: "bg-surface-2", dot: "bg-border-strong" },
+  cancelled: { label: "Cancelado", fg: "text-muted", bg: "bg-surface-2", dot: "bg-border-strong" },
+  inativo: { label: "Inativo", fg: "text-muted", bg: "bg-surface-2", dot: "bg-border-strong" },
 
-  em_andamento: { label: "Em andamento", fg: "text-status-info", bg: "bg-status-info-bg" },
-  info: { label: "Info", fg: "text-status-info", bg: "bg-status-info-bg" },
+  em_andamento: { label: "Em andamento", fg: "text-status-info", bg: "bg-status-info-bg", dot: "bg-status-info" },
+  info: { label: "Info", fg: "text-status-info", bg: "bg-status-info-bg", dot: "bg-status-info" },
 };
 
 export function StatusBadge({ status, label }: { status: string; label?: string }) {
-  const entry = STATUS_MAP[status] ?? { label: label ?? status, fg: "text-foreground/70", bg: "bg-border" };
+  const entry = STATUS_MAP[status] ?? { label: label ?? status, fg: "text-muted", bg: "bg-surface-2", dot: "bg-border-strong" };
   return (
     <span
-      className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-medium ${entry.fg} ${entry.bg}`}
+      className={`inline-flex shrink-0 items-center gap-1.5 rounded-full px-2.5 py-0.5 text-xs font-medium whitespace-nowrap ${entry.fg} ${entry.bg}`}
     >
+      <span className={`h-1.5 w-1.5 rounded-full ${entry.dot}`} aria-hidden />
       {label ?? entry.label}
     </span>
   );

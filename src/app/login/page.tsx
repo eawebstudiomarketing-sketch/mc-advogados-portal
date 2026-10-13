@@ -18,7 +18,7 @@ function LoginForm() {
       <input type="hidden" name="next" value={next} />
 
       <div>
-        <label htmlFor="email" className="mb-1.5 block text-sm font-medium text-foreground/80">
+        <label htmlFor="email" className="ui-label">
           E-mail
         </label>
         <input
@@ -27,12 +27,12 @@ function LoginForm() {
           type="email"
           autoComplete="email"
           placeholder="voce@email.com"
-          className="w-full rounded-lg border border-border bg-background px-3 py-2 text-sm text-foreground placeholder:text-foreground/30 focus:border-navy focus:outline-none focus:ring-1 focus:ring-navy"
+          className="ui-input"
         />
       </div>
 
       <div>
-        <label htmlFor="password" className="mb-1.5 block text-sm font-medium text-foreground/80">
+        <label htmlFor="password" className="ui-label">
           Senha
         </label>
         <input
@@ -41,16 +41,19 @@ function LoginForm() {
           type="password"
           autoComplete="current-password"
           placeholder="••••••••"
-          className="w-full rounded-lg border border-border bg-background px-3 py-2 text-sm text-foreground placeholder:text-foreground/30 focus:border-navy focus:outline-none focus:ring-1 focus:ring-navy"
+          className="ui-input"
         />
       </div>
 
       {state.error && <p className="text-sm text-status-danger">{state.error}</p>}
+      {!state.error && searchParams.get("erro") === "desativado" && (
+        <p className="text-sm text-status-danger">Seu acesso ao portal foi desativado. Fale com o administrador.</p>
+      )}
 
       <button
         type="submit"
         disabled={pending}
-        className="w-full rounded-lg bg-navy px-4 py-2.5 text-sm font-medium text-navy-foreground transition-colors hover:bg-navy/90 disabled:opacity-60"
+        className="ui-btn w-full py-2.5"
       >
         {pending ? "Entrando..." : "Entrar"}
       </button>
@@ -60,25 +63,35 @@ function LoginForm() {
 
 export default function LoginPage() {
   return (
-    <div className="flex min-h-screen items-center justify-center bg-background px-6">
-      <div className="w-full max-w-sm rounded-2xl border border-border bg-surface p-8 shadow-sm">
-        <div className="flex flex-col items-center text-center">
-          <div className="overflow-hidden rounded-full">
-            <Image src="/brand/logo_mc.jpg" alt="MC Advogados" width={56} height={56} priority />
+    <div className="relative flex min-h-screen w-full items-center justify-center overflow-hidden bg-navy-2 px-5">
+      <div aria-hidden className="pointer-events-none absolute -right-40 -top-40 h-[520px] w-[520px] rounded-full border border-gold/15" />
+      <div aria-hidden className="pointer-events-none absolute -right-24 -top-24 h-[360px] w-[360px] rounded-full border border-gold/10" />
+      <div className="relative w-full max-w-sm animate-enter">
+        <div className="mb-6 flex items-center justify-center gap-3 text-white">
+          <div className="overflow-hidden rounded-full ring-1 ring-gold/50">
+            <Image src="/brand/logo_mc.jpg" alt="MC Advogados" width={44} height={44} priority />
           </div>
-          <h1 className="mt-4 text-lg font-semibold text-navy">MC Advogados Portal</h1>
-          <p className="mt-1 text-sm text-foreground/50">Acesse com seu e-mail e senha</p>
+          <div className="leading-tight">
+            <p className="text-[11px] font-semibold tracking-[0.2em] text-gold-2">MAURÍCIO CARDOSO</p>
+            <p className="text-lg font-semibold tracking-[0.08em]">ADVOCACIA</p>
+          </div>
+        </div>
+      <div className="w-full rounded-2xl bg-surface p-7 shadow-lg">
+        <div>
+          <h1 className="text-lg font-semibold tracking-tight text-foreground">Entrar no portal</h1>
+          <p className="mt-1 text-sm text-muted">Use seu e-mail e senha.</p>
         </div>
 
         <Suspense fallback={<div className="mt-6 h-[188px]" />}>
           <LoginForm />
         </Suspense>
 
-        <p className="mt-5 text-center text-xs text-foreground/40">
-          <Link href="/forgot-password" className="hover:text-foreground/60">
+        <p className="mt-5 text-center text-xs text-muted">
+          <Link href="/forgot-password" className="underline-offset-2 hover:text-foreground hover:underline">
             Esqueci minha senha
           </Link>
         </p>
+      </div>
       </div>
     </div>
   );

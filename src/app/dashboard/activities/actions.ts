@@ -6,6 +6,7 @@ import { createClient } from "@/lib/supabase/server";
 import { requireRole } from "@/lib/dal";
 import { ACTIVITY_TYPES } from "@/lib/activity-type";
 import type { Database } from "@/lib/supabase/types";
+import { destinoDeVolta } from "@/lib/voltar";
 
 export type CreateActivityState = { error: string | null };
 
@@ -42,5 +43,5 @@ export async function createOwnActivityAction(
   }
 
   revalidatePath("/dashboard/activities");
-  redirect("/dashboard/activities");
+  redirect(destinoDeVolta(formData, "/dashboard/activities"));
 }

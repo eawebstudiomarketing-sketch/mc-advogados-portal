@@ -3,6 +3,7 @@ import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
 import { requireRole } from "@/lib/dal";
 import { DOCUMENT_CATEGORIES } from "@/lib/document-category";
+import { deleteFile, ensureClientFolder, getDriveSession, uploadFile } from "@/lib/google-drive";
 import type { Database } from "@/lib/supabase/types";
 
 // Route Handler em vez de Server Action: uma Server Action multipart
@@ -75,11 +76,36 @@ export async function POST(request: Request) {
   }
 
   const supabase = supabaseForLookup;
-  const filePath = `${clientId}/${Date.now()}-${sanitizeFileName(file.name)}`;
 
-  const { error: uploadError } = await supabase.storage.from("documents").upload(filePath, file);
-  if (uploadError) {
-    return NextResponse.json({ error: "Não foi possível enviar o arquivo. Tente novamente." }, { status: 500 });
+  // Com o Google Drive conectado, o arquivo vai pra pasta do cliente no Drive.
+  // Se o Drive falhar por qualquer motivo, cai no Supabase Storage (como sempre
+  // foi) pra o upload nunca deixar de funcionar.
+  let driveFileId: string | null = null;
+  let driveToken: string | null = null;
+  try {
+    const session = await getDriveSession();
+    if (session) {
+      const { data: clientRow } = await supabase.from("clients").select("id, name").eq("id", clientId).maybeSingle();
+      if (clientRow) {
+        const folderId = await ensureClientFolder(session.token, session.connection, clientRow);
+        driveFileId = await uploadFile(session.token, file, folderId);
+        driveToken = session.token;
+      }
+    }
+  } catch (error) {
+    console.error("Upload pro Drive falhou, usando Supabase Storage:", error);
+    driveFileId = null;
+  }
+
+  let filePath: string;
+  if (driveFileId) {
+    filePath = `drive/${driveFileId}`;
+  } else {
+    filePath = `${clientId}/${Date.now()}-${sanitizeFileName(file.name)}`;
+    const { error: uploadError } = await supabase.storage.from("documents").upload(filePath, file);
+    if (uploadError) {
+      return NextResponse.json({ error: "Não foi possível enviar o arquivo. Tente novamente." }, { status: 500 });
+    }
   }
 
   const { error: insertError } = await supabase.from("documents").insert({
@@ -90,10 +116,15 @@ export async function POST(request: Request) {
     category: category as Database["public"]["Enums"]["document_category"],
     title: title.trim(),
     file_path: filePath,
+    drive_file_id: driveFileId,
   });
 
   if (insertError) {
-    await supabase.storage.from("documents").remove([filePath]);
+    if (driveFileId && driveToken) {
+      await deleteFile(driveToken, driveFileId).catch(() => {});
+    } else {
+      await supabase.storage.from("documents").remove([filePath]);
+    }
     return NextResponse.json({ error: "Não foi possível salvar o documento. Tente novamente." }, { status: 500 });
   }
 

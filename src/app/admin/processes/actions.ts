@@ -3,9 +3,10 @@
 import { redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
-import { requireRole } from "@/lib/dal";
+import { requireRole, exigirPermissao } from "@/lib/dal";
 import { PROCESS_AREAS } from "@/lib/process-area";
 import type { Database } from "@/lib/supabase/types";
+import { destinoDeVolta } from "@/lib/voltar";
 
 export type CreateProcessState = { error: string | null };
 
@@ -49,7 +50,7 @@ export async function createProcessAction(
   }
 
   revalidatePath("/admin/processes");
-  redirect("/admin/processes");
+  redirect(destinoDeVolta(formData, "/admin/processes"));
 }
 
 export type UpdateProcessState = { error: string | null };
@@ -97,11 +98,11 @@ export async function updateProcessAction(
   }
 
   revalidatePath("/admin/processes");
-  redirect("/admin/processes");
+  redirect(destinoDeVolta(formData, "/admin/processes"));
 }
 
 export async function deleteProcessAction(formData: FormData): Promise<void> {
-  await requireRole(["admin", "advogado"]);
+  await exigirPermissao("excluir");
 
   const id = formData.get("id");
   if (typeof id !== "string" || !id) return;

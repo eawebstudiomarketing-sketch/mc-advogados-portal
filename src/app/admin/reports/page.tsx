@@ -1,49 +1,50 @@
 import Link from "next/link";
+import { Download, Plus } from "lucide-react";
 import { listReports } from "@/lib/data/reports";
-import { requireRole } from "@/lib/dal";
+import { exigirPermissao } from "@/lib/dal";
 import { SendReportButton } from "./send-report-button";
 
 const MESES = ["", "Janeiro", "Fevereiro", "Março", "Abril", "Maio", "Junho", "Julho", "Agosto", "Setembro", "Outubro", "Novembro", "Dezembro"];
 
 export default async function AdminReportsPage() {
-  await requireRole(["admin"]);
+  await exigirPermissao("relatorios");
   const reports = await listReports();
 
   return (
     <div>
-      <div className="mb-6 flex items-center justify-between">
+      <div className="mb-7 flex flex-wrap items-end justify-between gap-3">
         <div>
-          <h1 className="text-xl font-semibold text-navy">Relatórios mensais</h1>
-          <p className="text-sm text-foreground/50">Relatórios em PDF gerados pro cliente acompanhar o trabalho prestado</p>
+          <h1 className="page-title">Relatórios mensais</h1>
+          <p className="text-sm text-muted">Relatórios em PDF gerados pro cliente acompanhar o trabalho prestado</p>
         </div>
         <Link
           href="/admin/reports/new"
-          className="rounded-lg bg-navy px-4 py-2 text-sm font-medium text-navy-foreground hover:bg-navy/90"
+          className="ui-btn"
         >
-          Gerar relatório
+          <Plus className="h-4 w-4" aria-hidden /> Gerar relatório
         </Link>
       </div>
 
-      <div className="overflow-x-auto rounded-xl border border-border bg-surface shadow-sm">
-        <table className="w-full text-left text-sm">
+      <div className="overflow-x-auto ui-card">
+        <table className="ui-table">
           <thead>
-            <tr className="border-b border-border text-xs uppercase tracking-wide text-foreground/50">
-              <th className="px-5 py-3 font-medium">Cliente</th>
-              <th className="px-5 py-3 font-medium">Referência</th>
-              <th className="px-5 py-3 font-medium">Gerado em</th>
-              <th className="px-5 py-3 font-medium"></th>
+            <tr>
+              <th className="px-5 py-2.5 font-medium">Cliente</th>
+              <th className="px-5 py-2.5 font-medium">Referência</th>
+              <th className="px-5 py-2.5 font-medium">Gerado em</th>
+              <th className="px-5 py-2.5 font-medium"></th>
             </tr>
           </thead>
           <tbody className="divide-y divide-border">
             {reports.length === 0 && (
               <tr>
-                <td colSpan={4} className="px-5 py-8 text-center text-sm text-foreground/50">
+                <td colSpan={4} className="px-5 py-12 text-center text-sm text-muted">
                   Nenhum relatório gerado ainda.
                 </td>
               </tr>
             )}
             {reports.map((r) => (
-              <tr key={r.id} className="hover:bg-background">
+              <tr key={r.id}>
                 <td className="px-5 py-3 font-medium text-foreground">{r.clients?.name}</td>
                 <td className="px-5 py-3 text-foreground/70">
                   {MESES[r.reference_month]} de {r.reference_year}
@@ -52,11 +53,9 @@ export default async function AdminReportsPage() {
                   {new Date(r.created_at).toLocaleDateString("pt-BR")}
                 </td>
                 <td className="px-5 py-3">
-                  <div className="flex flex-col items-end gap-1.5">
+                  <div className="flex items-center justify-end gap-0.5">
                     {r.downloadUrl && (
-                      <a href={r.downloadUrl} target="_blank" rel="noreferrer" className="text-xs font-medium text-navy hover:underline">
-                        Baixar PDF
-                      </a>
+                      <a href={r.downloadUrl} target="_blank" rel="noreferrer" className="icon-btn" aria-label="Baixar PDF" data-tip="Baixar PDF"><Download aria-hidden /></a>
                     )}
                     <SendReportButton reportId={r.id} alreadySent={!!r.sent_at} />
                   </div>

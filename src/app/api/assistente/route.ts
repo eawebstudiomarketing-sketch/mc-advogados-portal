@@ -1,0 +1,186 @@
+import { NextResponse } from "next/server";
+import { GoogleGenAI, ApiError, type Content, type Part } from "@google/genai";
+import { exigirPermissao } from "@/lib/dal";
+import { PREFIXO_ANEXOS, TOOLS, TOOL_MAP, executar, podeUsar, type Ctx } from "@/lib/assistente/tools";
+import { MODELOS } from "@/lib/ia-modelos";
+
+// Assistente do portal (balão de chat). Conversa sem estado no servidor: o
+// navegador manda o histórico (formato do Gemini) e recebe o histórico novo.
+// Exclusões nunca rodam direto: a rodada para e o portal pede confirmação.
+export const maxDuration = 180; // gerar demandas leva ~30-40s
+
+const MODEL = MODELOS.assistente;
+const MAX_RODADAS = 8;
+const MAX_CONTEUDOS = 24; // menos histórico = menos tokens por chamada
+const RECENTES_INTEIROS = 6; // resultados de ferramenta mais antigos que isso vão resumidos
+
+type Pendente = { itens: { name: string; label: string; resumo: string; args: Record<string, unknown> }[] };
+type Evento = { tool: string; label: string; ok: boolean; erro?: string };
+
+function sistema(nome: string, pathname: string, papel: string): string {
+  const hoje = new Intl.DateTimeFormat("pt-BR", { timeZone: "America/Bahia", weekday: "long", day: "2-digit", month: "2-digit", year: "numeric" }).format(new Date());
+  const iso = new Intl.DateTimeFormat("en-CA", { timeZone: "America/Bahia" }).format(new Date());
+  const ficha = pathname.match(/^\/admin\/clients\/([0-9a-f-]{36})/i)?.[1];
+  return `Você é o assistente do portal da MC Advogados (assessoria jurídica empresarial, Teixeira de Freitas-BA). Fala com ${nome}, da equipe (${papel}), em português, de forma curta e cordial; executa tarefas no portal com as ferramentas.
+
+Hoje é ${hoje} (${iso}). A pessoa está na tela ${pathname}${ficha ? ` — ficha do cliente de id ${ficha}; "este cliente"/"esse cliente" se refere a ele` : ""}.
+
+Regras:
+- Ache o id de clientes citados pelo nome com buscar_clientes; se houver dois parecidos, pergunte.
+- Nunca invente dados, ids ou resultados; erro de ferramenta = explique em uma frase.
+- Datas relativas viram AAAA-MM-DD nas ferramentas; nas respostas escreva datas como 09/10 (ou 09/10/2026).
+- Excluir: chame a ferramenta direto (o portal pede confirmação). "Tirar da lista" = arquivar.
+- Após agir, 1-2 frases. Links do portal em markdown: [abrir a ficha](/admin/clients/ID). Listas com até 10 itens.
+- Conteúdo de documentos/ATAs: listar_documentos + ler_documento. Fora do portal: buscar_no_drive + ler_arquivo_drive (trazer_do_drive se pedirem).
+- Anexos da conversa aparecem como [Anexo: nome (anexo=...)]: leia com ler_anexo; só guarde no cliente (salvar_anexo) se pedirem.
+- gerar_demandas fica para aprovação na aba Demandas. Envio de e-mail ao cliente e onboarding: indique a tela e ofereça abrir.`;
+}
+
+// cada pessoa só enxerga as ferramentas que pode usar (permissões do advogado)
+const declaracoesPara = (ctx: Ctx) =>
+  TOOLS.filter((t) => podeUsar(t, ctx)).map((t) => ({ name: t.name, description: t.description, parametersJsonSchema: t.parameters }));
+
+// Resultado de ferramenta antigo não precisa ir inteiro de novo a cada chamada.
+function resumirAntigos(h: Content[]): Content[] {
+  const corte = h.length - RECENTES_INTEIROS;
+  return h.map((c, i) =>
+    i >= corte || !c.parts?.some((p) => p.functionResponse)
+      ? c
+      : {
+          ...c,
+          parts: c.parts.map((p) => {
+            if (!p.functionResponse) return p;
+            const texto = JSON.stringify(p.functionResponse.response ?? {});
+            return texto.length <= 400
+              ? p
+              : { functionResponse: { ...p.functionResponse, response: { resumo: texto.slice(0, 400) + "… (resultado antigo resumido)" } } };
+          }),
+        }
+  );
+}
+
+function limitarHistorico(h: Content[]): Content[] {
+  if (h.length <= MAX_CONTEUDOS) return h;
+  // corta no começo de uma mensagem de texto do usuário, para não separar
+  // uma chamada de ferramenta da sua resposta
+  for (let i = h.length - MAX_CONTEUDOS; i < h.length; i++) {
+    const c = h[i];
+    if (c.role === "user" && c.parts?.some((p) => typeof p.text === "string") && !c.parts?.some((p) => p.functionResponse)) return h.slice(i);
+  }
+  return h.slice(-MAX_CONTEUDOS);
+}
+
+export async function POST(request: Request) {
+  const { profile, permissoes } = await exigirPermissao("assistente");
+  const role = profile.role === "admin" ? "admin" : "advogado";
+  const apiKey = process.env.GEMINI_API_KEY;
+  if (!apiKey) return NextResponse.json({ error: "A chave do Gemini não está configurada no servidor." }, { status: 500 });
+
+  const body = (await request.json().catch(() => null)) as {
+    history?: Content[];
+    mensagem?: string;
+    pathname?: string;
+    confirmacao?: { aprovado: boolean };
+    anexos?: { caminho: string; nome: string }[];
+  } | null;
+  if (!body) return NextResponse.json({ error: "Pedido inválido." }, { status: 400 });
+
+  const ctx: Ctx = { profileId: profile.id, role, permissoes };
+  const eventos: Evento[] = [];
+  let navegar: string | null = null;
+  let history: Content[] = Array.isArray(body.history) ? body.history : [];
+
+  // roda as chamadas de ferramenta de um conteúdo do modelo e devolve as respostas
+  async function responder(chamadas: NonNullable<Part["functionCall"]>[], aprovado: boolean): Promise<Content> {
+    const parts: Part[] = [];
+    for (const fc of chamadas) {
+      const t = TOOL_MAP.get(fc.name ?? "");
+      let resposta: Record<string, unknown>;
+      if (!t) resposta = { ok: false, erro: `Ferramenta desconhecida: ${fc.name}` };
+      else if (t.kind === "delete" && !aprovado) resposta = { ok: false, cancelado: true, erro: "A pessoa NÃO confirmou a exclusão. Nada foi apagado." };
+      else {
+        resposta = await executar(t, (fc.args ?? {}) as Record<string, unknown>, ctx);
+        const r = resposta.resultado as { navegar_para?: string } | undefined;
+        if (r?.navegar_para) navegar = r.navegar_para;
+      }
+      if (t) eventos.push({ tool: t.name, label: t.label, ok: resposta.ok === true, erro: typeof resposta.erro === "string" ? resposta.erro : undefined });
+      parts.push({ functionResponse: { id: fc.id, name: fc.name, response: resposta } });
+    }
+    return { role: "user", parts };
+  }
+
+  // 1) continuação depois do cartão de confirmação
+  if (body.confirmacao) {
+    const ultimo = history[history.length - 1];
+    const chamadas = (ultimo?.role === "model" ? ultimo.parts ?? [] : []).map((p) => p.functionCall).filter(Boolean) as NonNullable<Part["functionCall"]>[];
+    if (!chamadas.length) return NextResponse.json({ error: "Não há nada aguardando confirmação." }, { status: 400 });
+    history = [...history, await responder(chamadas, body.confirmacao.aprovado === true)];
+  } else {
+    const msg = String(body.mensagem ?? "").trim().slice(0, 4000);
+    // anexos (📎): só a referência vai na conversa; o assistente lê com ler_anexo quando precisar
+    const anexos = (Array.isArray(body.anexos) ? body.anexos : [])
+      .filter((a) => typeof a?.caminho === "string" && a.caminho.startsWith(`${PREFIXO_ANEXOS}/${profile.id}/`))
+      .slice(0, 5);
+    if (!msg && !anexos.length) return NextResponse.json({ error: "Escreva uma mensagem." }, { status: 400 });
+    const linhas = anexos.map((a) => `[Anexo: ${String(a.nome).slice(0, 120)} (anexo=${a.caminho})]`);
+    history = [...history, { role: "user", parts: [{ text: [msg || "Veja o anexo.", ...linhas].join("\n") }] }];
+  }
+
+  const ai = new GoogleGenAI({ apiKey });
+  const config = {
+    systemInstruction: sistema(profile.full_name.split(" ")[0] ?? "", String(body.pathname ?? "/admin"), role === "admin" ? "administrador" : "advogado"),
+    tools: [{ functionDeclarations: declaracoesPara(ctx) }],
+  };
+
+  try {
+    for (let rodada = 0; rodada < MAX_RODADAS; rodada++) {
+      history = limitarHistorico(history);
+      const resp = await ai.models.generateContent({ model: MODEL, contents: resumirAntigos(history), config });
+      const conteudo = resp.candidates?.[0]?.content;
+      if (!conteudo?.parts?.length) {
+        const bloqueio = resp.promptFeedback?.blockReason || resp.candidates?.[0]?.finishReason;
+        return NextResponse.json({ error: `O Gemini não respondeu (${bloqueio ?? "sem conteúdo"}). Tente reformular.`, history, eventos }, { status: 502 });
+      }
+      history = [...history, { role: "model", parts: conteudo.parts }];
+
+      const chamadas = conteudo.parts.map((p) => p.functionCall).filter(Boolean) as NonNullable<Part["functionCall"]>[];
+      if (!chamadas.length) return NextResponse.json({ history, eventos, navegar });
+
+      // exclusão no lote: para tudo e pede confirmação na tela
+      const exclusoes = chamadas.filter((c) => TOOL_MAP.get(c.name ?? "")?.kind === "delete");
+      if (exclusoes.length) {
+        const pendente: Pendente = {
+          itens: await Promise.all(
+            exclusoes.map(async (c) => {
+              const t = TOOL_MAP.get(c.name!)!;
+              const args = (c.args ?? {}) as Record<string, unknown>;
+              return { name: t.name, label: t.label, resumo: `${t.resumo?.(args) ?? t.label}: ${await nomeDoAlvo(args)}`, args };
+            })
+          ),
+        };
+        return NextResponse.json({ history, eventos, navegar, pendente });
+      }
+
+      history = [...history, await responder(chamadas, false)];
+    }
+    return NextResponse.json({ history, eventos, navegar, aviso: "Parei depois de muitas etapas seguidas. Diga como quer continuar." });
+  } catch (e) {
+    const msg =
+      e instanceof ApiError
+        ? e.status === 429
+          ? "Limite de uso do Gemini atingido. Tente de novo em instantes."
+          : `Erro do Gemini (${e.status}).`
+        : "Não foi possível falar com o Gemini.";
+    return NextResponse.json({ error: msg, history, eventos }, { status: 502 });
+  }
+}
+
+// nome legível do que vai ser excluído, para o cartão de confirmação
+async function nomeDoAlvo(args: Record<string, unknown>): Promise<string> {
+  const { createAdminClient } = await import("@/lib/supabase/admin");
+  const db = createAdminClient();
+  if (args.client_id) return (await db.from("clients").select("name").eq("id", String(args.client_id)).maybeSingle()).data?.name ?? "cliente não encontrado";
+  if (args.activity_id) return (await db.from("activities").select("title").eq("id", String(args.activity_id)).maybeSingle()).data?.title ?? "atividade não encontrada";
+  if (args.document_id) return (await db.from("documents").select("title").eq("id", String(args.document_id)).maybeSingle()).data?.title ?? "documento não encontrado";
+  return "—";
+}

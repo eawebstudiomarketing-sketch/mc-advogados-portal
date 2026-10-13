@@ -11,15 +11,15 @@ export function TimeEntryForm() {
   const today = new Date().toISOString().slice(0, 10);
 
   return (
-    <form action={formAction} className="max-w-md space-y-4 rounded-xl border border-border bg-surface p-6 shadow-sm">
+    <form action={formAction} className="max-w-xl space-y-5 ui-card p-6">
       <div>
-        <label htmlFor="activity_type" className="mb-1.5 block text-sm font-medium text-foreground/80">
+        <label htmlFor="activity_type" className="ui-label">
           Tipo de atividade
         </label>
         <select
           id="activity_type"
           name="activity_type"
-          className="w-full rounded-lg border border-border bg-background px-3 py-2 text-sm text-foreground focus:border-navy focus:outline-none focus:ring-1 focus:ring-navy"
+          className="ui-input"
         >
           {ACTIVITY_TYPES.map((type) => (
             <option key={type} value={type}>
@@ -31,7 +31,7 @@ export function TimeEntryForm() {
 
       <div className="grid grid-cols-2 gap-4">
         <div>
-          <label htmlFor="date" className="mb-1.5 block text-sm font-medium text-foreground/80">
+          <label htmlFor="date" className="ui-label">
             Data
           </label>
           <input
@@ -39,11 +39,11 @@ export function TimeEntryForm() {
             name="date"
             type="date"
             defaultValue={today}
-            className="w-full rounded-lg border border-border bg-background px-3 py-2 text-sm text-foreground focus:border-navy focus:outline-none focus:ring-1 focus:ring-navy"
+            className="ui-input"
           />
         </div>
         <div>
-          <label htmlFor="hours" className="mb-1.5 block text-sm font-medium text-foreground/80">
+          <label htmlFor="hours" className="ui-label">
             Horas
           </label>
           <input
@@ -53,13 +53,13 @@ export function TimeEntryForm() {
             step="0.25"
             min="0.25"
             placeholder="1,5"
-            className="w-full rounded-lg border border-border bg-background px-3 py-2 text-sm text-foreground placeholder:text-foreground/30 focus:border-navy focus:outline-none focus:ring-1 focus:ring-navy"
+            className="ui-input"
           />
         </div>
       </div>
 
       <div>
-        <label htmlFor="description" className="mb-1.5 block text-sm font-medium text-foreground/80">
+        <label htmlFor="description" className="ui-label">
           Descrição
         </label>
         <textarea
@@ -67,7 +67,7 @@ export function TimeEntryForm() {
           name="description"
           rows={3}
           placeholder="O que foi feito"
-          className="w-full rounded-lg border border-border bg-background px-3 py-2 text-sm text-foreground placeholder:text-foreground/30 focus:border-navy focus:outline-none focus:ring-1 focus:ring-navy"
+          className="ui-input"
         />
       </div>
 
@@ -76,7 +76,7 @@ export function TimeEntryForm() {
       <button
         type="submit"
         disabled={pending}
-        className="w-full rounded-lg bg-navy px-4 py-2.5 text-sm font-medium text-navy-foreground transition-colors hover:bg-navy/90 disabled:opacity-60"
+        className="ui-btn w-full py-2.5"
       >
         {pending ? "Salvando..." : "Lançar horas"}
       </button>

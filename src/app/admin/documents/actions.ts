@@ -3,9 +3,10 @@
 import { redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
-import { requireRole } from "@/lib/dal";
+import { requireRole, exigirPermissao } from "@/lib/dal";
 import { DOCUMENT_CATEGORIES } from "@/lib/document-category";
 import type { Database } from "@/lib/supabase/types";
+import { destinoDeVolta } from "@/lib/voltar";
 
 // Criação (upload) vive em src/app/api/documents/upload/route.ts — Route
 // Handler em vez de Server Action, ver comentário lá pro motivo.
@@ -46,21 +47,22 @@ export async function updateDocumentAction(
   }
 
   revalidatePath("/admin/documents");
-  redirect("/admin/documents");
+  redirect(destinoDeVolta(formData, "/admin/documents"));
 }
 
 export async function deleteDocumentAction(formData: FormData): Promise<void> {
-  await requireRole(["admin", "advogado"]);
+  await exigirPermissao("excluir");
 
   const id = formData.get("id");
-  const filePath = formData.get("file_path");
   if (typeof id !== "string" || !id) return;
 
+  // Só o registro sai do portal: o gatilho do banco guarda uma cópia na
+  // lixeira (30 dias, restaurável). O arquivo no Drive NUNCA é apagado pelo
+  // portal, e o do Storage só na limpeza da lixeira.
   const supabase = await createClient();
   await supabase.from("documents").delete().eq("id", id);
-  if (typeof filePath === "string" && filePath) {
-    await supabase.storage.from("documents").remove([filePath]);
-  }
 
   revalidatePath("/admin/documents");
+  const clientId = formData.get("client_id");
+  if (typeof clientId === "string" && clientId) revalidatePath(`/admin/clients/${clientId}`);
 }
