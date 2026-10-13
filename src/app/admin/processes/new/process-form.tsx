@@ -8,7 +8,7 @@ import { VoltarInput } from "@/components/nav/back-button";
 
 const initialState: CreateProcessState = { error: null };
 
-export function ProcessForm({ clients }: { clients: Client[] }) {
+export function ProcessForm({ clients, numeroInicial }: { clients: Client[]; numeroInicial?: string }) {
   const [state, formAction, pending] = useActionState(createProcessAction, initialState);
 
   return (
@@ -40,6 +40,7 @@ export function ProcessForm({ clients }: { clients: Client[] }) {
           name="numero_processo"
           type="text"
           required
+          defaultValue={numeroInicial}
           placeholder="0000000-00.0000.0.00.0000"
           className="ui-input"
         />

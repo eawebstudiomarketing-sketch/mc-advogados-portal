@@ -14,6 +14,174 @@ export type Database = {
   }
   public: {
     Tables: {
+      publicacoes: {
+        Row: {
+          id: string
+          comunicacao_id: number
+          numero_processo: string
+          numero_mascara: string | null
+          tribunal: string | null
+          orgao: string | null
+          tipo_comunicacao: string | null
+          tipo_documento: string | null
+          classe: string | null
+          meio: string | null
+          data_disponibilizacao: string
+          texto: string | null
+          link: string | null
+          partes: Json
+          advogados: Json
+          termo: string | null
+          process_id: string | null
+          client_id: string | null
+          status: string
+          tratada_por: string | null
+          tratada_em: string | null
+          activity_id: string | null
+          avisada_em: string | null
+          created_at: string
+        }
+        Insert: {
+          id?: string
+          comunicacao_id: number
+          numero_processo: string
+          numero_mascara?: string | null
+          tribunal?: string | null
+          orgao?: string | null
+          tipo_comunicacao?: string | null
+          tipo_documento?: string | null
+          classe?: string | null
+          meio?: string | null
+          data_disponibilizacao: string
+          texto?: string | null
+          link?: string | null
+          partes?: Json
+          advogados?: Json
+          termo?: string | null
+          process_id?: string | null
+          client_id?: string | null
+          status?: string
+          tratada_por?: string | null
+          tratada_em?: string | null
+          activity_id?: string | null
+          avisada_em?: string | null
+          created_at?: string
+        }
+        Update: {
+          id?: string
+          comunicacao_id?: number
+          numero_processo?: string
+          numero_mascara?: string | null
+          tribunal?: string | null
+          orgao?: string | null
+          tipo_comunicacao?: string | null
+          tipo_documento?: string | null
+          classe?: string | null
+          meio?: string | null
+          data_disponibilizacao?: string
+          texto?: string | null
+          link?: string | null
+          partes?: Json
+          advogados?: Json
+          termo?: string | null
+          process_id?: string | null
+          client_id?: string | null
+          status?: string
+          tratada_por?: string | null
+          tratada_em?: string | null
+          activity_id?: string | null
+          avisada_em?: string | null
+          created_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "publicacoes_client_id_fkey"
+            columns: ["client_id"]
+            isOneToOne: false
+            referencedRelation: "clients"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "publicacoes_process_id_fkey"
+            columns: ["process_id"]
+            isOneToOne: false
+            referencedRelation: "processes"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      monitor_oabs: {
+        Row: {
+          id: string
+          numero: string
+          uf: string
+          nome: string | null
+          ativo: boolean
+          created_at: string
+        }
+        Insert: {
+          id?: string
+          numero: string
+          uf: string
+          nome?: string | null
+          ativo?: boolean
+          created_at?: string
+        }
+        Update: {
+          id?: string
+          numero?: string
+          uf?: string
+          nome?: string | null
+          ativo?: boolean
+          created_at?: string
+        }
+        Relationships: []
+      }
+      monitor_config: {
+        Row: {
+          id: number
+          email_alerta: string | null
+          updated_at: string
+        }
+        Insert: {
+          id?: number
+          email_alerta?: string | null
+          updated_at?: string
+        }
+        Update: {
+          id?: number
+          email_alerta?: string | null
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      monitor_execucoes: {
+        Row: {
+          id: string
+          iniciado_em: string
+          origem: string
+          encontradas: number
+          novas: number
+          erro: string | null
+        }
+        Insert: {
+          id?: string
+          iniciado_em?: string
+          origem?: string
+          encontradas?: number
+          novas?: number
+          erro?: string | null
+        }
+        Update: {
+          id?: string
+          iniciado_em?: string
+          origem?: string
+          encontradas?: number
+          novas?: number
+          erro?: string | null
+        }
+        Relationships: []
+      }
       activity_deadline_alerts: {
         Row: {
           activity_id: string
@@ -774,6 +942,7 @@ export type Database = {
           fase: string | null
           id: string
           numero_processo: string
+          numero_digitos: string | null
           responsible_id: string | null
           status: string
           updated_at: string

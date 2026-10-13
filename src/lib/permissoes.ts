@@ -13,6 +13,7 @@ export const PERMISSOES = [
   { chave: "documentos", grupo: "Telas", rotulo: "Documentos", padrao: true },
   { chave: "contratos", grupo: "Telas", rotulo: "Contratos", padrao: true },
   { chave: "processos", grupo: "Telas", rotulo: "Processos", padrao: true },
+  { chave: "publicacoes", grupo: "Telas", rotulo: "Publicações (diário oficial)", padrao: true },
   { chave: "relatorios", grupo: "Telas", rotulo: "Relatórios", padrao: true },
   // partes sensíveis da ficha do cliente
   { chave: "ficha_handoff", grupo: "Áreas do cliente", rotulo: "Ficha de handoff", padrao: true },
@@ -56,6 +57,7 @@ export const PERM_DA_TELA: Record<string, PermChave> = {
   "/admin/documents": "documentos",
   "/admin/contracts": "contratos",
   "/admin/processes": "processos",
+  "/admin/publicacoes": "publicacoes",
   "/admin/reports": "relatorios",
 };
 

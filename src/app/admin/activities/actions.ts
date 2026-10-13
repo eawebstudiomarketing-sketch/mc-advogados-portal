@@ -50,7 +50,7 @@ export async function createActivityAction(
   const supabase = await createClient();
   const responsavel = await lerResponsavel(supabase, formData.get("responsavel_id"));
   if (responsavel === null) return { error: "Responsável inválido." };
-  const { error } = await supabase.from("activities").insert({
+  const { data: criada, error } = await supabase.from("activities").insert({
     client_id: clientId,
     responsible_id: responsavel?.responsible_id ?? profile.id,
     ...(responsavel ? { responsavel_id: responsavel.responsavel_id } : {}),
@@ -58,10 +58,20 @@ export async function createActivityAction(
     description: typeof description === "string" && description.trim() ? description.trim() : null,
     type: type as Database["public"]["Enums"]["activity_type"],
     deadline: typeof deadline === "string" && deadline ? deadline : null,
-  });
+  }).select("id").single();
 
   if (error) {
     return { error: "Não foi possível salvar a atividade. Tente novamente." };
+  }
+
+  // Veio de uma publicação do DJEN: ela passa a "tratada" e aponta para a atividade.
+  const publicacaoId = formData.get("publicacao_id");
+  if (typeof publicacaoId === "string" && publicacaoId && criada) {
+    await supabase
+      .from("publicacoes")
+      .update({ status: "tratada", activity_id: criada.id, tratada_por: profile.id, tratada_em: new Date().toISOString() })
+      .eq("id", publicacaoId);
+    revalidatePath("/admin/publicacoes");
   }
 
   revalidatePath("/admin/activities");

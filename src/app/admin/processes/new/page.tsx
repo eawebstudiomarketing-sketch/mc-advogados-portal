@@ -4,9 +4,9 @@ import { ProcessForm } from "./process-form";
 import { BackButton } from "@/components/nav/back-button";
 import { exigirPermissao } from "@/lib/dal";
 
-export default async function NewProcessPage() {
+export default async function NewProcessPage({ searchParams }: { searchParams: Promise<{ numero?: string }> }) {
   await exigirPermissao("processos");
-  const clients = await listClients();
+  const [clients, { numero }] = await Promise.all([listClients(), searchParams]);
 
   return (
     <div>
@@ -23,7 +23,7 @@ export default async function NewProcessPage() {
           antes de abrir um processo.
         </p>
       ) : (
-        <ProcessForm clients={clients} />
+        <ProcessForm clients={clients} numeroInicial={numero} />
       )}
     </div>
   );

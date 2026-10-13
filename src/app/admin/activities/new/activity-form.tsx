@@ -15,11 +15,14 @@ export function ActivityForm({
   responsaveis,
   meuResponsavel,
   clienteInicial,
+  inicial = {},
 }: {
   clients: Client[];
   responsaveis: Responsavel[];
   meuResponsavel: string | null;
   clienteInicial?: string;
+  /** Vindo de uma publicação do DJEN: título, prazo e descrição já sugeridos. */
+  inicial?: { titulo?: string; descricao?: string; prazo?: string; tipo?: string; publicacao?: string };
 }) {
   const [state, formAction, pending] = useActionState(createActivityAction, initialState);
   const [cliente, setCliente] = useState(clienteInicial ?? clients[0]?.id ?? "");
@@ -27,6 +30,12 @@ export function ActivityForm({
   return (
     <form action={formAction} className="max-w-xl space-y-5 ui-card p-6">
       <VoltarInput />
+      {inicial.publicacao && <input type="hidden" name="publicacao_id" value={inicial.publicacao} />}
+      {inicial.publicacao && (
+        <p className="rounded-lg bg-gold/10 px-3 py-2 text-xs text-navy">
+          Criando a partir de uma publicação do DJEN. Confira o prazo sugerido: ao salvar, a publicação fica como tratada.
+        </p>
+      )}
       <div>
         <label htmlFor="client_id" className="ui-label">
           Cliente
@@ -55,6 +64,7 @@ export function ActivityForm({
           name="title"
           type="text"
           required
+          defaultValue={inicial.titulo}
           className="ui-input"
         />
       </div>
@@ -73,6 +83,7 @@ export function ActivityForm({
         <select
           id="type"
           name="type"
+          defaultValue={inicial.tipo}
           className="ui-input"
         >
           {ACTIVITY_TYPES.map((type) => (
@@ -91,6 +102,7 @@ export function ActivityForm({
           id="deadline"
           name="deadline"
           type="date"
+          defaultValue={inicial.prazo}
           className="ui-input"
         />
       </div>
@@ -102,7 +114,8 @@ export function ActivityForm({
         <textarea
           id="description"
           name="description"
-          rows={3}
+          rows={inicial.descricao ? 8 : 3}
+          defaultValue={inicial.descricao}
           className="ui-input"
         />
       </div>

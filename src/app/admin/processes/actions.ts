@@ -6,6 +6,7 @@ import { createClient } from "@/lib/supabase/server";
 import { requireRole, exigirPermissao } from "@/lib/dal";
 import { PROCESS_AREAS } from "@/lib/process-area";
 import type { Database } from "@/lib/supabase/types";
+import { ligarPublicacoesAosProcessos } from "@/lib/publicacoes/monitor";
 import { destinoDeVolta } from "@/lib/voltar";
 
 export type CreateProcessState = { error: string | null };
@@ -49,7 +50,10 @@ export async function createProcessAction(
     return { error: "Não foi possível salvar o processo. Tente novamente." };
   }
 
+  // Publicações do DJEN que chegaram antes do cadastro passam a apontar para ele.
+  await ligarPublicacoesAosProcessos();
   revalidatePath("/admin/processes");
+  revalidatePath("/admin/publicacoes");
   redirect(destinoDeVolta(formData, "/admin/processes"));
 }
 

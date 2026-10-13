@@ -1,0 +1,199 @@
+import Link from "next/link";
+import { BellRing, CheckCheck, Inbox, X } from "lucide-react";
+import { exigirPermissao } from "@/lib/dal";
+import { createClient } from "@/lib/supabase/server";
+import { StatCard } from "@/components/ui/stat-card";
+import {
+  contadoresPublicacoes,
+  getPublicacao,
+  listPublicacoes,
+  STATUS_PUBLICACAO,
+  type PublicacaoStatus,
+} from "@/lib/data/publicacoes";
+import { PublicacaoCard } from "./publicacao-card";
+import { BuscarAgora } from "./buscar-agora";
+import { adicionarOabAction, alternarOabAction, removerOabAction, salvarEmailAlertaAction } from "./actions";
+
+type Busca = { status?: string; tribunal?: string; q?: string; p?: string };
+
+const FILTROS: (PublicacaoStatus | "todas")[] = ["nao_tratada", "tratada", "descartada", "todas"];
+
+export default async function PublicacoesPage({ searchParams }: { searchParams: Promise<Busca> }) {
+  const { profile } = await exigirPermissao("publicacoes");
+  const sp = await searchParams;
+  const admin = profile.role === "admin";
+  const status = (FILTROS as string[]).includes(sp.status ?? "") ? (sp.status as PublicacaoStatus | "todas") : "nao_tratada";
+
+  const [contadores, destaque, lista] = await Promise.all([
+    contadoresPublicacoes(),
+    sp.p ? getPublicacao(sp.p) : Promise.resolve(null),
+    sp.p ? Promise.resolve([]) : listPublicacoes({ status, tribunal: sp.tribunal, busca: sp.q }),
+  ]);
+
+  const hrefFiltro = (novo: Partial<Busca>) => {
+    const q = new URLSearchParams();
+    const m = { status, tribunal: sp.tribunal, q: sp.q, ...novo };
+    if (m.status && m.status !== "nao_tratada") q.set("status", m.status);
+    if (m.tribunal) q.set("tribunal", m.tribunal);
+    if (m.q) q.set("q", m.q);
+    const s = q.toString();
+    return `/admin/publicacoes${s ? `?${s}` : ""}`;
+  };
+
+  return (
+    <div>
+      <div className="mb-6 flex flex-wrap items-end justify-between gap-3">
+        <div>
+          <h1 className="page-title">Publicações</h1>
+          <p className="text-sm text-muted">Intimações do Diário de Justiça Eletrônico Nacional (DJEN), buscadas às 07h e às 13h.</p>
+        </div>
+        {admin && <BuscarAgora />}
+      </div>
+
+      <div className="mb-6 grid grid-cols-2 gap-3 lg:grid-cols-4">
+        <StatCard label="Não tratadas" value={String(contadores.pendentes)} tone={contadores.pendentes ? "pending" : "default"} icon={Inbox} href="/admin/publicacoes" />
+        <StatCard label="Recebidas hoje" value={String(contadores.recebidasHoje)} tone="info" icon={BellRing} />
+        <StatCard label="Tratadas hoje" value={String(contadores.tratadasHoje)} tone="success" icon={CheckCheck} href={hrefFiltro({ status: "tratada" })} />
+        <StatCard label="Descartadas hoje" value={String(contadores.descartadasHoje)} icon={X} href={hrefFiltro({ status: "descartada" })} />
+      </div>
+
+      {destaque ? (
+        <div className="space-y-3">
+          <p className="text-sm text-muted">
+            Mostrando a publicação do aviso por e-mail ·{" "}
+            <Link href="/admin/publicacoes" className="font-medium text-navy-3 hover:underline">
+              ver todas as não tratadas
+            </Link>
+          </p>
+          <PublicacaoCard p={destaque} destaque />
+        </div>
+      ) : (
+        <>
+          <div className="mb-4 flex flex-wrap items-center gap-2">
+            {FILTROS.map((f) => (
+              <Link
+                key={f}
+                href={hrefFiltro({ status: f })}
+                className={`rounded-full px-3 py-1 text-xs font-medium ${status === f ? "bg-navy text-white" : "bg-surface-2 text-foreground/70 hover:bg-border"}`}
+              >
+                {f === "todas" ? "Todas" : STATUS_PUBLICACAO[f]}
+              </Link>
+            ))}
+            <form action="/admin/publicacoes" className="ml-auto flex flex-wrap items-center gap-2">
+              {status !== "nao_tratada" && <input type="hidden" name="status" value={status} />}
+              <select name="tribunal" defaultValue={sp.tribunal ?? ""} className="ui-input w-auto py-1.5 text-sm">
+                <option value="">Todos os tribunais</option>
+                {contadores.tribunais.map((t) => (
+                  <option key={t} value={t}>
+                    {t}
+                  </option>
+                ))}
+              </select>
+              <input name="q" defaultValue={sp.q ?? ""} placeholder="Nº do processo ou termo" className="ui-input w-56 py-1.5 text-sm" />
+              <button type="submit" className="ui-btn-secondary px-3 py-1.5 text-xs">
+                Filtrar
+              </button>
+            </form>
+          </div>
+
+          <p className="mb-3 text-xs text-muted">
+            {lista.length} {lista.length === 1 ? "publicação" : "publicações"}
+            {lista.length === 100 ? " (mostrando as 100 mais recentes)" : ""}
+          </p>
+          <div className="space-y-3">
+            {lista.length === 0 && (
+              <div className="ui-card px-5 py-12 text-center text-sm text-muted">
+                {status === "nao_tratada" ? "Nenhuma publicação esperando tratamento. 🎉" : "Nenhuma publicação com esse filtro."}
+              </div>
+            )}
+            {lista.map((p) => (
+              <PublicacaoCard key={p.id} p={p} />
+            ))}
+          </div>
+        </>
+      )}
+
+      {admin && <Monitoramento />}
+    </div>
+  );
+}
+
+async function Monitoramento() {
+  const supabase = await createClient();
+  const [{ data: oabs }, { data: cfg }, { data: execs }] = await Promise.all([
+    supabase.from("monitor_oabs").select("*").order("created_at"),
+    supabase.from("monitor_config").select("email_alerta").eq("id", 1).maybeSingle(),
+    supabase.from("monitor_execucoes").select("*").order("iniciado_em", { ascending: false }).limit(5),
+  ]);
+
+  return (
+    <section className="mt-10 grid grid-cols-1 gap-4 lg:grid-cols-2">
+      <div className="ui-card p-5">
+        <h2 className="section-title">Monitoramento · OABs</h2>
+        <p className="mt-1 text-xs text-muted">O robô busca no DJEN todas as intimações em que estas OABs aparecem.</p>
+        <ul className="mt-3 divide-y divide-border">
+          {(oabs ?? []).map((o) => (
+            <li key={o.id} className="flex items-center justify-between gap-3 py-2.5">
+              <div className="min-w-0">
+                <p className={`text-sm font-medium ${o.ativo ? "text-foreground" : "text-muted line-through"}`}>
+                  OAB {o.numero}/{o.uf}
+                </p>
+                {o.nome && <p className="truncate text-xs text-muted">{o.nome}</p>}
+              </div>
+              <div className="flex items-center gap-1.5">
+                <form action={alternarOabAction}>
+                  <input type="hidden" name="id" value={o.id} />
+                  <input type="hidden" name="ativo" value={String(!o.ativo)} />
+                  <button type="submit" className="ui-btn-secondary px-2.5 py-1 text-xs">
+                    {o.ativo ? "Pausar" : "Ativar"}
+                  </button>
+                </form>
+                <form action={removerOabAction}>
+                  <input type="hidden" name="id" value={o.id} />
+                  <button type="submit" className="icon-btn" aria-label="Remover" data-tip="Remover">
+                    <X aria-hidden />
+                  </button>
+                </form>
+              </div>
+            </li>
+          ))}
+        </ul>
+        <form action={adicionarOabAction} className="mt-3 flex flex-wrap items-end gap-2">
+          <input name="numero" required inputMode="numeric" placeholder="Nº OAB" className="ui-input w-28 py-1.5 text-sm" />
+          <input name="uf" required maxLength={2} placeholder="UF" className="ui-input w-16 py-1.5 text-sm uppercase" />
+          <input name="nome" placeholder="Nome do advogado (opcional)" className="ui-input min-w-0 flex-1 py-1.5 text-sm" />
+          <button type="submit" className="ui-btn px-3 py-1.5 text-xs">
+            Adicionar
+          </button>
+        </form>
+      </div>
+
+      <div className="ui-card p-5">
+        <h2 className="section-title">Aviso por e-mail</h2>
+        <p className="mt-1 text-xs text-muted">Quando chegar publicação nova, um e-mail com a lista vai para:</p>
+        <form action={salvarEmailAlertaAction} className="mt-3 flex gap-2">
+          <input name="email" type="email" defaultValue={cfg?.email_alerta ?? ""} placeholder="email@exemplo.com" className="ui-input py-1.5 text-sm" />
+          <button type="submit" className="ui-btn-secondary px-3 py-1.5 text-xs">
+            Salvar
+          </button>
+        </form>
+
+        <h3 className="mt-6 text-xs font-semibold tracking-wide text-muted uppercase">Últimas buscas</h3>
+        <ul className="mt-2 space-y-1.5 text-xs">
+          {(execs ?? []).length === 0 && <li className="text-muted">Nenhuma busca ainda.</li>}
+          {(execs ?? []).map((e) => (
+            <li key={e.id} className="flex justify-between gap-3">
+              <span className="text-muted">
+                {new Date(e.iniciado_em).toLocaleString("pt-BR", { timeZone: "America/Bahia", dateStyle: "short", timeStyle: "short" })} ·{" "}
+                {e.origem === "cron" ? "automática" : "manual"}
+              </span>
+              <span className={e.erro ? "text-status-danger" : "text-foreground/80"}>
+                {e.erro ? `Erro: ${e.erro}` : `${e.novas} nova(s) de ${e.encontradas}`}
+              </span>
+            </li>
+          ))}
+        </ul>
+      </div>
+    </section>
+  );
+}

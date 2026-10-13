@@ -25,6 +25,7 @@ import {
   LogOut,
   UserRound,
   type LucideIcon,
+  Newspaper,
 } from "lucide-react";
 import { logout } from "@/app/logout/actions";
 import { CommandPalette, type PaletteItem } from "./command-palette";
@@ -49,6 +50,7 @@ const NAV_GROUPS: { label: string; items: NavItem[] }[] = [
       { href: "/admin", label: "Visão geral", icon: LayoutDashboard },
       { href: "/admin/clients", label: "Clientes", icon: Users },
       { href: "/admin/activities", label: "Atividades", icon: ListChecks },
+      { href: "/admin/publicacoes", label: "Publicações", icon: Newspaper },
       { href: "/admin/onboarding", label: "Onboarding", icon: ClipboardList },
     ],
   },

@@ -11,6 +11,7 @@ import { ConfirmSubmitButton } from "@/components/ui/confirm-submit-button";
 import { PROCESS_AREA_LABEL } from "@/lib/process-area";
 import { BackButton } from "@/components/nav/back-button";
 import { exigirPermissao } from "@/lib/dal";
+import { listPublicacoesDoProcesso, STATUS_PUBLICACAO, type PublicacaoStatus } from "@/lib/data/publicacoes";
 
 export default async function ProcessDetailPage({ params }: { params: Promise<{ id: string }> }) {
   await exigirPermissao("processos");
@@ -19,7 +20,7 @@ export default async function ProcessDetailPage({ params }: { params: Promise<{ 
   const process = await getProcess(id);
   if (!process) notFound();
 
-  const documents = await listDocuments({ processId: id });
+  const [documents, publicacoes] = await Promise.all([listDocuments({ processId: id }), listPublicacoesDoProcesso(id)]);
 
   return (
     <div>
@@ -103,6 +104,34 @@ export default async function ProcessDetailPage({ params }: { params: Promise<{ 
             ))}
           </ul>
         </div>
+      </div>
+      <div className="mt-4 ui-card p-5">
+        <div className="flex items-center justify-between">
+          <h2 className="section-title">Publicações no Diário</h2>
+          <Link href={`/admin/publicacoes?q=${encodeURIComponent(process.numero_processo)}&status=todas`} className="ui-link">
+            Abrir em Publicações
+          </Link>
+        </div>
+        {publicacoes.length === 0 ? (
+          <p className="py-3 text-sm text-muted">Nenhuma publicação recebida para este processo desde que o monitor começou.</p>
+        ) : (
+          <ol className="mt-3 space-y-4 border-l-2 border-border pl-4">
+            {publicacoes.map((p) => (
+              <li key={p.id} className="relative">
+                <span className="absolute top-1.5 -left-[21px] h-2.5 w-2.5 rounded-full bg-gold" aria-hidden />
+                <p className="text-xs text-muted">
+                  {p.data_disponibilizacao.split("-").reverse().join("/")} · {p.tribunal} · {p.tipo_comunicacao} ·{" "}
+                  <span className={p.status === "nao_tratada" ? "font-medium text-status-pending" : ""}>{STATUS_PUBLICACAO[p.status as PublicacaoStatus]}</span>
+                </p>
+                <p className="mt-0.5 text-xs text-muted">{p.orgao}</p>
+                <details className="mt-1">
+                  <summary className="cursor-pointer text-sm text-foreground/85"><span className="line-clamp-2 inline whitespace-pre-line">{p.texto}</span></summary>
+                  <p className="mt-2 rounded-lg bg-surface-2 p-3 text-sm whitespace-pre-line text-foreground/85">{p.texto}</p>
+                </details>
+              </li>
+            ))}
+          </ol>
+        )}
       </div>
     </div>
   );

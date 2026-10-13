@@ -5,8 +5,8 @@ import { BackButton } from "@/components/nav/back-button";
 import { exigirPermissao } from "@/lib/dal";
 import { ActivityForm } from "./activity-form";
 
-export default async function NewActivityPage({ searchParams }: { searchParams: Promise<{ clientId?: string }> }) {
-  const [profile, clients, responsaveis, { clientId }] = await Promise.all([
+export default async function NewActivityPage({ searchParams }: { searchParams: Promise<{ clientId?: string; titulo?: string; descricao?: string; prazo?: string; tipo?: string; publicacao?: string }> }) {
+  const [profile, clients, responsaveis, { clientId, ...preenchido }] = await Promise.all([
     exigirPermissao("atividades").then((r) => r.profile),
     listClients(),
     listResponsaveis(),
@@ -29,7 +29,7 @@ export default async function NewActivityPage({ searchParams }: { searchParams: 
           antes de abrir uma atividade.
         </p>
       ) : (
-        <ActivityForm clients={clients} responsaveis={responsaveis} meuResponsavel={meuResponsavel} clienteInicial={clientId} />
+        <ActivityForm clients={clients} responsaveis={responsaveis} meuResponsavel={meuResponsavel} clienteInicial={clientId} inicial={preenchido} />
       )}
     </div>
   );
