@@ -3,7 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
 import { exigirPermissao, requireRole } from "@/lib/dal";
-import { executarMonitor } from "@/lib/publicacoes/monitor";
+import type { ResultadoMonitor } from "@/lib/publicacoes/monitor";
 
 const STATUS = ["nao_tratada", "tratada", "descartada"] as const;
 
@@ -29,7 +29,18 @@ export type BuscaState = { msg: string | null; erro: boolean };
 
 export async function buscarAgoraAction(_prev: BuscaState, _formData: FormData): Promise<BuscaState> {
   await requireRole(["admin"]);
-  const r = await executarMonitor("manual");
+  // Chama a rota do robô (que roda em São Paulo) em vez de buscar daqui.
+  const base = (process.env.NEXT_PUBLIC_SITE_URL ?? "https://mcadvogados.app.br").replace(/\/$/, "");
+  let r: ResultadoMonitor;
+  try {
+    const resp = await fetch(`${base}/api/cron/publicacoes?origem=manual`, {
+      headers: { authorization: `Bearer ${process.env.CRON_SECRET}` },
+      cache: "no-store",
+    });
+    r = (await resp.json()) as ResultadoMonitor;
+  } catch {
+    return { msg: "Não foi possível falar com o robô de publicações. Tente de novo.", erro: true };
+  }
   revalidatePath("/admin/publicacoes");
   if (r.erro) return { msg: r.erro, erro: true };
   return {

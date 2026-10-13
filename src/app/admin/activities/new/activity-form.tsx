@@ -25,7 +25,9 @@ export function ActivityForm({
   inicial?: { titulo?: string; descricao?: string; prazo?: string; tipo?: string; publicacao?: string };
 }) {
   const [state, formAction, pending] = useActionState(createActivityAction, initialState);
-  const [cliente, setCliente] = useState(clienteInicial ?? clients[0]?.id ?? "");
+  // Vindo de publicação sem processo cadastrado: obriga escolher o cliente
+  // (não pré-seleciona o primeiro da lista para não salvar no cliente errado).
+  const [cliente, setCliente] = useState(clienteInicial ?? (inicial.publicacao ? "" : clients[0]?.id ?? ""));
 
   return (
     <form action={formAction} className="max-w-xl space-y-5 ui-card p-6">
@@ -46,7 +48,13 @@ export function ActivityForm({
           value={cliente}
           onChange={(e) => setCliente(e.target.value)}
           className="ui-input"
+          required
         >
+          {cliente === "" && (
+            <option value="" disabled>
+              Selecione o cliente…
+            </option>
+          )}
           {clients.map((c) => (
             <option key={c.id} value={c.id}>
               {c.name}

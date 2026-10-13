@@ -12,5 +12,12 @@
       "path": "/api/cron/publicacoes?turno=tarde",
       "schedule": "0 16 * * *"
     }
-  ]
+  ],
+  "functions": {
+    "src/app/api/cron/publicacoes/route.ts": {
+      "regions": [
+        "gru1"
+      ]
+    }
+  }
 }
