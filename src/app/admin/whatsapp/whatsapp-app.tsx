@@ -12,6 +12,8 @@ import {
   Loader2,
   MessageCircle,
   Power,
+  QrCode,
+  Unplug,
   RefreshCw,
   Search,
   Send,
@@ -30,7 +32,9 @@ import {
   limparConversasAction,
   linkMidiaAction,
   marcarLidoAction,
-  trocarNumeroAction,
+  sairDoNumeroAction,
+  gerarQrAction,
+  cancelarQrAction,
   vincularClienteAction,
 } from "./actions";
 
@@ -322,10 +326,11 @@ function Avatar({ nome, grupo, foto }: { nome: string; grupo: boolean; foto?: st
 function PainelAgente({ agente, ligado }: { agente: WaAgente | null; ligado: boolean }) {
   const [ocupado, setOcupado] = useState<string | null>(null);
   const [erro, setErro] = useState<string | null>(null);
-  const [trocando, setTrocando] = useState(false);
+  const [confirmar, setConfirmar] = useState<"desconectar" | "trocar" | null>(null);
   const [limpar, setLimpar] = useState(false);
 
-  const estado = !ligado ? "desligado" : agente?.estado ?? "conectando";
+  // ligado + estado "desligado" = Agente rodando, mas sem número conectado
+  const estado = !ligado ? "agente_off" : agente?.estado === "desligado" ? "sem_numero" : (agente?.estado ?? "conectando");
   const numero = agente?.numero ? telefone(`${agente.numero}@s.whatsapp.net`) : null;
 
   async function rodar(nome: string, fn: () => Promise<{ ok: boolean; erro?: string } | void>) {
@@ -334,19 +339,28 @@ function PainelAgente({ agente, ligado }: { agente: WaAgente | null; ligado: boo
     try {
       const r = await fn();
       if (r && !r.ok) setErro(r.erro ?? "Não deu certo.");
-      else setTrocando(false);
+      else setConfirmar(null);
     } finally {
       setOcupado(null);
     }
   }
 
   const ROTULO: Record<string, { texto: string; cor: string }> = {
-    desligado: { texto: "Agente desligado", cor: "bg-status-danger" },
+    agente_off: { texto: "Agente desligado", cor: "bg-status-danger" },
+    sem_numero: { texto: "Nenhum número conectado", cor: "bg-muted" },
     conectando: { texto: "Conectando…", cor: "bg-status-pending" },
-    aguardando_qr: { texto: "Aguardando o QR no celular", cor: "bg-status-pending" },
+    aguardando_qr: { texto: "Escaneie o QR com o celular", cor: "bg-status-pending" },
     conectado: { texto: "Conectado", cor: "bg-status-success" },
   };
   const r = ROTULO[estado] ?? ROTULO.conectando;
+  const subtitulo =
+    estado === "agente_off"
+      ? "Para ligar: clique duas vezes em “Ligar Agente MC” na área de trabalho do computador."
+      : estado === "sem_numero"
+        ? "O Agente está ligado. Clique em “Conectar número” para gerar o QR."
+        : [numero && `Número ${numero}`, agente?.label].filter(Boolean).join(" · ") || "—";
+  const icone = (nome: string, Icone: typeof Power) =>
+    ocupado === nome ? <Loader2 className="h-3.5 w-3.5 animate-spin" aria-hidden /> : <Icone className="h-3.5 w-3.5" aria-hidden />;
 
   return (
     <div className="ui-card p-4">
@@ -357,29 +371,35 @@ function PainelAgente({ agente, ligado }: { agente: WaAgente | null; ligado: boo
         </span>
         <div className="min-w-0 leading-tight">
           <p className="text-sm font-semibold text-foreground">{r.texto}</p>
-          <p className="text-xs text-muted">
-            {estado === "desligado"
-              ? "Para ligar: clique duas vezes em “Ligar Agente MC” na área de trabalho do computador."
-              : [numero && `Número ${numero}`, agente?.label].filter(Boolean).join(" · ") || "—"}
-          </p>
+          <p className="text-xs text-muted">{subtitulo}</p>
         </div>
         <div className="ml-auto flex flex-wrap gap-2">
-          {ligado && estado === "conectado" && (
-            <button type="button" onClick={() => setTrocando((v) => !v)} className="ui-btn-secondary px-3 py-1.5 text-xs">
-              <RefreshCw className="h-3.5 w-3.5" aria-hidden /> Trocar / desconectar número
+          {estado === "sem_numero" && (
+            <button type="button" disabled={!!ocupado} onClick={() => void rodar("qr", gerarQrAction)} className="ui-btn px-3 py-1.5 text-xs">
+              {icone("qr", QrCode)} Conectar número
+            </button>
+          )}
+          {estado === "conectado" && (
+            <>
+              <button type="button" onClick={() => setConfirmar(confirmar === "trocar" ? null : "trocar")} className="ui-btn-secondary px-3 py-1.5 text-xs">
+                <RefreshCw className="h-3.5 w-3.5" aria-hidden /> Trocar número
+              </button>
+              <button type="button" onClick={() => setConfirmar(confirmar === "desconectar" ? null : "desconectar")} className="ui-btn-secondary px-3 py-1.5 text-xs">
+                <Unplug className="h-3.5 w-3.5" aria-hidden /> Desconectar
+              </button>
+            </>
+          )}
+          {estado === "aguardando_qr" && (
+            <button type="button" disabled={!!ocupado} onClick={() => void rodar("cancelar", cancelarQrAction)} className="ui-btn-secondary px-3 py-1.5 text-xs">
+              {icone("cancelar", X)} Cancelar
             </button>
           )}
           {ligado && (
-            <button
-              type="button"
-              disabled={!!ocupado}
-              onClick={() => void rodar("desligar", desligarAgenteAction)}
-              className="ui-btn-secondary px-3 py-1.5 text-xs"
-            >
-              {ocupado === "desligar" ? <Loader2 className="h-3.5 w-3.5 animate-spin" aria-hidden /> : <Power className="h-3.5 w-3.5" aria-hidden />} Desligar Agente
+            <button type="button" disabled={!!ocupado} onClick={() => void rodar("desligar", desligarAgenteAction)} className="ui-btn-secondary px-3 py-1.5 text-xs">
+              {icone("desligar", Power)} Desligar Agente
             </button>
           )}
-          {!ligado && (
+          {(estado === "agente_off" || estado === "sem_numero") && (
             <button
               type="button"
               disabled={!!ocupado}
@@ -388,44 +408,54 @@ function PainelAgente({ agente, ligado }: { agente: WaAgente | null; ligado: boo
               }}
               className="ui-btn-secondary px-3 py-1.5 text-xs"
             >
-              {ocupado === "limpar" ? <Loader2 className="h-3.5 w-3.5 animate-spin" aria-hidden /> : <Trash2 className="h-3.5 w-3.5" aria-hidden />} Limpar conversas
+              {icone("limpar", Trash2)} Limpar conversas
             </button>
           )}
         </div>
       </div>
 
-      {ligado && estado === "aguardando_qr" && agente?.qr && (
+      {estado === "aguardando_qr" && agente?.qr && (
         <div className="mt-4 flex flex-col items-center gap-4 rounded-xl border border-border bg-surface p-4 sm:flex-row">
           {/* eslint-disable-next-line @next/next/no-img-element */}
           <img src={agente.qr} alt="QR para conectar o WhatsApp" className="h-56 w-56 rounded-lg bg-white p-2" />
           <ol className="list-decimal space-y-1.5 pl-5 text-sm text-foreground">
-            <li>No celular com o número do escritório, abra o WhatsApp.</li>
+            <li>No celular com o número que vai ser usado, abra o WhatsApp.</li>
             <li>
               Toque em <b>⋮</b> (ou Configurações no iPhone) → <b>Aparelhos conectados</b> → <b>Conectar aparelho</b>.
             </li>
-            <li>Aponte a câmera para este QR. Cada código vale 1 minuto e troca sozinho aqui; se trocar enquanto você aponta, é só apontar de novo.</li>
+            <li>Aponte a câmera para este QR. O código troca sozinho aqui; se trocar enquanto você aponta, é só apontar de novo.</li>
+            <li className="text-muted">Se ninguém escanear em uns 2 minutos, o QR para. É só clicar em “Conectar número” de novo.</li>
           </ol>
         </div>
       )}
 
-      {agente?.ultimo_erro && ligado && estado !== "conectado" && <p className="mt-2 text-xs text-status-danger">{agente.ultimo_erro}</p>}
+      {agente?.ultimo_erro && ligado && estado !== "conectado" && <p className="mt-2 text-xs text-status-pending">{agente.ultimo_erro}</p>}
 
-      {trocando && (
+      {confirmar && (
         <div className="mt-4 rounded-xl border border-status-pending/30 bg-status-pending-bg p-4 text-sm">
-          <p className="font-semibold text-foreground">Desconectar {numero ?? "este número"}?</p>
+          <p className="font-semibold text-foreground">
+            {confirmar === "trocar" ? `Trocar ${numero ?? "o número"} por outro?` : `Desconectar ${numero ?? "o número"}?`}
+          </p>
           <p className="mt-1 text-muted">
-            O Agente sai do WhatsApp (some de “Aparelhos conectados” no celular) e mostra aqui um QR novo para conectar outro número — ou o mesmo de novo.
+            {confirmar === "trocar"
+              ? "O Agente sai deste número (some de “Aparelhos conectados” no celular) e já mostra aqui o QR para conectar o outro."
+              : "O Agente sai deste número (some de “Aparelhos conectados” no celular) e fica parado, sem gerar QR, até você clicar em “Conectar número”."}
           </p>
           <label className="mt-3 flex items-center gap-2 text-foreground">
             <input type="checkbox" checked={limpar} onChange={(e) => setLimpar(e.target.checked)} className="h-4 w-4 accent-[var(--color-navy)]" />
             Apagar do portal as conversas deste número
           </label>
           <div className="mt-3 flex justify-end gap-2">
-            <button type="button" onClick={() => setTrocando(false)} className="ui-btn-secondary px-3 py-1.5 text-xs">
+            <button type="button" onClick={() => setConfirmar(null)} className="ui-btn-secondary px-3 py-1.5 text-xs">
               Cancelar
             </button>
-            <button type="button" disabled={!!ocupado} onClick={() => void rodar("trocar", () => trocarNumeroAction(limpar))} className="ui-btn px-3 py-1.5 text-xs">
-              {ocupado === "trocar" ? <Loader2 className="h-3.5 w-3.5 animate-spin" aria-hidden /> : <Smartphone className="h-3.5 w-3.5" aria-hidden />} Desconectar e gerar QR
+            <button
+              type="button"
+              disabled={!!ocupado}
+              onClick={() => void rodar("sair", () => sairDoNumeroAction(confirmar === "trocar", limpar))}
+              className="ui-btn px-3 py-1.5 text-xs"
+            >
+              {icone("sair", confirmar === "trocar" ? Smartphone : Unplug)} {confirmar === "trocar" ? "Desconectar e gerar QR" : "Desconectar"}
             </button>
           </div>
         </div>

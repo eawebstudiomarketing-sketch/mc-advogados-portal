@@ -56,17 +56,35 @@ export async function vincularClienteAction(chatJid: string, clientId: string | 
 }
 
 /**
- * Trocar/desconectar o número: o Agente sai do WhatsApp (some de "Aparelhos
- * conectados" no celular), apaga a sessão e mostra um QR novo. Com `limpar`,
- * apaga também as conversas espelhadas do número anterior.
+ * Sair do WhatsApp: o Agente faz logout (some de "Aparelhos conectados" no
+ * celular) e apaga a sessão. "Trocar" já gera o QR; "desconectar" fica parado
+ * até alguém clicar em "Conectar número". Com `limpar`, apaga as conversas.
  */
-export async function trocarNumeroAction(limpar: boolean): Promise<{ ok: boolean; erro?: string }> {
+export async function sairDoNumeroAction(gerarQr: boolean, limpar: boolean): Promise<{ ok: boolean; erro?: string }> {
   const profile = await requireRole(["admin"]);
   const db = await createClient();
   const agente = await statusAgente(db);
   if (!agente?.ligado) return { ok: false, erro: "Ligue o Agente MC no computador primeiro (ele precisa estar ligado pra sair do WhatsApp)." };
   if (limpar) await limparConversas();
-  await criarOrdem(db, { tipo: "deslogar", payload: {}, criado_por: profile.id });
+  await criarOrdem(db, { tipo: "deslogar", payload: { gerar_qr: gerarQr }, criado_por: profile.id });
+  return { ok: true };
+}
+
+/** Gera o QR pra conectar um número (só quando pedem). */
+export async function gerarQrAction(): Promise<{ ok: boolean; erro?: string }> {
+  const profile = await requireRole(["admin"]);
+  const db = await createClient();
+  const agente = await statusAgente(db);
+  if (!agente?.ligado) return { ok: false, erro: "Ligue o Agente MC no computador primeiro." };
+  await criarOrdem(db, { tipo: "gerar_qr", payload: {}, criado_por: profile.id });
+  return { ok: true };
+}
+
+/** Para de mostrar QR (desiste de conectar agora). */
+export async function cancelarQrAction(): Promise<{ ok: boolean }> {
+  const profile = await requireRole(["admin"]);
+  const db = await createClient();
+  await criarOrdem(db, { tipo: "cancelar_qr", payload: {}, criado_por: profile.id });
   return { ok: true };
 }
 
