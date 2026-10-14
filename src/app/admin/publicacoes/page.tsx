@@ -52,7 +52,7 @@ export default async function PublicacoesPage({ searchParams }: { searchParams: 
       <div className="mb-6 flex flex-wrap items-end justify-between gap-3">
         <div>
           <h1 className="page-title">Publicações</h1>
-          <p className="text-sm text-muted">Intimações do Diário de Justiça Eletrônico Nacional (DJEN), buscadas a cada 2 horas, das 06h às 22h.</p>
+          <p className="text-sm text-muted">Intimações do Diário de Justiça Eletrônico Nacional (DJEN), buscadas a cada 2 horas das 06h às 22h, e despachos de marcas na revista semanal do INPI.</p>
         </div>
         {admin && <BuscarAgora />}
       </div>
@@ -233,7 +233,7 @@ async function Monitoramento() {
                 {e.origem === "cron" ? "automática" : "manual"}
               </span>
               <span className={e.erro ? "text-status-danger" : "text-foreground/80"}>
-                {e.erro ? `Erro: ${e.erro}` : `${e.novas} nova(s) de ${e.encontradas}`}
+                {e.erro ? `Erro: ${e.erro}` : `${e.novas} nova(s) · ${e.encontradas} no DJEN`}
               </span>
             </li>
           ))}

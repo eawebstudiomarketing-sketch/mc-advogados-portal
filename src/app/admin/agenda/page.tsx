@@ -91,8 +91,8 @@ export default async function AgendaPage({ searchParams }: { searchParams: Promi
               <Link href={`/admin/agenda?mes=${mesAnterior}${qsVer}`} className="icon-btn" aria-label="Mês anterior" data-tip="Mês anterior">
                 <ChevronLeft aria-hidden />
               </Link>
-              <h2 className="min-w-40 text-center text-sm font-semibold text-foreground capitalize">
-                {MESES[m - 1]} de {ano}
+              <h2 className="min-w-40 text-center text-sm font-semibold text-foreground">
+                {MESES[m - 1][0].toUpperCase() + MESES[m - 1].slice(1)} de {ano}
               </h2>
               <Link href={`/admin/agenda?mes=${mesSeguinte}${qsVer}`} className="icon-btn" aria-label="Próximo mês" data-tip="Próximo mês">
                 <ChevronRight aria-hidden />

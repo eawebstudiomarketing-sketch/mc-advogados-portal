@@ -37,7 +37,7 @@ export function ActivityForm({
       {inicial.sugestao && <input type="hidden" name="sugestao" value={inicial.sugestao} />}
       {inicial.publicacao && (
         <p className="rounded-lg bg-gold/10 px-3 py-2 text-xs text-navy">
-          Criando a partir de uma publicação do DJEN. Confira o prazo sugerido: ao salvar, a publicação fica como tratada.
+          Criando a partir de uma publicação (diário oficial ou INPI). Confira a data sugerida: ao salvar, a publicação fica como tratada.
         </p>
       )}
       <div>
