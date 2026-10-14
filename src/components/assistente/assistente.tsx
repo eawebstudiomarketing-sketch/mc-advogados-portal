@@ -5,7 +5,7 @@ import { createPortal } from "react-dom";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { toast } from "sonner";
-import { Sparkles, X, RotateCcw, CornerRightDown, ArrowUp, Check, AlertTriangle, Trash2, Wrench, Paperclip, FileText, Loader2 } from "lucide-react";
+import { Sparkles, X, RotateCcw, CornerRightDown, ArrowUp, Check, AlertTriangle, Trash2, Wrench, Paperclip, FileText, Loader2, Bell } from "lucide-react";
 import { createClient as criarSupabase } from "@/lib/supabase/client";
 import { AudioAnswer } from "@/components/ui/audio-answer";
 import { ROTULO_FERRAMENTA, FERRAMENTAS_DE_ESCRITA } from "@/lib/assistente/labels";
@@ -97,7 +97,16 @@ function lerSalvo(): Content[] {
 }
 
 // Balão do assistente: conversa com o Gemini, que executa ações no portal.
-export function Assistente({ nome, modo = "flutuante" }: { nome: string; modo?: "flutuante" | "pagina" }) {
+export function Assistente({
+  nome,
+  modo = "flutuante",
+  publicacoes = null,
+}: {
+  nome: string;
+  modo?: "flutuante" | "pagina";
+  /** App instalável (admin): atalho para as Publicações com o número de não tratadas. */
+  publicacoes?: number | null;
+}) {
   const pagina = modo === "pagina";
   const router = useRouter();
   const pathname = usePathname();
@@ -351,6 +360,21 @@ export function Assistente({ nome, modo = "flutuante" }: { nome: string; modo?: 
               <button type="button" onClick={janela.restaurar} className="rounded-lg p-1.5 text-white/60 transition-colors hover:bg-white/10 hover:text-white max-sm:hidden" aria-label="Voltar ao canto padrão" data-tip="Voltar ao canto padrão">
                 <CornerRightDown className="h-4 w-4" />
               </button>
+            )}
+            {pagina && publicacoes !== null && (
+              <a
+                href="/admin/publicacoes"
+                className="relative rounded-lg p-1.5 text-white/60 transition-colors hover:bg-white/10 hover:text-white"
+                aria-label={`Publicações (${publicacoes} não tratadas)`}
+                data-tip="Publicações"
+              >
+                <Bell className="h-4 w-4" />
+                {publicacoes > 0 && (
+                  <span className="absolute -top-0.5 -right-0.5 rounded-full bg-gold px-1 text-[9px] leading-[14px] font-semibold text-navy-2">
+                    {publicacoes > 99 ? "99+" : publicacoes}
+                  </span>
+                )}
+              </a>
             )}
             <button type="button" onClick={novaConversa} className="rounded-lg p-1.5 text-white/60 transition-colors hover:bg-white/10 hover:text-white" aria-label="Nova conversa" data-tip="Nova conversa">
               <RotateCcw className="h-4 w-4" />

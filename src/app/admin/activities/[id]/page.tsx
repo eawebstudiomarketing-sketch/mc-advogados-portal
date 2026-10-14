@@ -66,7 +66,11 @@ export default async function ActivityDetailPage({ params }: { params: Promise<{
           <dl className="mt-3 space-y-2 text-sm">
             <div className="flex justify-between gap-3">
               <dt className="text-muted">Prazo</dt>
-              <dd className="text-foreground">{activity.deadline ? formatDate(activity.deadline) : "Sem prazo"}</dd>
+              <dd className="text-foreground">
+                {activity.deadline ? formatDate(activity.deadline) : "Sem prazo"}
+                {activity.hora ? ` às ${activity.hora.slice(0, 5)}` : ""}
+                {activity.categoria === "audiencia" ? " · Audiência" : activity.categoria === "prazo" ? " · Prazo processual" : ""}
+              </dd>
             </div>
             <div className="flex justify-between gap-3">
               <dt className="text-muted">Criada em</dt>

@@ -27,6 +27,7 @@ import {
   type LucideIcon,
   Newspaper,
   Bell,
+  CalendarDays,
 } from "lucide-react";
 import { logout } from "@/app/logout/actions";
 import { CommandPalette, type PaletteItem } from "./command-palette";
@@ -52,6 +53,7 @@ const NAV_GROUPS: { label: string; items: NavItem[] }[] = [
       { href: "/admin/clients", label: "Clientes", icon: Users },
       { href: "/admin/activities", label: "Atividades", icon: ListChecks },
       { href: "/admin/publicacoes", label: "Publicações", icon: Newspaper },
+      { href: "/admin/agenda", label: "Agenda", icon: CalendarDays },
       { href: "/admin/onboarding", label: "Onboarding", icon: ClipboardList },
     ],
   },

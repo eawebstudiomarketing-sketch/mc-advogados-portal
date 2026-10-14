@@ -14,6 +14,36 @@ export type Database = {
   }
   public: {
     Tables: {
+      push_inscricoes: {
+        Row: {
+          id: string
+          profile_id: string
+          endpoint: string
+          p256dh: string
+          auth: string
+          aparelho: string | null
+          created_at: string
+        }
+        Insert: {
+          id?: string
+          profile_id: string
+          endpoint: string
+          p256dh: string
+          auth: string
+          aparelho?: string | null
+          created_at?: string
+        }
+        Update: {
+          id?: string
+          profile_id?: string
+          endpoint?: string
+          p256dh?: string
+          auth?: string
+          aparelho?: string | null
+          created_at?: string
+        }
+        Relationships: []
+      }
       publicacoes: {
         Row: {
           id: string
@@ -41,6 +71,8 @@ export type Database = {
           activity_id: string | null
           avisada_em: string | null
           created_at: string
+          sugestoes_tipos: string[]
+          sugestao_aceita: string | null
         }
         Insert: {
           id?: string
@@ -68,6 +100,8 @@ export type Database = {
           activity_id?: string | null
           avisada_em?: string | null
           created_at?: string
+          sugestoes_tipos?: string[]
+          sugestao_aceita?: string | null
         }
         Update: {
           id?: string
@@ -95,6 +129,8 @@ export type Database = {
           activity_id?: string | null
           avisada_em?: string | null
           created_at?: string
+          sugestoes_tipos?: string[]
+          sugestao_aceita?: string | null
         }
         Relationships: [
           {
@@ -145,16 +181,22 @@ export type Database = {
           id: number
           email_alerta: string | null
           updated_at: string
+          inpi_procuradores: string[]
+          inpi_ultima_revista: number | null
         }
         Insert: {
           id?: number
           email_alerta?: string | null
           updated_at?: string
+          inpi_procuradores?: string[]
+          inpi_ultima_revista?: number | null
         }
         Update: {
           id?: number
           email_alerta?: string | null
           updated_at?: string
+          inpi_procuradores?: string[]
+          inpi_ultima_revista?: number | null
         }
         Relationships: []
       }
@@ -226,6 +268,8 @@ export type Database = {
           type: Database["public"]["Enums"]["activity_type"]
           updated_at: string
           archived_at: string | null
+          categoria: string
+          hora: string | null
         }
         Insert: {
           client_id: string
@@ -240,6 +284,8 @@ export type Database = {
           type: Database["public"]["Enums"]["activity_type"]
           updated_at?: string
           archived_at?: string | null
+          categoria?: string
+          hora?: string | null
         }
         Update: {
           client_id?: string
@@ -254,6 +300,8 @@ export type Database = {
           type?: Database["public"]["Enums"]["activity_type"]
           updated_at?: string
           archived_at?: string | null
+          categoria?: string
+          hora?: string | null
         }
         Relationships: [
           {

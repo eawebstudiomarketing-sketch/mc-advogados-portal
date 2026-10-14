@@ -11,6 +11,20 @@ import { destinoDeVolta } from "@/lib/voltar";
 
 type Db = Awaited<ReturnType<typeof createClient>>;
 
+const CATEGORIAS = ["tarefa", "prazo", "audiencia"];
+
+/** Categoria e hora da agenda — só mexe se os campos vieram no formulário (a mini tela não manda). */
+function lerAgenda(formData: FormData): { categoria?: string; hora?: string | null } {
+  const out: { categoria?: string; hora?: string | null } = {};
+  const categoria = formData.get("categoria");
+  if (typeof categoria === "string" && CATEGORIAS.includes(categoria)) out.categoria = categoria;
+  if (formData.has("hora")) {
+    const hora = String(formData.get("hora") ?? "");
+    out.hora = /^\d{2}:\d{2}$/.test(hora) && out.categoria === "audiencia" ? hora : null;
+  }
+  return out;
+}
+
 // Responsável escolhido (tabela responsaveis: equipe com login ou só nome+Gmail).
 // Quando a pessoa tem login, o responsible_id (dono/autor no banco) acompanha.
 async function lerResponsavel(
@@ -58,6 +72,7 @@ export async function createActivityAction(
     description: typeof description === "string" && description.trim() ? description.trim() : null,
     type: type as Database["public"]["Enums"]["activity_type"],
     deadline: typeof deadline === "string" && deadline ? deadline : null,
+    ...lerAgenda(formData),
   }).select("id").single();
 
   if (error) {
@@ -69,7 +84,14 @@ export async function createActivityAction(
   if (typeof publicacaoId === "string" && publicacaoId && criada) {
     await supabase
       .from("publicacoes")
-      .update({ status: "tratada", activity_id: criada.id, tratada_por: profile.id, tratada_em: new Date().toISOString() })
+      .update({
+        status: "tratada",
+        activity_id: criada.id,
+        tratada_por: profile.id,
+        tratada_em: new Date().toISOString(),
+        // qual sugestão foi usada (prazo/audiência) — base da % de uso
+        sugestao_aceita: ["prazo", "audiencia"].includes(String(formData.get("sugestao"))) ? String(formData.get("sugestao")) : null,
+      })
       .eq("id", publicacaoId);
     revalidatePath("/admin/publicacoes");
   }
@@ -128,11 +150,13 @@ async function salvarAtividade(formData: FormData): Promise<string | null> {
       description: typeof description === "string" && description.trim() ? description.trim() : null,
       type: type as Database["public"]["Enums"]["activity_type"],
       deadline: typeof deadline === "string" && deadline ? deadline : null,
+      ...lerAgenda(formData),
     })
     .eq("id", id);
 
   if (error) return "Não foi possível salvar as alterações. Tente novamente.";
   revalidatePath("/admin/activities");
+  revalidatePath("/admin/agenda");
   revalidatePath("/admin");
   return null;
 }

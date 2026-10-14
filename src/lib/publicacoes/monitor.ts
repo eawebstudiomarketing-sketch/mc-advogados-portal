@@ -1,9 +1,11 @@
 import "server-only";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { getResendClient } from "@/lib/email/resend";
+import { enviarPush, idsDosAdmins } from "@/lib/push";
 import { buscarPorOab, textoLimpo, type ComunicacaoDJEN } from "./djen";
 import { ufDaPublicacao } from "./uf";
-import { dataPublicacao } from "./sugestoes";
+import { dataPublicacao, sugerir } from "./sugestoes";
+import { idPublicacaoINPI, lerRevista, textoDoProcesso, ultimaRevista } from "./inpi";
 
 // Robô de publicações: busca no DJEN as intimações dos últimos dias para cada
 // OAB cadastrada, grava só as novas (o id da comunicação no DJEN é único),
@@ -52,16 +54,28 @@ async function completarUf(db: Db): Promise<void> {
   }
 }
 
-export type ResultadoMonitor = { encontradas: number; novas: number; emailPara: string | null; erro: string | null };
+export type ResultadoMonitor = {
+  encontradas: number;
+  novas: number;
+  inpiRevista: number | null;
+  inpiNovas: number;
+  emailPara: string | null;
+  erro: string | null;
+};
+
+const CAMPOS_NOVA = "id, numero_mascara, numero_processo, tribunal, orgao, tipo_comunicacao, data_disponibilizacao, texto, client_id, clients(name)";
 
 export async function executarMonitor(origem: "cron" | "manual"): Promise<ResultadoMonitor> {
   const db = createAdminClient();
   const fim = hojeBahia();
-  const { count: jaTem } = await db.from("publicacoes").select("id", { count: "exact", head: true });
+  const { count: jaTem } = await db.from("publicacoes").select("id", { count: "exact", head: true }).neq("tribunal", "INPI");
   const cargaInicial = !jaTem;
   const inicio = menosDias(fim, cargaInicial ? JANELA_CARGA_INICIAL : JANELA_DIAS);
-  const resultado: ResultadoMonitor = { encontradas: 0, novas: 0, emailPara: null, erro: null };
+  const resultado: ResultadoMonitor = { encontradas: 0, novas: 0, inpiRevista: null, inpiNovas: 0, emailPara: null, erro: null };
+  const erros: string[] = [];
+  const paraAvisar: Nova[] = [];
 
+  // 1) DJEN — intimações pelas OABs
   try {
     const { data: oabs } = await db.from("monitor_oabs").select("numero, uf").eq("ativo", true);
     const porId = new Map<number, { c: ComunicacaoDJEN; termo: string }>();
@@ -85,6 +99,7 @@ export async function executarMonitor(origem: "cron" | "manual"): Promise<Result
 
       const linhas = novas.map(({ c, termo }) => {
         const p = proc.get(c.numero_processo);
+        const texto = textoLimpo(c.texto);
         return {
           comunicacao_id: c.id,
           numero_processo: c.numero_processo,
@@ -96,7 +111,7 @@ export async function executarMonitor(origem: "cron" | "manual"): Promise<Result
           classe: c.nomeClasse,
           meio: c.meiocompleto,
           data_disponibilizacao: c.data_disponibilizacao,
-          texto: textoLimpo(c.texto),
+          texto,
           link: c.link,
           partes: (c.destinatarios ?? []).map((d) => ({ nome: d.nome, polo: d.polo })),
           advogados: (c.destinatarioadvogados ?? []).map((a) => ({
@@ -105,6 +120,7 @@ export async function executarMonitor(origem: "cron" | "manual"): Promise<Result
           })),
           termo,
           uf: ufDaPublicacao(c.numero_processo, c.nomeOrgao),
+          sugestoes_tipos: sugerir(texto, c.data_disponibilizacao).map((x) => x.tipo),
           process_id: p?.id ?? null,
           client_id: p?.client_id ?? null,
         };
@@ -112,25 +128,122 @@ export async function executarMonitor(origem: "cron" | "manual"): Promise<Result
       const { data: inseridas, error } = await db
         .from("publicacoes")
         .upsert(linhas, { onConflict: "comunicacao_id", ignoreDuplicates: true })
-        .select("id, numero_mascara, numero_processo, tribunal, orgao, tipo_comunicacao, data_disponibilizacao, texto, client_id, clients(name)");
-      if (error) throw new Error(`Falha ao gravar publicações: ${error.message}`);
+        .select(CAMPOS_NOVA);
+      if (error) throw new Error(`falha ao gravar: ${error.message}`);
       resultado.novas = inseridas?.length ?? 0;
-
-      if (inseridas?.length && !cargaInicial) resultado.emailPara = await avisar(db, inseridas);
+      if (inseridas?.length && !cargaInicial) paraAvisar.push(...(inseridas as Nova[]));
     }
+  } catch (e) {
+    erros.push(`DJEN: ${e instanceof Error ? e.message : String(e)}`);
+  }
+
+  // 2) INPI — revista semanal de marcas (só quando sai revista nova)
+  try {
+    const r = await executarINPI(db);
+    resultado.inpiRevista = r.revista;
+    resultado.inpiNovas = r.novas.length;
+    if (!r.silencioso) paraAvisar.push(...r.novas);
+  } catch (e) {
+    erros.push(`INPI: ${e instanceof Error ? e.message : String(e)}`);
+  }
+
+  // 3) manutenção: liga ao processo, completa estado e sugestões das antigas
+  try {
     await ligarPublicacoesAosProcessos(db);
     await completarUf(db);
-  } catch (e) {
-    resultado.erro = e instanceof Error ? e.message : String(e);
+    await completarSugestoes(db);
+  } catch {}
+
+  if (paraAvisar.length) {
+    resultado.emailPara = await avisar(db, paraAvisar);
+    // aviso no celular dos admins (independe do e-mail ter saído)
+    const primeira = paraAvisar[0];
+    await enviarPush(await idsDosAdmins(), {
+      titulo: paraAvisar.length === 1 ? "📰 Publicação nova" : `📰 ${paraAvisar.length} publicações novas`,
+      corpo:
+        paraAvisar.length === 1
+          ? `${primeira.tribunal ?? ""} · ${primeira.numero_mascara ?? primeira.numero_processo}${primeira.clients?.name ? ` · ${primeira.clients.name}` : ""}`
+          : [...new Set(paraAvisar.map((n) => n.tribunal).filter(Boolean))].join(", "),
+      url: paraAvisar.length === 1 ? `/admin/publicacoes?p=${primeira.id}` : "/admin/publicacoes",
+    }).catch(() => 0);
   }
+  resultado.erro = erros.join(" | ") || null;
 
   await db.from("monitor_execucoes").insert({
     origem,
     encontradas: resultado.encontradas,
-    novas: resultado.novas,
+    novas: resultado.novas + resultado.inpiNovas,
     erro: resultado.erro,
   });
   return resultado;
+}
+
+const MAX_REVISTAS_POR_VEZ = 2;
+
+/** Lê as revistas do INPI que saíram desde a última lida. A primeira leitura não manda e-mail. */
+async function executarINPI(db: Db): Promise<{ revista: number | null; novas: Nova[]; silencioso: boolean }> {
+  const { data: cfg } = await db.from("monitor_config").select("inpi_procuradores, inpi_ultima_revista").eq("id", 1).maybeSingle();
+  const nomes = (cfg?.inpi_procuradores ?? []).filter(Boolean);
+  if (!nomes.length) return { revista: null, novas: [], silencioso: true };
+
+  const ultima = await ultimaRevista();
+  const lida = cfg?.inpi_ultima_revista ?? null;
+  if (!ultima || (lida !== null && lida >= ultima)) return { revista: lida, novas: [], silencioso: true };
+
+  const primeira = lida === null;
+  const inicio = primeira ? ultima : Math.max(lida + 1, ultima - MAX_REVISTAS_POR_VEZ + 1);
+  const novas: Nova[] = [];
+  for (let numero = inicio; numero <= ultima; numero++) {
+    const { data, processos } = await lerRevista(numero, nomes);
+    if (processos.length) {
+      const linhas = processos.map((p) => {
+        const texto = textoDoProcesso(p, numero, data);
+        const codigos = p.despachos.map((d) => d.codigo);
+        return {
+          comunicacao_id: idPublicacaoINPI(numero, p.numero),
+          numero_processo: p.numero,
+          numero_mascara: p.numero,
+          tribunal: "INPI",
+          orgao: `Revista da Propriedade Industrial nº ${numero}`,
+          tipo_comunicacao: p.despachos.map((d) => d.nome).join(" · ") || "Despacho",
+          tipo_documento: codigos.join(", "),
+          classe: p.marca ? `Marca: ${p.marca}` : "Marca",
+          meio: "Revista da Propriedade Industrial (INPI)",
+          data_disponibilizacao: data,
+          texto,
+          link: "https://revistas.inpi.gov.br/rpi/",
+          partes: p.titulares.map((t) => ({ nome: t.nome, polo: "Titular" })),
+          advogados: [{ nome: p.procurador, oab: "" }],
+          termo: "INPI",
+          uf: p.titulares.find((t) => t.uf)?.uf ?? null,
+          sugestoes_tipos: sugerir(texto, data, { tribunal: "INPI", codigos }).map((x) => x.tipo),
+        };
+      });
+      const { data: inseridas, error } = await db
+        .from("publicacoes")
+        .upsert(linhas, { onConflict: "comunicacao_id", ignoreDuplicates: true })
+        .select(CAMPOS_NOVA);
+      if (error) throw new Error(`falha ao gravar a revista ${numero}: ${error.message}`);
+      novas.push(...((inseridas ?? []) as Nova[]));
+    }
+    await db.from("monitor_config").update({ inpi_ultima_revista: numero }).eq("id", 1);
+  }
+  return { revista: ultima, novas, silencioso: primeira };
+}
+
+/** Preenche as sugestões oferecidas nas publicações antigas (para medir a % de uso). */
+async function completarSugestoes(db: Db): Promise<void> {
+  const { data } = await db
+    .from("publicacoes")
+    .select("id, texto, data_disponibilizacao, tribunal, tipo_documento")
+    .filter("sugestoes_tipos", "eq", "{}")
+    .gte("data_disponibilizacao", menosDias(hojeBahia(), 60))
+    .limit(300);
+  for (const p of data ?? []) {
+    const codigos = p.tribunal === "INPI" ? (p.tipo_documento ?? "").split(/,\s*/) : undefined;
+    const tipos = sugerir(p.texto ?? "", p.data_disponibilizacao, { tribunal: p.tribunal, codigos }).map((x) => x.tipo);
+    if (tipos.length) await db.from("publicacoes").update({ sugestoes_tipos: tipos }).eq("id", p.id);
+  }
 }
 
 type Nova = {

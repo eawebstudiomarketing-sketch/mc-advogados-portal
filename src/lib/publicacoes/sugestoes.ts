@@ -7,8 +7,10 @@ const NUMEROS: Record<string, number> = {
   dez: 10, onze: 11, doze: 12, quinze: 15, vinte: 20, trinta: 30,
 };
 
+import { PRAZOS_INPI } from "./inpi";
+
 export type Sugestao =
-  | { tipo: "prazo"; dias: number; vencimento: string; rotulo: string }
+  | { tipo: "prazo"; dias: number; vencimento: string; rotulo: string; acao?: string }
   | { tipo: "audiencia"; data: string; hora: string | null; rotulo: string };
 
 const pad = (n: number) => String(n).padStart(2, "0");
@@ -50,7 +52,29 @@ export function vencimentoEmDiasUteis(disponibilizacao: string, dias: number): s
   return iso(d);
 }
 
-export function sugerir(texto: string, disponibilizacao: string): Sugestao[] {
+/** INPI: prazo em dias corridos a partir da data da revista; se cair em dia sem expediente, vai para o próximo dia útil. */
+export function vencimentoEmDiasCorridos(dataRevista: string, dias: number): string {
+  const d = new Date(`${dataRevista}T12:00:00Z`);
+  d.setUTCDate(d.getUTCDate() + dias);
+  return iso(diaUtil(d, false) ? d : proximoDiaUtil(d, false));
+}
+
+export function sugerir(
+  texto: string,
+  disponibilizacao: string,
+  opts: { tribunal?: string | null; codigos?: string[] } = {}
+): Sugestao[] {
+  if (opts.tribunal === "INPI") {
+    // INPI: o prazo vem do código do despacho, não do texto
+    const out: Sugestao[] = [];
+    for (const codigo of opts.codigos ?? []) {
+      const regra = PRAZOS_INPI[codigo.trim()];
+      if (!regra) continue;
+      const vencimento = vencimentoEmDiasCorridos(disponibilizacao, regra.dias);
+      out.push({ tipo: "prazo", dias: regra.dias, vencimento, acao: regra.acao, rotulo: `${regra.acao} · ${regra.dias} dias corridos · vence ${dataBR(vencimento)}` });
+    }
+    return out;
+  }
   const t = texto.replace(/\s+/g, " ");
   const out: Sugestao[] = [];
 

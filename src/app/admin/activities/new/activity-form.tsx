@@ -7,6 +7,7 @@ import type { Client } from "@/lib/data/clients";
 import type { Responsavel } from "@/lib/data/responsaveis";
 import { ResponsavelSelect } from "@/components/atividade/responsavel-select";
 import { VoltarInput } from "@/components/nav/back-button";
+import { CamposAgenda } from "@/components/atividade/campos-agenda";
 
 const initialState: CreateActivityState = { error: null };
 
@@ -22,7 +23,7 @@ export function ActivityForm({
   meuResponsavel: string | null;
   clienteInicial?: string;
   /** Vindo de uma publicação do DJEN: título, prazo e descrição já sugeridos. */
-  inicial?: { titulo?: string; descricao?: string; prazo?: string; tipo?: string; publicacao?: string };
+  inicial?: { titulo?: string; descricao?: string; prazo?: string; tipo?: string; publicacao?: string; categoria?: string; hora?: string; sugestao?: string };
 }) {
   const [state, formAction, pending] = useActionState(createActivityAction, initialState);
   // Vindo de publicação sem processo cadastrado: obriga escolher o cliente
@@ -33,6 +34,7 @@ export function ActivityForm({
     <form action={formAction} className="max-w-xl space-y-5 ui-card p-6">
       <VoltarInput />
       {inicial.publicacao && <input type="hidden" name="publicacao_id" value={inicial.publicacao} />}
+      {inicial.sugestao && <input type="hidden" name="sugestao" value={inicial.sugestao} />}
       {inicial.publicacao && (
         <p className="rounded-lg bg-gold/10 px-3 py-2 text-xs text-navy">
           Criando a partir de uma publicação do DJEN. Confira o prazo sugerido: ao salvar, a publicação fica como tratada.
@@ -114,6 +116,8 @@ export function ActivityForm({
           className="ui-input"
         />
       </div>
+
+      <CamposAgenda categoria={inicial.categoria} hora={inicial.hora} />
 
       <div>
         <label htmlFor="description" className="ui-label">

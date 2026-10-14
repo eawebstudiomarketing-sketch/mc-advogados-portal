@@ -1,6 +1,7 @@
 "use client";
 
 import { useActionState } from "react";
+import { CamposAgenda } from "@/components/atividade/campos-agenda";
 import { updateActivityAction, type UpdateActivityState } from "../../actions";
 import { ACTIVITY_TYPE_LABEL, ACTIVITY_TYPES } from "@/lib/activity-type";
 import type { Activity } from "@/lib/data/activities";
@@ -69,6 +70,8 @@ export function EditActivityForm({ activity, responsaveis }: { activity: Activit
           className="ui-input"
         />
       </div>
+
+      <CamposAgenda categoria={activity.categoria} hora={activity.hora} />
 
       <div>
         <label htmlFor="description" className="ui-label">

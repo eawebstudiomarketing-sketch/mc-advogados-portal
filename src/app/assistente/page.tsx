@@ -1,6 +1,7 @@
 import type { Metadata, Viewport } from "next";
 import { exigirPermissao } from "@/lib/dal";
 import { Assistente } from "@/components/assistente/assistente";
+import { contarNaoTratadas } from "@/lib/data/publicacoes";
 
 export const metadata: Metadata = {
   title: "Assistente MC",
@@ -22,9 +23,10 @@ export const viewport: Viewport = {
 // em tela cheia. Admin e advogado (cada um com as ações do seu papel).
 export default async function AssistentePage() {
   const { profile: profile } = await exigirPermissao("assistente");
+  const publicacoes = profile.role === "admin" ? await contarNaoTratadas().catch(() => 0) : null;
   return (
     <main className="min-h-dvh w-full bg-background">
-      <Assistente nome={profile.full_name.split(" ")[0] ?? ""} modo="pagina" />
+      <Assistente nome={profile.full_name.split(" ")[0] ?? ""} modo="pagina" publicacoes={publicacoes} />
     </main>
   );
 }

@@ -65,7 +65,7 @@ export const config = {
       // Next.js remove esses headers do `request` antes do Proxy rodar,
       // então o filtro só funciona aqui, no matcher. A DAL já garante a
       // proteção de verdade dentro de cada página/layout de qualquer forma.
-      source: "/((?!_next/static|_next/image|favicon.ico|brand/).*)",
+      source: "/((?!_next/static|_next/image|favicon.ico|brand/|sw.js).*)",
       missing: [
         { type: "header", key: "next-router-prefetch" },
         { type: "header", key: "purpose", value: "prefetch" },

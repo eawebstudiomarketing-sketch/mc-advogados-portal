@@ -14,7 +14,7 @@ export default async function NewProcessPage({ searchParams }: { searchParams: P
   const partes = ((pub?.partes as { nome: string }[] | null) ?? []).map((p) => p.nome);
   const clienteSugerido = pub ? sugerirClientePelasPartes(partes, clients) : null;
   const vara = pub ? [pub.orgao, pub.tribunal].filter(Boolean).join(" · ") : undefined;
-  const area = pub?.tribunal?.startsWith("TRT") ? "trabalhista" : undefined;
+  const area = pub?.tribunal?.startsWith("TRT") ? "trabalhista" : pub?.tribunal === "INPI" ? "empresarial" : undefined;
 
   return (
     <div>

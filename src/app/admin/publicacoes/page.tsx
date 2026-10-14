@@ -8,12 +8,14 @@ import {
   getPublicacao,
   listPublicacoes,
   STATUS_PUBLICACAO,
+  taxasDeSugestao,
   type PublicacaoStatus,
 } from "@/lib/data/publicacoes";
 import { PublicacaoCard } from "./publicacao-card";
 import { BuscarAgora } from "./buscar-agora";
 import { FerramentasLista } from "./ferramentas-lista";
-import { adicionarOabAction, alternarOabAction, removerOabAction, salvarEmailAlertaAction } from "./actions";
+import { AtivarCelular } from "./ativar-celular";
+import { adicionarOabAction, alternarOabAction, removerOabAction, salvarEmailAlertaAction, salvarProcuradoresInpiAction } from "./actions";
 
 type Busca = { status?: string; tribunal?: string; uf?: string; de?: string; ate?: string; q?: string; p?: string };
 
@@ -25,10 +27,11 @@ export default async function PublicacoesPage({ searchParams }: { searchParams: 
   const admin = profile.role === "admin";
   const status = (FILTROS as string[]).includes(sp.status ?? "") ? (sp.status as PublicacaoStatus | "todas") : "nao_tratada";
 
-  const [contadores, destaque, lista] = await Promise.all([
+  const [contadores, destaque, lista, taxas] = await Promise.all([
     contadoresPublicacoes(),
     sp.p ? getPublicacao(sp.p) : Promise.resolve(null),
     sp.p ? Promise.resolve([]) : listPublicacoes({ status, tribunal: sp.tribunal, uf: sp.uf, de: sp.de, ate: sp.ate, busca: sp.q }),
+    taxasDeSugestao(),
   ]);
 
   const hrefFiltro = (novo: Partial<Busca>) => {
@@ -69,7 +72,7 @@ export default async function PublicacoesPage({ searchParams }: { searchParams: 
               ver todas as não tratadas
             </Link>
           </p>
-          <PublicacaoCard p={destaque} destaque />
+          <PublicacaoCard p={destaque} destaque taxas={taxas} />
         </div>
       ) : (
         <>
@@ -128,7 +131,7 @@ export default async function PublicacoesPage({ searchParams }: { searchParams: 
               </div>
             )}
             {lista.map((p) => (
-              <PublicacaoCard key={p.id} p={p} selecionavel />
+              <PublicacaoCard key={p.id} p={p} selecionavel taxas={taxas} />
             ))}
           </div>
         </>
@@ -143,7 +146,7 @@ async function Monitoramento() {
   const supabase = await createClient();
   const [{ data: oabs }, { data: cfg }, { data: execs }] = await Promise.all([
     supabase.from("monitor_oabs").select("*").order("created_at"),
-    supabase.from("monitor_config").select("email_alerta").eq("id", 1).maybeSingle(),
+    supabase.from("monitor_config").select("email_alerta, inpi_procuradores, inpi_ultima_revista").eq("id", 1).maybeSingle(),
     supabase.from("monitor_execucoes").select("*").order("iniciado_em", { ascending: false }).limit(5),
   ]);
 
@@ -196,6 +199,27 @@ async function Monitoramento() {
           <input name="email" type="email" defaultValue={cfg?.email_alerta ?? ""} placeholder="email@exemplo.com" className="ui-input py-1.5 text-sm" />
           <button type="submit" className="ui-btn-secondary px-3 py-1.5 text-xs">
             Salvar
+          </button>
+        </form>
+
+        <div className="mt-6">
+          <AtivarCelular />
+        </div>
+
+        <h2 className="section-title mt-6">INPI · marcas</h2>
+        <p className="mt-1 text-xs text-muted">
+          Toda terça sai a Revista da Propriedade Industrial. Entram os processos de marca em que o procurador é um destes nomes (um por linha).
+          {cfg?.inpi_ultima_revista ? ` Última revista lida: nº ${cfg.inpi_ultima_revista}.` : " Nenhuma revista lida ainda."}
+        </p>
+        <form action={salvarProcuradoresInpiAction} className="mt-3 flex flex-col gap-2">
+          <textarea
+            name="procuradores"
+            rows={2}
+            defaultValue={(cfg?.inpi_procuradores ?? []).join("\n")}
+            className="ui-input py-1.5 text-sm"
+          />
+          <button type="submit" className="ui-btn-secondary self-start px-3 py-1.5 text-xs">
+            Salvar nomes
           </button>
         </form>
 

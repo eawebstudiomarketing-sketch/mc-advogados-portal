@@ -53,6 +53,7 @@ export const PERM_DA_TELA: Record<string, PermChave> = {
   "/admin": "visao_geral",
   "/admin/clients": "clientes",
   "/admin/activities": "atividades",
+  "/admin/agenda": "atividades",
   "/admin/onboarding": "onboarding",
   "/admin/documents": "documentos",
   "/admin/contracts": "contratos",

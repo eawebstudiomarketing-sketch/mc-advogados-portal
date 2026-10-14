@@ -84,3 +84,24 @@ export async function contarNaoTratadas(): Promise<number> {
   const { count } = await supabase.from("publicacoes").select("id", { count: "exact", head: true }).eq("status", "nao_tratada");
   return count ?? 0;
 }
+
+/**
+ * % de vezes que cada tipo de sugestão (prazo/audiência) foi usado nas
+ * publicações já resolvidas — o equivalente à "probabilidade" do Astrea.
+ * Só aparece com pelo menos 10 casos, para não mostrar número sem base.
+ */
+export async function taxasDeSugestao(): Promise<Partial<Record<"prazo" | "audiencia", number>>> {
+  const supabase = await createClient();
+  const { data } = await supabase
+    .from("publicacoes")
+    .select("sugestoes_tipos, sugestao_aceita")
+    .neq("status", "nao_tratada")
+    .filter("sugestoes_tipos", "neq", "{}")
+    .limit(2000);
+  const out: Partial<Record<"prazo" | "audiencia", number>> = {};
+  for (const tipo of ["prazo", "audiencia"] as const) {
+    const casos = (data ?? []).filter((d) => d.sugestoes_tipos.includes(tipo));
+    if (casos.length >= 10) out[tipo] = Math.round((casos.filter((d) => d.sugestao_aceita === tipo).length / casos.length) * 100);
+  }
+  return out;
+}

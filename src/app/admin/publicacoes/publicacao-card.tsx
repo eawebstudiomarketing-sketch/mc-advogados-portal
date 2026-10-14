@@ -14,13 +14,16 @@ const COR_STATUS: Record<PublicacaoStatus, string> = {
 
 /** Link para o formulário de atividade já preenchido com a publicação. */
 function hrefTratar(p: Publicacao, s?: Sugestao): string {
-  const numero = p.numero_mascara ?? p.numero_processo;
+  const inpi = p.tribunal === "INPI";
+  const numero = `${inpi ? "INPI " : "processo "}${p.numero_mascara ?? p.numero_processo}`;
   const titulo =
     s?.tipo === "audiencia"
-      ? `Audiência${s.hora ? ` às ${s.hora}` : ""} — processo ${numero}`
-      : `${s?.tipo === "prazo" ? `Prazo ${s.dias} dias` : "Publicação"}: ${(p.tipo_comunicacao ?? "intimação").toLowerCase()} — processo ${numero}`;
+      ? `Audiência${s.hora ? ` às ${s.hora}` : ""} — ${numero}`
+      : s?.tipo === "prazo"
+        ? `Prazo ${s.dias} dias: ${s.acao ?? (p.tipo_comunicacao ?? "intimação").toLowerCase()} — ${numero}`
+        : `Publicação: ${(p.tipo_comunicacao ?? "intimação").toLowerCase()} — ${numero}`;
   const descricao = [
-    `Publicação no DJEN de ${dataBR(p.data_disponibilizacao)} · ${p.tribunal ?? ""} · ${p.orgao ?? ""}`,
+    `Publicação ${inpi ? "na RPI" : "no DJEN"} de ${dataBR(p.data_disponibilizacao)} · ${p.tribunal ?? ""} · ${p.orgao ?? ""}`,
     p.link ? `Inteiro teor: ${p.link}` : "",
     "",
     (p.texto ?? "").slice(0, 1500),
@@ -29,8 +32,17 @@ function hrefTratar(p: Publicacao, s?: Sugestao): string {
     .join("\n");
   const q = new URLSearchParams({ publicacao: p.id, titulo, descricao, tipo: "processo" });
   if (p.client_id) q.set("clientId", p.client_id);
-  if (s?.tipo === "prazo") q.set("prazo", s.vencimento);
-  if (s?.tipo === "audiencia") q.set("prazo", s.data);
+  if (s?.tipo === "prazo") {
+    q.set("prazo", s.vencimento);
+    q.set("categoria", "prazo");
+    q.set("sugestao", "prazo");
+  }
+  if (s?.tipo === "audiencia") {
+    q.set("prazo", s.data);
+    q.set("categoria", "audiencia");
+    q.set("sugestao", "audiencia");
+    if (s.hora) q.set("hora", s.hora);
+  }
   return `/admin/activities/new?${q}`;
 }
 
@@ -46,9 +58,25 @@ function BotaoStatus({ id, status, rotulo, icone: Icone }: { id: string; status:
   );
 }
 
-export function PublicacaoCard({ p, destaque = false, selecionavel = false }: { p: Publicacao; destaque?: boolean; selecionavel?: boolean }) {
+export type TaxaSugestoes = Partial<Record<"prazo" | "audiencia", number>>;
+
+export function PublicacaoCard({
+  p,
+  destaque = false,
+  selecionavel = false,
+  taxas = {},
+}: {
+  p: Publicacao;
+  destaque?: boolean;
+  selecionavel?: boolean;
+  /** % de vezes que cada tipo de sugestão foi usado (só aparece com histórico suficiente). */
+  taxas?: TaxaSugestoes;
+}) {
   const status = p.status as PublicacaoStatus;
-  const sugestoes = status === "nao_tratada" ? sugerir(p.texto ?? "", p.data_disponibilizacao) : [];
+  const sugestoes =
+    status === "nao_tratada"
+      ? sugerir(p.texto ?? "", p.data_disponibilizacao, { tribunal: p.tribunal, codigos: (p.tipo_documento ?? "").split(/,\s*/) })
+      : [];
   const partes = (p.partes as { nome: string; polo: string }[] | null) ?? [];
   const numero = p.numero_mascara ?? p.numero_processo;
   const responsavel = p.processes?.profiles?.full_name;
@@ -106,7 +134,7 @@ export function PublicacaoCard({ p, destaque = false, selecionavel = false }: { 
         </div>
         <div className="flex flex-col items-end gap-1.5">
           <span className={`rounded-full px-2.5 py-0.5 text-xs font-medium ${COR_STATUS[status]}`}>{STATUS_PUBLICACAO[status]}</span>
-          <span className="text-[11px] text-muted">OAB {p.termo}</span>
+          <span className="text-[11px] text-muted">{p.tribunal === "INPI" ? "INPI · procurador" : `OAB ${p.termo}`}</span>
         </div>
       </div>
 
@@ -125,6 +153,7 @@ export function PublicacaoCard({ p, destaque = false, selecionavel = false }: { 
           {sugestoes.map((s) => (
             <Link key={s.rotulo} href={hrefTratar(p, s)} className="inline-flex items-center gap-1.5 rounded-full border border-gold/50 bg-gold/10 px-3 py-1 text-xs font-medium text-navy hover:bg-gold/20">
               <CalendarClock className="h-3.5 w-3.5" aria-hidden /> {s.tipo === "prazo" ? "Adicionar prazo" : "Adicionar audiência"}: {s.rotulo}
+              {taxas[s.tipo] !== undefined && <span className="font-normal text-muted">· usada em {taxas[s.tipo]}% das vezes</span>}
             </Link>
           ))}
         </div>
@@ -151,7 +180,7 @@ export function PublicacaoCard({ p, destaque = false, selecionavel = false }: { 
         )}
         {p.link && (
           <a href={p.link} target="_blank" rel="noreferrer" className="ml-auto inline-flex items-center gap-1 text-xs font-medium text-navy-3 hover:underline">
-            Inteiro teor no tribunal <ExternalLink className="h-3.5 w-3.5" aria-hidden />
+            {p.tribunal === "INPI" ? "Revista no INPI" : "Inteiro teor no tribunal"} <ExternalLink className="h-3.5 w-3.5" aria-hidden />
           </a>
         )}
       </div>

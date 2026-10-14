@@ -4,6 +4,7 @@ import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
 import { exigirPermissao, requireRole } from "@/lib/dal";
 import type { ResultadoMonitor } from "@/lib/publicacoes/monitor";
+import { enviarPush } from "@/lib/push";
 
 const STATUS = ["nao_tratada", "tratada", "descartada"] as const;
 
@@ -59,9 +60,9 @@ export async function buscarAgoraAction(_prev: BuscaState, _formData: FormData):
   revalidatePath("/admin/publicacoes");
   if (r.erro) return { msg: r.erro, erro: true };
   return {
-    msg: r.novas
-      ? `${r.novas} publicação(ões) nova(s) de ${r.encontradas} encontrada(s).${r.emailPara ? ` Aviso enviado para ${r.emailPara}.` : ""}`
-      : `Nenhuma publicação nova (${r.encontradas} encontrada(s), todas já estavam aqui).`,
+    msg: r.novas || r.inpiNovas
+      ? `${r.novas} publicação(ões) nova(s) de ${r.encontradas} encontrada(s) no DJEN${r.inpiNovas ? ` e ${r.inpiNovas} do INPI` : ""}.${r.emailPara ? ` Aviso enviado para ${r.emailPara}.` : ""}`
+      : `Nenhuma publicação nova (${r.encontradas} encontrada(s), todas já estavam aqui).${r.inpiRevista ? ` INPI: revista nº ${r.inpiRevista} lida.` : ""}`,
     erro: false,
   };
 }
@@ -103,4 +104,45 @@ export async function salvarEmailAlertaAction(formData: FormData): Promise<void>
   const supabase = await createClient();
   await supabase.from("monitor_config").upsert({ id: 1, email_alerta: email || null, updated_at: new Date().toISOString() });
   revalidatePath("/admin/publicacoes");
+}
+
+export async function salvarProcuradoresInpiAction(formData: FormData): Promise<void> {
+  await requireRole(["admin"]);
+  const nomes = String(formData.get("procuradores") ?? "")
+    .split(/\r?\n/)
+    .map((n) => n.trim())
+    .filter(Boolean)
+    .slice(0, 10);
+  const supabase = await createClient();
+  await supabase.from("monitor_config").upsert({ id: 1, inpi_procuradores: nomes, updated_at: new Date().toISOString() });
+  revalidatePath("/admin/publicacoes");
+}
+
+// ---------- aviso no celular (Web Push) ----------
+
+export async function salvarInscricaoPushAction(insc: { endpoint: string; p256dh: string; auth: string; aparelho: string }): Promise<{ ok: boolean }> {
+  const profile = await requireRole(["admin"]);
+  if (!insc.endpoint?.startsWith("https://") || !insc.p256dh || !insc.auth) return { ok: false };
+  const supabase = await createClient();
+  const { error } = await supabase
+    .from("push_inscricoes")
+    .upsert({ profile_id: profile.id, endpoint: insc.endpoint, p256dh: insc.p256dh, auth: insc.auth, aparelho: insc.aparelho.slice(0, 120) }, { onConflict: "endpoint" });
+  return { ok: !error };
+}
+
+export async function removerInscricaoPushAction(endpoint: string): Promise<void> {
+  await requireRole(["admin"]);
+  const supabase = await createClient();
+  await supabase.from("push_inscricoes").delete().eq("endpoint", endpoint);
+}
+
+export async function testarPushAction(): Promise<{ enviados: number }> {
+  const profile = await requireRole(["admin"]);
+  const enviados = await enviarPush([profile.id], {
+    titulo: "Teste do portal MC",
+    corpo: "Os avisos de publicações novas vão chegar assim.",
+    url: "/admin/publicacoes",
+    tag: "teste",
+  });
+  return { enviados };
 }
