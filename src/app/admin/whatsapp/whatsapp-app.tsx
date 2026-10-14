@@ -322,7 +322,7 @@ function PainelAgente({ agente, ligado }: { agente: WaAgente | null; ligado: boo
   const [ocupado, setOcupado] = useState<string | null>(null);
   const [erro, setErro] = useState<string | null>(null);
   const [trocando, setTrocando] = useState(false);
-  const [limpar, setLimpar] = useState(true);
+  const [limpar, setLimpar] = useState(false);
 
   const estado = !ligado ? "desligado" : agente?.estado ?? "conectando";
   const numero = agente?.numero ? telefone(`${agente.numero}@s.whatsapp.net`) : null;
