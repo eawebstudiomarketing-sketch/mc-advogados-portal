@@ -48,6 +48,7 @@ export default async function NewProcessPage({ searchParams }: { searchParams: P
             clienteInicial={clienteSugerido?.id}
             varaInicial={vara}
             areaInicial={area}
+            exigirCliente={!!pub}
           />
         </>
       )}

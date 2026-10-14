@@ -14,6 +14,7 @@ export function ProcessForm({
   clienteInicial,
   varaInicial,
   areaInicial,
+  exigirCliente = false,
 }: {
   clients: Client[];
   numeroInicial?: string;
@@ -21,6 +22,8 @@ export function ProcessForm({
   clienteInicial?: string;
   varaInicial?: string;
   areaInicial?: string;
+  /** Veio de publicação e nenhum cliente bateu: obriga escolher (sem pré-seleção). */
+  exigirCliente?: boolean;
 }) {
   const [state, formAction, pending] = useActionState(createProcessAction, initialState);
 
@@ -34,9 +37,15 @@ export function ProcessForm({
         <select
           id="client_id"
           name="client_id"
-          defaultValue={clienteInicial}
+          defaultValue={clienteInicial ?? (exigirCliente ? "" : undefined)}
+          required
           className="ui-input"
         >
+          {exigirCliente && !clienteInicial && (
+            <option value="" disabled>
+              Selecione o cliente…
+            </option>
+          )}
           {clients.map((c) => (
             <option key={c.id} value={c.id}>
               {c.name}

@@ -219,7 +219,7 @@ export function AdminShell({
             <Bell className="h-4 w-4 shrink-0 animate-[pulse_2.4s_ease-in-out_3]" aria-hidden />
             {!compacta && (
               <span className="flex-1 truncate">
-                {publicacoesPendentes} {publicacoesPendentes === 1 ? "publicação não tratada" : "publicações não tratadas"}
+                {publicacoesPendentes} {publicacoesPendentes === 1 ? "publicação nova" : "não tratadas"}
               </span>
             )}
           </Link>
