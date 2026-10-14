@@ -5,7 +5,7 @@ import { createPortal } from "react-dom";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { toast } from "sonner";
-import { Sparkles, X, RotateCcw, CornerRightDown, ArrowUp, Check, AlertTriangle, Trash2, Wrench, Paperclip, FileText, Loader2, Bell } from "lucide-react";
+import { Sparkles, X, RotateCcw, CornerRightDown, ArrowUp, Check, AlertTriangle, Trash2, Send, Wrench, Paperclip, FileText, Loader2, Bell } from "lucide-react";
 import { createClient as criarSupabase } from "@/lib/supabase/client";
 import { AudioAnswer } from "@/components/ui/audio-answer";
 import { ROTULO_FERRAMENTA, FERRAMENTAS_DE_ESCRITA } from "@/lib/assistente/labels";
@@ -18,7 +18,7 @@ type Part = {
   functionResponse?: { name?: string; response?: { ok?: boolean; erro?: string; cancelado?: boolean } };
 };
 type Content = { role?: string; parts?: Part[] };
-type Pendente = { itens: { name: string; label: string; resumo: string }[] };
+type Pendente = { tipo?: "exclusao" | "envio"; itens: { name: string; label: string; resumo: string }[] };
 type Anexo = { caminho: string; nome: string; enviando?: boolean };
 
 const RE_ANEXO = /\[Anexo: (.+?) \(anexo=[^)]+\)\]/g;
@@ -416,7 +416,29 @@ export function Assistente({
 
             {itens}
 
-            {pendente && (
+            {pendente && (pendente.tipo === "envio" ? (
+              <div className="animate-enter rounded-2xl border border-status-success/30 bg-status-success-bg p-3.5">
+                <p className="flex items-center gap-1.5 text-[13px] font-semibold text-status-success">
+                  <Send className="h-4 w-4" aria-hidden /> Confirma o envio no WhatsApp?
+                </p>
+                <ul className="mt-2 space-y-2">
+                  {pendente.itens.map((i, k) => (
+                    <li key={k} className="whitespace-pre-wrap text-[13px] text-foreground">
+                      {i.resumo}
+                    </li>
+                  ))}
+                </ul>
+                <div className="mt-3 flex justify-end gap-2">
+                  <button type="button" onClick={() => void chamar({ confirmacao: { aprovado: false } }, history)} className="ui-btn-secondary px-3 py-1.5 text-xs">
+                    Cancelar
+                  </button>
+                  <button type="button" onClick={() => void chamar({ confirmacao: { aprovado: true } }, history)} className="ui-btn bg-status-success px-3 py-1.5 text-xs hover:bg-status-success/90">
+                    <Send className="h-3.5 w-3.5" aria-hidden /> Enviar
+                  </button>
+                </div>
+              </div>
+            ) : (
+
               <div className="animate-enter rounded-2xl border border-status-danger/30 bg-status-danger-bg p-3.5">
                 <p className="flex items-center gap-1.5 text-[13px] font-semibold text-status-danger">
                   <AlertTriangle className="h-4 w-4" aria-hidden /> Confirma a exclusão?
@@ -437,7 +459,7 @@ export function Assistente({
                   </button>
                 </div>
               </div>
-            )}
+            ))}
 
             {pensando && (
               <div className="flex items-center gap-2.5" role="status" aria-label="Pensando">

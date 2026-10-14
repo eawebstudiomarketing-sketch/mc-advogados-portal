@@ -28,6 +28,7 @@ import {
   Newspaper,
   Bell,
   CalendarDays,
+  MessageCircle,
 } from "lucide-react";
 import { logout } from "@/app/logout/actions";
 import { CommandPalette, type PaletteItem } from "./command-palette";
@@ -44,7 +45,7 @@ const ROLE_LABEL: Record<string, string> = {
 type NavItem = { href: string; label: string; icon: LucideIcon; adminOnly?: boolean };
 
 // Advogado vê só as telas que o admin liberou (PERM_DA_TELA); Financeiro,
-// Equipe, Integrações e Lixeira são sempre só do admin.
+// WhatsApp, Equipe, Integrações e Lixeira são sempre só do admin.
 const NAV_GROUPS: { label: string; items: NavItem[] }[] = [
   {
     label: "Dia a dia",
@@ -54,6 +55,7 @@ const NAV_GROUPS: { label: string; items: NavItem[] }[] = [
       { href: "/admin/activities", label: "Atividades", icon: ListChecks },
       { href: "/admin/publicacoes", label: "Publicações", icon: Newspaper },
       { href: "/admin/agenda", label: "Agenda", icon: CalendarDays },
+      { href: "/admin/whatsapp", label: "WhatsApp", icon: MessageCircle, adminOnly: true },
       { href: "/admin/onboarding", label: "Onboarding", icon: ClipboardList },
     ],
   },

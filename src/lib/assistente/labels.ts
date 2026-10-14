@@ -28,6 +28,15 @@ export const ROTULO_FERRAMENTA: Record<string, string> = {
   excluir_atividade: "Excluir atividade",
   excluir_documento: "Excluir documento",
   excluir_cliente: "Excluir cliente",
+  whatsapp_status: "Conferiu o WhatsApp",
+  whatsapp_conversas: "Consultou conversas do WhatsApp",
+  whatsapp_ler_conversa: "Leu a conversa do WhatsApp",
+  whatsapp_triagem: "Fez a triagem do WhatsApp",
+  whatsapp_enviar_mensagem: "Enviar mensagem no WhatsApp",
+  whatsapp_enviar_relatorio: "Enviar relatório no WhatsApp",
+  whatsapp_enviar_lote: "Enviar mensagens em lote no WhatsApp",
+  whatsapp_vincular_cliente: "Vinculou conversa ao cliente",
+  whatsapp_registrar_lead: "Registrou lead do WhatsApp",
 };
 
 export const FERRAMENTAS_DE_ESCRITA = new Set([
@@ -46,4 +55,9 @@ export const FERRAMENTAS_DE_ESCRITA = new Set([
   "excluir_atividade",
   "excluir_documento",
   "excluir_cliente",
+  "whatsapp_enviar_mensagem",
+  "whatsapp_enviar_relatorio",
+  "whatsapp_enviar_lote",
+  "whatsapp_vincular_cliente",
+  "whatsapp_registrar_lead",
 ]);

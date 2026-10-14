@@ -14,6 +14,7 @@ import { downloadFile, getDriveFileMeta, getDriveSession, listFolderFiles, searc
 import { getHandoff } from "@/lib/data/handoff";
 import { GoogleGenAI } from "@google/genai";
 import { MODELOS } from "@/lib/ia-modelos";
+import { TOOLS_WHATSAPP } from "./tools-whatsapp";
 
 // Ferramentas do assistente do portal (balão de chat com Gemini). Mesma
 // lógica das ferramentas do servidor MCP (src/lib/mcp/tools.ts), adaptada
@@ -22,18 +23,22 @@ import { MODELOS } from "@/lib/ia-modelos";
 //  - "write": cria/altera, roda direto e fica no log de auditoria.
 //  - "delete": NUNCA roda direto; o portal mostra um cartão "Confirmar?" e
 //    só executa quando a pessoa clica (ver app/api/assistente).
+//  - "confirm": idem, para envios no WhatsApp (cartão "Confirma o envio?").
 
-export type Kind = "read" | "write" | "delete";
+export type Kind = "read" | "write" | "delete" | "confirm";
 export type Ctx = { profileId: string; role: "admin" | "advogado"; permissoes: Permissoes };
 export type ToolDef = {
   name: string;
   kind: Kind;
   /** permissões exigidas (advogado sem elas nem vê a ferramenta) */
   perm?: PermChave[];
+  /** só o admin vê/usa (ex.: WhatsApp do escritório) */
+  soAdmin?: boolean;
   label: string; // como aparece na conversa ("Buscou clientes")
   description: string;
   parameters: Record<string, unknown>;
   resumo?: (args: Record<string, unknown>) => string; // texto do cartão de confirmação
+  descrever?: (args: Record<string, unknown>) => Promise<string>; // idem, quando precisa consultar o banco
   run: (args: Record<string, unknown>, ctx: Ctx) => Promise<unknown>;
 };
 
@@ -767,13 +772,17 @@ export const TOOLS: ToolDef[] = [
       return { excluido: antes.name };
     },
   },
+
+  // ───────── WhatsApp do escritório (só admin; envios com confirmação) ─────────
+  ...TOOLS_WHATSAPP,
 ];
 
 export const TOOL_MAP = new Map(TOOLS.map((t) => [t.name, t]));
 
 /** A pessoa pode usar a ferramenta? (admin: todas; advogado: conforme as permissões) */
 export function podeUsar(t: ToolDef, ctx: Ctx): boolean {
-  return ctx.role === "admin" || (t.perm ?? []).every((c) => ctx.permissoes[c]);
+  if (ctx.role === "admin") return true;
+  return !t.soAdmin && (t.perm ?? []).every((c) => ctx.permissoes[c]);
 }
 
 /** Executa a ferramenta, corta respostas enormes e registra escritas no log de auditoria. */

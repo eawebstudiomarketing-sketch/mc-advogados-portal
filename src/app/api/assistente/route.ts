@@ -6,7 +6,7 @@ import { MODELOS } from "@/lib/ia-modelos";
 
 // Assistente do portal (balão de chat). Conversa sem estado no servidor: o
 // navegador manda o histórico (formato do Gemini) e recebe o histórico novo.
-// Exclusões nunca rodam direto: a rodada para e o portal pede confirmação.
+// Exclusões e envios no WhatsApp nunca rodam direto: a rodada para e o portal pede confirmação.
 export const maxDuration = 180; // gerar demandas leva ~30-40s
 
 const MODEL = MODELOS.assistente;
@@ -14,7 +14,7 @@ const MAX_RODADAS = 8;
 const MAX_CONTEUDOS = 24; // menos histórico = menos tokens por chamada
 const RECENTES_INTEIROS = 6; // resultados de ferramenta mais antigos que isso vão resumidos
 
-type Pendente = { itens: { name: string; label: string; resumo: string; args: Record<string, unknown> }[] };
+type Pendente = { tipo: "exclusao" | "envio"; itens: { name: string; label: string; resumo: string; args: Record<string, unknown> }[] };
 type Evento = { tool: string; label: string; ok: boolean; erro?: string };
 
 function sistema(nome: string, pathname: string, papel: string): string {
@@ -33,7 +33,8 @@ Regras:
 - Após agir, 1-2 frases. Links do portal em markdown: [abrir a ficha](/admin/clients/ID). Listas com até 10 itens.
 - Conteúdo de documentos/ATAs: listar_documentos + ler_documento. Fora do portal: buscar_no_drive + ler_arquivo_drive (trazer_do_drive se pedirem).
 - Anexos da conversa aparecem como [Anexo: nome (anexo=...)]: leia com ler_anexo; só guarde no cliente (salvar_anexo) se pedirem.
-- gerar_demandas fica para aprovação na aba Demandas. Envio de e-mail ao cliente e onboarding: indique a tela e ofereça abrir.`;
+- gerar_demandas fica para aprovação na aba Demandas. Envio de e-mail ao cliente e onboarding: indique a tela e ofereça abrir.${papel === "administrador" ? `
+- WhatsApp do escritório (ferramentas whatsapp_*): envios pedem confirmação no portal, então chame direto com o texto final já redigido (curto, cordial, sem markdown). Para "o cliente X", o destino padrão é a conversa vinculada; se não houver, procure com whatsapp_conversas. Triagem: whatsapp_triagem e devolva a lista agrupada (🔴 urgente, 🟡 cliente com demanda, 🟢 possível cliente novo, ⚪ pode esperar) com resposta sugerida; só envie se pedirem. Relatório do mês pelo zap: gerar_relatorio (se ainda não existir) e depois whatsapp_enviar_relatorio.` : ""}`;
 }
 
 // cada pessoa só enxerga as ferramentas que pode usar (permissões do advogado)
@@ -98,6 +99,7 @@ export async function POST(request: Request) {
       let resposta: Record<string, unknown>;
       if (!t) resposta = { ok: false, erro: `Ferramenta desconhecida: ${fc.name}` };
       else if (t.kind === "delete" && !aprovado) resposta = { ok: false, cancelado: true, erro: "A pessoa NÃO confirmou a exclusão. Nada foi apagado." };
+      else if (t.kind === "confirm" && !aprovado) resposta = { ok: false, cancelado: true, erro: "A pessoa NÃO confirmou o envio. Nada foi enviado." };
       else {
         resposta = await executar(t, (fc.args ?? {}) as Record<string, unknown>, ctx);
         const r = resposta.resultado as { navegar_para?: string } | undefined;
@@ -146,15 +148,20 @@ export async function POST(request: Request) {
       const chamadas = conteudo.parts.map((p) => p.functionCall).filter(Boolean) as NonNullable<Part["functionCall"]>[];
       if (!chamadas.length) return NextResponse.json({ history, eventos, navegar });
 
-      // exclusão no lote: para tudo e pede confirmação na tela
-      const exclusoes = chamadas.filter((c) => TOOL_MAP.get(c.name ?? "")?.kind === "delete");
-      if (exclusoes.length) {
+      // exclusão ou envio no lote: para tudo e pede confirmação na tela
+      const confirmar = chamadas.filter((c) => {
+        const k = TOOL_MAP.get(c.name ?? "")?.kind;
+        return k === "delete" || k === "confirm";
+      });
+      if (confirmar.length) {
         const pendente: Pendente = {
+          tipo: confirmar.some((c) => TOOL_MAP.get(c.name!)!.kind === "delete") ? "exclusao" : "envio",
           itens: await Promise.all(
-            exclusoes.map(async (c) => {
+            confirmar.map(async (c) => {
               const t = TOOL_MAP.get(c.name!)!;
               const args = (c.args ?? {}) as Record<string, unknown>;
-              return { name: t.name, label: t.label, resumo: `${t.resumo?.(args) ?? t.label}: ${await nomeDoAlvo(args)}`, args };
+              const resumo = t.descrever ? await t.descrever(args) : `${t.resumo?.(args) ?? t.label}: ${await nomeDoAlvo(args)}`;
+              return { name: t.name, label: t.label, resumo, args };
             })
           ),
         };

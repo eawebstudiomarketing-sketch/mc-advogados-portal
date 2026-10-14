@@ -14,6 +14,249 @@ export type Database = {
   }
   public: {
     Tables: {
+      wa_agent: {
+        Row: {
+          device_id: string
+          label: string | null
+          online: boolean
+          numero: string | null
+          qr: string | null
+          estado: string
+          ultimo_erro: string | null
+          versao: string | null
+          last_heartbeat: string | null
+          updated_at: string
+        }
+        Insert: {
+          device_id: string
+          label?: string | null
+          online?: boolean
+          numero?: string | null
+          qr?: string | null
+          estado?: string
+          ultimo_erro?: string | null
+          versao?: string | null
+          last_heartbeat?: string | null
+          updated_at?: string
+        }
+        Update: {
+          device_id?: string
+          label?: string | null
+          online?: boolean
+          numero?: string | null
+          qr?: string | null
+          estado?: string
+          ultimo_erro?: string | null
+          versao?: string | null
+          last_heartbeat?: string | null
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      wa_chats: {
+        Row: {
+          chat_jid: string
+          nome: string | null
+          is_group: boolean
+          foto_url: string | null
+          client_id: string | null
+          lead_id: string | null
+          responsavel: string | null
+          nao_lidas: number
+          arquivado: boolean
+          ultima_msg_em: string | null
+          ultima_msg_preview: string | null
+          created_at: string
+          updated_at: string
+        }
+        Insert: {
+          chat_jid: string
+          nome?: string | null
+          is_group?: boolean
+          foto_url?: string | null
+          client_id?: string | null
+          lead_id?: string | null
+          responsavel?: string | null
+          nao_lidas?: number
+          arquivado?: boolean
+          ultima_msg_em?: string | null
+          ultima_msg_preview?: string | null
+          created_at?: string
+          updated_at?: string
+        }
+        Update: {
+          chat_jid?: string
+          nome?: string | null
+          is_group?: boolean
+          foto_url?: string | null
+          client_id?: string | null
+          lead_id?: string | null
+          responsavel?: string | null
+          nao_lidas?: number
+          arquivado?: boolean
+          ultima_msg_em?: string | null
+          ultima_msg_preview?: string | null
+          created_at?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      wa_messages: {
+        Row: {
+          id: string
+          chat_jid: string
+          wa_id: string | null
+          from_me: boolean
+          sender_jid: string | null
+          quem: string
+          tipo: string
+          texto: string | null
+          media_path: string | null
+          media_mime: string | null
+          media_nome: string | null
+          status: string
+          erro: string | null
+          job_id: string | null
+          raw: Json | null
+          wa_timestamp: string
+          created_at: string
+        }
+        Insert: {
+          id?: string
+          chat_jid: string
+          wa_id?: string | null
+          from_me?: boolean
+          sender_jid?: string | null
+          quem?: string
+          tipo?: string
+          texto?: string | null
+          media_path?: string | null
+          media_mime?: string | null
+          media_nome?: string | null
+          status?: string
+          erro?: string | null
+          job_id?: string | null
+          raw?: Json | null
+          wa_timestamp?: string
+          created_at?: string
+        }
+        Update: {
+          id?: string
+          chat_jid?: string
+          wa_id?: string | null
+          from_me?: boolean
+          sender_jid?: string | null
+          quem?: string
+          tipo?: string
+          texto?: string | null
+          media_path?: string | null
+          media_mime?: string | null
+          media_nome?: string | null
+          status?: string
+          erro?: string | null
+          job_id?: string | null
+          raw?: Json | null
+          wa_timestamp?: string
+          created_at?: string
+        }
+        Relationships: []
+      }
+      wa_jobs: {
+        Row: {
+          id: string
+          tipo: string
+          payload: Json
+          status: string
+          resultado: Json | null
+          erro: string | null
+          chat_jid: string | null
+          criado_por: string | null
+          tentativas: number
+          agendado_para: string | null
+          iniciado_em: string | null
+          concluido_em: string | null
+          created_at: string
+        }
+        Insert: {
+          id?: string
+          tipo: string
+          payload?: Json
+          status?: string
+          resultado?: Json | null
+          erro?: string | null
+          chat_jid?: string | null
+          criado_por?: string | null
+          tentativas?: number
+          agendado_para?: string | null
+          iniciado_em?: string | null
+          concluido_em?: string | null
+          created_at?: string
+        }
+        Update: {
+          id?: string
+          tipo?: string
+          payload?: Json
+          status?: string
+          resultado?: Json | null
+          erro?: string | null
+          chat_jid?: string | null
+          criado_por?: string | null
+          tentativas?: number
+          agendado_para?: string | null
+          iniciado_em?: string | null
+          concluido_em?: string | null
+          created_at?: string
+        }
+        Relationships: []
+      }
+      leads: {
+        Row: {
+          id: string
+          nome: string | null
+          telefone: string | null
+          chat_jid: string | null
+          origem: string
+          status: string
+          area: string | null
+          resumo: string | null
+          score: number | null
+          responsavel: string | null
+          client_id: string | null
+          created_at: string
+          updated_at: string
+        }
+        Insert: {
+          id?: string
+          nome?: string | null
+          telefone?: string | null
+          chat_jid?: string | null
+          origem?: string
+          status?: string
+          area?: string | null
+          resumo?: string | null
+          score?: number | null
+          responsavel?: string | null
+          client_id?: string | null
+          created_at?: string
+          updated_at?: string
+        }
+        Update: {
+          id?: string
+          nome?: string | null
+          telefone?: string | null
+          chat_jid?: string | null
+          origem?: string
+          status?: string
+          area?: string | null
+          resumo?: string | null
+          score?: number | null
+          responsavel?: string | null
+          client_id?: string | null
+          created_at?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
       push_inscricoes: {
         Row: {
           id: string
