@@ -139,6 +139,7 @@ export async function subirArquivoDeSaida(nome: string, bytes: Uint8Array | Buff
 export const telefoneDoJid = (jid: string) => {
   const d = jid.split("@")[0];
   if (jid.endsWith("@g.us")) return "grupo";
+  if (jid.endsWith("@lid")) return "número oculto";
   if (d.length === 13 && d.startsWith("55")) return `(${d.slice(2, 4)}) ${d.slice(4, 9)}-${d.slice(9)}`;
   if (d.length === 12 && d.startsWith("55")) return `(${d.slice(2, 4)}) ${d.slice(4, 8)}-${d.slice(8)}`;
   return d;

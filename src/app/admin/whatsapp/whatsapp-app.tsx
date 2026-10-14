@@ -45,6 +45,7 @@ type Cliente = { id: string; name: string };
 
 const telefone = (jid: string) => {
   if (jid.endsWith("@g.us")) return "Grupo";
+  if (jid.endsWith("@lid")) return "Número oculto pelo WhatsApp";
   const d = jid.split("@")[0];
   if (d.length === 13 && d.startsWith("55")) return `(${d.slice(2, 4)}) ${d.slice(4, 9)}-${d.slice(9)}`;
   if (d.length === 12 && d.startsWith("55")) return `(${d.slice(2, 4)}) ${d.slice(4, 8)}-${d.slice(8)}`;
