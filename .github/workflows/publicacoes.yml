@@ -1,0 +1,20 @@
+# Monitor de publicações do DJEN: chama o robô do portal a cada 2 horas, das
+# 06h às 22h da Bahia (UTC-3). O Vercel Cron (07h e 13h) fica de reserva caso
+# o GitHub pause o agendamento (pausa após 60 dias sem atividade no repositório).
+name: Publicações DJEN
+
+on:
+  schedule:
+    - cron: "0 9,11,13,15,17,19,21,23,1 * * *"
+  workflow_dispatch:
+
+jobs:
+  buscar:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Rodar o robô de publicações
+        run: |
+          curl -fsS -m 120 \
+            -H "Authorization: Bearer ${{ secrets.CRON_SECRET }}" \
+            "https://mcadvogados.app.br/api/cron/publicacoes"

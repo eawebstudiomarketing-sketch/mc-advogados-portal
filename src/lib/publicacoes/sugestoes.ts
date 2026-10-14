@@ -19,19 +19,25 @@ const dataBR = (s: string) => s.split("-").reverse().join("/");
 // Feriados locais e móveis (Carnaval, Corpus Christi) não entram: por isso o
 // vencimento é só sugestão.
 const FERIADOS = new Set(["01-01", "04-21", "05-01", "09-07", "10-12", "11-02", "11-15", "11-20", "12-25"]);
-function diaUtil(d: Date): boolean {
+// O recesso suspende a CONTAGEM de prazo, mas o diário continua publicando.
+function diaUtil(d: Date, recesso = true): boolean {
   const dow = d.getUTCDay();
   if (dow === 0 || dow === 6) return false;
   const md = `${pad(d.getUTCMonth() + 1)}-${pad(d.getUTCDate())}`;
   if (FERIADOS.has(md)) return false;
-  if (md >= "12-20" || md <= "01-20") return false;
+  if (recesso && (md >= "12-20" || md <= "01-20")) return false;
   return true;
 }
-function proximoDiaUtil(d: Date): Date {
+function proximoDiaUtil(d: Date, recesso = true): Date {
   const x = new Date(d);
   do x.setUTCDate(x.getUTCDate() + 1);
-  while (!diaUtil(x));
+  while (!diaUtil(x, recesso));
   return x;
+}
+
+/** Data de publicação: 1º dia útil seguinte à disponibilização no DJEN. */
+export function dataPublicacao(disponibilizacao: string): string {
+  return iso(proximoDiaUtil(new Date(`${disponibilizacao}T12:00:00Z`), false));
 }
 
 /**
@@ -39,7 +45,7 @@ function proximoDiaUtil(d: Date): Date {
  * disponibilização, e a contagem começa no dia útil seguinte à publicação.
  */
 export function vencimentoEmDiasUteis(disponibilizacao: string, dias: number): string {
-  let d = proximoDiaUtil(new Date(`${disponibilizacao}T12:00:00Z`)); // data da publicação
+  let d = proximoDiaUtil(new Date(`${disponibilizacao}T12:00:00Z`), false); // data da publicação
   for (let i = 0; i < dias; i++) d = proximoDiaUtil(d);
   return iso(d);
 }

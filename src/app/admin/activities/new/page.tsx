@@ -4,6 +4,8 @@ import { listResponsaveis, responsavelDoPerfil } from "@/lib/data/responsaveis";
 import { BackButton } from "@/components/nav/back-button";
 import { exigirPermissao } from "@/lib/dal";
 import { ActivityForm } from "./activity-form";
+import { getPublicacao } from "@/lib/data/publicacoes";
+import { sugerirClientePelasPartes } from "@/lib/publicacoes/cliente-sugerido";
 
 export default async function NewActivityPage({ searchParams }: { searchParams: Promise<{ clientId?: string; titulo?: string; descricao?: string; prazo?: string; tipo?: string; publicacao?: string }> }) {
   const [profile, clients, responsaveis, { clientId, ...preenchido }] = await Promise.all([
@@ -13,6 +15,13 @@ export default async function NewActivityPage({ searchParams }: { searchParams: 
     searchParams,
   ]);
   const meuResponsavel = await responsavelDoPerfil(profile.id);
+  // Publicação sem processo cadastrado: tenta achar o cliente pelas partes.
+  let clienteInicial = clientId;
+  if (!clienteInicial && preenchido.publicacao) {
+    const pub = await getPublicacao(preenchido.publicacao);
+    const partes = ((pub?.partes as { nome: string }[] | null) ?? []).map((p) => p.nome);
+    clienteInicial = sugerirClientePelasPartes(partes, clients)?.id;
+  }
 
   return (
     <div>
@@ -29,7 +38,7 @@ export default async function NewActivityPage({ searchParams }: { searchParams: 
           antes de abrir uma atividade.
         </p>
       ) : (
-        <ActivityForm clients={clients} responsaveis={responsaveis} meuResponsavel={meuResponsavel} clienteInicial={clientId} inicial={preenchido} />
+        <ActivityForm clients={clients} responsaveis={responsaveis} meuResponsavel={meuResponsavel} clienteInicial={clienteInicial} inicial={preenchido} />
       )}
     </div>
   );

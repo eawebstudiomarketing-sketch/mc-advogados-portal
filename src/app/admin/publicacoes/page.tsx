@@ -12,9 +12,10 @@ import {
 } from "@/lib/data/publicacoes";
 import { PublicacaoCard } from "./publicacao-card";
 import { BuscarAgora } from "./buscar-agora";
+import { FerramentasLista } from "./ferramentas-lista";
 import { adicionarOabAction, alternarOabAction, removerOabAction, salvarEmailAlertaAction } from "./actions";
 
-type Busca = { status?: string; tribunal?: string; q?: string; p?: string };
+type Busca = { status?: string; tribunal?: string; uf?: string; de?: string; ate?: string; q?: string; p?: string };
 
 const FILTROS: (PublicacaoStatus | "todas")[] = ["nao_tratada", "tratada", "descartada", "todas"];
 
@@ -27,14 +28,17 @@ export default async function PublicacoesPage({ searchParams }: { searchParams: 
   const [contadores, destaque, lista] = await Promise.all([
     contadoresPublicacoes(),
     sp.p ? getPublicacao(sp.p) : Promise.resolve(null),
-    sp.p ? Promise.resolve([]) : listPublicacoes({ status, tribunal: sp.tribunal, busca: sp.q }),
+    sp.p ? Promise.resolve([]) : listPublicacoes({ status, tribunal: sp.tribunal, uf: sp.uf, de: sp.de, ate: sp.ate, busca: sp.q }),
   ]);
 
   const hrefFiltro = (novo: Partial<Busca>) => {
     const q = new URLSearchParams();
-    const m = { status, tribunal: sp.tribunal, q: sp.q, ...novo };
+    const m = { status, tribunal: sp.tribunal, uf: sp.uf, de: sp.de, ate: sp.ate, q: sp.q, ...novo };
     if (m.status && m.status !== "nao_tratada") q.set("status", m.status);
     if (m.tribunal) q.set("tribunal", m.tribunal);
+    if (m.uf) q.set("uf", m.uf);
+    if (m.de) q.set("de", m.de);
+    if (m.ate) q.set("ate", m.ate);
     if (m.q) q.set("q", m.q);
     const s = q.toString();
     return `/admin/publicacoes${s ? `?${s}` : ""}`;
@@ -45,7 +49,7 @@ export default async function PublicacoesPage({ searchParams }: { searchParams: 
       <div className="mb-6 flex flex-wrap items-end justify-between gap-3">
         <div>
           <h1 className="page-title">Publicações</h1>
-          <p className="text-sm text-muted">Intimações do Diário de Justiça Eletrônico Nacional (DJEN), buscadas às 07h e às 13h.</p>
+          <p className="text-sm text-muted">Intimações do Diário de Justiça Eletrônico Nacional (DJEN), buscadas a cada 2 horas, das 06h às 22h.</p>
         </div>
         {admin && <BuscarAgora />}
       </div>
@@ -79,8 +83,17 @@ export default async function PublicacoesPage({ searchParams }: { searchParams: 
                 {f === "todas" ? "Todas" : STATUS_PUBLICACAO[f]}
               </Link>
             ))}
-            <form action="/admin/publicacoes" className="ml-auto flex flex-wrap items-center gap-2">
+          </div>
+          <form action="/admin/publicacoes" className="mb-4 flex flex-wrap items-center gap-2">
               {status !== "nao_tratada" && <input type="hidden" name="status" value={status} />}
+              <select name="uf" defaultValue={sp.uf ?? ""} className="ui-input w-auto py-1.5 text-sm" aria-label="Estado">
+                <option value="">Todos os estados</option>
+                {contadores.ufs.map((u) => (
+                  <option key={u} value={u}>
+                    {u}
+                  </option>
+                ))}
+              </select>
               <select name="tribunal" defaultValue={sp.tribunal ?? ""} className="ui-input w-auto py-1.5 text-sm">
                 <option value="">Todos os tribunais</option>
                 {contadores.tribunais.map((t) => (
@@ -89,17 +102,25 @@ export default async function PublicacoesPage({ searchParams }: { searchParams: 
                   </option>
                 ))}
               </select>
+              <label className="flex items-center gap-1.5 text-xs text-muted">
+                De <input type="date" name="de" defaultValue={sp.de ?? ""} className="ui-input w-auto py-1 text-sm" />
+              </label>
+              <label className="flex items-center gap-1.5 text-xs text-muted">
+                até <input type="date" name="ate" defaultValue={sp.ate ?? ""} className="ui-input w-auto py-1 text-sm" />
+              </label>
               <input name="q" defaultValue={sp.q ?? ""} placeholder="Nº do processo ou termo" className="ui-input w-56 py-1.5 text-sm" />
               <button type="submit" className="ui-btn-secondary px-3 py-1.5 text-xs">
                 Filtrar
               </button>
-            </form>
-          </div>
+              {(sp.uf || sp.tribunal || sp.de || sp.ate || sp.q) && (
+                <Link href={hrefFiltro({ uf: undefined, tribunal: undefined, de: undefined, ate: undefined, q: undefined })} className="text-xs font-medium text-navy-3 hover:underline">
+                  Limpar filtros
+                </Link>
+              )}
+          </form>
 
-          <p className="mb-3 text-xs text-muted">
-            {lista.length} {lista.length === 1 ? "publicação" : "publicações"}
-            {lista.length === 100 ? " (mostrando as 100 mais recentes)" : ""}
-          </p>
+          <FerramentasLista total={lista.length} selecionavel={status === "nao_tratada" || status === "todas"} />
+          {lista.length === 100 && <p className="mb-3 text-xs text-muted">Mostrando as 100 mais recentes. Use os filtros para ver as anteriores.</p>}
           <div className="space-y-3">
             {lista.length === 0 && (
               <div className="ui-card px-5 py-12 text-center text-sm text-muted">
@@ -107,7 +128,7 @@ export default async function PublicacoesPage({ searchParams }: { searchParams: 
               </div>
             )}
             {lista.map((p) => (
-              <PublicacaoCard key={p.id} p={p} />
+              <PublicacaoCard key={p.id} p={p} selecionavel />
             ))}
           </div>
         </>

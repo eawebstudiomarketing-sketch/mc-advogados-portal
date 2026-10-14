@@ -8,7 +8,20 @@ import { VoltarInput } from "@/components/nav/back-button";
 
 const initialState: CreateProcessState = { error: null };
 
-export function ProcessForm({ clients, numeroInicial }: { clients: Client[]; numeroInicial?: string }) {
+export function ProcessForm({
+  clients,
+  numeroInicial,
+  clienteInicial,
+  varaInicial,
+  areaInicial,
+}: {
+  clients: Client[];
+  numeroInicial?: string;
+  /** Vindo de uma publicação: cliente achado pelas partes, vara e área sugeridas. */
+  clienteInicial?: string;
+  varaInicial?: string;
+  areaInicial?: string;
+}) {
   const [state, formAction, pending] = useActionState(createProcessAction, initialState);
 
   return (
@@ -21,6 +34,7 @@ export function ProcessForm({ clients, numeroInicial }: { clients: Client[]; num
         <select
           id="client_id"
           name="client_id"
+          defaultValue={clienteInicial}
           className="ui-input"
         >
           {clients.map((c) => (
@@ -53,6 +67,7 @@ export function ProcessForm({ clients, numeroInicial }: { clients: Client[]; num
         <select
           id="area"
           name="area"
+          defaultValue={areaInicial}
           className="ui-input"
         >
           {PROCESS_AREAS.map((area) => (
@@ -70,6 +85,7 @@ export function ProcessForm({ clients, numeroInicial }: { clients: Client[]; num
         <input
           id="vara_tribunal"
           name="vara_tribunal"
+          defaultValue={varaInicial}
           type="text"
           className="ui-input"
         />

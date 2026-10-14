@@ -25,6 +25,21 @@ export async function mudarStatusPublicacaoAction(formData: FormData): Promise<v
   revalidatePath("/admin/publicacoes");
 }
 
+/** Ações em massa: marca várias publicações de uma vez (tratadas ou descartadas). */
+export async function mudarStatusEmLoteAction(formData: FormData): Promise<void> {
+  const { profile } = await exigirPermissao("publicacoes");
+  const status = formData.get("status");
+  const ids = formData.getAll("ids").filter((v): v is string => typeof v === "string" && !!v);
+  if (!ids.length || (status !== "tratada" && status !== "descartada")) return;
+  const supabase = await createClient();
+  await supabase
+    .from("publicacoes")
+    .update({ status, tratada_por: profile.id, tratada_em: new Date().toISOString() })
+    .in("id", ids)
+    .eq("status", "nao_tratada");
+  revalidatePath("/admin/publicacoes");
+}
+
 export type BuscaState = { msg: string | null; erro: boolean };
 
 export async function buscarAgoraAction(_prev: BuscaState, _formData: FormData): Promise<BuscaState> {

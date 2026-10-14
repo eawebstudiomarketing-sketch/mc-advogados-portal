@@ -26,6 +26,7 @@ import {
   UserRound,
   type LucideIcon,
   Newspaper,
+  Bell,
 } from "lucide-react";
 import { logout } from "@/app/logout/actions";
 import { CommandPalette, type PaletteItem } from "./command-palette";
@@ -105,12 +106,15 @@ export function AdminShell({
   userRole,
   clients = [],
   permissoes,
+  publicacoesPendentes = 0,
 }: {
   children: React.ReactNode;
   userName: string;
   userRole: string;
   clients?: { id: string; name: string }[];
   permissoes: Permissoes;
+  /** Sininho (só admin): publicações do DJEN ainda não tratadas. */
+  publicacoesPendentes?: number;
 }) {
   const pathname = usePathname();
   const recolhida = useSyncExternalStore(
@@ -203,6 +207,25 @@ export function AdminShell({
         </button>
       </div>
 
+      {publicacoesPendentes > 0 && (
+        <div className={`mt-2 ${compacta ? "px-2" : "px-3"}`}>
+          <Link
+            href="/admin/publicacoes"
+            title={`${publicacoesPendentes} publicações não tratadas`}
+            className={`relative flex items-center gap-2.5 rounded-lg border border-gold/40 bg-gold/10 py-2 text-sm text-gold-2 transition-colors hover:bg-gold/20 ${
+              compacta ? "justify-center px-0" : "px-3"
+            }`}
+          >
+            <Bell className="h-4 w-4 shrink-0 animate-[pulse_2.4s_ease-in-out_3]" aria-hidden />
+            {!compacta && (
+              <span className="flex-1 truncate">
+                {publicacoesPendentes} {publicacoesPendentes === 1 ? "publicação não tratada" : "publicações não tratadas"}
+              </span>
+            )}
+          </Link>
+        </div>
+      )}
+
       <nav className={`mt-4 flex-1 space-y-5 overflow-y-auto pb-4 ${compacta ? "px-2" : "px-3"}`} aria-label="Menu principal">
         {grupos.map((g) => (
           <div key={g.label}>
@@ -227,6 +250,14 @@ export function AdminShell({
                         aria-hidden
                       />
                       {!compacta && <span className="truncate">{item.label}</span>}
+                      {item.href === "/admin/publicacoes" && publicacoesPendentes > 0 && (
+                        <span
+                          className={`rounded-full bg-gold px-1.5 text-[10px] leading-4 font-semibold text-navy-2 ${compacta ? "absolute top-0.5 right-0.5" : "ml-auto"}`}
+                          aria-label={`${publicacoesPendentes} não tratadas`}
+                        >
+                          {publicacoesPendentes > 99 ? "99+" : publicacoesPendentes}
+                        </span>
+                      )}
                     </Link>
                   </li>
                 );
@@ -299,7 +330,15 @@ export function AdminShell({
           </button>
           <Image src="/brand/logo_mc.jpg" alt="" width={26} height={26} className="rounded-full" />
           <p className="text-sm font-semibold text-foreground">MC Advogados</p>
-          <button type="button" onClick={() => setBusca(true)} aria-label="Buscar" className="ml-auto rounded-lg p-1.5 text-muted hover:bg-surface-2">
+          {publicacoesPendentes > 0 && (
+            <Link href="/admin/publicacoes" aria-label={`${publicacoesPendentes} publicações não tratadas`} className="relative ml-auto rounded-lg p-1.5 text-muted hover:bg-surface-2">
+              <Bell className="h-5 w-5" />
+              <span className="absolute -top-0.5 -right-0.5 rounded-full bg-gold px-1 text-[10px] leading-4 font-semibold text-navy-2">
+                {publicacoesPendentes > 99 ? "99+" : publicacoesPendentes}
+              </span>
+            </Link>
+          )}
+          <button type="button" onClick={() => setBusca(true)} aria-label="Buscar" className={`${publicacoesPendentes > 0 ? "" : "ml-auto "}rounded-lg p-1.5 text-muted hover:bg-surface-2`}>
             <Search className="h-5 w-5" />
           </button>
         </header>

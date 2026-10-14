@@ -2,6 +2,8 @@ import "server-only";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { getResendClient } from "@/lib/email/resend";
 import { buscarPorOab, textoLimpo, type ComunicacaoDJEN } from "./djen";
+import { ufDaPublicacao } from "./uf";
+import { dataPublicacao } from "./sugestoes";
 
 // Robô de publicações: busca no DJEN as intimações dos últimos dias para cada
 // OAB cadastrada, grava só as novas (o id da comunicação no DJEN é único),
@@ -38,6 +40,16 @@ export async function ligarPublicacoesAosProcessos(db: Db = createAdminClient())
     ligadas += count ?? 0;
   }
   return ligadas;
+}
+
+/** Preenche o estado (UF) das publicações gravadas antes dessa coluna existir. */
+async function completarUf(db: Db): Promise<void> {
+  const { data, error } = await db.from("publicacoes").select("id, numero_processo, orgao").is("uf", null).limit(500);
+  if (error) return; // coluna ainda não existe (migration 0019 pendente)
+  for (const p of data ?? []) {
+    const uf = ufDaPublicacao(p.numero_processo, p.orgao);
+    if (uf) await db.from("publicacoes").update({ uf }).eq("id", p.id);
+  }
 }
 
 export type ResultadoMonitor = { encontradas: number; novas: number; emailPara: string | null; erro: string | null };
@@ -92,6 +104,7 @@ export async function executarMonitor(origem: "cron" | "manual"): Promise<Result
             oab: a.advogado?.numero_oab ? `${a.advogado.numero_oab}/${a.advogado.uf_oab ?? ""}` : "",
           })),
           termo,
+          uf: ufDaPublicacao(c.numero_processo, c.nomeOrgao),
           process_id: p?.id ?? null,
           client_id: p?.client_id ?? null,
         };
@@ -106,6 +119,7 @@ export async function executarMonitor(origem: "cron" | "manual"): Promise<Result
       if (inseridas?.length && !cargaInicial) resultado.emailPara = await avisar(db, inseridas);
     }
     await ligarPublicacoesAosProcessos(db);
+    await completarUf(db);
   } catch (e) {
     resultado.erro = e instanceof Error ? e.message : String(e);
   }
@@ -144,7 +158,7 @@ async function avisar(db: Db, novas: Nova[]): Promise<string | null> {
       const trecho = (n.texto ?? "").replace(/\s+/g, " ").slice(0, 280);
       const cliente = n.clients?.name ?? "Processo não cadastrado no portal";
       return `<tr><td style="padding:12px 0;border-bottom:1px solid #e4e7ec">
-        <div style="font-size:12px;color:#5d6878">${dataBR(n.data_disponibilizacao)} · ${escapar(n.tribunal ?? "")} · ${escapar(n.tipo_comunicacao ?? "Publicação")}</div>
+        <div style="font-size:12px;color:#5d6878">Divulgada ${dataBR(n.data_disponibilizacao)} · publicada ${dataBR(dataPublicacao(n.data_disponibilizacao))} · ${escapar(n.tribunal ?? "")} · ${escapar(n.tipo_comunicacao ?? "Publicação")}</div>
         <a href="${site()}/admin/publicacoes?p=${n.id}" style="color:#0f1a2a;font-weight:600;text-decoration:none;font-size:15px">Processo ${escapar(n.numero_mascara ?? n.numero_processo)}</a>
         <div style="font-size:13px;color:${n.client_id ? "#13325a" : "#b45309"};margin-top:2px">${escapar(cliente)}</div>
         <div style="font-size:12px;color:#5d6878;margin-top:4px">${escapar(n.orgao ?? "")}</div>
@@ -161,7 +175,7 @@ async function avisar(db: Db, novas: Nova[]): Promise<string | null> {
     </div>
     <table width="100%" cellspacing="0" cellpadding="0" style="margin-top:8px">${cartoes}</table>
     <p style="margin-top:22px"><a href="${site()}/admin/publicacoes" style="background:#0b2545;color:#fff;padding:10px 16px;border-radius:10px;text-decoration:none;font-size:13px">Tratar no portal</a></p>
-    <p style="color:#98a2b3;font-size:11px;margin-top:22px">Aviso automático do portal MC Advogados. Busca feita às 07h e às 13h pelas OABs cadastradas em Publicações → Monitoramento.</p>
+    <p style="color:#98a2b3;font-size:11px;margin-top:22px">Aviso automático do portal MC Advogados. Busca feita a cada 2 horas (06h às 22h) pelas OABs cadastradas em Publicações → Monitoramento.</p>
   </div>`;
 
   const { error } = await resend.client.emails.send({

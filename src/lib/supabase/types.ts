@@ -32,6 +32,7 @@ export type Database = {
           partes: Json
           advogados: Json
           termo: string | null
+          uf: string | null
           process_id: string | null
           client_id: string | null
           status: string
@@ -58,6 +59,7 @@ export type Database = {
           partes?: Json
           advogados?: Json
           termo?: string | null
+          uf?: string | null
           process_id?: string | null
           client_id?: string | null
           status?: string
@@ -84,6 +86,7 @@ export type Database = {
           partes?: Json
           advogados?: Json
           termo?: string | null
+          uf?: string | null
           process_id?: string | null
           client_id?: string | null
           status?: string

@@ -5,7 +5,7 @@ import type { Database } from "@/lib/supabase/types";
 export type PublicacaoStatus = "nao_tratada" | "tratada" | "descartada";
 export type Publicacao = Database["public"]["Tables"]["publicacoes"]["Row"] & {
   clients: { id: string; name: string } | null;
-  processes: { id: string; numero_processo: string } | null;
+  processes: { id: string; numero_processo: string; profiles: { full_name: string } | null } | null;
 };
 
 export const STATUS_PUBLICACAO: Record<PublicacaoStatus, string> = {
@@ -14,11 +14,14 @@ export const STATUS_PUBLICACAO: Record<PublicacaoStatus, string> = {
   descartada: "Descartada",
 };
 
-const CAMPOS = "*, clients(id, name), processes(id, numero_processo)";
+const CAMPOS = "*, clients(id, name), processes(id, numero_processo, profiles(full_name))";
 
 export async function listPublicacoes(filtro: {
   status?: PublicacaoStatus | "todas";
   tribunal?: string;
+  uf?: string;
+  de?: string;
+  ate?: string;
   busca?: string;
   limite?: number;
 }): Promise<Publicacao[]> {
@@ -26,6 +29,9 @@ export async function listPublicacoes(filtro: {
   let q = supabase.from("publicacoes").select(CAMPOS).order("data_disponibilizacao", { ascending: false }).order("created_at", { ascending: false });
   if (filtro.status && filtro.status !== "todas") q = q.eq("status", filtro.status);
   if (filtro.tribunal) q = q.eq("tribunal", filtro.tribunal);
+  if (filtro.uf) q = q.eq("uf", filtro.uf);
+  if (filtro.de && /^\d{4}-\d{2}-\d{2}$/.test(filtro.de)) q = q.gte("data_disponibilizacao", filtro.de);
+  if (filtro.ate && /^\d{4}-\d{2}-\d{2}$/.test(filtro.ate)) q = q.lte("data_disponibilizacao", filtro.ate);
   const busca = filtro.busca?.trim();
   if (busca) {
     const digitos = busca.replace(/\D/g, "");
@@ -64,8 +70,17 @@ export async function contadoresPublicacoes() {
     contar((q) => q.gte("created_at", inicioHoje)),
     contar((q) => q.eq("status", "tratada").gte("tratada_em", inicioHoje)),
     contar((q) => q.eq("status", "descartada").gte("tratada_em", inicioHoje)),
-    supabase.from("publicacoes").select("tribunal").not("tribunal", "is", null).limit(1000),
+    supabase.from("publicacoes").select("tribunal, uf").limit(2000),
   ]);
-  const listaTribunais = [...new Set((tribunais.data ?? []).map((t) => t.tribunal as string))].sort();
-  return { pendentes, recebidasHoje, tratadasHoje, descartadasHoje, tribunais: listaTribunais };
+  const linhas = (tribunais.data ?? []) as { tribunal: string | null; uf: string | null }[];
+  const listaTribunais = [...new Set(linhas.map((t) => t.tribunal).filter(Boolean) as string[])].sort();
+  const listaUfs = [...new Set(linhas.map((t) => t.uf).filter(Boolean) as string[])].sort();
+  return { pendentes, recebidasHoje, tratadasHoje, descartadasHoje, tribunais: listaTribunais, ufs: listaUfs };
+}
+
+/** Só o número de não tratadas (sininho do admin no menu). */
+export async function contarNaoTratadas(): Promise<number> {
+  const supabase = await createClient();
+  const { count } = await supabase.from("publicacoes").select("id", { count: "exact", head: true }).eq("status", "nao_tratada");
+  return count ?? 0;
 }

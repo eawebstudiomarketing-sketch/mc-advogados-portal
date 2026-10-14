@@ -3,10 +3,18 @@ import { listClients } from "@/lib/data/clients";
 import { ProcessForm } from "./process-form";
 import { BackButton } from "@/components/nav/back-button";
 import { exigirPermissao } from "@/lib/dal";
+import { getPublicacao } from "@/lib/data/publicacoes";
+import { sugerirClientePelasPartes } from "@/lib/publicacoes/cliente-sugerido";
 
-export default async function NewProcessPage({ searchParams }: { searchParams: Promise<{ numero?: string }> }) {
+export default async function NewProcessPage({ searchParams }: { searchParams: Promise<{ numero?: string; publicacao?: string }> }) {
   await exigirPermissao("processos");
-  const [clients, { numero }] = await Promise.all([listClients(), searchParams]);
+  const [clients, { numero, publicacao }] = await Promise.all([listClients(), searchParams]);
+  // Vindo de uma publicação do DJEN: vara, área e cliente (pelas partes) já sugeridos.
+  const pub = publicacao ? await getPublicacao(publicacao) : null;
+  const partes = ((pub?.partes as { nome: string }[] | null) ?? []).map((p) => p.nome);
+  const clienteSugerido = pub ? sugerirClientePelasPartes(partes, clients) : null;
+  const vara = pub ? [pub.orgao, pub.tribunal].filter(Boolean).join(" · ") : undefined;
+  const area = pub?.tribunal?.startsWith("TRT") ? "trabalhista" : undefined;
 
   return (
     <div>
@@ -23,7 +31,25 @@ export default async function NewProcessPage({ searchParams }: { searchParams: P
           antes de abrir um processo.
         </p>
       ) : (
-        <ProcessForm clients={clients} numeroInicial={numero} />
+        <>
+          {pub && (
+            <p className="mb-4 max-w-xl rounded-lg bg-gold/10 px-3 py-2 text-xs text-navy">
+              Dados vindos da publicação do DJEN.{" "}
+              {clienteSugerido ? (
+                <>Cliente sugerido pelas partes: <strong>{clienteSugerido.name}</strong> — confira.</>
+              ) : (
+                <>Nenhum cliente bateu com as partes ({partes.join(", ") || "sem partes"}) — escolha o cliente.</>
+              )}
+            </p>
+          )}
+          <ProcessForm
+            clients={clients}
+            numeroInicial={numero ?? pub?.numero_mascara ?? undefined}
+            clienteInicial={clienteSugerido?.id}
+            varaInicial={vara}
+            areaInicial={area}
+          />
+        </>
       )}
     </div>
   );

@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { CalendarClock, ExternalLink, Gavel, RotateCcw, X, CheckCheck, FilePlus2 } from "lucide-react";
 import { STATUS_PUBLICACAO, type Publicacao, type PublicacaoStatus } from "@/lib/data/publicacoes";
-import { sugerir, type Sugestao } from "@/lib/publicacoes/sugestoes";
+import { sugerir, dataPublicacao, type Sugestao } from "@/lib/publicacoes/sugestoes";
 import { mudarStatusPublicacaoAction } from "./actions";
 
 const dataBR = (iso: string) => iso.split("-").reverse().join("/");
@@ -46,18 +46,32 @@ function BotaoStatus({ id, status, rotulo, icone: Icone }: { id: string; status:
   );
 }
 
-export function PublicacaoCard({ p, destaque = false }: { p: Publicacao; destaque?: boolean }) {
+export function PublicacaoCard({ p, destaque = false, selecionavel = false }: { p: Publicacao; destaque?: boolean; selecionavel?: boolean }) {
   const status = p.status as PublicacaoStatus;
   const sugestoes = status === "nao_tratada" ? sugerir(p.texto ?? "", p.data_disponibilizacao) : [];
   const partes = (p.partes as { nome: string; polo: string }[] | null) ?? [];
   const numero = p.numero_mascara ?? p.numero_processo;
+  const responsavel = p.processes?.profiles?.full_name;
 
   return (
     <article id={`pub-${p.id}`} className={`ui-card p-5 ${destaque ? "ring-2 ring-gold" : ""}`}>
       <div className="flex flex-wrap items-start justify-between gap-3">
+        <div className="flex min-w-0 gap-3">
+          {selecionavel && status === "nao_tratada" && (
+            <input
+              type="checkbox"
+              name="ids"
+              value={p.id}
+              form="publicacoes-lote"
+              aria-label={`Selecionar processo ${numero}`}
+              className="mt-1 h-4 w-4 shrink-0 accent-navy"
+            />
+          )}
         <div className="min-w-0">
           <p className="text-xs text-muted">
-            Disponibilizada em {dataBR(p.data_disponibilizacao)} · <span className="font-medium text-foreground/80">{p.tribunal}</span>
+            Divulgada em {dataBR(p.data_disponibilizacao)} · Publicada em {dataBR(dataPublicacao(p.data_disponibilizacao))} ·{" "}
+            <span className="font-medium text-foreground/80">{p.tribunal}</span>
+            {p.uf ? ` · ${p.uf}` : ""}
             {p.tipo_comunicacao ? ` · ${p.tipo_comunicacao}` : ""}
           </p>
           <h3 className="mt-1 text-[15px] font-semibold text-foreground">
@@ -77,7 +91,7 @@ export function PublicacaoCard({ p, destaque = false }: { p: Publicacao; destaqu
             ) : (
               <span className="text-status-pending">
                 Processo não cadastrado no portal ·{" "}
-                <Link href={`/admin/processes/new?numero=${encodeURIComponent(numero)}`} className="font-medium underline-offset-2 hover:underline">
+                <Link href={`/admin/processes/new?numero=${encodeURIComponent(numero)}&publicacao=${p.id}`} className="font-medium underline-offset-2 hover:underline">
                   Cadastrar processo
                 </Link>
               </span>
@@ -87,6 +101,8 @@ export function PublicacaoCard({ p, destaque = false }: { p: Publicacao; destaqu
             {[p.orgao, p.classe].filter(Boolean).join(" · ")}
             {partes.length > 0 && <> · {partes.map((x) => x.nome).join(", ")}</>}
           </p>
+          {responsavel && <p className="mt-0.5 text-xs text-muted">Responsável: <span className="font-medium text-foreground/80">{responsavel}</span></p>}
+        </div>
         </div>
         <div className="flex flex-col items-end gap-1.5">
           <span className={`rounded-full px-2.5 py-0.5 text-xs font-medium ${COR_STATUS[status]}`}>{STATUS_PUBLICACAO[status]}</span>
@@ -94,7 +110,7 @@ export function PublicacaoCard({ p, destaque = false }: { p: Publicacao; destaqu
         </div>
       </div>
 
-      <details className="group mt-3">
+      <details className="group mt-3" data-publicacao-texto>
         <summary className="cursor-pointer list-none text-sm text-foreground/80">
           <span className="line-clamp-3 whitespace-pre-line group-open:hidden">{p.texto}</span>
           <span className="mt-1 inline-block text-xs font-medium text-navy-3 group-open:hidden">Ler publicação inteira</span>
