@@ -402,7 +402,7 @@ function PainelAgente({ agente, ligado }: { agente: WaAgente | null; ligado: boo
             <li>
               Toque em <b>⋮</b> (ou Configurações no iPhone) → <b>Aparelhos conectados</b> → <b>Conectar aparelho</b>.
             </li>
-            <li>Aponte a câmera para este QR. Ele se renova sozinho a cada ~20 segundos.</li>
+            <li>Aponte a câmera para este QR. Cada código vale 1 minuto e troca sozinho aqui; se trocar enquanto você aponta, é só apontar de novo.</li>
           </ol>
         </div>
       )}
