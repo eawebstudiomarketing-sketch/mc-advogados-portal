@@ -13,6 +13,7 @@ import { ConfirmSubmitButton } from "@/components/ui/confirm-submit-button";
 import { ACTIVITY_TYPE_LABEL } from "@/lib/activity-type";
 import { formatDate } from "@/lib/mock-data";
 import { exigirPermissao } from "@/lib/dal";
+import { Comentarios } from "@/components/atividade/comentarios";
 
 export default async function ActivityDetailPage({ params }: { params: Promise<{ id: string }> }) {
   await exigirPermissao("atividades");
@@ -120,6 +121,10 @@ export default async function ActivityDetailPage({ params }: { params: Promise<{
             ))}
           </ul>
         </div>
+      </div>
+
+      <div className="ui-card mt-4 p-0">
+        <Comentarios activityId={activity.id} />
       </div>
     </div>
   );

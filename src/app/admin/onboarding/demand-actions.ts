@@ -20,6 +20,7 @@ type DraftFields = {
   action: string;
   reason: string;
   next_step: string;
+  responsavel_id: string | null;
 };
 
 function readDraftFields(formData: FormData): DraftFields | null {
@@ -42,6 +43,7 @@ function readDraftFields(formData: FormData): DraftFields | null {
     action: str("action"),
     reason: str("reason"),
     next_step: str("next_step"),
+    responsavel_id: str("responsavel_id") || null,
   };
 }
 
@@ -125,6 +127,9 @@ export async function approveDraftAction(formData: FormData): Promise<void> {
     .insert({
       client_id: claimed.client_id,
       responsible_id: profile.id,
+      // responsável escolhido na demanda (qualquer pessoa da equipe); sem ele,
+      // o banco usa quem aprovou
+      responsavel_id: fields.responsavel_id,
       title: fields.title,
       description,
       type: fields.activity_type,

@@ -9,7 +9,9 @@ const NOVO = "__novo__";
 
 /**
  * Responsável da atividade: equipe com login ou pessoa cadastrada só com nome
- * e Gmail. A última opção abre um mini cadastro ali mesmo.
+ * e Gmail. A última opção abre um mini cadastro ali mesmo. Mostra primeiro
+ * quem cuida da empresa e, separado, o resto da equipe: quem é de fora passa
+ * a ver só esta atividade (regra do banco, migration 0022).
  */
 export function ResponsavelSelect({
   responsaveis: inicial,
@@ -20,7 +22,7 @@ export function ResponsavelSelect({
   responsaveis: Responsavel[];
   defaultValue?: string | null;
   id?: string;
-  /** só quem pode atuar neste cliente (advogados dele, admins, sem login) */
+  /** cliente da atividade: separa "Equipe desta empresa" de "Outros da equipe" */
   clientId?: string | null;
 }) {
   const [lista, setLista] = useState(inicial);
@@ -30,7 +32,15 @@ export function ResponsavelSelect({
   const [email, setEmail] = useState("");
   const [erro, setErro] = useState<string | null>(null);
   const [pending, start] = useTransition();
-  const visiveis = lista.filter((r) => r.clientes === null || r.id === valor || (clientId ? r.clientes.includes(clientId) : true));
+  const daEmpresa = (r: Responsavel) => !clientId || r.clientes === null || r.clientes.includes(clientId);
+  const doCliente = lista.filter(daEmpresa);
+  const outros = lista.filter((r) => !daEmpresa(r));
+  const opcao = (r: Responsavel) => (
+    <option key={r.id} value={r.id}>
+      {r.nome}
+      {r.temLogin ? "" : " (sem login)"}
+    </option>
+  );
 
   function cadastrar() {
     setErro(null);
@@ -60,13 +70,15 @@ export function ResponsavelSelect({
         }}
         className="ui-input"
       >
-        {visiveis.length === 0 && <option value="">Ninguém cadastrado</option>}
-        {visiveis.map((r) => (
-          <option key={r.id} value={r.id}>
-            {r.nome}
-            {r.temLogin ? "" : " (sem login)"}
-          </option>
-        ))}
+        {lista.length === 0 && <option value="">Ninguém cadastrado</option>}
+        {outros.length > 0 ? (
+          <>
+            <optgroup label="Equipe desta empresa">{doCliente.map(opcao)}</optgroup>
+            <optgroup label="Outros da equipe (veem só esta atividade)">{outros.map(opcao)}</optgroup>
+          </>
+        ) : (
+          lista.map(opcao)
+        )}
         <option value={NOVO}>+ Cadastrar responsável…</option>
       </select>
       {/* enquanto cadastra, o formulário continua mandando o último escolhido */}

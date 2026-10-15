@@ -25,13 +25,8 @@ export const PERMISSOES = [
   { chave: "editar_cliente", grupo: "Ações", rotulo: "Editar e arquivar cliente", padrao: true },
   { chave: "excluir", grupo: "Ações", rotulo: "Excluir (atividades, documentos, clientes…)", padrao: true },
   { chave: "gerar_ia", grupo: "Ações", rotulo: "Gerar com IA (onboarding, demandas, relatórios)", padrao: true },
-  // exceção à divisão por cliente
-  {
-    chave: "atividades_como_responsavel",
-    grupo: "Exceção",
-    rotulo: "Ver atividades em que é responsável, mesmo de clientes de outros advogados",
-    padrao: false,
-  },
+  // ("atividades em que é responsável" deixou de ser exceção: o responsável
+  // sempre vê a própria atividade — migration 0022)
 ] as const;
 
 export type PermChave = (typeof PERMISSOES)[number]["chave"];

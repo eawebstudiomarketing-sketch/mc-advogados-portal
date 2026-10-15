@@ -30,6 +30,7 @@ import {
   type AtividadeDetalhe,
 } from "@/app/admin/activities/modal-actions";
 import { ResponsavelSelect } from "./responsavel-select";
+import { Comentarios } from "./comentarios";
 
 // Mini tela da atividade: abre no meio da tela, por cima de qualquer lista ou
 // quadro, sem trocar de página. Fecha com Esc, clique fora ou no X.
@@ -327,6 +328,9 @@ function AtividadeModal({ id, editarAoAbrir, onClose }: { id: string; editarAoAb
                 )}
               </div>
               )}
+              <div className="mt-4">
+                <Comentarios activityId={d.id} />
+              </div>
             </>
           )}
 

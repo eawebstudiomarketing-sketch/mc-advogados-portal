@@ -36,6 +36,7 @@ import { listClientDemandDrafts } from "@/lib/data/onboarding-demand-drafts";
 import { BackButton } from "@/components/nav/back-button";
 import { EquipeDoCliente } from "./equipe-do-cliente";
 import type { PermChave } from "@/lib/permissoes";
+import { listResponsaveis, responsavelDoPerfil } from "@/lib/data/responsaveis";
 
 const DOCS_PER_PAGE = 10;
 
@@ -82,6 +83,9 @@ export default async function AdminClientDetailPage({
   ]);
   const [equipe, designados] = isAdmin ? await Promise.all([listStaff(), listDesignados(id)]) : [[], []];
   if (!client) notFound();
+  // responsável das demandas (aba Demandas): qualquer pessoa da equipe
+  const [responsaveis, meuResponsavel] =
+    abaParam === "demandas" && perm.demandas ? await Promise.all([listResponsaveis(), responsavelDoPerfil(profile.id)]) : [[], null];
 
   // abas que este advogado pode ver (admin: todas)
   const PERM_DA_ABA: Partial<Record<Aba, PermChave>> = {
@@ -416,13 +420,15 @@ export default async function AdminClientDetailPage({
                 onboardings={onboardings.map((o) => ({ id: o.id, titulo: `Onboarding de ${dataBR(o.created_at)}` }))}
                 atas={atas.map((a) => ({ id: a.id, titulo: a.meeting_date ? `${a.title} (${dataBR(a.meeting_date)})` : a.title }))}
                 temRascunhos={pendentes > 0}
+                responsaveis={responsaveis}
+                meuResponsavel={meuResponsavel}
               />
             </section>
             <section className="ui-card p-5 lg:col-span-3">
               <h2 className="section-title mb-3">
                 Rascunhos para revisar {pendentes ? <span className="text-muted tabular-nums">· {pendentes}</span> : null}
               </h2>
-              <DemandsSection clientId={client.id} drafts={drafts} />
+              <DemandsSection clientId={client.id} drafts={drafts} responsaveis={responsaveis} meuResponsavel={meuResponsavel} />
             </section>
           </div>
         )}

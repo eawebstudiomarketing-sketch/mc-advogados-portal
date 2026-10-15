@@ -29,6 +29,7 @@ import {
   Bell,
   CalendarDays,
   MessageCircle,
+  MessagesSquare,
 } from "lucide-react";
 import { logout } from "@/app/logout/actions";
 import { CommandPalette, type PaletteItem } from "./command-palette";
@@ -36,13 +37,15 @@ import { PERM_DA_TELA, type Permissoes } from "@/lib/permissoes";
 import { NavTrail } from "@/components/nav/nav-trail";
 import { AtividadeModalProvider } from "@/components/atividade/atividade-modal";
 import { Assistente } from "@/components/assistente/assistente";
+import { createClient as criarSupabase } from "@/lib/supabase/client";
+import { contarNaoLidasAction } from "@/app/admin/mensagens/actions";
 
 const ROLE_LABEL: Record<string, string> = {
   admin: "Administrador",
   advogado: "Advogado",
 };
 
-type NavItem = { href: string; label: string; icon: LucideIcon; adminOnly?: boolean };
+type NavItem = { href: string; label: string; icon: LucideIcon; adminOnly?: boolean; todos?: boolean };
 
 // Advogado vê só as telas que o admin liberou (PERM_DA_TELA); Financeiro,
 // WhatsApp, Equipe, Integrações e Lixeira são sempre só do admin.
@@ -55,6 +58,7 @@ const NAV_GROUPS: { label: string; items: NavItem[] }[] = [
       { href: "/admin/activities", label: "Atividades", icon: ListChecks },
       { href: "/admin/publicacoes", label: "Publicações", icon: Newspaper },
       { href: "/admin/agenda", label: "Agenda", icon: CalendarDays },
+      { href: "/admin/mensagens", label: "Mensagens", icon: MessagesSquare, todos: true },
       { href: "/admin/whatsapp", label: "WhatsApp", icon: MessageCircle, adminOnly: true },
       { href: "/admin/onboarding", label: "Onboarding", icon: ClipboardList },
     ],
@@ -111,6 +115,7 @@ export function AdminShell({
   clients = [],
   permissoes,
   publicacoesPendentes = 0,
+  mensagensNaoLidas = 0,
 }: {
   children: React.ReactNode;
   userName: string;
@@ -119,8 +124,37 @@ export function AdminShell({
   permissoes: Permissoes;
   /** Sininho (só admin): publicações do DJEN ainda não tratadas. */
   publicacoesPendentes?: number;
+  /** Mensagens internas + avisos não lidos (todo mundo da equipe). */
+  mensagensNaoLidas?: number;
 }) {
   const pathname = usePathname();
+  // não lidas (mensagens + avisos): começa com o número do servidor e
+  // recalcula quando chega mensagem/aviso novo ou quando troca de tela
+  const [naoLidas, setNaoLidas] = useState(mensagensNaoLidas);
+  useEffect(() => {
+    let vivo = true;
+    void contarNaoLidasAction().then((n) => vivo && setNaoLidas(n));
+    return () => {
+      vivo = false;
+    };
+  }, [pathname]);
+  useEffect(() => {
+    const supabase = criarSupabase();
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    const recontar = () => {
+      clearTimeout(timer);
+      timer = setTimeout(() => void contarNaoLidasAction().then(setNaoLidas), 800);
+    };
+    const canal = supabase
+      .channel("menu-nao-lidas")
+      .on("postgres_changes", { event: "INSERT", schema: "public", table: "chat_mensagens" }, recontar)
+      .on("postgres_changes", { event: "*", schema: "public", table: "avisos" }, recontar)
+      .subscribe();
+    return () => {
+      clearTimeout(timer);
+      void supabase.removeChannel(canal);
+    };
+  }, []);
   const recolhida = useSyncExternalStore(
     (f) => {
       ouvintes.add(f);
@@ -135,7 +169,7 @@ export function AdminShell({
   const grupos = NAV_GROUPS.map((g) => ({
     ...g,
     items: g.items.filter((i) => {
-      if (userRole === "admin") return true;
+      if (userRole === "admin" || i.todos) return true;
       const chave = PERM_DA_TELA[i.href];
       return !!chave && permissoes[chave];
     }),
@@ -254,6 +288,14 @@ export function AdminShell({
                         aria-hidden
                       />
                       {!compacta && <span className="truncate">{item.label}</span>}
+                      {item.href === "/admin/mensagens" && naoLidas > 0 && (
+                        <span
+                          className={`rounded-full bg-gold px-1.5 text-[10px] leading-4 font-semibold text-navy-2 ${compacta ? "absolute top-0.5 right-0.5" : "ml-auto"}`}
+                          aria-label={`${naoLidas} não lidas`}
+                        >
+                          {naoLidas > 99 ? "99+" : naoLidas}
+                        </span>
+                      )}
                       {item.href === "/admin/publicacoes" && publicacoesPendentes > 0 && (
                         <span
                           className={`rounded-full bg-gold px-1.5 text-[10px] leading-4 font-semibold text-navy-2 ${compacta ? "absolute top-0.5 right-0.5" : "ml-auto"}`}

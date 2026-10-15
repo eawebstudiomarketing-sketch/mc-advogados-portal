@@ -50,7 +50,7 @@ export function MembroCard({
     const t = busca.trim().toLowerCase();
     return t ? clientes.filter((c) => c.name.toLowerCase().includes(t)) : clientes;
   }, [busca, clientes]);
-  const bloqueadas = PERMISSOES.filter((p) => p.grupo !== "Exceção" && !perm[p.chave]).length;
+  const bloqueadas = PERMISSOES.filter((p) => !perm[p.chave]).length;
 
   function salvarClientes() {
     start(async () => {

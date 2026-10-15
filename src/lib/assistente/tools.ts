@@ -71,6 +71,18 @@ async function arquivoDoDrivePermitido(ctx: Ctx, token: string, fileId: string):
   return false;
 }
 
+/** Responsável pelo nome ou e-mail (qualquer pessoa da equipe, mesmo de fora da empresa). */
+async function responsavelPorNome(alvo: unknown): Promise<string | null> {
+  const t = termo(alvo);
+  if (!t) return null;
+  const { data } = await createAdminClient().from("responsaveis").select("id, nome, email").or(`nome.ilike.%${t}%,email.ilike.%${t}%`).limit(5);
+  if (!data?.length) throw new Error(`Não achei "${t}" entre os responsáveis da equipe.`);
+  const exato = data.find((r) => r.nome.toLowerCase() === t.toLowerCase());
+  if (!exato && data.length > 1) throw new Error(`Há mais de um responsável parecido com "${t}": ${data.map((r) => r.nome).join(", ")}. Diga qual.`);
+  return (exato ?? data[0]).id;
+}
+const RESPONSAVEL = { type: "string", description: "Nome ou e-mail de quem fica responsável (qualquer pessoa da equipe, mesmo que não cuide dessa empresa). Vazio = quem está usando." };
+
 function obj(properties: Record<string, unknown>, required: string[] = []) {
   return { type: "object", properties, required };
 }
@@ -272,7 +284,7 @@ export const TOOLS: ToolDef[] = [
     name: "criar_atividade",
     kind: "write",
     label: "Criou atividade",
-    description: "Cria uma atividade para um cliente (ache o client_id com buscar_clientes). Responsável = quem está usando.",
+    description: "Cria uma atividade para um cliente (ache o client_id com buscar_clientes). Responsável: quem está usando, ou o informado em responsavel.",
     parameters: obj(
       {
         client_id: { type: "string" },
@@ -281,6 +293,7 @@ export const TOOLS: ToolDef[] = [
         description: { type: "string" },
         deadline: DATA,
         status: { type: "string", enum: STATUS },
+        responsavel: RESPONSAVEL,
       },
       ["client_id", "title", "type"]
     ),
@@ -296,6 +309,7 @@ export const TOOLS: ToolDef[] = [
           deadline: a.deadline ? String(a.deadline) : null,
           status: (a.status ? String(a.status) : "aberta") as never,
           responsible_id: ctx.profileId,
+          ...(a.responsavel ? { responsavel_id: await responsavelPorNome(a.responsavel) } : {}),
         })
         .select("id, title, deadline, status")
         .single();
@@ -316,6 +330,7 @@ export const TOOLS: ToolDef[] = [
         description: { type: "string" },
         deadline: DATA,
         status: { type: "string", enum: STATUS },
+        responsavel: RESPONSAVEL,
       },
       ["activity_id"]
     ),
@@ -323,6 +338,7 @@ export const TOOLS: ToolDef[] = [
       await porId("activities", a.activity_id, "Atividade");
       const patch: Record<string, unknown> = {};
       for (const k of ["title", "type", "description", "status"]) if (a[k] !== undefined) patch[k] = a[k];
+      if (a.responsavel) patch.responsavel_id = await responsavelPorNome(a.responsavel);
       if (a.deadline !== undefined) patch.deadline = a.deadline ? String(a.deadline) : null;
       if (!Object.keys(patch).length) throw new Error("Nada para alterar.");
       const { data, error } = await db().from("activities").update(patch as never).eq("id", String(a.activity_id)).select("id, title, status, deadline").single();
@@ -450,12 +466,17 @@ export const TOOLS: ToolDef[] = [
         ata_ids: { type: "array", items: { type: "string" } },
         onboarding_ids: { type: "array", items: { type: "string" } },
         instrucoes: { type: "string" },
+        responsavel: RESPONSAVEL,
       },
       ["client_id"]
     ),
     run: async (a, ctx) => {
       const c = await porId<{ id: string; name: string }>("clients", a.client_id, "Cliente");
+      const responsavelId = a.responsavel
+        ? await responsavelPorNome(a.responsavel)
+        : (await createAdminClient().from("responsaveis").select("id").eq("profile_id", ctx.profileId).maybeSingle()).data?.id ?? null;
       const r = await gerarDemandasDoCliente(db(), {
+        responsavelId,
         client: c,
         ficha: await getHandoff(c.id, db()),
         profileId: ctx.profileId,

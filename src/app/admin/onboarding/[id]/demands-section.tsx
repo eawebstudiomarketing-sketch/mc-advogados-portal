@@ -2,6 +2,8 @@ import { AtividadeLink } from "@/components/atividade/atividade-modal";
 import type { DemandDraft } from "@/lib/data/onboarding-demand-drafts";
 import { ACTIVITY_TYPES, ACTIVITY_TYPE_LABEL } from "@/lib/activity-type";
 import { approveDraftAction, discardDraftAction, saveDraftAction } from "../demand-actions";
+import { ResponsavelSelect } from "@/components/atividade/responsavel-select";
+import type { Responsavel } from "@/lib/data/responsaveis";
 
 const inputClass =
   "w-full rounded-lg border border-border bg-background px-3 py-2 text-sm text-foreground focus:border-navy focus:outline-none";
@@ -20,7 +22,18 @@ function fontesDe(d: DemandDraft): string {
   return (d.sources as { titulo?: string }[]).map((f) => f.titulo).filter(Boolean).join(" · ");
 }
 
-export function DemandsSection({ clientId, drafts }: { clientId: string; drafts: DemandDraft[] }) {
+export function DemandsSection({
+  clientId,
+  drafts,
+  responsaveis,
+  meuResponsavel,
+}: {
+  clientId: string;
+  drafts: DemandDraft[];
+  responsaveis: Responsavel[];
+  /** padrão dos rascunhos antigos, gerados antes de existir o responsável */
+  meuResponsavel: string | null;
+}) {
   const pending = drafts.filter((d) => d.status === "rascunho");
   const approved = drafts.filter((d) => d.status === "aprovada");
   const discarded = drafts.filter((d) => d.status === "descartada");
@@ -50,7 +63,7 @@ export function DemandsSection({ clientId, drafts }: { clientId: string; drafts:
                 <input name="title" defaultValue={d.title} required className={inputClass} />
               </div>
 
-              <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
+              <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4">
                 <div>
                   <label className={labelClass}>Prioridade</label>
                   <select name="priority" defaultValue={d.priority} className={inputClass}>
@@ -72,6 +85,10 @@ export function DemandsSection({ clientId, drafts }: { clientId: string; drafts:
                 <div>
                   <label className={labelClass}>Prazo</label>
                   <input type="date" name="deadline" defaultValue={d.deadline ?? ""} className={inputClass} />
+                </div>
+                <div>
+                  <label className={labelClass} htmlFor={`resp-${d.id}`}>Responsável</label>
+                  <ResponsavelSelect id={`resp-${d.id}`} responsaveis={responsaveis} defaultValue={d.responsavel_id ?? meuResponsavel} clientId={clientId} />
                 </div>
               </div>
 

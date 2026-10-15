@@ -1,5 +1,6 @@
 import "server-only";
 import { createClient } from "@/lib/supabase/server";
+import { createAdminClient } from "@/lib/supabase/admin";
 import type { Database } from "@/lib/supabase/types";
 
 export type Activity = Database["public"]["Tables"]["activities"]["Row"] & {
@@ -20,7 +21,7 @@ export async function listActivities(filter?: { clientId?: string; arquivadas?: 
   query = filter?.arquivadas ? query.not("archived_at", "is", null) : query.is("archived_at", null);
   const { data, error } = await query;
   if (error) throw error;
-  return data;
+  return comNomeDoCliente(data);
 }
 
 export async function getActivity(id: string): Promise<Activity | null> {
@@ -30,5 +31,18 @@ export async function getActivity(id: string): Promise<Activity | null> {
     .select("*, clients(name), profiles(full_name), responsaveis(nome)")
     .eq("id", id)
     .maybeSingle();
-  return data;
+  return data ? (await comNomeDoCliente([data]))[0] : null;
+}
+
+/**
+ * Responsável de fora da empresa vê a atividade, mas não a ficha do cliente
+ * (o banco esconde o cliente). Aqui vai só o nome, pra lista não ficar sem
+ * empresa. Só roda para atividades que a pessoa já pode ver.
+ */
+async function comNomeDoCliente(lista: Activity[]): Promise<Activity[]> {
+  const faltam = [...new Set(lista.filter((a) => a.client_id && !a.clients).map((a) => a.client_id))];
+  if (!faltam.length) return lista;
+  const { data } = await createAdminClient().from("clients").select("id, name").in("id", faltam);
+  const nome = new Map((data ?? []).map((c) => [c.id, c.name]));
+  return lista.map((a) => (a.clients || !nome.has(a.client_id) ? a : { ...a, clients: { name: nome.get(a.client_id)! } }));
 }

@@ -37,6 +37,7 @@ export async function POST(request: Request) {
     onboardingIds: form.getAll("onboarding_ids").map(String).filter(Boolean),
     ataIds: form.getAll("ata_ids").map(String).filter(Boolean),
     instrucoes: String(form.get("instructions") ?? "").trim(),
+    responsavelId: String(form.get("responsavel_id") ?? "") || null,
     arquivo,
   });
 

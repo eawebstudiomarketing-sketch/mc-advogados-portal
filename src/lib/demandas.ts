@@ -32,6 +32,8 @@ export async function gerarDemandasDoCliente(
     onboardingIds: string[];
     ataIds: string[];
     instrucoes: string;
+    /** responsável já escolhido para as demandas (vira o da atividade ao aprovar) */
+    responsavelId?: string | null;
     arquivo?: { bytes: Uint8Array; mimeType: string; nome: string };
   }
 ): Promise<ResultadoDemandas> {
@@ -117,6 +119,7 @@ export async function gerarDemandasDoCliente(
       deadline: defaultDeadline(d.priority),
       sources,
       instructions: instrucoes || null,
+      responsavel_id: opts.responsavelId || null,
     }))
   );
   if (error) return { ok: false, error: "As demandas foram geradas, mas não foi possível salvá-las.", status: 500 };

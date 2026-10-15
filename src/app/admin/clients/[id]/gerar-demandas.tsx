@@ -4,6 +4,8 @@ import { useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import { AiProgress } from "@/components/ui/ai-progress";
+import { ResponsavelSelect } from "@/components/atividade/responsavel-select";
+import type { Responsavel } from "@/lib/data/responsaveis";
 
 type Opcao = { id: string; titulo: string };
 
@@ -16,12 +18,16 @@ export function GerarDemandas({
   onboardings,
   atas,
   temRascunhos,
+  responsaveis,
+  meuResponsavel,
 }: {
   clientId: string;
   temTriagem: boolean;
   onboardings: Opcao[];
   atas: Opcao[];
   temRascunhos: boolean;
+  responsaveis: Responsavel[];
+  meuResponsavel: string | null;
 }) {
   const router = useRouter();
   const formRef = useRef<HTMLFormElement>(null);
@@ -113,6 +119,13 @@ export function GerarDemandas({
           placeholder="Ex.: só demandas trabalhistas; ou: o que precisa ser feito antes da abertura da nova unidade"
           className="ui-input"
         />
+      </div>
+
+      <div>
+        <label htmlFor="demanda-resp" className="mb-1 block text-xs font-medium text-muted">
+          Responsável pelas demandas <span className="font-normal text-muted">(dá pra trocar em cada uma antes de aprovar)</span>
+        </label>
+        <ResponsavelSelect id="demanda-resp" responsaveis={responsaveis} defaultValue={meuResponsavel} clientId={clientId} />
       </div>
 
       <div className="flex flex-wrap items-center gap-3">

@@ -14,6 +14,30 @@ export type Database = {
   }
   public: {
     Tables: {
+      activity_comments: {
+        Row: { id: string; activity_id: string; autor_id: string; texto: string; mencoes: string[]; editado_em: string | null; created_at: string }
+        Insert: { id?: string; activity_id: string; autor_id: string; texto: string; mencoes?: string[]; editado_em?: string | null; created_at?: string }
+        Update: { id?: string; activity_id?: string; autor_id?: string; texto?: string; mencoes?: string[]; editado_em?: string | null; created_at?: string }
+        Relationships: []
+      }
+      chat_mensagens: {
+        Row: { id: string; conversa: string; autor_id: string; texto: string; created_at: string }
+        Insert: { id?: string; conversa: string; autor_id: string; texto: string; created_at?: string }
+        Update: { id?: string; conversa?: string; autor_id?: string; texto?: string; created_at?: string }
+        Relationships: []
+      }
+      chat_leituras: {
+        Row: { profile_id: string; conversa: string; lido_em: string }
+        Insert: { profile_id: string; conversa: string; lido_em?: string }
+        Update: { profile_id?: string; conversa?: string; lido_em?: string }
+        Relationships: []
+      }
+      avisos: {
+        Row: { id: string; profile_id: string; tipo: string; titulo: string; corpo: string | null; url: string | null; lido_em: string | null; created_at: string }
+        Insert: { id?: string; profile_id: string; tipo: string; titulo: string; corpo?: string | null; url?: string | null; lido_em?: string | null; created_at?: string }
+        Update: { id?: string; profile_id?: string; tipo?: string; titulo?: string; corpo?: string | null; url?: string | null; lido_em?: string | null; created_at?: string }
+        Relationships: []
+      }
       wa_agent: {
         Row: {
           device_id: string
@@ -1030,8 +1054,10 @@ export type Database = {
           updated_at: string
           sources: Json
           instructions: string | null
+          responsavel_id: string | null
         }
         Insert: {
+          responsavel_id?: string | null
           action?: string
           activity_id?: string | null
           activity_type?: Database["public"]["Enums"]["activity_type"]
@@ -1051,6 +1077,7 @@ export type Database = {
           instructions?: string | null
         }
         Update: {
+          responsavel_id?: string | null
           action?: string
           activity_id?: string | null
           activity_type?: Database["public"]["Enums"]["activity_type"]
