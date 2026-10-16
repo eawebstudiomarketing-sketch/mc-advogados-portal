@@ -3,6 +3,7 @@
 import { useMemo, useState } from "react";
 import Link from "next/link";
 import { ChevronDown, Search } from "lucide-react";
+import { Avatar } from "@/components/ui/avatar";
 
 // Demandas de cada um (visão do admin): por pessoa, separadas por prazo,
 // com filtro por pessoa, prazo, cliente e texto.
@@ -12,6 +13,7 @@ export type CargaSerial = {
   id: string;
   nome: string;
   areas: string[];
+  foto: string | null;
   grupos: { chave: string; rotulo: string; itens: ItemDemanda[] }[];
   total: number;
 };
@@ -44,26 +46,59 @@ export function DemandasEquipe({ cargas, semResponsavel }: { cargas: CargaSerial
 
   return (
     <div>
-      <div className="mb-4 flex flex-wrap items-center gap-2">
-        <select value={pessoa} onChange={(e) => setPessoa(e.target.value)} aria-label="Pessoa" className="ui-input w-auto py-1.5 text-sm">
-          <option value="">Todas as pessoas</option>
+      <div className="mb-5 space-y-3">
+        <div className="flex flex-wrap items-center gap-2">
+          <button
+            type="button"
+            onClick={() => setPessoa("")}
+            className={`inline-flex h-9 items-center rounded-full border px-3.5 text-[13px] font-medium ${!pessoa ? "border-navy bg-navy text-white" : "border-border bg-surface text-foreground/75 hover:border-border-strong"}`}
+          >
+            Todas as pessoas
+          </button>
           {cargas.map((c) => (
-            <option key={c.id} value={c.id}>
-              {c.nome} ({c.total})
-            </option>
+            <button
+              key={c.id}
+              type="button"
+              onClick={() => setPessoa(pessoa === c.id ? "" : c.id)}
+              className={`inline-flex h-9 items-center gap-2 rounded-full border py-0 pr-3.5 pl-1 text-[13px] font-medium ${
+                pessoa === c.id ? "border-navy bg-navy text-white" : "border-border bg-surface text-foreground/75 hover:border-border-strong"
+              }`}
+            >
+              <Avatar nome={c.nome} foto={c.foto} tamanho={28} />
+              {c.nome.replace(/^(Dr\.?|Dra\.?)\s+/i, "").split(" ")[0]}
+              <span className="numero-grande text-sm">{c.total}</span>
+            </button>
           ))}
-        </select>
-        <select value={prazo} onChange={(e) => setPrazo(e.target.value)} aria-label="Prazo" className="ui-input w-auto py-1.5 text-sm">
-          <option value="">Qualquer prazo</option>
-          <option value="atrasadas">Atrasadas</option>
-          <option value="hoje">Hoje</option>
-          <option value="semana">Próximos 7 dias</option>
-          <option value="depois">Mais adiante</option>
-          <option value="sem_prazo">Sem prazo</option>
-        </select>
-        <div className="relative min-w-[200px] flex-1">
-          <Search className="pointer-events-none absolute top-1/2 left-2.5 h-3.5 w-3.5 -translate-y-1/2 text-muted" aria-hidden />
-          <input value={busca} onChange={(e) => setBusca(e.target.value)} placeholder="Buscar por atividade ou cliente" aria-label="Buscar" className="ui-input py-1.5 pl-8 text-sm" />
+        </div>
+        <div className="flex flex-wrap items-center gap-2">
+          {[
+            ["", "Qualquer prazo", ""],
+            ["atrasadas", "Atrasadas", "bg-status-danger"],
+            ["hoje", "Hoje", "bg-status-pending"],
+            ["semana", "Próximos 7 dias", "bg-status-info"],
+            ["depois", "Mais adiante", "bg-status-success"],
+            ["sem_prazo", "Sem prazo", "bg-border-strong"],
+          ].map(([v, r, cor]) => (
+            <button
+              key={v || "todos"}
+              type="button"
+              onClick={() => setPrazo(v)}
+              className={`inline-flex h-8 items-center gap-1.5 rounded-full border px-3 text-xs font-medium ${prazo === v ? "border-navy bg-navy text-white" : "border-border bg-surface text-foreground/75 hover:border-border-strong"}`}
+            >
+              {cor && <span className={`h-1.5 w-1.5 rounded-full ${cor}`} aria-hidden />}
+              {r}
+            </button>
+          ))}
+          <div className="relative ml-auto w-full sm:w-64">
+            <Search className="pointer-events-none absolute top-1/2 left-3.5 h-4 w-4 -translate-y-1/2 text-muted" aria-hidden />
+            <input
+              value={busca}
+              onChange={(e) => setBusca(e.target.value)}
+              placeholder="Buscar atividade ou cliente"
+              aria-label="Buscar"
+              className="h-9 w-full rounded-full border border-border bg-surface pr-3 pl-10 text-[13px] hover:border-border-strong focus:border-navy-3 focus:outline-none"
+            />
+          </div>
         </div>
       </div>
 
@@ -86,9 +121,7 @@ export function DemandasEquipe({ cargas, semResponsavel }: { cargas: CargaSerial
                 aria-expanded={aberto}
                 className="flex w-full items-center gap-3 px-4 py-3 text-left hover:bg-surface-2/60"
               >
-                <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-navy/[0.07] text-xs font-semibold text-navy-3">
-                  {c.nome.replace(/^(Dr\.?|Dra\.?)\s+/i, "").slice(0, 2).toUpperCase()}
-                </span>
+                <Avatar nome={c.nome} foto={c.foto} tamanho={40} />
                 <div className="min-w-0 flex-1">
                   <p className="font-medium text-foreground">{c.nome}</p>
                   <p className="truncate text-xs text-muted">{c.areas.length ? c.areas.join(" · ") : "Sem área definida"}</p>

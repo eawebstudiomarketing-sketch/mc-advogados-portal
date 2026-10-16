@@ -9,6 +9,7 @@ export type ItemDistribuicao = Database["public"]["Tables"]["distribuicao"]["Row
   clients: { id: string; name: string } | null;
   responsaveis: { id: string; nome: string } | null;
   activities: { id: string; title: string; status: string; responsavel_id: string | null } | null;
+  publicacoes: { id: string; link: string | null; tribunal: string | null } | null;
 };
 
 export type Trecho = { texto: string; quem?: string | null; em?: string | null };
@@ -25,7 +26,7 @@ export async function listDistribuicao(f: FiltroDistribuicao = {}): Promise<Item
   const supabase = await createClient();
   let q = supabase
     .from("distribuicao")
-    .select("*, clients(id, name), responsaveis(id, nome), activities(id, title, status, responsavel_id)")
+    .select("*, clients(id, name), responsaveis(id, nome), activities(id, title, status, responsavel_id), publicacoes(id, link, tribunal)")
     .order("created_at", { ascending: false })
     .limit(200);
   q = q.eq("status", f.status && ["pendente", "aceita", "descartada"].includes(f.status) ? f.status : "pendente");
@@ -47,18 +48,14 @@ export async function contarDistribuicaoPendentes(): Promise<number> {
   return count ?? 0;
 }
 
+/** Pendentes por origem (abas da Distribuição). */
 export async function contadoresDistribuicao() {
   const supabase = await createClient();
-  const inicioHoje = new Date(
-    `${new Intl.DateTimeFormat("en-CA", { timeZone: "America/Bahia" }).format(new Date())}T00:00:00-03:00`
-  ).toISOString();
-  const conta = async (fn: (q: ReturnType<typeof base>) => ReturnType<typeof base>) => (await fn(base())).count ?? 0;
-  const base = () => supabase.from("distribuicao").select("id", { count: "exact", head: true });
-  const [pendentes, zap, portal, hoje] = await Promise.all([
-    conta((q) => q.eq("status", "pendente")),
-    conta((q) => q.eq("status", "pendente").eq("origem", "whatsapp")),
-    conta((q) => q.eq("status", "pendente").eq("origem", "portal_cliente")),
-    conta((q) => q.neq("status", "pendente").gte("tratado_em", inicioHoje)),
-  ]);
-  return { pendentes, zap, portal, hoje };
+  const conta = async (origem?: string) => {
+    let q = supabase.from("distribuicao").select("id", { count: "exact", head: true }).eq("status", "pendente");
+    if (origem) q = q.eq("origem", origem);
+    return (await q).count ?? 0;
+  };
+  const [todas, whatsapp, portal_cliente, publicacao] = await Promise.all([conta(), conta("whatsapp"), conta("portal_cliente"), conta("publicacao")]);
+  return { todas, whatsapp, portal_cliente, publicacao };
 }

@@ -9,6 +9,13 @@ import { grupoDoPrazo, hojeBahia } from "@/lib/data/painel";
 import { ACTIVITY_TYPE_LABEL } from "@/lib/activity-type";
 import { ACTIVITY_STATUS_LABEL } from "@/lib/activity-status";
 
+const COR_STATUS: Record<string, string> = {
+  aberta: "bg-status-pending",
+  em_andamento: "bg-status-info",
+  concluida: "bg-status-success",
+  cancelada: "bg-border-strong",
+};
+
 type Filtros = { arquivadas?: string; busca?: string; status?: string; cliente?: string; responsavel?: string; tipo?: string; area?: string; prazo?: string; categoria?: string };
 
 export default async function AdminActivitiesPage({ searchParams }: { searchParams: Promise<Filtros> }) {
@@ -59,18 +66,18 @@ export default async function AdminActivitiesPage({ searchParams }: { searchPara
       <BarraFiltros
         filtros={[
           { tipo: "busca", nome: "busca", rotulo: "Buscar atividade, descrição ou cliente" },
-          { tipo: "select", nome: "status", rotulo: "Status", todos: "Todos os status", opcoes: Object.entries(ACTIVITY_STATUS_LABEL).map(([v, r]) => ({ valor: v, rotulo: r })) },
+          { tipo: "select", nome: "status", rotulo: "Status", todos: "Todos os status", opcoes: Object.entries(ACTIVITY_STATUS_LABEL).map(([v, r]) => ({ valor: v, rotulo: r, cor: COR_STATUS[v] })) },
           {
             tipo: "select",
             nome: "prazo",
             rotulo: "Prazo",
             todos: "Qualquer prazo",
             opcoes: [
-              { valor: "atrasadas", rotulo: "Atrasadas" },
-              { valor: "hoje", rotulo: "Vencem hoje" },
-              { valor: "semana", rotulo: "Próximos 7 dias" },
-              { valor: "depois", rotulo: "Mais adiante" },
-              { valor: "sem_prazo", rotulo: "Sem prazo" },
+              { valor: "atrasadas", rotulo: "Atrasadas", cor: "bg-status-danger" },
+              { valor: "hoje", rotulo: "Vencem hoje", cor: "bg-status-pending" },
+              { valor: "semana", rotulo: "Próximos 7 dias", cor: "bg-status-info" },
+              { valor: "depois", rotulo: "Mais adiante", cor: "bg-status-success" },
+              { valor: "sem_prazo", rotulo: "Sem prazo", cor: "bg-border-strong" },
             ],
           },
           {

@@ -15,6 +15,7 @@ import { getHandoff } from "@/lib/data/handoff";
 import { GoogleGenAI } from "@google/genai";
 import { MODELOS } from "@/lib/ia-modelos";
 import { TOOLS_WHATSAPP } from "./tools-whatsapp";
+import { toolsOperacao } from "./tools-operacao";
 
 // Ferramentas do assistente do portal (balão de chat com Gemini). Mesma
 // lógica das ferramentas do servidor MCP (src/lib/mcp/tools.ts), adaptada
@@ -408,7 +409,7 @@ export const TOOLS: ToolDef[] = [
     name: "abrir_tela",
     kind: "read",
     label: "Abriu uma tela",
-    description: "Leva a pessoa a uma tela: /admin, /admin/clients, /admin/clients/{id}?aba=atividades|documentos|atas|onboarding|demandas|relatorios|acesso, /admin/clients/{id}/handoff, /admin/activities, /admin/documents, /admin/onboarding/new?clientId={id}, /admin/reports, /admin/lixeira.",
+    description: "Leva a pessoa a uma tela: /admin, /admin/agenda, /admin/agenda/compromisso/novo, /admin/distribuicao (?origem=whatsapp|portal_cliente|publicacao), /admin/publicacoes, /admin/team, /admin/clients, /admin/clients/{id}?aba=atividades|documentos|atas|onboarding|demandas|relatorios|acesso, /admin/clients/{id}/handoff, /admin/activities, /admin/documents, /admin/onboarding/new?clientId={id}, /admin/reports, /admin/lixeira.",
     parameters: obj({ caminho: { type: "string" } }, ["caminho"]),
     run: async (a) => {
       const c = String(a.caminho);
@@ -796,6 +797,7 @@ export const TOOLS: ToolDef[] = [
 
   // ───────── WhatsApp do escritório (só admin; envios com confirmação) ─────────
   ...TOOLS_WHATSAPP,
+  ...toolsOperacao(db),
 ];
 
 export const TOOL_MAP = new Map(TOOLS.map((t) => [t.name, t]));

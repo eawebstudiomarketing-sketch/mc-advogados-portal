@@ -3,7 +3,7 @@
 import Image from "next/image";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { Suspense, useEffect, useMemo, useState } from "react";
+import { Suspense, useEffect, useMemo, useState, useSyncExternalStore } from "react";
 import {
   LayoutDashboard,
   Users,
@@ -23,6 +23,10 @@ import {
   LogOut,
   UserRound,
   type LucideIcon,
+  Briefcase,
+  Layers,
+  Settings2,
+  ChevronDown,
   Newspaper,
   Bell,
   CalendarDays,
@@ -46,42 +50,69 @@ const ROLE_LABEL: Record<string, string> = {
 
 type NavItem = { href: string; label: string; icon: LucideIcon; adminOnly?: boolean; todos?: boolean };
 
-// Advogado vê só as telas que o admin liberou (PERM_DA_TELA); Financeiro,
-// WhatsApp, Equipe, Integrações e Lixeira são sempre só do admin.
-const NAV_GROUPS: { label: string; items: NavItem[] }[] = [
+// Menu em 3 grandes áreas que abrem as subopções ao clicar (a Visão geral
+// fica solta no topo). Advogado vê só as telas que o admin liberou
+// (PERM_DA_TELA); Financeiro, WhatsApp, Equipe, Integrações e Lixeira são
+// sempre só do admin.
+const INICIO: NavItem = { href: "/admin", label: "Visão geral", icon: LayoutDashboard };
+const NAV_GROUPS: { id: string; label: string; icon: LucideIcon; items: NavItem[] }[] = [
   {
-    label: "Dia a dia",
+    id: "comercial",
+    label: "Comercial",
+    icon: Briefcase,
     items: [
-      { href: "/admin", label: "Visão geral", icon: LayoutDashboard },
+      { href: "/admin/clients", label: "Clientes", icon: Users },
+      { href: "/admin/contracts", label: "Contratos", icon: FileSignature },
+      { href: "/admin/whatsapp", label: "WhatsApp", icon: MessageCircle, adminOnly: true },
+    ],
+  },
+  {
+    id: "operacional",
+    label: "Operacional",
+    icon: Layers,
+    items: [
       { href: "/admin/agenda", label: "Agenda", icon: CalendarDays },
       { href: "/admin/distribuicao", label: "Distribuição", icon: Inbox },
       { href: "/admin/onboarding", label: "Onboarding", icon: ClipboardList },
       { href: "/admin/activities", label: "Atividades", icon: ListChecks },
       { href: "/admin/publicacoes", label: "Publicações", icon: Newspaper },
-      { href: "/admin/clients", label: "Clientes", icon: Users },
-      { href: "/admin/mensagens", label: "Mensagens", icon: MessagesSquare, todos: true },
-      { href: "/admin/whatsapp", label: "WhatsApp", icon: MessageCircle, adminOnly: true },
-    ],
-  },
-  {
-    label: "Arquivo",
-    items: [
-      { href: "/admin/documents", label: "Documentos", icon: FileText },
-      { href: "/admin/contracts", label: "Contratos", icon: FileSignature },
       { href: "/admin/processes", label: "Processos", icon: Gavel },
+      { href: "/admin/documents", label: "Documentos", icon: FileText },
     ],
   },
   {
-    label: "Escritório",
+    id: "gestao",
+    label: "Gestão",
+    icon: Settings2,
     items: [
       { href: "/admin/reports", label: "Relatórios", icon: BarChart3 },
       { href: "/admin/financial", label: "Financeiro", icon: Wallet, adminOnly: true },
       { href: "/admin/team", label: "Equipe", icon: UserCog, adminOnly: true },
+      { href: "/admin/mensagens", label: "Mensagens", icon: MessagesSquare, todos: true },
       { href: "/admin/integracoes", label: "Integrações", icon: Plug, adminOnly: true },
       { href: "/admin/lixeira", label: "Lixeira", icon: Trash2, adminOnly: true },
     ],
   },
 ];
+
+// grupos abertos no menu (lembrado no navegador; texto JSON para o
+// useSyncExternalStore comparar sem recriar o array a cada leitura)
+const CHAVE_GRUPOS = "mc:menu-grupos";
+const PADRAO_GRUPOS = JSON.stringify(["comercial", "operacional", "gestao"]);
+const ouvintesGrupos = new Set<() => void>();
+function lerGruposCru(): string {
+  try {
+    return localStorage.getItem(CHAVE_GRUPOS) ?? PADRAO_GRUPOS;
+  } catch {
+    return PADRAO_GRUPOS;
+  }
+}
+function gravarGrupos(v: string[]) {
+  try {
+    localStorage.setItem(CHAVE_GRUPOS, JSON.stringify(v));
+  } catch {}
+  ouvintesGrupos.forEach((f) => f());
+}
 
 const iniciais = (nome: string) =>
   nome
@@ -154,9 +185,23 @@ export function AdminShell({
   })).filter((g) => g.items.length > 0);
 
   const ativo = (href: string) => (href === "/admin" ? pathname === "/admin" : pathname.startsWith(href));
+  const grupoAtivo = grupos.find((g) => g.items.some((i) => ativo(i.href)))?.id;
+  // grupos abertos: o que a pessoa deixou aberto (o grupo da tela atual
+  // fechado mostra uma bolinha no ícone)
+  const abertosSalvos = useSyncExternalStore(
+    (f) => {
+      ouvintesGrupos.add(f);
+      return () => ouvintesGrupos.delete(f);
+    },
+    () => lerGruposCru(),
+    () => PADRAO_GRUPOS
+  );
+  const abertos: string[] = JSON.parse(abertosSalvos);
+  const alternarGrupo = (id: string) => gravarGrupos(abertos.includes(id) ? abertos.filter((x) => x !== id) : [...abertos, id]);
 
   const itensBusca = useMemo<PaletteItem[]>(
     () => [
+      { href: INICIO.href, label: INICIO.label, group: "Telas", icon: INICIO.icon },
       ...grupos.flatMap((g) => g.items.map((i) => ({ href: i.href, label: i.label, group: "Telas", icon: i.icon }))),
       ...clients.map((c) => ({ href: `/admin/clients/${c.id}`, label: c.name, group: "Clientes" })),
       { href: "/account", label: "Minha conta", group: "Conta", icon: UserRound },
@@ -240,19 +285,39 @@ export function AdminShell({
         )}
       </div>
 
-      <nav className="flex-1 space-y-4 overflow-x-hidden overflow-y-auto px-[10px] pt-2 pb-4" aria-label="Menu principal">
-        {grupos.map((g) => (
-          <div key={g.label}>
-            <p
-              className={`eyebrow mb-1.5 h-4 px-[12px] whitespace-nowrap ${
-                modo === "hover" ? "opacity-0 transition-opacity group-hover/menu:opacity-100 group-focus-within/menu:opacity-100" : ""
-              }`}
-            >
-              {g.label}
-            </p>
-            <ul className="space-y-0.5">{g.items.map((i) => itemNav(i, modo))}</ul>
-          </div>
-        ))}
+      <nav className="flex-1 space-y-1 overflow-x-hidden overflow-y-auto px-[10px] pt-2 pb-4" aria-label="Menu principal">
+        <ul>{itemNav(INICIO, modo)}</ul>
+        {grupos.map((g) => {
+          const aberto = abertos.includes(g.id);
+          const IconeGrupo = g.icon;
+          const pendentes = g.items.reduce((s, i) => s + badge(i.href), 0);
+          const temAtivo = g.id === grupoAtivo;
+          const rotulo = modo === "hover" ? "opacity-0 transition-opacity duration-150 group-hover/menu:opacity-100 group-focus-within/menu:opacity-100" : "";
+          return (
+            <div key={g.id}>
+              <button
+                type="button"
+                onClick={() => alternarGrupo(g.id)}
+                aria-expanded={aberto}
+                className={`relative flex h-10 w-full items-center gap-3 rounded-xl px-[11px] text-left text-sm whitespace-nowrap transition-colors hover:bg-[#f1f1ef] ${
+                  temAtivo && !aberto ? "text-foreground" : "text-foreground/70"
+                }`}
+              >
+                <IconeGrupo className="h-[18px] w-[18px] shrink-0" aria-hidden />
+                <span className={`flex-1 font-display text-[14px] font-bold tracking-tight ${rotulo}`}>{g.label}</span>
+                <ChevronDown className={`h-4 w-4 shrink-0 text-muted transition-transform ${aberto ? "" : "-rotate-90"} ${rotulo}`} aria-hidden />
+                {!aberto && (pendentes > 0 || temAtivo) && (
+                  <span className={`absolute top-2 left-7 h-2 w-2 rounded-full ring-2 ring-white ${temAtivo ? "bg-navy" : "bg-gold"}`} aria-hidden />
+                )}
+              </button>
+              {aberto && (
+                <ul className={`mt-0.5 space-y-0.5 ${modo === "hover" ? "group-hover/menu:ml-3 group-hover/menu:border-l group-hover/menu:border-border group-hover/menu:pl-2" : "ml-3 border-l border-border pl-2"}`}>
+                  {g.items.map((i) => itemNav(i, modo))}
+                </ul>
+              )}
+            </div>
+          );
+        })}
       </nav>
 
       <div className="border-t border-border px-[10px] py-3">

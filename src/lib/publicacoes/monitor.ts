@@ -1,4 +1,5 @@
 import "server-only";
+import { distribuirPublicacoesNovas } from "@/lib/distribuicao/de-publicacoes";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { getResendClient } from "@/lib/email/resend";
 import { enviarPush, idsDosAdmins } from "@/lib/push";
@@ -152,6 +153,10 @@ export async function executarMonitor(origem: "cron" | "manual"): Promise<Result
     await ligarPublicacoesAosProcessos(db);
     await completarUf(db);
     await completarSugestoes(db);
+  } catch {}
+  // 4) publicações novas viram sugestão de demanda na Distribuição
+  try {
+    await distribuirPublicacoesNovas(db);
   } catch {}
 
   if (paraAvisar.length) {

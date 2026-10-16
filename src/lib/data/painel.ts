@@ -110,6 +110,7 @@ export function serializarCargas(atividades: Activity[], pessoas: Pessoa[]) {
       id: c.pessoa.id,
       nome: c.pessoa.nome,
       areas: c.pessoa.areas,
+      foto: c.pessoa.foto,
       total: c.total,
       grupos: (Object.keys(ROTULO_GRUPO) as GrupoPrazo[]).map((g) => ({ chave: g, rotulo: ROTULO_GRUPO[g], itens: c.grupos[g].map(itemDemanda) })),
     })),

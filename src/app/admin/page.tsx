@@ -1,6 +1,5 @@
 import Link from "next/link";
-import { AlertTriangle, ArrowRight, Inbox, Trophy, Building2, Sun, CalendarPlus } from "lucide-react";
-import { EmptyState } from "@/components/ui/empty-state";
+import { AlertTriangle, ArrowRight, Trophy, Sun, CalendarPlus } from "lucide-react";
 import { listActivities, type Activity } from "@/lib/data/activities";
 import { listFinancialRecords } from "@/lib/data/financial";
 import { responsavelDoPerfil } from "@/lib/data/responsaveis";
@@ -8,8 +7,7 @@ import { listPessoas } from "@/lib/data/escritorio";
 import { contarDistribuicaoPendentes } from "@/lib/data/distribuicao";
 import { contarNaoTratadas } from "@/lib/data/publicacoes";
 import { ranking, clientesComMaisPendencias, hojeBahia, emAberto, somaDias } from "@/lib/data/painel";
-import { pipelineDosClientes } from "@/lib/data/pipeline";
-import { PipelineBoard } from "@/components/cliente/pipeline-board";
+import { Avatar } from "@/components/ui/avatar";
 import { createClient } from "@/lib/supabase/server";
 import { exigirPermissao } from "@/lib/dal";
 import { formatCurrency } from "@/lib/mock-data";
@@ -36,12 +34,11 @@ export default async function AdminOverviewPage({ searchParams }: { searchParams
   const hoje = hojeBahia();
 
   const supabase = await createClient();
-  const [activities, financeiro, meuResponsavel, pessoas, pipeline, pendentesDistribuicao, publicacoesPendentes, { data: compsHoje }] = await Promise.all([
+  const [activities, financeiro, meuResponsavel, pessoas, pendentesDistribuicao, publicacoesPendentes, { data: compsHoje }] = await Promise.all([
     listActivities(),
     isAdmin ? listFinancialRecords() : Promise.resolve(null),
     responsavelDoPerfil(profile.id),
     listPessoas(),
-    permissoes.clientes ? pipelineDosClientes() : Promise.resolve([]),
     permissoes.distribuicao ? contarDistribuicaoPendentes().catch(() => 0) : Promise.resolve(0),
     isAdmin ? contarNaoTratadas().catch(() => 0) : Promise.resolve(0),
     supabase
@@ -64,7 +61,7 @@ export default async function AdminOverviewPage({ searchParams }: { searchParams
   const inadimplentes = financeiro?.filter((f) => f.status === "overdue") ?? [];
 
   // agenda de hoje: do escritório (quem vê a equipe) ou só a da pessoa
-  const nomeResp = new Map(pessoas.map((p) => [p.id, p.nome]));
+  const pessoaPorId = new Map(pessoas.map((p) => [p.id, p]));
   const ativsHoje = activities.filter((a) => emAberto(a) && a.deadline === hoje && (verEquipe || ehMinha(a)));
   const comps = (compsHoje ?? []).filter((c) => verEquipe || (meuResponsavel && c.participantes.includes(meuResponsavel)));
   const agendaHoje = [
@@ -75,7 +72,7 @@ export default async function AdminOverviewPage({ searchParams }: { searchParams
       rotulo: ROTULO_TIPO[c.tipo] ?? "Compromisso",
       titulo: c.titulo,
       cliente: (c.clients as unknown as { name: string } | null)?.name ?? null,
-      quem: c.participantes.map((p) => nomeResp.get(p)?.split(" ")[0]).filter(Boolean).join(", "),
+      pessoas: c.participantes,
       cor: "bg-[#7c5cc4]",
     })),
     ...ativsHoje.map((a) => ({
@@ -85,7 +82,7 @@ export default async function AdminOverviewPage({ searchParams }: { searchParams
       rotulo: ROTULO_CAT[a.categoria] ?? "Tarefa",
       titulo: a.title,
       cliente: a.clients?.name ?? null,
-      quem: a.responsaveis?.nome?.split(" ")[0] ?? "",
+      pessoas: a.responsavel_id ? [a.responsavel_id] : [],
       cor: a.categoria === "prazo" ? "bg-status-danger" : a.categoria === "audiencia" ? "bg-gold" : "bg-status-info",
     })),
   ].sort((x, y) => (x.hora || "99").localeCompare(y.hora || "99"));
@@ -255,59 +252,74 @@ export default async function AdminOverviewPage({ searchParams }: { searchParams
         </Link>
       )}
 
-      <div className="mt-6 grid grid-cols-1 gap-5 xl:grid-cols-[1.4fr_1fr]">
-        {/* agenda de hoje */}
+      <div className="grid grid-cols-1 gap-5 xl:grid-cols-[1.3fr_1fr]">
+        {/* agenda de hoje: linha do tempo */}
         <section className="ui-card p-5">
-          <div className="mb-3 flex items-center justify-between gap-2">
-            <h2 className="section-title flex items-center gap-2">
-              <Sun className="h-4 w-4 text-gold" aria-hidden /> Agenda de hoje {verEquipe ? "do escritório" : ""}
-            </h2>
-            <div className="flex items-center gap-3">
-              <Link href="/admin/agenda/compromisso/novo" className="ui-link text-xs">
-                <CalendarPlus className="h-3.5 w-3.5" aria-hidden /> Compromisso
+          <div className="mb-2 flex items-center justify-between gap-2">
+            <div>
+              <p className="eyebrow">Hoje</p>
+              <h2 className="section-title !text-lg">Agenda {verEquipe ? "do escritório" : ""}</h2>
+            </div>
+            <div className="flex items-center gap-1">
+              <Link href="/admin/agenda/compromisso/novo" className="icon-btn" aria-label="Novo compromisso" data-tip="Novo compromisso">
+                <CalendarPlus aria-hidden />
               </Link>
-              <Link href="/admin/agenda" className="ui-link text-xs">
-                Agenda <ArrowRight className="h-3.5 w-3.5" aria-hidden />
+              <Link href="/admin/agenda" className="icon-btn" aria-label="Abrir agenda" data-tip="Abrir agenda">
+                <ArrowRight aria-hidden />
               </Link>
             </div>
           </div>
           {agendaHoje.length === 0 ? (
-            <p className="py-6 text-center text-sm text-muted">Nada marcado para hoje.</p>
+            <div className="flex flex-col items-center gap-1 py-10 text-center">
+              <Sun className="h-6 w-6 text-gold" aria-hidden />
+              <p className="font-display text-base font-bold text-foreground">Dia livre.</p>
+              <p className="text-xs text-muted">Nada marcado para hoje.</p>
+            </div>
           ) : (
-            <ul className="divide-y divide-border">
-              {agendaHoje.map((i) => (
+            <ol className="-mx-2">
+              {agendaHoje.slice(0, 7).map((i) => (
                 <li key={i.chave}>
-                  <Link href={i.href} className="flex items-center gap-3 px-1 py-2.5 text-sm hover:bg-surface-2">
-                    <span className="w-11 shrink-0 text-xs font-medium text-foreground tabular-nums">{i.hora || "—"}</span>
-                    <span className={`h-2 w-2 shrink-0 rounded-full ${i.cor}`} aria-hidden />
+                  <Link href={i.href} className="flex items-center gap-3.5 rounded-2xl px-2 py-2.5 transition-colors hover:bg-surface-2">
+                    <span className="numero-grande w-12 shrink-0 text-right text-base text-foreground">{i.hora || "—"}</span>
+                    <span className={`h-9 w-1 shrink-0 rounded-full ${i.cor}`} aria-hidden />
                     <span className="min-w-0 flex-1">
-                      <span className="block truncate text-foreground">{i.titulo}</span>
-                      <span className="block truncate text-xs text-muted">
-                        {i.rotulo}
-                        {i.cliente ? ` · ${i.cliente}` : ""}
-                      </span>
+                      <span className="block truncate text-sm font-semibold text-foreground">{i.titulo}</span>
+                      <span className="block truncate text-xs text-muted">{i.cliente ?? i.rotulo}</span>
                     </span>
-                    {i.quem && <span className="hidden max-w-32 truncate text-xs text-muted sm:inline">{i.quem}</span>}
+                    <span className="flex shrink-0 -space-x-1.5">
+                      {i.pessoas.slice(0, 3).map((id) => {
+                        const p = pessoaPorId.get(id);
+                        return p ? <Avatar key={id} nome={p.nome} foto={p.foto} tamanho={28} anel /> : null;
+                      })}
+                    </span>
                   </Link>
                 </li>
               ))}
-            </ul>
+              {agendaHoje.length > 7 && (
+                <li className="px-2 pt-1">
+                  <Link href="/admin/agenda" className="eyebrow hover:!text-foreground">
+                    + {agendaHoje.length - 7} na agenda ›
+                  </Link>
+                </li>
+              )}
+            </ol>
           )}
         </section>
 
-        {/* ranking */}
+        {/* ranking: pódio com foto */}
         <section className="ui-card p-5">
-          <div className="mb-3 flex items-center justify-between gap-2">
-            <h2 className="section-title flex items-center gap-2">
-              <Trophy className="h-4 w-4 text-gold" aria-hidden /> {verEquipe ? "Quem mais concluiu" : "Seu desempenho"}
-            </h2>
-            <div className="inline-flex rounded-lg bg-surface-2 p-0.5 text-xs">
+          <div className="mb-4 flex items-center justify-between gap-2">
+            <div>
+              <p className="eyebrow">Concluídas</p>
+              <h2 className="section-title !text-lg">{verEquipe ? "Ranking da equipe" : "Seu desempenho"}</h2>
+            </div>
+            <div className="inline-flex rounded-full border border-border p-0.5 text-xs">
               {[7, 30].map((p) => (
                 <Link
                   key={p}
                   href={p === 7 ? "/admin" : "/admin?periodo=30"}
                   scroll={false}
-                  className={`rounded-md px-2 py-0.5 ${periodo === p ? "bg-surface font-medium text-foreground shadow-sm" : "text-muted"}`}
+                  className={`rounded-full px-2.5 py-1 font-semibold ${periodo === p ? "bg-navy text-white" : "text-muted hover:text-foreground"}`}
                 >
                   {p} dias
                 </Link>
@@ -315,82 +327,107 @@ export default async function AdminOverviewPage({ searchParams }: { searchParams
             </div>
           </div>
           {linhasRanking.length === 0 ? (
-            <p className="py-6 text-center text-sm text-muted">Ninguém concluiu atividades neste período.</p>
+            <p className="py-8 text-center text-sm text-muted">Ninguém concluiu atividades neste período.</p>
           ) : (
-            <ol className="space-y-2.5">
-              {linhasRanking.slice(0, 8).map((l, i) => (
-                <li key={l.responsavelId} className="flex items-center gap-3">
-                  <span className={`w-5 text-center text-sm font-semibold tabular-nums ${i === 0 && l.concluidas ? "text-gold" : "text-muted"}`}>{i + 1}</span>
-                  <div className="min-w-0 flex-1">
-                    <div className="flex items-baseline justify-between gap-2 text-sm">
-                      <span className="truncate text-foreground">{l.nome}</span>
-                      <span className="text-xs text-muted tabular-nums">
-                        <strong className="text-sm text-foreground">{l.concluidas}</strong> feitas · {l.abertas} abertas
-                        {l.atrasadas ? <span className="text-status-danger"> · {l.atrasadas} atrasadas</span> : null}
-                      </span>
+            <>
+              {/* pódio: 2º, 1º, 3º */}
+              <div className="flex items-end justify-center gap-3">
+                {[1, 0, 2].map((pos) => {
+                  const l = linhasRanking[pos];
+                  if (!l) return <div key={pos} className="w-24" />;
+                  const p = pessoaPorId.get(l.responsavelId);
+                  const altura = pos === 0 ? "h-20" : pos === 1 ? "h-14" : "h-10";
+                  return (
+                    <div key={l.responsavelId} className="flex w-24 flex-col items-center">
+                      <div className="relative">
+                        <Avatar nome={l.nome} foto={p?.foto} tamanho={pos === 0 ? 60 : 48} className={pos === 0 ? "ring-2 ring-gold ring-offset-2" : ""} />
+                        {pos === 0 && <Trophy className="absolute -top-2 -right-2 h-5 w-5 rounded-full bg-surface p-0.5 text-gold" aria-hidden />}
+                      </div>
+                      <p className="mt-1.5 w-full truncate text-center text-xs font-semibold text-foreground">{l.nome.replace(/^(Dr\.?|Dra\.?)\s+/i, "").split(" ")[0]}</p>
+                      <div className={`mt-1.5 flex w-full ${altura} items-start justify-center rounded-t-xl ${pos === 0 ? "bg-navy text-white" : "bg-surface-2 text-foreground"}`}>
+                        <span className="numero-grande mt-1.5 text-xl">{l.concluidas}</span>
+                      </div>
                     </div>
-                    <div className="mt-1 h-1.5 overflow-hidden rounded-full bg-surface-2">
-                      <div className="h-full rounded-full bg-navy-3" style={{ width: `${(l.concluidas / maxConcluidas) * 100}%` }} />
-                    </div>
-                  </div>
-                </li>
-              ))}
-            </ol>
-          )}
-          {isAdmin && (
-            <Link href="/admin/team?aba=demandas" className="ui-link mt-4 text-xs">
-              Demandas de cada um <ArrowRight className="h-3.5 w-3.5" aria-hidden />
-            </Link>
-          )}
-        </section>
-      </div>
-
-      <div className="mt-5 grid grid-cols-1 gap-5 xl:grid-cols-[1fr_1.4fr]">
-        {/* clientes com mais pendências */}
-        <section className="ui-card p-5">
-          <h2 className="section-title mb-3 flex items-center gap-2">
-            <Building2 className="h-4 w-4 text-muted" aria-hidden /> Clientes com mais em aberto
-          </h2>
-          {topClientes.length === 0 ? (
-            <EmptyState icon={Inbox} title="Nenhum cliente com pendências" compact />
-          ) : (
-            <ul className="space-y-2.5">
-              {topClientes.map((c) => (
-                <li key={c.id}>
-                  <Link href={permissoes.clientes ? `/admin/clients/${c.id}?aba=atividades` : `/admin/activities`} className="group block">
-                    <div className="flex items-baseline justify-between gap-2 text-sm">
-                      <span className="truncate text-foreground group-hover:underline">{c.nome}</span>
-                      <span className="text-xs text-muted tabular-nums">
-                        <strong className="text-sm text-foreground">{c.abertas}</strong> em aberto
-                        {c.atrasadas ? <span className="text-status-danger"> · {c.atrasadas} atrasadas</span> : null}
-                      </span>
-                    </div>
-                    <div className="mt-1 flex h-1.5 overflow-hidden rounded-full bg-surface-2">
-                      <div className="h-full bg-status-danger" style={{ width: `${(c.atrasadas / maxPend) * 100}%` }} />
-                      <div className="h-full bg-gold" style={{ width: `${((c.abertas - c.atrasadas) / maxPend) * 100}%` }} />
-                    </div>
+                  );
+                })}
+              </div>
+              {linhasRanking.length > 3 && (
+                <ol className="mt-4 space-y-1 border-t border-border pt-3">
+                  {linhasRanking.slice(3, 8).map((l, i) => {
+                    const p = pessoaPorId.get(l.responsavelId);
+                    return (
+                      <li key={l.responsavelId} className="flex items-center gap-3 px-1 py-1">
+                        <span className="eyebrow w-5">{String(i + 4).padStart(2, "0")}</span>
+                        <Avatar nome={l.nome} foto={p?.foto} tamanho={26} />
+                        <span className="min-w-0 flex-1 truncate text-sm text-foreground">{l.nome}</span>
+                        <span className="numero-grande text-base">{l.concluidas}</span>
+                      </li>
+                    );
+                  })}
+                </ol>
+              )}
+              <div className="mt-4 flex items-center justify-between border-t border-border pt-3 text-xs text-muted">
+                <span>
+                  {linhasRanking.reduce((s, l) => s + l.abertas, 0)} em aberto ·{" "}
+                  <span className={linhasRanking.some((l) => l.atrasadas) ? "font-semibold text-status-danger" : ""}>
+                    {linhasRanking.reduce((s, l) => s + l.atrasadas, 0)} atrasadas
+                  </span>
+                </span>
+                {isAdmin && (
+                  <Link href="/admin/team?aba=demandas" className="eyebrow hover:!text-foreground">
+                    Por pessoa ›
                   </Link>
-                </li>
-              ))}
-            </ul>
+                )}
+              </div>
+            </>
           )}
         </section>
-
-        {/* pipeline */}
-        {permissoes.clientes && (
-          <section className="ui-card p-5">
-            <div className="mb-3 flex items-center justify-between">
-              <h2 className="section-title">Onde está cada cliente</h2>
-              <Link href="/admin/clients?ver=pipeline" className="ui-link text-xs">
-                Ver pipeline <ArrowRight className="h-3.5 w-3.5" aria-hidden />
-              </Link>
-            </div>
-            <PipelineBoard cartoes={pipeline} compacto />
-          </section>
-        )}
       </div>
 
-      <div className="mt-6">
+      {/* clientes com mais em aberto: cartões */}
+      {topClientes.length > 0 && (
+        <section className="mt-8">
+          <div className="mb-3 flex items-end justify-between">
+            <div>
+              <p className="eyebrow">Carteira</p>
+              <h2 className="section-title !text-lg">Clientes com mais em aberto</h2>
+            </div>
+            {permissoes.clientes && (
+              <Link href="/admin/clients" className="eyebrow hover:!text-foreground">
+                Todos ›
+              </Link>
+            )}
+          </div>
+          <div className="grid grid-cols-2 gap-3 md:grid-cols-3 xl:grid-cols-4">
+            {topClientes.slice(0, 8).map((c) => (
+              <Link
+                key={c.id}
+                href={permissoes.clientes ? `/admin/clients/${c.id}?aba=atividades` : "/admin/activities"}
+                className="ui-card group flex flex-col p-4 transition-[border-color,transform] duration-200 hover:-translate-y-0.5 hover:border-border-strong"
+              >
+                <div className="flex items-center gap-2.5">
+                  <Avatar nome={c.nome} tamanho={34} />
+                  <p className="line-clamp-2 min-w-0 text-[13px] leading-tight font-semibold text-foreground">{c.nome}</p>
+                </div>
+                <div className="mt-4 flex items-end justify-between">
+                  <span className="numero-grande text-3xl leading-none text-foreground">{c.abertas}</span>
+                  {c.atrasadas > 0 ? (
+                    <span className="rounded-full bg-status-danger-bg px-2 py-0.5 text-[11px] font-semibold text-status-danger">{c.atrasadas} atrasada{c.atrasadas > 1 ? "s" : ""}</span>
+                  ) : (
+                    <span className="eyebrow">em dia</span>
+                  )}
+                </div>
+                <div className="mt-2.5 flex h-1.5 overflow-hidden rounded-full bg-surface-2">
+                  <div className="h-full bg-status-danger" style={{ width: `${(c.atrasadas / maxPend) * 100}%` }} />
+                  <div className="h-full bg-gold" style={{ width: `${((c.abertas - c.atrasadas) / maxPend) * 100}%` }} />
+                </div>
+              </Link>
+            ))}
+          </div>
+        </section>
+      )}
+
+      <div className="mt-10">
         <QuadroInicial minhas={minhas} todas={noQuadro} rotuloTodas={isAdmin ? "Todas do escritório" : "Dos meus clientes"} />
         <p className="mt-2 text-xs text-muted">
           Concluídas dos últimos {CONCLUIDAS_DIAS} dias. Arraste o cartão para mudar o status; clique para abrir.{" "}

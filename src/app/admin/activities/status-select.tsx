@@ -4,6 +4,13 @@ import { useRef, useState } from "react";
 import { updateActivityStatusAction } from "./actions";
 import { ACTIVITY_STATUS_LABEL, ACTIVITY_STATUSES, type ActivityStatus } from "@/lib/activity-status";
 
+const COR: Record<ActivityStatus, string> = {
+  aberta: "border-status-pending/30 bg-status-pending-bg text-status-pending",
+  em_andamento: "border-status-info/30 bg-status-info-bg text-status-info",
+  concluida: "border-status-success/30 bg-status-success-bg text-status-success",
+  cancelada: "border-border bg-surface-2 text-muted",
+};
+
 export function StatusSelect({ id, status }: { id: string; status: ActivityStatus }) {
   const formRef = useRef<HTMLFormElement>(null);
   // Select controlado: `defaultValue` só se aplica na primeira montagem, então
@@ -21,7 +28,8 @@ export function StatusSelect({ id, status }: { id: string; status: ActivityStatu
           setValue(e.target.value as ActivityStatus);
           formRef.current?.requestSubmit();
         }}
-        className="rounded-lg border border-border bg-background px-2 py-1 text-xs text-foreground focus:border-navy focus:outline-none focus:ring-1 focus:ring-navy"
+        aria-label="Status"
+        className={`h-7 cursor-pointer appearance-none rounded-full border px-3 text-xs font-semibold focus:outline-none focus-visible:ring-2 focus-visible:ring-navy ${COR[value]}`}
       >
         {ACTIVITY_STATUSES.map((s) => (
           <option key={s} value={s}>

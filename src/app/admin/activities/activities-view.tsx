@@ -12,6 +12,7 @@ import { ActivitiesKanban } from "./activities-kanban";
 import { BulkBar } from "./bulk-bar";
 import { AtividadeLink, useAbrirAtividade } from "@/components/atividade/atividade-modal";
 import { nomeResponsavel } from "@/lib/responsavel-nome";
+import { Avatar } from "@/components/ui/avatar";
 
 const CHAVE_MODO = "mc:atividades:modo";
 type Modo = "list" | "kanban";
@@ -61,13 +62,26 @@ function Caixa({
 }
 
 const HOJE = () => new Intl.DateTimeFormat("en-CA", { timeZone: "America/Bahia" }).format(new Date());
-function corDoPrazo(a: Activity): string {
-  if (a.status === "concluida" || a.status === "cancelada") return "bg-border-strong";
-  const h = HOJE();
-  if (!a.deadline) return "bg-border-strong";
-  if (a.deadline < h) return "bg-status-danger";
-  if (a.deadline === h) return "bg-status-pending";
-  return "bg-status-success";
+function diasAte(iso: string) {
+  return Math.round((Date.parse(`${iso}T12:00:00Z`) - Date.parse(`${HOJE()}T12:00:00Z`)) / 86_400_000);
+}
+function chipDoPrazo(a: Activity): string {
+  if (a.status === "concluida" || a.status === "cancelada" || !a.deadline) return "bg-surface-2 text-muted";
+  const d = diasAte(a.deadline);
+  if (d < 0) return "bg-status-danger-bg text-status-danger";
+  if (d === 0) return "bg-status-pending-bg text-status-pending";
+  if (d <= 3) return "bg-gold-soft text-gold-ink";
+  return "bg-surface-2 text-foreground/75";
+}
+function textoDoPrazo(a: Activity): string {
+  const d = diasAte(a.deadline!);
+  if (a.status === "concluida" || a.status === "cancelada") return a.deadline!.split("-").reverse().slice(0, 2).join("/");
+  if (d < -1) return `Atrasada ${-d} dias`;
+  if (d === -1) return "Venceu ontem";
+  if (d === 0) return "Hoje";
+  if (d === 1) return "Amanhã";
+  if (d <= 7) return `Em ${d} dias`;
+  return a.deadline!.split("-").reverse().slice(0, 2).join("/");
 }
 
 export function ActivitiesView({
@@ -210,15 +224,23 @@ export function ActivitiesView({
                           ) : null}
                         </p>
                       </td>
-                      <td className="hidden px-4 text-[13px] text-foreground/75 md:table-cell">{nomeResponsavel(a) ?? "—"}</td>
-                      <td className="px-4 text-[13px] whitespace-nowrap">
-                        {a.deadline ? (
-                          <span className="inline-flex items-center gap-1.5 text-foreground/80">
-                            <span className={`h-1.5 w-1.5 rounded-full ${corDoPrazo(a)}`} aria-hidden />
-                            {formatDate(a.deadline)}
+                      <td className="hidden px-4 md:table-cell">
+                        {nomeResponsavel(a) ? (
+                          <span className="inline-flex items-center gap-2 text-[13px] text-foreground/80">
+                            <Avatar nome={nomeResponsavel(a)!} foto={a.responsaveis?.foto_url} tamanho={26} />
+                            {nomeResponsavel(a)!.replace(/^(Dr\.?|Dra\.?)\s+/i, "").split(" ")[0]}
                           </span>
                         ) : (
-                          <span className="text-muted">—</span>
+                          <span className="text-xs text-muted">—</span>
+                        )}
+                      </td>
+                      <td className="px-4 text-[13px] whitespace-nowrap">
+                        {a.deadline ? (
+                          <span title={formatDate(a.deadline)} className={`inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-xs font-semibold ${chipDoPrazo(a)}`}>
+                            {textoDoPrazo(a)}
+                          </span>
+                        ) : (
+                          <span className="text-xs text-muted">Sem prazo</span>
                         )}
                       </td>
                       <td className="px-4">

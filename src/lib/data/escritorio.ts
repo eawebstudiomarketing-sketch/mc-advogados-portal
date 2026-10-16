@@ -38,13 +38,14 @@ export type Pessoa = {
   telefone: string | null;
   areas: string[];
   rotinaZap: boolean;
+  foto: string | null;
 };
 
 /** Todos os responsáveis (com e sem login), sem as contas técnicas ocultas. */
 export async function listPessoas(): Promise<Pessoa[]> {
   const db = createAdminClient();
   const [{ data: resp }, { data: perfis }] = await Promise.all([
-    db.from("responsaveis").select("id, nome, email, profile_id, telefone, areas, rotina_zap").order("nome"),
+    db.from("responsaveis").select("id, nome, email, profile_id, telefone, areas, rotina_zap, foto_url").order("nome"),
     db.from("profiles").select("id, role, ativo, oculto").in("role", ["admin", "advogado"]),
   ]);
   return (resp ?? [])
@@ -62,27 +63,41 @@ export async function listPessoas(): Promise<Pessoa[]> {
       telefone: r.telefone,
       areas: r.areas ?? [],
       rotinaZap: r.rotina_zap,
+      foto: r.foto_url,
     }));
 }
 
 /**
- * Responsável sugerido para uma área: quem tem a área, com menos atividades
- * em aberto (divide o trabalho). Sem ninguém na área, devolve null.
+ * Responsável já decidido para uma demanda nova (dá para trocar na tela):
+ * 1) quem atende a área; 2) o advogado designado ao cliente; 3) quem tem
+ * menos atividades em aberto. Entre empatados, vence o de menor carga.
  */
-export async function sugerirResponsavel(area: string | null, pessoas?: Pessoa[]): Promise<string | null> {
-  if (!area) return null;
-  const lista = (pessoas ?? (await listPessoas())).filter((p) => p.areas.some((a) => a.toLowerCase() === area.toLowerCase()));
-  if (lista.length <= 1) return lista[0]?.id ?? null;
-  const { data } = await createAdminClient()
+export async function sugerirResponsavel(area: string | null, pessoas?: Pessoa[], clientId?: string | null): Promise<string | null> {
+  const todas = pessoas ?? (await listPessoas());
+  if (!todas.length) return null;
+  const db = createAdminClient();
+  const daArea = area ? todas.filter((p) => p.areas.some((a) => a.toLowerCase() === area.toLowerCase())) : [];
+
+  let candidatos = daArea;
+  if (!candidatos.length && clientId) {
+    const { data } = await db.from("equipe_clientes").select("profile_id").eq("client_id", clientId);
+    const perfis = new Set((data ?? []).map((d) => d.profile_id));
+    candidatos = todas.filter((p) => p.profileId && perfis.has(p.profileId));
+  }
+  if (!candidatos.length) candidatos = todas.filter((p) => p.profileId); // equipe com login
+  if (!candidatos.length) candidatos = todas;
+  if (candidatos.length === 1) return candidatos[0].id;
+
+  const { data } = await db
     .from("activities")
     .select("responsavel_id")
     .in("status", ["aberta", "em_andamento"])
     .is("archived_at", null)
     .in(
       "responsavel_id",
-      lista.map((p) => p.id)
+      candidatos.map((p) => p.id)
     );
-  const carga = new Map(lista.map((p) => [p.id, 0]));
+  const carga = new Map(candidatos.map((p) => [p.id, 0]));
   for (const a of data ?? []) if (a.responsavel_id) carga.set(a.responsavel_id, (carga.get(a.responsavel_id) ?? 0) + 1);
   return [...carga.entries()].sort((a, b) => a[1] - b[1])[0][0];
 }

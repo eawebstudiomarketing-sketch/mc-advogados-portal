@@ -6,7 +6,7 @@ import type { Database } from "@/lib/supabase/types";
 export type Activity = Database["public"]["Tables"]["activities"]["Row"] & {
   clients: { name: string } | null;
   profiles: { full_name: string } | null;
-  responsaveis: { nome: string } | null;
+  responsaveis: { nome: string; foto_url: string | null } | null;
 };
 
 // Arquivadas ficam fora, a menos que peça (arquivadas: true = só elas).
@@ -14,7 +14,7 @@ export async function listActivities(filter?: { clientId?: string; arquivadas?: 
   const supabase = await createClient();
   let query = supabase
     .from("activities")
-    .select("*, clients(name), profiles(full_name), responsaveis(nome)")
+    .select("*, clients(name), profiles(full_name), responsaveis(nome, foto_url)")
     .order("deadline", { ascending: true, nullsFirst: false })
     .order("created_at", { ascending: false });
   if (filter?.clientId) query = query.eq("client_id", filter.clientId);
@@ -28,7 +28,7 @@ export async function getActivity(id: string): Promise<Activity | null> {
   const supabase = await createClient();
   const { data } = await supabase
     .from("activities")
-    .select("*, clients(name), profiles(full_name), responsaveis(nome)")
+    .select("*, clients(name), profiles(full_name), responsaveis(nome, foto_url)")
     .eq("id", id)
     .maybeSingle();
   return data ? (await comNomeDoCliente([data]))[0] : null;

@@ -1,3 +1,4 @@
+import { BarraFiltros } from "@/components/ui/barra-filtros";
 import Link from "next/link";
 import { BellRing, CheckCheck, Inbox, X } from "lucide-react";
 import { exigirPermissao } from "@/lib/dal";
@@ -82,46 +83,21 @@ export default async function PublicacoesPage({ searchParams }: { searchParams: 
               <Link
                 key={f}
                 href={hrefFiltro({ status: f })}
-                className={`rounded-full px-3 py-1 text-xs font-medium ${status === f ? "bg-navy text-white" : "bg-surface-2 text-foreground/70 hover:bg-border"}`}
+                className={`inline-flex h-9 items-center rounded-full border px-4 text-[13px] font-medium transition-colors ${status === f ? "border-navy bg-navy text-white" : "border-border bg-surface text-foreground/75 hover:border-border-strong hover:text-foreground"}`}
               >
                 {f === "todas" ? "Todas" : STATUS_PUBLICACAO[f]}
               </Link>
             ))}
           </div>
-          <form action="/admin/publicacoes" className="mb-4 flex flex-wrap items-center gap-2">
-              {status !== "nao_tratada" && <input type="hidden" name="status" value={status} />}
-              <select name="uf" defaultValue={sp.uf ?? ""} className="ui-input w-auto py-1.5 text-sm" aria-label="Estado">
-                <option value="">Todos os estados</option>
-                {contadores.ufs.map((u) => (
-                  <option key={u} value={u}>
-                    {u}
-                  </option>
-                ))}
-              </select>
-              <select name="tribunal" defaultValue={sp.tribunal ?? ""} className="ui-input w-auto py-1.5 text-sm">
-                <option value="">Todos os tribunais</option>
-                {contadores.tribunais.map((t) => (
-                  <option key={t} value={t}>
-                    {t}
-                  </option>
-                ))}
-              </select>
-              <label className="flex items-center gap-1.5 text-xs text-muted">
-                De <input type="date" name="de" defaultValue={sp.de ?? ""} className="ui-input w-auto py-1 text-sm" />
-              </label>
-              <label className="flex items-center gap-1.5 text-xs text-muted">
-                até <input type="date" name="ate" defaultValue={sp.ate ?? ""} className="ui-input w-auto py-1 text-sm" />
-              </label>
-              <input name="q" defaultValue={sp.q ?? ""} placeholder="Nº do processo ou termo" className="ui-input w-56 py-1.5 text-sm" />
-              <button type="submit" className="ui-btn-secondary px-3 py-1.5 text-xs">
-                Filtrar
-              </button>
-              {(sp.uf || sp.tribunal || sp.de || sp.ate || sp.q) && (
-                <Link href={hrefFiltro({ uf: undefined, tribunal: undefined, de: undefined, ate: undefined, q: undefined })} className="text-xs font-medium text-navy-3 hover:underline">
-                  Limpar filtros
-                </Link>
-              )}
-          </form>
+          <BarraFiltros
+            filtros={[
+              { tipo: "busca", nome: "q", rotulo: "Nº do processo ou termo" },
+              { tipo: "select", nome: "uf", rotulo: "Estado", todos: "Todos os estados", opcoes: contadores.ufs.map((u) => ({ valor: u, rotulo: u })) },
+              { tipo: "select", nome: "tribunal", rotulo: "Tribunal", todos: "Todos os tribunais", opcoes: contadores.tribunais.map((x) => ({ valor: x, rotulo: x })) },
+              { tipo: "data", nome: "de", rotulo: "De" },
+              { tipo: "data", nome: "ate", rotulo: "Até" },
+            ]}
+          />
 
           <FerramentasLista total={lista.length} selecionavel={status === "nao_tratada" || status === "todas"} />
           {lista.length === 100 && <p className="mb-3 text-xs text-muted">Mostrando as 100 mais recentes. Use os filtros para ver as anteriores.</p>}

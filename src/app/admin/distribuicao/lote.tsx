@@ -6,7 +6,7 @@ import { mudarStatusDistribuicaoAction } from "./actions";
 
 // Seleção em massa: as caixinhas ficam nos cartões e apontam para este
 // formulário (atributo form="distribuicao-lote").
-const SELETOR = 'input[name="id"][form="distribuicao-lote"]';
+const SELETOR = 'input[name="id-lote"][form="distribuicao-lote"]';
 
 export function LoteDistribuicao({ total }: { total: number }) {
   const [marcadas, setMarcadas] = useState(0);
@@ -25,7 +25,7 @@ export function LoteDistribuicao({ total }: { total: number }) {
 
   const todas = disponiveis > 0 && marcadas === disponiveis;
   return (
-    <form id="distribuicao-lote" action={mudarStatusDistribuicaoAction} className="mb-3 flex min-h-8 flex-wrap items-center gap-2">
+    <form id="distribuicao-lote" action={mudarStatusDistribuicaoAction} className="mb-3 flex min-h-9 flex-wrap items-center gap-2">
       <input type="hidden" name="status" value="descartada" />
       {disponiveis > 0 ? (
         <label className="flex cursor-pointer items-center gap-2 text-xs text-muted">

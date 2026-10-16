@@ -6,8 +6,8 @@ import { createAdminClient } from "@/lib/supabase/admin";
 // mensagem das 7h pelo WhatsApp. Lê com a chave de serviço: quem chama decide
 // quem pode ver o dia de quem.
 
-export type CompromissoDoDia = { id: string; titulo: string; tipo: string; hora: string; fim: string | null; local: string | null; cliente: string | null };
-export type AtividadeDoDia = { id: string; titulo: string; categoria: string; hora: string | null; prazo: string | null; cliente: string | null; status: string };
+export type CompromissoDoDia = { id: string; titulo: string; tipo: string; hora: string; fim: string | null; local: string | null; cliente: string | null; participantes: string[] };
+export type AtividadeDoDia = { id: string; titulo: string; categoria: string; hora: string | null; prazo: string | null; cliente: string | null; status: string; responsavelId: string | null };
 
 export type DiaDaPessoa = {
   compromissos: CompromissoDoDia[];
@@ -23,30 +23,30 @@ const somaDias = (iso: string, n: number) => {
   return d.toISOString().slice(0, 10);
 };
 
-export async function diaDaPessoa(responsavelId: string, dia: string): Promise<DiaDaPessoa> {
+/** responsavelId = null: o dia do escritório inteiro (todas as pessoas). */
+export async function diaDaPessoa(responsavelId: string | null, dia: string): Promise<DiaDaPessoa> {
   const db = createAdminClient();
   const inicio = new Date(`${dia}T00:00:00-03:00`).toISOString();
   const fim = new Date(`${somaDias(dia, 1)}T00:00:00-03:00`).toISOString();
 
-  const [{ data: comps }, { data: ativs }] = await Promise.all([
-    db
-      .from("compromissos")
-      .select("id, titulo, tipo, inicio, fim, local, clients(name)")
-      .contains("participantes", [responsavelId])
-      .gte("inicio", inicio)
-      .lt("inicio", fim)
-      .order("inicio"),
-    db
-      .from("activities")
-      .select("id, title, categoria, hora, deadline, status, clients(name)")
-      .eq("responsavel_id", responsavelId)
-      .in("status", ["aberta", "em_andamento"])
-      .is("archived_at", null)
-      .not("deadline", "is", null)
-      .lte("deadline", somaDias(dia, 3))
-      .order("deadline")
-      .order("hora", { nullsFirst: true }),
-  ]);
+  let qc = db
+    .from("compromissos")
+    .select("id, titulo, tipo, inicio, fim, local, participantes, clients(name)")
+    .gte("inicio", inicio)
+    .lt("inicio", fim)
+    .order("inicio");
+  if (responsavelId) qc = qc.contains("participantes", [responsavelId]);
+  let qa = db
+    .from("activities")
+    .select("id, title, categoria, hora, deadline, status, responsavel_id, clients(name)")
+    .in("status", ["aberta", "em_andamento"])
+    .is("archived_at", null)
+    .not("deadline", "is", null)
+    .lte("deadline", somaDias(dia, 3))
+    .order("deadline")
+    .order("hora", { nullsFirst: true });
+  if (responsavelId) qa = qa.eq("responsavel_id", responsavelId);
+  const [{ data: comps }, { data: ativs }] = await Promise.all([qc, qa]);
 
   const nome = (c: unknown) => (c as { name: string } | null)?.name ?? null;
   const atividade = (a: NonNullable<typeof ativs>[number]): AtividadeDoDia => ({
@@ -57,6 +57,7 @@ export async function diaDaPessoa(responsavelId: string, dia: string): Promise<D
     prazo: a.deadline,
     cliente: nome(a.clients),
     status: a.status,
+    responsavelId: a.responsavel_id,
   });
   const lista = ativs ?? [];
   return {
@@ -68,6 +69,7 @@ export async function diaDaPessoa(responsavelId: string, dia: string): Promise<D
       fim: c.fim ? horaBahia(c.fim) : null,
       local: c.local,
       cliente: nome(c.clients),
+      participantes: c.participantes ?? [],
     })),
     deHoje: lista.filter((a) => a.deadline === dia).map(atividade),
     atrasadas: lista.filter((a) => a.deadline! < dia).map(atividade),

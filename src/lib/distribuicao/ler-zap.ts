@@ -148,7 +148,7 @@ export async function lerConversasDoZap(): Promise<ResultadoLeitura> {
         area,
         prioridade: ["baixa", "media", "alta"].includes(d.prioridade) ? d.prioridade : "media",
         prazo_sugerido: d.prazo && /^\d{4}-\d{2}-\d{2}$/.test(d.prazo) && d.prazo >= hojeISO ? d.prazo : null,
-        responsavel_sugerido: await sugerirResponsavel(area, pessoas),
+        responsavel_sugerido: await sugerirResponsavel(area, pessoas, chat.client_id),
         tipo: ACTIVITY_TYPES.includes(d.tipo as never) ? d.tipo : null,
         trechos: trechos as unknown as never,
       });

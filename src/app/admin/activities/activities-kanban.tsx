@@ -1,8 +1,8 @@
 "use client";
 
+import { Avatar } from "@/components/ui/avatar";
 import { useState } from "react";
 import type { DragEvent } from "react";
-import { UserRound } from "lucide-react";
 import { AtividadeLink, useAbrirAtividade } from "@/components/atividade/atividade-modal";
 import { nomeResponsavel } from "@/lib/responsavel-nome";
 import type { Activity } from "@/lib/data/activities";
@@ -117,14 +117,12 @@ export function ActivitiesKanban({
                   {a.title}
                 </AtividadeLink>
                 <p className="mt-1 text-xs text-muted">{a.clients?.name}</p>
-                {nomeResponsavel(a) && (
-                  <p className="mt-1 flex items-center gap-1 text-xs text-muted">
-                    <UserRound className="h-3 w-3" aria-hidden />
-                    {nomeResponsavel(a)}
-                  </p>
-                )}
-                <div className="mt-2 flex items-center justify-between text-xs text-muted">
-                  <span className="eyebrow">{ACTIVITY_TYPE_LABEL[a.type]}</span>
+                <div className="mt-3 flex items-center justify-between gap-2 text-xs text-muted">
+                  {nomeResponsavel(a) ? (
+                    <Avatar nome={nomeResponsavel(a)!} foto={a.responsaveis?.foto_url} tamanho={24} />
+                  ) : (
+                    <span className="eyebrow">{ACTIVITY_TYPE_LABEL[a.type]}</span>
+                  )}
                   {a.deadline && <PrazoCartao deadline={a.deadline} status={a.status} />}
                 </div>
               </div>

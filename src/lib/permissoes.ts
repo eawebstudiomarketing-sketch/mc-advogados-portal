@@ -25,7 +25,6 @@ export const PERMISSOES = [
   { chave: "assistente", grupo: "Ferramentas", rotulo: "Assistente (IA)", padrao: true },
   // o que aparece na Visão geral e na Agenda
   { chave: "ver_equipe", grupo: "Visão da equipe", rotulo: "Ranking e demandas dos outros da equipe", padrao: false },
-  { chave: "agenda_outros", grupo: "Visão da equipe", rotulo: "Ver o dia (rotina) dos outros", padrao: false },
   // ações
   { chave: "editar_cliente", grupo: "Ações", rotulo: "Editar e arquivar cliente", padrao: true },
   { chave: "excluir", grupo: "Ações", rotulo: "Excluir (atividades, documentos, clientes…)", padrao: true },

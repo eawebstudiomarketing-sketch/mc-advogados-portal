@@ -90,14 +90,3 @@ export async function excluirCompromissoAction(formData: FormData): Promise<void
   revalidatePath("/admin/agenda");
   redirect("/admin/agenda");
 }
-
-export async function enviarRotinaAgoraAction(responsavelId: string): Promise<{ ok: boolean; mensagem: string }> {
-  const { profile } = await exigirPermissao("agenda");
-  if (profile.role !== "admin") return { ok: false, mensagem: "Só o administrador manda a rotina na mão." };
-  const { enfileirarRotinas } = await import("@/lib/zap/rotina");
-  const r = await enfileirarRotinas({ forcar: true, so: responsavelId });
-  if (r.erro) return { ok: false, mensagem: r.erro };
-  return r.enfileiradas
-    ? { ok: true, mensagem: "Na fila do WhatsApp: sai em instantes se o Agente estiver ligado." }
-    : { ok: false, mensagem: "Esta pessoa não tem WhatsApp cadastrado ou está com a rotina desligada (Equipe → Pessoas)." };
-}

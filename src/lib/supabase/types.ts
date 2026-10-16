@@ -65,6 +65,7 @@ export type Database = {
       }
       distribuicao: {
         Row: {
+          publicacao_id: string | null
           id: string
           origem: string
           client_id: string | null
@@ -84,6 +85,7 @@ export type Database = {
           created_at: string
         }
         Insert: {
+          publicacao_id?: string | null
           id?: string
           origem?: string
           client_id?: string | null
@@ -103,6 +105,7 @@ export type Database = {
           created_at?: string
         }
         Update: {
+          publicacao_id?: string | null
           id?: string
           origem?: string
           client_id?: string | null
@@ -122,6 +125,13 @@ export type Database = {
           created_at?: string
         }
         Relationships: [
+          {
+            foreignKeyName: "distribuicao_publicacao_id_fkey"
+            columns: ["publicacao_id"]
+            isOneToOne: false
+            referencedRelation: "publicacoes"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "distribuicao_client_id_fkey"
             columns: ["client_id"]
@@ -1337,6 +1347,7 @@ export type Database = {
       }
       responsaveis: {
         Row: {
+          foto_url: string | null
           telefone: string | null
           areas: string[]
           rotina_zap: boolean
@@ -1347,6 +1358,7 @@ export type Database = {
           profile_id: string | null
         }
         Insert: {
+          foto_url?: string | null
           telefone?: string | null
           areas?: string[]
           rotina_zap?: boolean
@@ -1357,6 +1369,7 @@ export type Database = {
           profile_id?: string | null
         }
         Update: {
+          foto_url?: string | null
           telefone?: string | null
           areas?: string[]
           rotina_zap?: boolean

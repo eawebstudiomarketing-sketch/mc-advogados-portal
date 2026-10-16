@@ -5,6 +5,7 @@ import { MessageCircle, Plus, X } from "lucide-react";
 import { toast } from "sonner";
 import type { Pessoa } from "@/lib/data/escritorio";
 import { salvarAreasEscritorioAction, salvarPessoaAction } from "./actions";
+import { FotoPerfil } from "@/components/ui/foto-perfil";
 
 // Pessoas da equipe (com e sem login): WhatsApp de cada um (rotina das 7h e
 // lembretes), áreas de atuação (sugestão de responsável na Distribuição).
@@ -40,6 +41,7 @@ function LinhaPessoa({ pessoa, areas }: { pessoa: Pessoa; areas: string[] }) {
   return (
     <li className="ui-card p-4">
       <div className="flex flex-wrap items-center gap-3">
+        <FotoPerfil responsavelId={pessoa.id} nome={pessoa.nome} foto={pessoa.foto} tamanho={44} />
         <div className="min-w-0 flex-1">
           <p className="font-medium text-foreground">{pessoa.nome}</p>
           <p className="truncate text-xs text-muted">

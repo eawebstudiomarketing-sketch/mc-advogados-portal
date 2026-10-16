@@ -7,6 +7,7 @@ import { listPessoas } from "@/lib/data/escritorio";
 import { responsavelDoPerfil } from "@/lib/data/responsaveis";
 import { BarraFiltros } from "@/components/ui/barra-filtros";
 import { MeuDia } from "./meu-dia";
+import { QuemFiltro } from "./quem-filtro";
 
 // Agenda: prazos, audiências e tarefas (atividades com data) + compromissos
 // (reunião, ligação, evento) num calendário do mês, e "Meu dia" com a rotina
@@ -41,28 +42,44 @@ const dataBR = (s: string) => s.split("-").reverse().join("/");
 const diaBahia = (isoTs: string) => new Intl.DateTimeFormat("en-CA", { timeZone: "America/Bahia" }).format(new Date(isoTs));
 const horaBahia = (isoTs: string) => new Date(isoTs).toLocaleTimeString("pt-BR", { timeZone: "America/Bahia", hour: "2-digit", minute: "2-digit" });
 
-type Params = { mes?: string; ver?: string; aba?: string; dia?: string; pessoa?: string; categoria?: string; cliente?: string; responsavel?: string };
+type Params = { mes?: string; ver?: string; aba?: string; dia?: string; quem?: string; categoria?: string; cliente?: string };
 
 export default async function AgendaPage({ searchParams }: { searchParams: Promise<Params> }) {
-  const { profile, permissoes } = await exigirPermissao("agenda");
+  const { profile } = await exigirPermissao("agenda");
   const sp = await searchParams;
   const hoje = hojeBahia();
-  const podeVerOutros = profile.role === "admin" || permissoes.agenda_outros;
+  const ehAdmin = profile.role === "admin";
 
   const [pessoas, eu] = await Promise.all([listPessoas(), responsavelDoPerfil(profile.id)]);
 
   const abaAtiva = sp.aba === "mes" || (!sp.aba && sp.mes) ? "mes" : "dia";
+  // de quem: o admin escolhe (minhas, todos ou uma pessoa); o advogado vê só a dele
+  const quem = !ehAdmin
+    ? "eu"
+    : sp.quem === "todos" || sp.quem === "eu" || pessoas.some((p) => p.id === sp.quem)
+      ? sp.quem!
+      : abaAtiva === "mes"
+        ? "todos"
+        : "eu";
+  const filtroPessoa: string | null = quem === "todos" ? null : quem === "eu" ? (eu ?? "__ninguem__") : quem;
+  const link = (mudar: Record<string, string | undefined>) => {
+    const q = new URLSearchParams(Object.entries({ ...sp, aba: abaAtiva, quem, ...mudar }).filter(([, v]) => v) as [string, string][]);
+    return `/admin/agenda?${q}`;
+  };
+  const filtroQuem = ehAdmin ? (
+    <QuemFiltro pessoas={pessoas.map((p) => ({ id: p.id, nome: p.nome, foto: p.foto }))} atual={quem} href={(q) => link({ quem: q })} />
+  ) : null;
   const abas = (
     <nav aria-label="Visão da agenda" className="mb-5 flex flex-wrap gap-1 border-b border-border">
       {([
-        ["dia", "Meu dia"],
+        ["dia", "Dia"],
         ["mes", "Mês"],
       ] as const).map(([id, rotulo]) => {
         const on = abaAtiva === id;
         return (
           <Link
             key={id}
-            href={`/admin/agenda?aba=${id}`}
+            href={`/admin/agenda?aba=${id}${ehAdmin ? `&quem=${quem}` : ""}`}
             aria-current={on ? "page" : undefined}
             className={`-mb-px border-b-2 px-3 py-2 text-sm ${on ? "border-navy-3 font-medium text-foreground" : "border-transparent text-muted hover:text-foreground"}`}
           >
@@ -76,9 +93,8 @@ export default async function AgendaPage({ searchParams }: { searchParams: Promi
   const cabecalho = (
     <div className="mb-5 flex flex-wrap items-end justify-between gap-3">
       <div>
-        <p className="eyebrow mb-2">Dia a dia · Agenda</p>
+        <p className="eyebrow mb-2">Operacional · Agenda</p>
         <h1 className="page-title">Agenda</h1>
-        <p className="text-sm text-muted">Prazos, audiências, tarefas e compromissos. Toda manhã, às 7h, cada um recebe o seu dia no WhatsApp.</p>
       </div>
       <div className="flex flex-wrap gap-2">
         <Link href="/admin/agenda/compromisso/novo" className="ui-btn">
@@ -92,18 +108,18 @@ export default async function AgendaPage({ searchParams }: { searchParams: Promi
   );
 
   if (abaAtiva === "dia") {
-    const pessoaId = podeVerOutros && sp.pessoa && pessoas.some((p) => p.id === sp.pessoa) ? sp.pessoa : (eu ?? pessoas[0]?.id ?? null);
     const dia = /^\d{4}-\d{2}-\d{2}$/.test(sp.dia ?? "") ? sp.dia! : hoje;
     return (
       <div>
         {cabecalho}
         {abas}
+        {filtroQuem && <div className="mb-5">{filtroQuem}</div>}
         <MeuDia
-          pessoaId={pessoaId}
+          pessoaId={filtroPessoa}
           dia={dia}
           hoje={hoje}
-          pessoas={podeVerOutros ? pessoas.map((p) => ({ id: p.id, nome: p.nome, temZap: !!p.telefone })) : null}
-          ehAdmin={profile.role === "admin"}
+          pessoas={pessoas.map((p) => ({ id: p.id, nome: p.nome, foto: p.foto }))}
+          hrefDia={(d) => link({ dia: d === hoje ? undefined : d })}
         />
       </div>
     );
@@ -127,7 +143,7 @@ export default async function AgendaPage({ searchParams }: { searchParams: Promi
   const de = dias[0] < hoje ? dias[0] : hoje;
   const ate = dias[41] > fimLista ? dias[41] : fimLista;
   const mostrarConcluidas = sp.ver === "todas";
-  const respFiltro = sp.responsavel && pessoas.some((p) => p.id === sp.responsavel) ? sp.responsavel : null;
+  const respFiltro = filtroPessoa;
 
   const supabase = await createClient();
   let qa = supabase
@@ -188,7 +204,8 @@ export default async function AgendaPage({ searchParams }: { searchParams: Promi
   const mesSeguinte = `${m === 12 ? ano + 1 : ano}-${pad(m === 12 ? 1 : m + 1)}`;
   const manter = (extra: Record<string, string>) => {
     const q = new URLSearchParams({ aba: "mes" });
-    for (const k of ["ver", "categoria", "cliente", "responsavel"] as const) if (sp[k]) q.set(k, sp[k]!);
+    for (const k of ["ver", "categoria", "cliente"] as const) if (sp[k]) q.set(k, sp[k]!);
+    if (ehAdmin) q.set("quem", quem);
     for (const [k, v] of Object.entries(extra)) if (v) q.set(k, v);
     else q.delete(k);
     return `/admin/agenda?${q}`;
@@ -198,6 +215,7 @@ export default async function AgendaPage({ searchParams }: { searchParams: Promi
     <div>
       {cabecalho}
       {abas}
+      {filtroQuem && <div className="mb-3">{filtroQuem}</div>}
       <BarraFiltros
         filtros={[
           {
@@ -207,7 +225,6 @@ export default async function AgendaPage({ searchParams }: { searchParams: Promi
             todos: "Tudo",
             opcoes: Object.entries(ROTULO).map(([v, r]) => ({ valor: v, rotulo: r })),
           },
-          { tipo: "select", nome: "responsavel", rotulo: "Pessoa", todos: "Todas as pessoas", opcoes: pessoas.map((p) => ({ valor: p.id, rotulo: p.nome })) },
           { tipo: "select", nome: "cliente", rotulo: "Cliente", todos: "Todos os clientes", opcoes: clientes.map((c) => ({ valor: c.id, rotulo: c.name })) },
         ]}
       />
