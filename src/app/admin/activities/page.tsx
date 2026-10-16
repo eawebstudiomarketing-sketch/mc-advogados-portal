@@ -42,7 +42,7 @@ export default async function AdminActivitiesPage({ searchParams }: { searchPara
     <div>
       <div className="mb-7 flex flex-wrap items-end justify-between gap-3">
         <div>
-          <p className="eyebrow mb-2">Dia a dia · Atividades</p>
+          <p className="eyebrow mb-2">Operacional · Atividades</p>
           <h1 className="page-title">{arquivadas ? "Atividades arquivadas" : "Atividades"}</h1>
           <p className="text-sm text-muted">
             {activities.length !== todas.length ? `${activities.length} de ${todas.length} · ` : ""}

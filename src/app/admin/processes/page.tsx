@@ -34,7 +34,7 @@ export default async function AdminProcessesPage({ searchParams }: { searchParam
     <div>
       <div className="mb-7 flex flex-wrap items-end justify-between gap-3">
         <div>
-          <p className="eyebrow mb-2">Arquivo · Processos</p>
+          <p className="eyebrow mb-2">Operacional · Processos</p>
           <h1 className="page-title">Processos</h1>
           <p className="text-sm text-muted">
             {processes.length} {processes.length === 1 ? "processo cadastrado" : "processos cadastrados"}

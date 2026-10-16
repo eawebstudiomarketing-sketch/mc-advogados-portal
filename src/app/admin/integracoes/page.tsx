@@ -24,7 +24,7 @@ export default async function IntegracoesPage({ searchParams }: { searchParams: 
 
   return (
     <div>
-      <p className="eyebrow mb-2">Escritório · Integrações</p>
+      <p className="eyebrow mb-2">Gestão · Integrações</p>
       <h1 className="page-title">Integrações</h1>
       <p className="mb-6 text-sm text-muted">Serviços externos conectados ao portal.</p>
 

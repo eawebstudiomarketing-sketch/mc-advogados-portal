@@ -52,7 +52,7 @@ export default async function PublicacoesPage({ searchParams }: { searchParams: 
     <div>
       <div className="mb-6 flex flex-wrap items-end justify-between gap-3">
         <div>
-          <p className="eyebrow mb-2">Dia a dia · Diário oficial e INPI</p>
+          <p className="eyebrow mb-2">Operacional · Diário oficial e INPI</p>
           <h1 className="page-title">Publicações</h1>
           <p className="text-sm text-muted">Intimações do Diário de Justiça Eletrônico Nacional (DJEN), buscadas a cada 2 horas das 06h às 22h, e despachos de marcas na revista semanal do INPI.</p>
         </div>

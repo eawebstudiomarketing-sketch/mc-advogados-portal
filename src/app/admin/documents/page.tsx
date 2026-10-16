@@ -32,7 +32,7 @@ export default async function AdminDocumentsPage({
     <div>
       <div className="mb-7 flex flex-wrap items-end justify-between gap-3">
         <div>
-          <p className="eyebrow mb-2">Arquivo · Documentos</p>
+          <p className="eyebrow mb-2">Operacional · Documentos</p>
           <h1 className="page-title">Documentos</h1>
           <p className="text-sm text-muted">
             {docsPage.total} {docsPage.total === 1 ? "documento armazenado" : "documentos armazenados"}
