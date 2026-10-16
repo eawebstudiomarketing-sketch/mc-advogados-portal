@@ -501,11 +501,6 @@ function PainelAgente({ agente, ligado }: { agente: WaAgente | null; ligado: boo
               </button>
             </>
           )}
-          {estado === "aguardando_qr" && (
-            <button type="button" disabled={!!ocupado} onClick={() => void rodar("cancelar", cancelarQrAction)} className="ui-btn-secondary px-3 py-1.5 text-xs">
-              {icone("cancelar", X)} Cancelar
-            </button>
-          )}
           {ligado && (
             <button
               type="button"
@@ -533,7 +528,16 @@ function PainelAgente({ agente, ligado }: { agente: WaAgente | null; ligado: boo
             <li>Depois de conectar, deixe o celular com internet: o histórico de conversas vem dele e pode levar alguns minutos.</li>
             <li className="text-muted">Se ninguém escanear em uns 2 minutos, o QR para. É só clicar em “Conectar número” de novo.</li>
           </ol>
+          {/* fica aqui embaixo, longe de onde estava "Conectar número" (o 2º clique cancelava o QR) */}
+          <button type="button" disabled={!!ocupado} onClick={() => void rodar("cancelar", cancelarQrAction)} className="ui-btn-secondary self-end px-3 py-1.5 text-xs sm:self-start">
+            {icone("cancelar", X)} Cancelar
+          </button>
         </div>
+      )}
+      {estado === "aguardando_qr" && !agente?.qr && (
+        <p className="mt-3 flex items-center gap-2 text-sm text-muted">
+          <Loader2 className="h-4 w-4 animate-spin" aria-hidden /> Gerando o QR…
+        </p>
       )}
 
       {agente?.ultimo_erro && ligado && estado !== "conectado" && <p className="mt-2 text-xs text-status-pending">{agente.ultimo_erro}</p>}
