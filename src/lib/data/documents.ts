@@ -60,7 +60,7 @@ export type DocumentsPage = {
 // Uma página de documentos (mais recentes primeiro), com o total. A página é
 // ajustada se pedirem uma que não existe (ex.: depois de apagar documentos).
 export async function listDocumentsPage(
-  filter: { clientId?: string; activityId?: string; processId?: string; semAtas?: boolean },
+  filter: { clientId?: string; activityId?: string; processId?: string; semAtas?: boolean; busca?: string; categoria?: string },
   paging: { page: number; pageSize: number }
 ): Promise<DocumentsPage> {
   const supabase = await createClient();
@@ -77,6 +77,8 @@ export async function listDocumentsPage(
     if (filter.activityId) query = query.eq("activity_id", filter.activityId);
     if (filter.processId) query = query.eq("process_id", filter.processId);
     if (filter.semAtas) query = query.neq("category", "ata");
+    if (filter.categoria) query = query.eq("category", filter.categoria as never);
+    if (filter.busca?.trim()) query = query.ilike("title", `%${filter.busca.trim().replace(/[%_]/g, " ")}%`);
     const { data, count, error } = await query;
     if (error) throw error;
     return { data, count: count ?? 0 };

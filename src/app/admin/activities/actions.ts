@@ -14,8 +14,9 @@ type Db = Awaited<ReturnType<typeof createClient>>;
 const CATEGORIAS = ["tarefa", "prazo", "audiencia"];
 
 /** Categoria e hora da agenda — só mexe se os campos vieram no formulário (a mini tela não manda). */
-function lerAgenda(formData: FormData): { categoria?: string; hora?: string | null } {
-  const out: { categoria?: string; hora?: string | null } = {};
+function lerAgenda(formData: FormData): { categoria?: string; hora?: string | null; area?: string | null } {
+  const out: { categoria?: string; hora?: string | null; area?: string | null } = {};
+  if (formData.has("area")) out.area = String(formData.get("area") ?? "").trim() || null;
   const categoria = formData.get("categoria");
   if (typeof categoria === "string" && CATEGORIAS.includes(categoria)) out.categoria = categoria;
   if (formData.has("hora")) {

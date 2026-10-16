@@ -1,3 +1,4 @@
+import { BarraFiltros } from "@/components/ui/barra-filtros";
 import Link from "next/link";
 import { Download, Pencil, Plus } from "lucide-react";
 import { DriveIcon } from "@/components/ui/drive-icon";
@@ -12,12 +13,20 @@ import { exigirPermissao } from "@/lib/dal";
 
 const DOCS_PER_PAGE = 25;
 
-export default async function AdminDocumentsPage({ searchParams }: { searchParams: Promise<{ page?: string }> }) {
+export default async function AdminDocumentsPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ page?: string; busca?: string; categoria?: string; cliente?: string }>;
+}) {
   const { permissoes } = await exigirPermissao("documentos");
-  const { page: pageParam } = await searchParams;
-  const docsPage = await listDocumentsPage({ semAtas: !permissoes.atas }, { page: Number(pageParam) || 1, pageSize: DOCS_PER_PAGE });
+  const { page: pageParam, busca, categoria, cliente } = await searchParams;
+  const docsPage = await listDocumentsPage(
+    { semAtas: !permissoes.atas, busca, categoria: categoria === "ata" && !permissoes.atas ? undefined : categoria, clientId: cliente },
+    { page: Number(pageParam) || 1, pageSize: DOCS_PER_PAGE }
+  );
   const documents = docsPage.items;
   const clients = (await listClients()).map((c) => ({ id: c.id, name: c.name }));
+  const filtrosQs = new URLSearchParams(Object.entries({ busca, categoria, cliente }).filter(([, v]) => v) as [string, string][]);
 
   return (
     <div>
@@ -37,6 +46,22 @@ export default async function AdminDocumentsPage({ searchParams }: { searchParam
       </div>
 
       <DriveSyncSection clients={clients} />
+
+      <BarraFiltros
+        filtros={[
+          { tipo: "busca", nome: "busca", rotulo: "Buscar pelo nome do documento" },
+          { tipo: "select", nome: "cliente", rotulo: "Cliente", todos: "Todos os clientes", opcoes: clients.map((c) => ({ valor: c.id, rotulo: c.name })) },
+          {
+            tipo: "select",
+            nome: "categoria",
+            rotulo: "Categoria",
+            todos: "Todas as categorias",
+            opcoes: Object.entries(DOCUMENT_CATEGORY_LABEL)
+              .filter(([v]) => v !== "ata" || permissoes.atas)
+              .map(([valor, rotulo]) => ({ valor, rotulo })),
+          },
+        ]}
+      />
 
       <div className="overflow-x-auto ui-card">
         <table className="ui-table">
@@ -105,7 +130,7 @@ export default async function AdminDocumentsPage({ searchParams }: { searchParam
         totalPages={docsPage.totalPages}
         total={docsPage.total}
         pageSize={DOCS_PER_PAGE}
-        hrefFor={(n) => `/admin/documents?page=${n}`}
+        hrefFor={(n) => `/admin/documents?page=${n}${filtrosQs.size ? `&${filtrosQs}` : ""}`}
       />
     </div>
   );

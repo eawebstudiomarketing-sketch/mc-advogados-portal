@@ -30,6 +30,7 @@ import {
   CalendarDays,
   MessageCircle,
   MessagesSquare,
+  Inbox,
 } from "lucide-react";
 import { logout } from "@/app/logout/actions";
 import { CommandPalette, type PaletteItem } from "./command-palette";
@@ -54,13 +55,14 @@ const NAV_GROUPS: { label: string; items: NavItem[] }[] = [
     label: "Dia a dia",
     items: [
       { href: "/admin", label: "Visão geral", icon: LayoutDashboard },
-      { href: "/admin/clients", label: "Clientes", icon: Users },
+      { href: "/admin/agenda", label: "Agenda", icon: CalendarDays },
+      { href: "/admin/distribuicao", label: "Distribuição", icon: Inbox },
+      { href: "/admin/onboarding", label: "Onboarding", icon: ClipboardList },
       { href: "/admin/activities", label: "Atividades", icon: ListChecks },
       { href: "/admin/publicacoes", label: "Publicações", icon: Newspaper },
-      { href: "/admin/agenda", label: "Agenda", icon: CalendarDays },
+      { href: "/admin/clients", label: "Clientes", icon: Users },
       { href: "/admin/mensagens", label: "Mensagens", icon: MessagesSquare, todos: true },
       { href: "/admin/whatsapp", label: "WhatsApp", icon: MessageCircle, adminOnly: true },
-      { href: "/admin/onboarding", label: "Onboarding", icon: ClipboardList },
     ],
   },
   {
@@ -116,6 +118,7 @@ export function AdminShell({
   permissoes,
   publicacoesPendentes = 0,
   mensagensNaoLidas = 0,
+  distribuicaoPendentes = 0,
 }: {
   children: React.ReactNode;
   userName: string;
@@ -126,6 +129,8 @@ export function AdminShell({
   publicacoesPendentes?: number;
   /** Mensagens internas + avisos não lidos (todo mundo da equipe). */
   mensagensNaoLidas?: number;
+  /** Demandas que chegaram de fora e ainda não foram distribuídas. */
+  distribuicaoPendentes?: number;
 }) {
   const pathname = usePathname();
   // não lidas (mensagens + avisos): começa com o número do servidor e
@@ -294,6 +299,14 @@ export function AdminShell({
                           aria-label={`${naoLidas} não lidas`}
                         >
                           {naoLidas > 99 ? "99+" : naoLidas}
+                        </span>
+                      )}
+                      {item.href === "/admin/distribuicao" && distribuicaoPendentes > 0 && (
+                        <span
+                          className={`rounded-full bg-gold px-1.5 text-[10px] leading-4 font-semibold text-navy-2 ${compacta ? "absolute top-0.5 right-0.5" : "ml-auto"}`}
+                          aria-label={`${distribuicaoPendentes} para distribuir`}
+                        >
+                          {distribuicaoPendentes > 99 ? "99+" : distribuicaoPendentes}
                         </span>
                       )}
                       {item.href === "/admin/publicacoes" && publicacoesPendentes > 0 && (

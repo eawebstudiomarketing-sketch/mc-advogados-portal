@@ -5,6 +5,7 @@ import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
 import { exigirPermissao, getPermissoes, requireRole } from "@/lib/dal";
 import { destinoDeVolta } from "@/lib/voltar";
+import { lerCamposWhatsapp } from "@/components/cliente/campos-whatsapp";
 
 export type CreateClientState = { error: string | null };
 
@@ -46,6 +47,7 @@ export async function createClientAction(
     tipo_pessoa: tipoPessoa,
     documento: documento.trim(),
     email_contact: emailContact.trim(),
+    ...lerCamposWhatsapp(formData),
   });
 
   if (error) {
@@ -107,6 +109,7 @@ export async function updateClientAction(
       documento: documento.trim(),
       email_contact: emailContact.trim(),
       active,
+      ...lerCamposWhatsapp(formData),
     })
     .eq("id", id);
 

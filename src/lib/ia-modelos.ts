@@ -12,6 +12,8 @@ export const MODELOS = {
   onboarding: process.env.GEMINI_MODELO_ONBOARDING ?? "gemini-3.1-flash-lite",
   /** demandas a partir de ficha/ATAs/documentos */
   demandas: process.env.GEMINI_MODELO_DEMANDAS ?? "gemini-3.1-flash-lite",
+  /** ler os grupos do WhatsApp e sugerir demandas (Distribuição) */
+  distribuicao: process.env.GEMINI_MODELO_DISTRIBUICAO ?? "gemini-3.1-flash-lite",
   /** assistente do balão (conversa + ferramentas) */
   assistente: process.env.GEMINI_MODELO_ASSISTENTE ?? "gemini-3.1-flash-lite",
   /** ler documento/arquivo do Drive e responder */

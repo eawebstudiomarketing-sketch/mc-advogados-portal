@@ -1,3 +1,4 @@
+import { BarraFiltros } from "@/components/ui/barra-filtros";
 import Link from "next/link";
 import { Download, Eye, Plus } from "lucide-react";
 import { listOnboardings } from "@/lib/data/onboardings";
@@ -7,9 +8,20 @@ import { deleteOnboardingAction, deletePerguntaModeloAction } from "./actions";
 import { listPerguntasModelo } from "@/lib/data/onboarding-modelo";
 import { ONBOARDING_STAGES } from "@/lib/onboarding-schema";
 
-export default async function AdminOnboardingPage() {
+type F = { busca?: string; cliente?: string; respondido?: string };
+
+export default async function AdminOnboardingPage({ searchParams }: { searchParams: Promise<F> }) {
   await exigirPermissao("onboarding");
-  const [onboardings, extras] = await Promise.all([listOnboardings(), listPerguntasModelo().catch(() => [])]);
+  const f = await searchParams;
+  const [todos, extras] = await Promise.all([listOnboardings(), listPerguntasModelo().catch(() => [])]);
+  const termo = (f.busca ?? "").trim().toLowerCase();
+  const respondido = (o: (typeof todos)[number]) => Object.values(o.answers ?? {}).some((v) => typeof v === "string" && v.trim());
+  const onboardings = todos.filter(
+    (o) =>
+      (!termo || (o.clients?.name ?? "").toLowerCase().includes(termo)) &&
+      (!f.cliente || o.client_id === f.cliente) &&
+      (!f.respondido || (f.respondido === "sim" ? respondido(o) : !respondido(o)))
+  );
 
   return (
     <div>
@@ -25,6 +37,14 @@ export default async function AdminOnboardingPage() {
           <Plus className="h-4 w-4" aria-hidden /> Novo onboarding
         </Link>
       </div>
+
+      <BarraFiltros
+        filtros={[
+          { tipo: "busca", nome: "busca", rotulo: "Buscar cliente" },
+          { tipo: "select", nome: "cliente", rotulo: "Cliente", todos: "Todos os clientes", opcoes: [...new Map(todos.map((x) => [x.client_id, x.clients?.name ?? "Cliente"])).entries()].sort((a, b) => a[1].localeCompare(b[1])).map(([valor, rotulo]) => ({ valor, rotulo })) },
+          { tipo: "select", nome: "respondido", rotulo: "Respostas", todos: "Respondidos ou não", opcoes: [{ valor: "sim", rotulo: "Com respostas" }, { valor: "nao", rotulo: "Sem respostas" }] },
+        ]}
+      />
 
       <div className="overflow-x-auto ui-card">
         <table className="ui-table">

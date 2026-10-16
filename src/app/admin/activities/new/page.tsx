@@ -1,3 +1,4 @@
+import { getEscritorioConfig } from "@/lib/data/escritorio";
 import Link from "next/link";
 import { listClients } from "@/lib/data/clients";
 import { listResponsaveis, responsavelDoPerfil } from "@/lib/data/responsaveis";
@@ -38,7 +39,7 @@ export default async function NewActivityPage({ searchParams }: { searchParams: 
           antes de abrir uma atividade.
         </p>
       ) : (
-        <ActivityForm clients={clients} responsaveis={responsaveis} meuResponsavel={meuResponsavel} clienteInicial={clienteInicial} inicial={preenchido} />
+        <ActivityForm clients={clients} responsaveis={responsaveis} meuResponsavel={meuResponsavel} clienteInicial={clienteInicial} inicial={preenchido} areas={(await getEscritorioConfig()).areas} />
       )}
     </div>
   );

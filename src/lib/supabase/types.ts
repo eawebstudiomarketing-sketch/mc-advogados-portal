@@ -32,6 +32,197 @@ export type Database = {
         Update: { profile_id?: string; conversa?: string; lido_em?: string }
         Relationships: []
       }
+      escritorio_config: {
+        Row: {
+          id: number
+          areas: string[]
+          lembrete_24h: string
+          lembrete_1h: string
+          lembretes_ativos: boolean
+          rotina_ativa: boolean
+          updated_at: string
+        }
+        Insert: {
+          id?: number
+          areas?: string[]
+          lembrete_24h?: string
+          lembrete_1h?: string
+          lembretes_ativos?: boolean
+          rotina_ativa?: boolean
+          updated_at?: string
+        }
+        Update: {
+          id?: number
+          areas?: string[]
+          lembrete_24h?: string
+          lembrete_1h?: string
+          lembretes_ativos?: boolean
+          rotina_ativa?: boolean
+          updated_at?: string
+        }
+        Relationships: [
+        ]
+      }
+      distribuicao: {
+        Row: {
+          id: string
+          origem: string
+          client_id: string | null
+          titulo: string
+          descricao: string | null
+          area: string | null
+          tipo: string | null
+          prioridade: string
+          prazo_sugerido: string | null
+          responsavel_sugerido: string | null
+          status: string
+          activity_id: string | null
+          chat_jid: string | null
+          trechos: Json
+          tratado_por: string | null
+          tratado_em: string | null
+          created_at: string
+        }
+        Insert: {
+          id?: string
+          origem?: string
+          client_id?: string | null
+          titulo: string
+          descricao?: string | null
+          area?: string | null
+          tipo?: string | null
+          prioridade?: string
+          prazo_sugerido?: string | null
+          responsavel_sugerido?: string | null
+          status?: string
+          activity_id?: string | null
+          chat_jid?: string | null
+          trechos?: Json
+          tratado_por?: string | null
+          tratado_em?: string | null
+          created_at?: string
+        }
+        Update: {
+          id?: string
+          origem?: string
+          client_id?: string | null
+          titulo?: string
+          descricao?: string | null
+          area?: string | null
+          tipo?: string | null
+          prioridade?: string
+          prazo_sugerido?: string | null
+          responsavel_sugerido?: string | null
+          status?: string
+          activity_id?: string | null
+          chat_jid?: string | null
+          trechos?: Json
+          tratado_por?: string | null
+          tratado_em?: string | null
+          created_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "distribuicao_client_id_fkey"
+            columns: ["client_id"]
+            isOneToOne: false
+            referencedRelation: "clients"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "distribuicao_responsavel_sugerido_fkey"
+            columns: ["responsavel_sugerido"]
+            isOneToOne: false
+            referencedRelation: "responsaveis"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "distribuicao_activity_id_fkey"
+            columns: ["activity_id"]
+            isOneToOne: false
+            referencedRelation: "activities"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      compromissos: {
+        Row: {
+          id: string
+          titulo: string
+          tipo: string
+          inicio: string
+          fim: string | null
+          local: string | null
+          descricao: string | null
+          client_id: string | null
+          participantes: string[]
+          lembrar_cliente: boolean
+          criado_por: string | null
+          created_at: string
+          updated_at: string
+        }
+        Insert: {
+          id?: string
+          titulo: string
+          tipo?: string
+          inicio: string
+          fim?: string | null
+          local?: string | null
+          descricao?: string | null
+          client_id?: string | null
+          participantes?: string[]
+          lembrar_cliente?: boolean
+          criado_por?: string | null
+          created_at?: string
+          updated_at?: string
+        }
+        Update: {
+          id?: string
+          titulo?: string
+          tipo?: string
+          inicio?: string
+          fim?: string | null
+          local?: string | null
+          descricao?: string | null
+          client_id?: string | null
+          participantes?: string[]
+          lembrar_cliente?: boolean
+          criado_por?: string | null
+          created_at?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "compromissos_client_id_fkey"
+            columns: ["client_id"]
+            isOneToOne: false
+            referencedRelation: "clients"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      rotina_envios: {
+        Row: {
+          responsavel_id: string
+          dia: string
+          job_id: string | null
+          created_at: string
+        }
+        Insert: {
+          responsavel_id: string
+          dia: string
+          job_id?: string | null
+          created_at?: string
+        }
+        Update: {
+          responsavel_id?: string
+          dia?: string
+          job_id?: string | null
+          created_at?: string
+        }
+        Relationships: [
+        ]
+      }
       avisos: {
         Row: { id: string; profile_id: string; tipo: string; titulo: string; corpo: string | null; url: string | null; lido_em: string | null; created_at: string }
         Insert: { id?: string; profile_id: string; tipo: string; titulo: string; corpo?: string | null; url?: string | null; lido_em?: string | null; created_at?: string }
@@ -79,6 +270,8 @@ export type Database = {
       }
       wa_chats: {
         Row: {
+          vinculo_auto: boolean
+          demandas_lidas_ate: string | null
           chat_jid: string
           nome: string | null
           is_group: boolean
@@ -94,6 +287,8 @@ export type Database = {
           updated_at: string
         }
         Insert: {
+          vinculo_auto?: boolean
+          demandas_lidas_ate?: string | null
           chat_jid: string
           nome?: string | null
           is_group?: boolean
@@ -109,6 +304,8 @@ export type Database = {
           updated_at?: string
         }
         Update: {
+          vinculo_auto?: boolean
+          demandas_lidas_ate?: string | null
           chat_jid?: string
           nome?: string | null
           is_group?: boolean
@@ -187,6 +384,7 @@ export type Database = {
       }
       wa_jobs: {
         Row: {
+          origem_ref: string | null
           id: string
           tipo: string
           payload: Json
@@ -202,6 +400,7 @@ export type Database = {
           created_at: string
         }
         Insert: {
+          origem_ref?: string | null
           id?: string
           tipo: string
           payload?: Json
@@ -217,6 +416,7 @@ export type Database = {
           created_at?: string
         }
         Update: {
+          origem_ref?: string | null
           id?: string
           tipo?: string
           payload?: Json
@@ -523,6 +723,8 @@ export type Database = {
       }
       activities: {
         Row: {
+          area: string | null
+          concluida_em: string | null
           client_id: string
           created_at: string
           deadline: string | null
@@ -539,6 +741,8 @@ export type Database = {
           hora: string | null
         }
         Insert: {
+          area?: string | null
+          concluida_em?: string | null
           client_id: string
           created_at?: string
           deadline?: string | null
@@ -555,6 +759,8 @@ export type Database = {
           hora?: string | null
         }
         Update: {
+          area?: string | null
+          concluida_em?: string | null
           client_id?: string
           created_at?: string
           deadline?: string | null
@@ -620,6 +826,8 @@ export type Database = {
       }
       clients: {
         Row: {
+          whatsapp_grupos: string[]
+          whatsapp_numeros: string[]
           active: boolean
           drive_folder_id: string | null
           drive_import_folder_ids: string[]
@@ -639,6 +847,8 @@ export type Database = {
           archived_at: string | null
         }
         Insert: {
+          whatsapp_grupos?: string[]
+          whatsapp_numeros?: string[]
           active?: boolean
           drive_folder_id?: string | null
           drive_import_folder_ids?: string[]
@@ -658,6 +868,8 @@ export type Database = {
           archived_at?: string | null
         }
         Update: {
+          whatsapp_grupos?: string[]
+          whatsapp_numeros?: string[]
           active?: boolean
           drive_folder_id?: string | null
           drive_import_folder_ids?: string[]
@@ -1037,6 +1249,7 @@ export type Database = {
       }
       onboarding_demand_drafts: {
         Row: {
+          area: string | null
           action: string
           activity_id: string | null
           activity_type: Database["public"]["Enums"]["activity_type"]
@@ -1057,6 +1270,7 @@ export type Database = {
           responsavel_id: string | null
         }
         Insert: {
+          area?: string | null
           responsavel_id?: string | null
           action?: string
           activity_id?: string | null
@@ -1077,6 +1291,7 @@ export type Database = {
           instructions?: string | null
         }
         Update: {
+          area?: string | null
           responsavel_id?: string | null
           action?: string
           activity_id?: string | null
@@ -1122,6 +1337,9 @@ export type Database = {
       }
       responsaveis: {
         Row: {
+          telefone: string | null
+          areas: string[]
+          rotina_zap: boolean
           created_at: string
           email: string
           id: string
@@ -1129,6 +1347,9 @@ export type Database = {
           profile_id: string | null
         }
         Insert: {
+          telefone?: string | null
+          areas?: string[]
+          rotina_zap?: boolean
           created_at?: string
           email: string
           id?: string
@@ -1136,6 +1357,9 @@ export type Database = {
           profile_id?: string | null
         }
         Update: {
+          telefone?: string | null
+          areas?: string[]
+          rotina_zap?: boolean
           created_at?: string
           email?: string
           id?: string

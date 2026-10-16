@@ -8,6 +8,8 @@ export const PERMISSOES = [
   // telas do menu
   { chave: "visao_geral", grupo: "Telas", rotulo: "Visão geral", padrao: true },
   { chave: "clientes", grupo: "Telas", rotulo: "Clientes (fichas)", padrao: true },
+  { chave: "agenda", grupo: "Telas", rotulo: "Agenda (prazos e compromissos)", padrao: true },
+  { chave: "distribuicao", grupo: "Telas", rotulo: "Distribuição (demandas que chegam de fora)", padrao: true },
   { chave: "atividades", grupo: "Telas", rotulo: "Atividades", padrao: true },
   { chave: "onboarding", grupo: "Telas", rotulo: "Onboarding", padrao: true },
   { chave: "documentos", grupo: "Telas", rotulo: "Documentos", padrao: true },
@@ -21,6 +23,9 @@ export const PERMISSOES = [
   { chave: "demandas", grupo: "Áreas do cliente", rotulo: "Demandas da IA", padrao: true },
   { chave: "acesso_portal", grupo: "Áreas do cliente", rotulo: "Acesso do cliente ao portal", padrao: true },
   { chave: "assistente", grupo: "Ferramentas", rotulo: "Assistente (IA)", padrao: true },
+  // o que aparece na Visão geral e na Agenda
+  { chave: "ver_equipe", grupo: "Visão da equipe", rotulo: "Ranking e demandas dos outros da equipe", padrao: false },
+  { chave: "agenda_outros", grupo: "Visão da equipe", rotulo: "Ver o dia (rotina) dos outros", padrao: false },
   // ações
   { chave: "editar_cliente", grupo: "Ações", rotulo: "Editar e arquivar cliente", padrao: true },
   { chave: "excluir", grupo: "Ações", rotulo: "Excluir (atividades, documentos, clientes…)", padrao: true },
@@ -47,8 +52,9 @@ export function resolverPermissoes(role: string, salvas: unknown): Permissoes {
 export const PERM_DA_TELA: Record<string, PermChave> = {
   "/admin": "visao_geral",
   "/admin/clients": "clientes",
+  "/admin/agenda": "agenda",
+  "/admin/distribuicao": "distribuicao",
   "/admin/activities": "atividades",
-  "/admin/agenda": "atividades",
   "/admin/onboarding": "onboarding",
   "/admin/documents": "documentos",
   "/admin/contracts": "contratos",

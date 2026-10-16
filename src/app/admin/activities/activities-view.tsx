@@ -14,7 +14,6 @@ import { AtividadeLink, useAbrirAtividade } from "@/components/atividade/ativida
 import { nomeResponsavel } from "@/lib/responsavel-nome";
 
 const CHAVE_MODO = "mc:atividades:modo";
-const TODOS = "";
 type Modo = "list" | "kanban";
 
 // Lista/Quadro lembrado na sessão (ao sair e voltar para a tela)
@@ -80,19 +79,11 @@ export function ActivitiesView({
   );
   const setMode = gravarModo;
   const [sel, setSel] = useState<Set<string>>(new Set());
-  const [responsavel, setResponsavel] = useState(TODOS);
   const ultimoClique = useRef<number | null>(null);
   const abrir = useAbrirAtividade();
 
 
-  const nomes = useMemo(
-    () => [...new Set(todasAtividades.map((a) => nomeResponsavel(a)).filter((n): n is string => !!n))].sort((a, b) => a.localeCompare(b)),
-    [todasAtividades]
-  );
-  const activities = useMemo(
-    () => (responsavel === TODOS ? todasAtividades : todasAtividades.filter((a) => nomeResponsavel(a) === responsavel)),
-    [todasAtividades, responsavel]
-  );
+  const activities = todasAtividades;
 
   // some da seleção o que não existe mais (excluído, por exemplo)
   const idsAtuais = useMemo(() => new Set(activities.map((a) => a.id)), [activities]);
@@ -141,21 +132,6 @@ export function ActivitiesView({
           </button>
         ))}
       </div>
-        {nomes.length > 1 && (
-          <select
-            value={responsavel}
-            onChange={(e) => setResponsavel(e.target.value)}
-            aria-label="Filtrar por responsável"
-            className="rounded-lg border border-border bg-surface px-2.5 py-1.5 text-xs text-foreground focus:border-navy focus:outline-none focus:ring-1 focus:ring-navy"
-          >
-            <option value={TODOS}>Todos os responsáveis</option>
-            {nomes.map((n) => (
-              <option key={n} value={n}>
-                {n}
-              </option>
-            ))}
-          </select>
-        )}
       </div>
 
       {mode === "kanban" ? (

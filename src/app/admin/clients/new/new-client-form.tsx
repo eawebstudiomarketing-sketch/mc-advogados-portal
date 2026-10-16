@@ -1,5 +1,6 @@
 "use client";
 
+import { CamposWhatsapp } from "@/components/cliente/campos-whatsapp";
 import { useActionState } from "react";
 import { createClientAction, type CreateClientState } from "../actions";
 
@@ -64,6 +65,8 @@ export function NewClientForm() {
           className="ui-input"
         />
       </div>
+
+      <CamposWhatsapp />
 
       {state.error && <p className="text-sm text-status-danger">{state.error}</p>}
 

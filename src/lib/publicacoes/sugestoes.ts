@@ -30,6 +30,10 @@ function diaUtil(d: Date, recesso = true): boolean {
   if (recesso && (md >= "12-20" || md <= "01-20")) return false;
   return true;
 }
+/** Dia de expediente (seg–sex, fora dos feriados nacionais fixos). "AAAA-MM-DD". */
+export function ehDiaDeExpediente(isoDia: string): boolean {
+  return diaUtil(new Date(`${isoDia}T12:00:00Z`), false);
+}
 function proximoDiaUtil(d: Date, recesso = true): Date {
   const x = new Date(d);
   do x.setUTCDate(x.getUTCDate() + 1);

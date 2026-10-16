@@ -11,7 +11,7 @@ import { VoltarInput } from "@/components/nav/back-button";
 
 const initialState: UpdateActivityState = { error: null };
 
-export function EditActivityForm({ activity, responsaveis }: { activity: Activity; responsaveis: Responsavel[] }) {
+export function EditActivityForm({ activity, responsaveis, areas }: { activity: Activity; responsaveis: Responsavel[]; areas?: string[] }) {
   const [state, formAction, pending] = useActionState(updateActivityAction, initialState);
 
   return (
@@ -71,7 +71,7 @@ export function EditActivityForm({ activity, responsaveis }: { activity: Activit
         />
       </div>
 
-      <CamposAgenda categoria={activity.categoria} hora={activity.hora} />
+      <CamposAgenda categoria={activity.categoria} hora={activity.hora} areas={areas} area={activity.area} />
 
       <div>
         <label htmlFor="description" className="ui-label">

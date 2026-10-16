@@ -7,11 +7,72 @@ import { resolverPermissoes } from "@/lib/permissoes";
 import { removeStaffAction } from "./actions";
 import { ConfirmSubmitButton } from "@/components/ui/confirm-submit-button";
 import { MembroCard } from "./membro-card";
+import { PessoasZap } from "./pessoas-zap";
+import { ZapConfig } from "./zap-config";
+import { DemandasEquipe } from "./demandas-equipe";
+import { getEscritorioConfig, listPessoas } from "@/lib/data/escritorio";
+import { listActivities } from "@/lib/data/activities";
+import { serializarCargas } from "@/lib/data/painel";
+
+const ABAS = [
+  ["acessos", "Acessos e permissões"],
+  ["pessoas", "Pessoas, áreas e WhatsApp"],
+  ["demandas", "Demandas de cada um"],
+] as const;
+type Aba = (typeof ABAS)[number][0];
 
 // Equipe (só admin): cada advogado com os clientes que cuida (só esses ele
 // enxerga) e o que pode ver/fazer no painel.
-export default async function AdminTeamPage() {
+export default async function AdminTeamPage({ searchParams }: { searchParams: Promise<{ aba?: string }> }) {
   const currentProfile = await requireRole(["admin"]);
+  const { aba: abaParam } = await searchParams;
+  const aba: Aba = ABAS.some(([id]) => id === abaParam) ? (abaParam as Aba) : "acessos";
+
+  const abas = (
+    <nav aria-label="Seções da equipe" className="mb-6 flex flex-wrap gap-1 border-b border-border">
+      {ABAS.map(([id, rotulo]) => (
+        <Link
+          key={id}
+          href={id === "acessos" ? "/admin/team" : `/admin/team?aba=${id}`}
+          aria-current={aba === id ? "page" : undefined}
+          className={`-mb-px border-b-2 px-3 py-2 text-sm transition-colors ${
+            aba === id ? "border-navy-3 font-medium text-foreground" : "border-transparent text-muted hover:text-foreground"
+          }`}
+        >
+          {rotulo}
+        </Link>
+      ))}
+    </nav>
+  );
+
+  if (aba === "pessoas") {
+    const [pessoas, config] = await Promise.all([listPessoas(), getEscritorioConfig()]);
+    return (
+      <div>
+        <h1 className="page-title mb-1">Equipe</h1>
+        <p className="mb-5 text-sm text-muted">WhatsApp de cada pessoa (rotina das 7h) e as áreas que cada um atende.</p>
+        {abas}
+        <div className="space-y-6">
+          <PessoasZap pessoas={pessoas} areas={config.areas} />
+          <ZapConfig config={config} />
+        </div>
+      </div>
+    );
+  }
+
+  if (aba === "demandas") {
+    const [pessoas, atividades] = await Promise.all([listPessoas(), listActivities()]);
+    const { cargas, semResponsavel } = serializarCargas(atividades, pessoas);
+    return (
+      <div>
+        <h1 className="page-title mb-1">Equipe</h1>
+        <p className="mb-5 text-sm text-muted">Tudo o que está em aberto com cada pessoa, separado por prazo.</p>
+        {abas}
+        <DemandasEquipe cargas={cargas} semResponsavel={semResponsavel} />
+      </div>
+    );
+  }
+
   const [staff, clientes, designacoes, salvas] = await Promise.all([listStaff(), listClients(), listDesignacoes(), listPermissoesSalvas()]);
   const admins = staff.filter((p) => p.role === "admin");
   const advogados = staff.filter((p) => p.role === "advogado");
@@ -32,6 +93,8 @@ export default async function AdminTeamPage() {
           <UserPlus className="h-4 w-4" aria-hidden /> Convidar pessoa
         </Link>
       </div>
+
+      {abas}
 
       <h2 className="section-title mb-3">Administradores</h2>
       <div className="mb-8 space-y-2">

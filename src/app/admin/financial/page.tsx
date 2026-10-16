@@ -1,3 +1,4 @@
+import { BarraFiltros } from "@/components/ui/barra-filtros";
 import Link from "next/link";
 import { StatCard } from "@/components/ui/stat-card";
 import { StatusBadge } from "@/components/ui/status-badge";
@@ -7,12 +8,24 @@ import { ReminderButton } from "./reminder-button";
 import { requireRole } from "@/lib/dal";
 import { formatCurrency, formatDate } from "@/lib/mock-data";
 
-export default async function AdminFinancialPage() {
+type F = { busca?: string; cliente?: string; status?: string; de?: string; ate?: string };
+
+export default async function AdminFinancialPage({ searchParams }: { searchParams: Promise<F> }) {
   // Financeiro é a única área sem acesso de advogado — sem isso, um
   // advogado logado veria a lista vazia (RLS bloqueia a query) e pareceria
   // que não há nenhum lançamento, quando na verdade ele só não tem acesso.
   await requireRole(["admin"]);
-  const records = await listFinancialRecords();
+  const f = await searchParams;
+  const todos = await listFinancialRecords();
+  const termo = (f.busca ?? "").trim().toLowerCase();
+  const records = todos.filter(
+    (r) =>
+      (!termo || r.description.toLowerCase().includes(termo) || (r.clients?.name ?? "").toLowerCase().includes(termo)) &&
+      (!f.cliente || r.client_id === f.cliente) &&
+      (!f.status || r.status === f.status) &&
+      (!f.de || r.due_date >= f.de) &&
+      (!f.ate || r.due_date <= f.ate)
+  );
 
   const recebido = records.filter((f) => f.status === "paid").reduce((s, f) => s + Number(f.amount), 0);
   const pendente = records.filter((f) => f.status === "pending").reduce((s, f) => s + Number(f.amount), 0);
@@ -41,7 +54,19 @@ export default async function AdminFinancialPage() {
         <StatCard label="Em atraso" value={formatCurrency(atrasado)} tone="danger" />
       </div>
 
-      <div className="mt-6 overflow-x-auto ui-card">
+      <div className="mt-6">
+        <BarraFiltros
+          filtros={[
+            { tipo: "busca", nome: "busca", rotulo: "Buscar descrição ou cliente" },
+            { tipo: "select", nome: "cliente", rotulo: "Cliente", todos: "Todos os clientes", opcoes: [...new Map(todos.map((x) => [x.client_id, x.clients?.name ?? "Cliente"])).entries()].sort((a, b) => a[1].localeCompare(b[1])).map(([valor, rotulo]) => ({ valor, rotulo })) },
+            { tipo: "select", nome: "status", rotulo: "Status", todos: "Todos os status", opcoes: [{ valor: "paid", rotulo: "Pago" }, { valor: "pending", rotulo: "A receber" }, { valor: "overdue", rotulo: "Em atraso" }] },
+            { tipo: "data", nome: "de", rotulo: "Vence de" },
+            { tipo: "data", nome: "ate", rotulo: "até" },
+          ]}
+        />
+      </div>
+
+      <div className="overflow-x-auto ui-card">
         <table className="ui-table">
           <thead>
             <tr>

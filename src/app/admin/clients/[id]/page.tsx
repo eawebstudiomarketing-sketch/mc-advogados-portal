@@ -35,6 +35,7 @@ import { DemandsSection } from "@/app/admin/onboarding/[id]/demands-section";
 import { listClientDemandDrafts } from "@/lib/data/onboarding-demand-drafts";
 import { BackButton } from "@/components/nav/back-button";
 import { EquipeDoCliente } from "./equipe-do-cliente";
+import { WhatsappCard } from "./whatsapp-card";
 import type { PermChave } from "@/lib/permissoes";
 import { listResponsaveis, responsavelDoPerfil } from "@/lib/data/responsaveis";
 
@@ -221,6 +222,7 @@ export default async function AdminClientDetailPage({
               <StatCard label="Concluídas" value={String(contar("concluida"))} tone="success" href={hrefAba("atividades")} />
             </div>
             {isAdmin && <EquipeDoCliente clientId={client.id} equipe={equipe.filter((p) => p.role === "advogado").map((p) => ({ id: p.id, nome: p.full_name, ativo: p.ativo }))} designados={designados} />}
+            {isAdmin && <WhatsappCard clientId={client.id} grupos={client.whatsapp_grupos ?? []} numeros={client.whatsapp_numeros ?? []} />}
             {perm.ficha_handoff && (
               <HandoffCard
                 clientId={client.id}

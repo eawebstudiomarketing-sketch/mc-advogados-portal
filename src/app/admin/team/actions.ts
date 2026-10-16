@@ -242,3 +242,50 @@ export async function setAtivoAction(profileId: string, ativo: boolean): Promise
   revalidatePath("/admin/team");
   return { ok: true };
 }
+
+// ───────────── pessoas: telefone, áreas e rotina no Zap ─────────────
+
+const soDigitos = (t: string) => t.replace(/\D/g, "");
+
+export async function salvarPessoaAction(
+  responsavelId: string,
+  dados: { telefone: string; areas: string[]; rotinaZap: boolean }
+): Promise<{ ok: true } | { ok: false; error: string }> {
+  await requireRole(["admin"]);
+  const tel = soDigitos(dados.telefone);
+  if (tel && (tel.length < 10 || tel.length > 13)) return { ok: false, error: "Telefone inválido. Use DDD + número, ex.: 73 99999-9999." };
+  const { error } = await createAdminClient()
+    .from("responsaveis")
+    .update({ telefone: tel || null, areas: dados.areas.map((a) => a.trim()).filter(Boolean), rotina_zap: dados.rotinaZap })
+    .eq("id", responsavelId);
+  if (error) return { ok: false, error: "Não foi possível salvar." };
+  revalidatePath("/admin/team");
+  return { ok: true };
+}
+
+export async function salvarAreasEscritorioAction(areas: string[]): Promise<{ ok: true } | { ok: false; error: string }> {
+  await requireRole(["admin"]);
+  const lista = [...new Set(areas.map((a) => a.trim()).filter(Boolean))];
+  if (!lista.length) return { ok: false, error: "Deixe pelo menos uma área." };
+  const { error } = await createAdminClient().from("escritorio_config").update({ areas: lista, updated_at: new Date().toISOString() }).eq("id", 1);
+  if (error) return { ok: false, error: "Não foi possível salvar as áreas." };
+  revalidatePath("/admin/team");
+  return { ok: true };
+}
+
+export async function salvarZapConfigAction(dados: {
+  lembrete_24h: string;
+  lembrete_1h: string;
+  lembretes_ativos: boolean;
+  rotina_ativa: boolean;
+}): Promise<{ ok: true } | { ok: false; error: string }> {
+  await requireRole(["admin"]);
+  if (!dados.lembrete_24h.trim() || !dados.lembrete_1h.trim()) return { ok: false, error: "Os dois textos de lembrete são obrigatórios." };
+  const { error } = await createAdminClient()
+    .from("escritorio_config")
+    .update({ ...dados, lembrete_24h: dados.lembrete_24h.trim(), lembrete_1h: dados.lembrete_1h.trim(), updated_at: new Date().toISOString() })
+    .eq("id", 1);
+  if (error) return { ok: false, error: "Não foi possível salvar." };
+  revalidatePath("/admin/team");
+  return { ok: true };
+}

@@ -1,3 +1,5 @@
+import { CONTRACT_STATUS_LABEL } from "@/lib/contract-status";
+import { BarraFiltros } from "@/components/ui/barra-filtros";
 import Link from "next/link";
 import { Pencil, Plus } from "lucide-react";
 import { listContracts } from "@/lib/data/contracts";
@@ -7,9 +9,19 @@ import { ConfirmSubmitButton } from "@/components/ui/confirm-submit-button";
 import { formatCurrency, formatDate } from "@/lib/mock-data";
 import { exigirPermissao } from "@/lib/dal";
 
-export default async function AdminContractsPage() {
+type F = { busca?: string; cliente?: string; status?: string };
+
+export default async function AdminContractsPage({ searchParams }: { searchParams: Promise<F> }) {
   await exigirPermissao("contratos");
-  const contracts = await listContracts();
+  const f = await searchParams;
+  const todos = await listContracts();
+  const termo = (f.busca ?? "").trim().toLowerCase();
+  const contracts = todos.filter(
+    (c) =>
+      (!termo || c.title.toLowerCase().includes(termo) || (c.description ?? "").toLowerCase().includes(termo) || (c.clients?.name ?? "").toLowerCase().includes(termo)) &&
+      (!f.cliente || c.client_id === f.cliente) &&
+      (!f.status || c.status === f.status)
+  );
 
   return (
     <div>
@@ -27,6 +39,14 @@ export default async function AdminContractsPage() {
           <Plus className="h-4 w-4" aria-hidden /> Novo contrato
         </Link>
       </div>
+
+      <BarraFiltros
+        filtros={[
+          { tipo: "busca", nome: "busca", rotulo: "Buscar contrato ou cliente" },
+          { tipo: "select", nome: "cliente", rotulo: "Cliente", todos: "Todos os clientes", opcoes: [...new Map(todos.map((x) => [x.client_id, x.clients?.name ?? "Cliente"])).entries()].sort((a, b) => a[1].localeCompare(b[1])).map(([valor, rotulo]) => ({ valor, rotulo })) },
+          { tipo: "select", nome: "status", rotulo: "Status", todos: "Todos os status", opcoes: Object.entries(CONTRACT_STATUS_LABEL).map(([valor, rotulo]) => ({ valor, rotulo })) },
+        ]}
+      />
 
       <div className="overflow-x-auto ui-card">
         <table className="ui-table">

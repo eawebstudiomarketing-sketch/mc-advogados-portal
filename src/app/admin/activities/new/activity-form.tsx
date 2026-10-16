@@ -17,7 +17,9 @@ export function ActivityForm({
   meuResponsavel,
   clienteInicial,
   inicial = {},
+  areas,
 }: {
+  areas?: string[];
   clients: Client[];
   responsaveis: Responsavel[];
   meuResponsavel: string | null;
@@ -117,7 +119,7 @@ export function ActivityForm({
         />
       </div>
 
-      <CamposAgenda categoria={inicial.categoria} hora={inicial.hora} />
+      <CamposAgenda categoria={inicial.categoria} hora={inicial.hora} areas={areas} />
 
       <div>
         <label htmlFor="description" className="ui-label">

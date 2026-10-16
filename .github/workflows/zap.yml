@@ -1,0 +1,40 @@
+# WhatsApp do portal (horários da Bahia, UTC-3):
+#  - 06h45 seg–sex: monta a rotina do dia de cada pessoa (sai às 07h00 pelo Agente);
+#  - de hora em hora, 07h30–21h30: lê os grupos/contatos de clientes e sugere
+#    demandas na Distribuição.
+# O Vercel Cron (vercel.json) fica de reserva caso o GitHub pause o agendamento.
+name: WhatsApp (rotina e Distribuição)
+
+on:
+  schedule:
+    - cron: "45 9 * * 1-5"
+    - cron: "30 10-23,0 * * *"
+  workflow_dispatch:
+    inputs:
+      tarefa:
+        description: "rotina ou distribuicao"
+        required: true
+        default: "distribuicao"
+
+jobs:
+  rotina:
+    if: github.event.schedule == '45 9 * * 1-5' || github.event.inputs.tarefa == 'rotina'
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Montar a rotina do dia
+        run: |
+          curl -fsS -m 120 \
+            -H "Authorization: Bearer ${{ secrets.CRON_SECRET }}" \
+            "https://mcadvogados.app.br/api/cron/rotina"
+
+  distribuicao:
+    if: github.event.schedule == '30 10-23,0 * * *' || github.event.inputs.tarefa == 'distribuicao'
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Ler o WhatsApp dos clientes
+        run: |
+          curl -fsS -m 120 \
+            -H "Authorization: Bearer ${{ secrets.CRON_SECRET }}" \
+            "https://mcadvogados.app.br/api/cron/distribuicao"

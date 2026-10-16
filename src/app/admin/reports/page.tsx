@@ -1,3 +1,4 @@
+import { BarraFiltros } from "@/components/ui/barra-filtros";
 import Link from "next/link";
 import { Download, Plus } from "lucide-react";
 import { listReports } from "@/lib/data/reports";
@@ -6,9 +7,19 @@ import { SendReportButton } from "./send-report-button";
 
 const MESES = ["", "Janeiro", "Fevereiro", "Março", "Abril", "Maio", "Junho", "Julho", "Agosto", "Setembro", "Outubro", "Novembro", "Dezembro"];
 
-export default async function AdminReportsPage() {
+type F = { cliente?: string; ano?: string; enviado?: string };
+
+export default async function AdminReportsPage({ searchParams }: { searchParams: Promise<F> }) {
   await exigirPermissao("relatorios");
-  const reports = await listReports();
+  const f = await searchParams;
+  const todos = await listReports();
+  const reports = todos.filter(
+    (r) =>
+      (!f.cliente || r.client_id === f.cliente) &&
+      (!f.ano || String(r.reference_year) === f.ano) &&
+      (!f.enviado || (f.enviado === "sim" ? !!r.sent_at : !r.sent_at))
+  );
+  const anos = [...new Set(todos.map((r) => String(r.reference_year)))].sort().reverse();
 
   return (
     <div>
@@ -24,6 +35,14 @@ export default async function AdminReportsPage() {
           <Plus className="h-4 w-4" aria-hidden /> Gerar relatório
         </Link>
       </div>
+
+      <BarraFiltros
+        filtros={[
+          { tipo: "select", nome: "cliente", rotulo: "Cliente", todos: "Todos os clientes", opcoes: [...new Map(todos.map((x) => [x.client_id, x.clients?.name ?? "Cliente"])).entries()].sort((a, b) => a[1].localeCompare(b[1])).map(([valor, rotulo]) => ({ valor, rotulo })) },
+          { tipo: "select", nome: "ano", rotulo: "Ano", todos: "Todos os anos", opcoes: anos.map((a) => ({ valor: a, rotulo: a })) },
+          { tipo: "select", nome: "enviado", rotulo: "Envio", todos: "Enviados ou não", opcoes: [{ valor: "sim", rotulo: "Enviados ao cliente" }, { valor: "nao", rotulo: "Não enviados" }] },
+        ]}
+      />
 
       <div className="overflow-x-auto ui-card">
         <table className="ui-table">

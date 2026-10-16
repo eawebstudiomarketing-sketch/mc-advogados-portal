@@ -1,27 +1,36 @@
 import Link from "next/link";
-import { ChevronLeft, ChevronRight, Plus } from "lucide-react";
+import { ChevronLeft, ChevronRight, Plus, CalendarPlus } from "lucide-react";
 import { exigirPermissao } from "@/lib/dal";
 import { createClient } from "@/lib/supabase/server";
+import { listClients } from "@/lib/data/clients";
+import { listPessoas } from "@/lib/data/escritorio";
+import { responsavelDoPerfil } from "@/lib/data/responsaveis";
+import { BarraFiltros } from "@/components/ui/barra-filtros";
+import { MeuDia } from "./meu-dia";
 
-// Agenda: prazos, audiências e tarefas com data, num calendário do mês.
-// Lê as mesmas atividades do portal (cada um vê as que já pode ver).
+// Agenda: prazos, audiências e tarefas (atividades com data) + compromissos
+// (reunião, ligação, evento) num calendário do mês, e "Meu dia" com a rotina
+// de cada pessoa. Cada um vê o que já pode ver (regras do banco).
 
 type Item = {
   id: string;
-  title: string;
-  deadline: string;
+  href: string;
+  titulo: string;
+  dia: string;
   hora: string | null;
-  categoria: string;
-  status: string;
-  clients: { name: string } | null;
+  categoria: string; // tarefa | prazo | audiencia | compromisso
+  concluida: boolean;
+  aberta: boolean;
+  cliente: string | null;
 };
 
 const COR: Record<string, string> = {
+  compromisso: "border-l-[#7c5cc4] bg-[#f1ecfb] text-[#4b2f8f]",
   audiencia: "border-l-gold bg-gold/15 text-navy",
   prazo: "border-l-status-danger bg-status-danger-bg text-status-danger",
   tarefa: "border-l-status-info bg-status-info-bg text-status-info",
 };
-const ROTULO: Record<string, string> = { audiencia: "Audiência", prazo: "Prazo", tarefa: "Tarefa" };
+const ROTULO: Record<string, string> = { compromisso: "Compromisso", audiencia: "Audiência", prazo: "Prazo", tarefa: "Tarefa" };
 const DIAS = ["Dom", "Seg", "Ter", "Qua", "Qui", "Sex", "Sáb"];
 const MESES = ["janeiro", "fevereiro", "março", "abril", "maio", "junho", "julho", "agosto", "setembro", "outubro", "novembro", "dezembro"];
 
@@ -29,12 +38,78 @@ const pad = (n: number) => String(n).padStart(2, "0");
 const iso = (d: Date) => `${d.getUTCFullYear()}-${pad(d.getUTCMonth() + 1)}-${pad(d.getUTCDate())}`;
 const hojeBahia = () => new Intl.DateTimeFormat("en-CA", { timeZone: "America/Bahia" }).format(new Date());
 const dataBR = (s: string) => s.split("-").reverse().join("/");
+const diaBahia = (isoTs: string) => new Intl.DateTimeFormat("en-CA", { timeZone: "America/Bahia" }).format(new Date(isoTs));
+const horaBahia = (isoTs: string) => new Date(isoTs).toLocaleTimeString("pt-BR", { timeZone: "America/Bahia", hour: "2-digit", minute: "2-digit" });
 
-export default async function AgendaPage({ searchParams }: { searchParams: Promise<{ mes?: string; ver?: string }> }) {
-  await exigirPermissao("atividades");
-  const { mes, ver } = await searchParams;
+type Params = { mes?: string; ver?: string; aba?: string; dia?: string; pessoa?: string; categoria?: string; cliente?: string; responsavel?: string };
+
+export default async function AgendaPage({ searchParams }: { searchParams: Promise<Params> }) {
+  const { profile, permissoes } = await exigirPermissao("agenda");
+  const sp = await searchParams;
   const hoje = hojeBahia();
-  const [ano, m] = (/^\d{4}-\d{2}$/.test(mes ?? "") ? mes! : hoje.slice(0, 7)).split("-").map(Number);
+  const podeVerOutros = profile.role === "admin" || permissoes.agenda_outros;
+
+  const [pessoas, eu] = await Promise.all([listPessoas(), responsavelDoPerfil(profile.id)]);
+
+  const abaAtiva = sp.aba === "mes" || (!sp.aba && sp.mes) ? "mes" : "dia";
+  const abas = (
+    <nav aria-label="Visão da agenda" className="mb-5 flex flex-wrap gap-1 border-b border-border">
+      {([
+        ["dia", "Meu dia"],
+        ["mes", "Mês"],
+      ] as const).map(([id, rotulo]) => {
+        const on = abaAtiva === id;
+        return (
+          <Link
+            key={id}
+            href={`/admin/agenda?aba=${id}`}
+            aria-current={on ? "page" : undefined}
+            className={`-mb-px border-b-2 px-3 py-2 text-sm ${on ? "border-navy-3 font-medium text-foreground" : "border-transparent text-muted hover:text-foreground"}`}
+          >
+            {rotulo}
+          </Link>
+        );
+      })}
+    </nav>
+  );
+
+  const cabecalho = (
+    <div className="mb-5 flex flex-wrap items-end justify-between gap-3">
+      <div>
+        <h1 className="page-title">Agenda</h1>
+        <p className="text-sm text-muted">Prazos, audiências, tarefas e compromissos. Toda manhã, às 7h, cada um recebe o seu dia no WhatsApp.</p>
+      </div>
+      <div className="flex flex-wrap gap-2">
+        <Link href="/admin/agenda/compromisso/novo" className="ui-btn">
+          <CalendarPlus className="h-4 w-4" aria-hidden /> Novo compromisso
+        </Link>
+        <Link href="/admin/activities/new" className="ui-btn-secondary">
+          <Plus className="h-4 w-4" aria-hidden /> Nova atividade
+        </Link>
+      </div>
+    </div>
+  );
+
+  if (abaAtiva === "dia") {
+    const pessoaId = podeVerOutros && sp.pessoa && pessoas.some((p) => p.id === sp.pessoa) ? sp.pessoa : (eu ?? pessoas[0]?.id ?? null);
+    const dia = /^\d{4}-\d{2}-\d{2}$/.test(sp.dia ?? "") ? sp.dia! : hoje;
+    return (
+      <div>
+        {cabecalho}
+        {abas}
+        <MeuDia
+          pessoaId={pessoaId}
+          dia={dia}
+          hoje={hoje}
+          pessoas={podeVerOutros ? pessoas.map((p) => ({ id: p.id, nome: p.nome, temZap: !!p.telefone })) : null}
+          ehAdmin={profile.role === "admin"}
+        />
+      </div>
+    );
+  }
+
+  // ───────────── mês ─────────────
+  const [ano, m] = (/^\d{4}-\d{2}$/.test(sp.mes ?? "") ? sp.mes! : hoje.slice(0, 7)).split("-").map(Number);
   const primeiro = new Date(Date.UTC(ano, m - 1, 1));
   const inicioGrade = new Date(primeiro);
   inicioGrade.setUTCDate(1 - primeiro.getUTCDay());
@@ -48,56 +123,108 @@ export default async function AgendaPage({ searchParams }: { searchParams: Promi
     d.setUTCDate(d.getUTCDate() + 14);
     return iso(d);
   })();
-  const mostrarConcluidas = ver === "todas";
+  const de = dias[0] < hoje ? dias[0] : hoje;
+  const ate = dias[41] > fimLista ? dias[41] : fimLista;
+  const mostrarConcluidas = sp.ver === "todas";
+  const respFiltro = sp.responsavel && pessoas.some((p) => p.id === sp.responsavel) ? sp.responsavel : null;
 
   const supabase = await createClient();
-  let q = supabase
+  let qa = supabase
     .from("activities")
-    .select("id, title, deadline, hora, categoria, status, clients(name)")
+    .select("id, title, deadline, hora, categoria, status, client_id, clients(name)")
     .is("archived_at", null)
     .not("deadline", "is", null)
-    .gte("deadline", dias[0] < hoje ? dias[0] : hoje)
-    .lte("deadline", dias[41] > fimLista ? dias[41] : fimLista)
+    .gte("deadline", de)
+    .lte("deadline", ate)
     .order("deadline")
     .order("hora", { nullsFirst: true });
-  if (!mostrarConcluidas) q = q.in("status", ["aberta", "em_andamento"]);
-  const { data } = await q;
-  const itens = (data ?? []) as unknown as Item[];
+  if (!mostrarConcluidas) qa = qa.in("status", ["aberta", "em_andamento"]);
+  if (sp.cliente) qa = qa.eq("client_id", sp.cliente);
+  if (respFiltro) qa = qa.eq("responsavel_id", respFiltro);
+  let qc = supabase
+    .from("compromissos")
+    .select("id, titulo, inicio, client_id, clients(name)")
+    .gte("inicio", new Date(`${de}T00:00:00-03:00`).toISOString())
+    .lte("inicio", new Date(`${ate}T23:59:59-03:00`).toISOString())
+    .order("inicio");
+  if (sp.cliente) qc = qc.eq("client_id", sp.cliente);
+  if (respFiltro) qc = qc.contains("participantes", [respFiltro]);
+
+  const [{ data: ativs }, { data: comps }, clientes] = await Promise.all([qa, qc, listClients()]);
+  const nomeCliente = (c: unknown) => (c as { name: string } | null)?.name ?? null;
+  let itens: Item[] = [
+    ...(comps ?? []).map((c) => ({
+      id: c.id,
+      href: `/admin/agenda/compromisso/${c.id}`,
+      titulo: c.titulo,
+      dia: diaBahia(c.inicio),
+      hora: horaBahia(c.inicio),
+      categoria: "compromisso",
+      concluida: false,
+      aberta: true,
+      cliente: nomeCliente(c.clients),
+    })),
+    ...(ativs ?? []).map((a) => ({
+      id: a.id,
+      href: `/admin/activities/${a.id}`,
+      titulo: a.title,
+      dia: a.deadline!,
+      hora: a.hora ? a.hora.slice(0, 5) : null,
+      categoria: a.categoria,
+      concluida: a.status === "concluida" || a.status === "cancelada",
+      aberta: a.status === "aberta" || a.status === "em_andamento",
+      cliente: nomeCliente(a.clients),
+    })),
+  ];
+  if (sp.categoria) itens = itens.filter((i) => i.categoria === sp.categoria);
+  itens.sort((a, b) => a.dia.localeCompare(b.dia) || (a.hora ?? "").localeCompare(b.hora ?? ""));
 
   const porDia = new Map<string, Item[]>();
-  for (const it of itens) porDia.set(it.deadline, [...(porDia.get(it.deadline) ?? []), it]);
-  const proximos = itens.filter((i) => i.deadline >= hoje && i.deadline <= fimLista && (i.status === "aberta" || i.status === "em_andamento"));
+  for (const it of itens) porDia.set(it.dia, [...(porDia.get(it.dia) ?? []), it]);
+  const proximos = itens.filter((i) => i.dia >= hoje && i.dia <= fimLista && i.aberta);
 
   const mesAnterior = `${m === 1 ? ano - 1 : ano}-${pad(m === 1 ? 12 : m - 1)}`;
   const mesSeguinte = `${m === 12 ? ano + 1 : ano}-${pad(m === 12 ? 1 : m + 1)}`;
-  const qsVer = mostrarConcluidas ? "&ver=todas" : "";
+  const manter = (extra: Record<string, string>) => {
+    const q = new URLSearchParams({ aba: "mes" });
+    for (const k of ["ver", "categoria", "cliente", "responsavel"] as const) if (sp[k]) q.set(k, sp[k]!);
+    for (const [k, v] of Object.entries(extra)) if (v) q.set(k, v);
+    else q.delete(k);
+    return `/admin/agenda?${q}`;
+  };
 
   return (
     <div>
-      <div className="mb-6 flex flex-wrap items-end justify-between gap-3">
-        <div>
-          <h1 className="page-title">Agenda</h1>
-          <p className="text-sm text-muted">Prazos, audiências e tarefas com data. Vêm das atividades — inclusive as criadas a partir das publicações.</p>
-        </div>
-        <Link href="/admin/activities/new" className="ui-btn">
-          <Plus className="h-4 w-4" aria-hidden /> Nova atividade
-        </Link>
-      </div>
+      {cabecalho}
+      {abas}
+      <BarraFiltros
+        filtros={[
+          {
+            tipo: "select",
+            nome: "categoria",
+            rotulo: "Tipo",
+            todos: "Tudo",
+            opcoes: Object.entries(ROTULO).map(([v, r]) => ({ valor: v, rotulo: r })),
+          },
+          { tipo: "select", nome: "responsavel", rotulo: "Pessoa", todos: "Todas as pessoas", opcoes: pessoas.map((p) => ({ valor: p.id, rotulo: p.nome })) },
+          { tipo: "select", nome: "cliente", rotulo: "Cliente", todos: "Todos os clientes", opcoes: clientes.map((c) => ({ valor: c.id, rotulo: c.name })) },
+        ]}
+      />
 
       <div className="grid grid-cols-1 gap-5 xl:grid-cols-[1fr_300px]">
         <section className="ui-card overflow-hidden">
           <div className="flex flex-wrap items-center justify-between gap-2 border-b border-border px-4 py-3">
             <div className="flex items-center gap-1">
-              <Link href={`/admin/agenda?mes=${mesAnterior}${qsVer}`} className="icon-btn" aria-label="Mês anterior" data-tip="Mês anterior">
+              <Link href={manter({ mes: mesAnterior })} className="icon-btn" aria-label="Mês anterior" data-tip="Mês anterior">
                 <ChevronLeft aria-hidden />
               </Link>
               <h2 className="min-w-40 text-center text-sm font-semibold text-foreground">
                 {MESES[m - 1][0].toUpperCase() + MESES[m - 1].slice(1)} de {ano}
               </h2>
-              <Link href={`/admin/agenda?mes=${mesSeguinte}${qsVer}`} className="icon-btn" aria-label="Próximo mês" data-tip="Próximo mês">
+              <Link href={manter({ mes: mesSeguinte })} className="icon-btn" aria-label="Próximo mês" data-tip="Próximo mês">
                 <ChevronRight aria-hidden />
               </Link>
-              <Link href={`/admin/agenda${mostrarConcluidas ? "?ver=todas" : ""}`} className="ml-2 text-xs font-medium text-navy-3 hover:underline">
+              <Link href={manter({ mes: "" })} className="ml-2 text-xs font-medium text-navy-3 hover:underline">
                 Hoje
               </Link>
             </div>
@@ -107,10 +234,7 @@ export default async function AgendaPage({ searchParams }: { searchParams: Promi
                   <span className={`h-2.5 w-2.5 rounded-sm border-l-2 ${COR[k]}`} aria-hidden /> {v}
                 </span>
               ))}
-              <Link
-                href={`/admin/agenda?mes=${ano}-${pad(m)}${mostrarConcluidas ? "" : "&ver=todas"}`}
-                className="font-medium text-navy-3 hover:underline"
-              >
+              <Link href={manter({ mes: `${ano}-${pad(m)}`, ver: mostrarConcluidas ? "" : "todas" })} className="font-medium text-navy-3 hover:underline">
                 {mostrarConcluidas ? "Ocultar concluídas" : "Mostrar concluídas"}
               </Link>
             </div>
@@ -128,32 +252,42 @@ export default async function AgendaPage({ searchParams }: { searchParams: Promi
               const doMes = d.slice(0, 7) === `${ano}-${pad(m)}`;
               const lista = porDia.get(d) ?? [];
               return (
-                <div key={d} className={`min-h-24 border-r border-b border-border p-1.5 [&:nth-child(7n)]:border-r-0 ${doMes ? "" : "bg-surface-2/60"}`}>
-                  <p
-                    className={`mb-1 text-right text-[11px] ${
-                      d === hoje ? "ml-auto flex h-5 w-5 items-center justify-center rounded-full bg-navy font-semibold text-white" : doMes ? "text-foreground/70" : "text-muted/60"
-                    }`}
-                  >
-                    {Number(d.slice(8))}
-                  </p>
+                <div key={d} className={`group/dia relative min-h-24 border-r border-b border-border p-1.5 [&:nth-child(7n)]:border-r-0 ${doMes ? "" : "bg-surface-2/60"}`}>
+                  <div className="mb-1 flex items-center justify-between">
+                    <Link
+                      href={`/admin/agenda/compromisso/novo?dia=${d}`}
+                      aria-label={`Novo compromisso em ${dataBR(d)}`}
+                      className="rounded p-0.5 text-muted opacity-0 transition-opacity group-hover/dia:opacity-100 hover:bg-surface-2 focus:opacity-100"
+                    >
+                      <Plus className="h-3 w-3" aria-hidden />
+                    </Link>
+                    <Link
+                      href={`/admin/agenda?aba=dia&dia=${d}`}
+                      className={`text-[11px] ${
+                        d === hoje ? "flex h-5 w-5 items-center justify-center rounded-full bg-navy font-semibold text-white" : doMes ? "text-foreground/70 hover:underline" : "text-muted/60"
+                      }`}
+                    >
+                      {Number(d.slice(8))}
+                    </Link>
+                  </div>
                   <ul className="space-y-1">
                     {lista.slice(0, 3).map((it) => (
-                      <li key={it.id}>
+                      <li key={`${it.categoria}-${it.id}`}>
                         <Link
-                          href={`/admin/activities/${it.id}`}
-                          title={`${ROTULO[it.categoria] ?? "Tarefa"}${it.hora ? ` às ${it.hora.slice(0, 5)}` : ""}: ${it.title}${it.clients ? ` · ${it.clients.name}` : ""}`}
+                          href={it.href}
+                          title={`${ROTULO[it.categoria] ?? "Tarefa"}${it.hora ? ` às ${it.hora}` : ""}: ${it.titulo}${it.cliente ? ` · ${it.cliente}` : ""}`}
                           className={`block truncate rounded border-l-2 px-1.5 py-0.5 text-[11px] leading-tight hover:brightness-95 ${COR[it.categoria] ?? COR.tarefa} ${
-                            it.status === "concluida" || it.status === "cancelada" ? "line-through opacity-60" : ""
-                          } ${d < hoje && (it.status === "aberta" || it.status === "em_andamento") ? "ring-1 ring-status-danger" : ""}`}
+                            it.concluida ? "line-through opacity-60" : ""
+                          } ${d < hoje && it.aberta && it.categoria !== "compromisso" ? "ring-1 ring-status-danger" : ""}`}
                         >
-                          {it.hora ? <strong className="font-semibold">{it.hora.slice(0, 5)} </strong> : null}
-                          {it.title}
+                          {it.hora ? <strong className="font-semibold">{it.hora} </strong> : null}
+                          {it.titulo}
                         </Link>
                       </li>
                     ))}
                     {lista.length > 3 && (
                       <li className="px-1 text-[10px] text-muted">
-                        <Link href={`/admin/activities`} className="hover:underline">
+                        <Link href={`/admin/agenda?aba=dia&dia=${d}`} className="hover:underline">
                           +{lista.length - 3} mais
                         </Link>
                       </li>
@@ -172,17 +306,27 @@ export default async function AgendaPage({ searchParams }: { searchParams: Promi
           ) : (
             <ul className="mt-3 space-y-3">
               {proximos.map((it) => (
-                <li key={it.id}>
-                  <Link href={`/admin/activities/${it.id}`} className="group block">
+                <li key={`${it.categoria}-${it.id}`}>
+                  <Link href={it.href} className="group block">
                     <p className="text-xs text-muted">
-                      {it.deadline === hoje ? <span className="font-semibold text-status-pending">Hoje</span> : dataBR(it.deadline)}
-                      {it.hora ? ` · ${it.hora.slice(0, 5)}` : ""} ·{" "}
-                      <span className={it.categoria === "prazo" ? "text-status-danger" : it.categoria === "audiencia" ? "font-medium text-navy" : ""}>
+                      {it.dia === hoje ? <span className="font-semibold text-status-pending">Hoje</span> : dataBR(it.dia)}
+                      {it.hora ? ` · ${it.hora}` : ""} ·{" "}
+                      <span
+                        className={
+                          it.categoria === "prazo"
+                            ? "text-status-danger"
+                            : it.categoria === "audiencia"
+                              ? "font-medium text-navy"
+                              : it.categoria === "compromisso"
+                                ? "font-medium text-[#4b2f8f]"
+                                : ""
+                        }
+                      >
                         {ROTULO[it.categoria] ?? "Tarefa"}
                       </span>
                     </p>
-                    <p className="text-sm text-foreground group-hover:underline">{it.title}</p>
-                    {it.clients && <p className="text-xs text-muted">{it.clients.name}</p>}
+                    <p className="text-sm text-foreground group-hover:underline">{it.titulo}</p>
+                    {it.cliente && <p className="text-xs text-muted">{it.cliente}</p>}
                   </Link>
                 </li>
               ))}

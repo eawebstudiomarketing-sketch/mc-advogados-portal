@@ -1,3 +1,4 @@
+import { BarraFiltros } from "@/components/ui/barra-filtros";
 import Link from "next/link";
 import { Pencil, Plus } from "lucide-react";
 import { listProcesses } from "@/lib/data/processes";
@@ -7,9 +8,27 @@ import { deleteProcessAction } from "./actions";
 import { ConfirmSubmitButton } from "@/components/ui/confirm-submit-button";
 import { exigirPermissao } from "@/lib/dal";
 
-export default async function AdminProcessesPage() {
+type F = { busca?: string; cliente?: string; area?: string; status?: string };
+
+export default async function AdminProcessesPage({ searchParams }: { searchParams: Promise<F> }) {
   await exigirPermissao("processos");
-  const processes = await listProcesses();
+  const f = await searchParams;
+  const todos = await listProcesses();
+  const termo = (f.busca ?? "").trim().toLowerCase();
+  const digitos = termo.replace(/\D/g, "");
+  const processes = todos.filter(
+    (p) =>
+      (!termo ||
+        p.numero_processo.toLowerCase().includes(termo) ||
+        (digitos.length >= 4 && (p.numero_digitos ?? "").includes(digitos)) ||
+        (p.vara_tribunal ?? "").toLowerCase().includes(termo) ||
+        (p.fase ?? "").toLowerCase().includes(termo) ||
+        (p.clients?.name ?? "").toLowerCase().includes(termo)) &&
+      (!f.cliente || p.client_id === f.cliente) &&
+      (!f.area || p.area === f.area) &&
+      (!f.status || p.status === f.status)
+  );
+  const statuses = [...new Set(todos.map((p) => p.status))].sort();
 
   return (
     <div>
@@ -27,6 +46,15 @@ export default async function AdminProcessesPage() {
           <Plus className="h-4 w-4" aria-hidden /> Novo processo
         </Link>
       </div>
+
+      <BarraFiltros
+        filtros={[
+          { tipo: "busca", nome: "busca", rotulo: "Buscar por número, vara, fase ou cliente" },
+          { tipo: "select", nome: "cliente", rotulo: "Cliente", todos: "Todos os clientes", opcoes: [...new Map(todos.map((x) => [x.client_id, x.clients?.name ?? "Cliente"])).entries()].sort((a, b) => a[1].localeCompare(b[1])).map(([valor, rotulo]) => ({ valor, rotulo })) },
+          { tipo: "select", nome: "area", rotulo: "Área", todos: "Todas as áreas", opcoes: Object.entries(PROCESS_AREA_LABEL).map(([valor, rotulo]) => ({ valor, rotulo })) },
+          { tipo: "select", nome: "status", rotulo: "Situação", todos: "Todas as situações", opcoes: statuses.map((s) => ({ valor: s, rotulo: s.replace(/_/g, " ") })) },
+        ]}
+      />
 
       <div className="overflow-x-auto ui-card">
         <table className="ui-table">

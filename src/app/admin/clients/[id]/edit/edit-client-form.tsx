@@ -1,5 +1,6 @@
 "use client";
 
+import { CamposWhatsapp } from "@/components/cliente/campos-whatsapp";
 import { useActionState } from "react";
 import { updateClientAction, type UpdateClientState } from "../../actions";
 import type { Client } from "@/lib/data/clients";
@@ -76,6 +77,8 @@ export function EditClientForm({ client }: { client: Client }) {
         <input type="checkbox" name="active" defaultChecked={client.active} className="rounded border-border" />
         Cliente ativo
       </label>
+
+      <CamposWhatsapp grupos={client.whatsapp_grupos} numeros={client.whatsapp_numeros} />
 
       {state.error && <p className="text-sm text-status-danger">{state.error}</p>}
 

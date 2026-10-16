@@ -1,3 +1,4 @@
+import { getEscritorioConfig } from "@/lib/data/escritorio";
 import { notFound } from "next/navigation";
 import { getActivity } from "@/lib/data/activities";
 import { listResponsaveis } from "@/lib/data/responsaveis";
@@ -17,7 +18,7 @@ export default async function EditActivityPage({ params }: { params: Promise<{ i
 
       <h1 className="mt-3 mb-6 page-title">Editar atividade</h1>
 
-      <EditActivityForm activity={activity} responsaveis={responsaveis} />
+      <EditActivityForm activity={activity} responsaveis={responsaveis} areas={(await getEscritorioConfig()).areas} />
     </div>
   );
 }
