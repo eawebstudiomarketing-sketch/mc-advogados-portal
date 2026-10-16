@@ -1,16 +1,35 @@
 import "server-only";
+import { createHmac } from "node:crypto";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { Database, Json } from "@/lib/supabase/types";
 import { createAdminClient } from "@/lib/supabase/admin";
 
 // WhatsApp do escritório. A conexão mora no "Agente MC" (projeto
-// ~/mc-agente-whatsapp, Baileys) que roda na máquina do operador e grava
-// tudo em wa_chats/wa_messages. O portal só lê o espelho e cria ORDENS em
-// wa_jobs; o Agente executa. Nada sai no WhatsApp sem uma ordem.
+// ~/mc-agente-whatsapp, Baileys) que roda no servidor (VPS) e grava tudo em
+// wa_chats/wa_messages. O portal só lê o espelho e cria ORDENS em wa_jobs; o
+// Agente executa. Nada sai no WhatsApp sem uma ordem. As mensagens são backup
+// permanente (o banco não deixa apagar). Mídia e fotos ficam no disco do VPS
+// (caminho "vps:...") e são abertas por link assinado (WA_MIDIA_URL/SEGREDO).
 
 type Db = SupabaseClient<Database>;
-export type WaChat = Database["public"]["Tables"]["wa_chats"]["Row"];
-export type WaMensagem = Database["public"]["Tables"]["wa_messages"]["Row"] & { media_url?: string | null };
+// colunas da migration 0025 (ainda fora do types.ts gerado)
+export type WaChat = Database["public"]["Tables"]["wa_chats"]["Row"] & {
+  foto_atualizada_em?: string | null;
+  /** caminho "vps:..." original (foto_url vira o link assinado) */
+  foto_caminho?: string | null;
+};
+export type WaMensagem = Omit<Database["public"]["Tables"]["wa_messages"]["Row"], "raw"> & {
+  raw?: Json | null;
+  media_url?: string | null;
+  media_download_url?: string | null;
+  /** mídia ainda na fila do Agente (vai aparecer sozinha) */
+  media_pendente?: boolean;
+  apagada_em?: string | null;
+  editada_em?: string | null;
+  texto_original?: string | null;
+  media_erro?: string | null;
+};
+export type WaContato = { jid: string; nome: string | null; nome_perfil: string | null };
 export type WaJob = Database["public"]["Tables"]["wa_jobs"]["Row"];
 export type WaAgente = Database["public"]["Tables"]["wa_agent"]["Row"] & { ligado: boolean };
 
@@ -33,16 +52,52 @@ export async function listarConversas(
   db: Db,
   { busca, soNaoLidas, limite = 60 }: { busca?: string; soNaoLidas?: boolean; limite?: number } = {}
 ): Promise<WaChat[]> {
-  let q = db.from("wa_chats").select("*").eq("arquivado", false).order("ultima_msg_em", { ascending: false, nullsFirst: false }).limit(limite);
-  if (soNaoLidas) q = q.gt("nao_lidas", 0);
-  const termo = busca?.replace(/[%_,()]/g, " ").trim();
-  if (termo) {
-    const digitos = termo.replace(/\D/g, "");
-    q = digitos.length >= 6 ? q.like("chat_jid", `%${digitos}%`) : q.ilike("nome", `%${termo}%`);
+  // o Supabase entrega no máximo 1000 linhas por vez: busca em páginas
+  const out: WaChat[] = [];
+  for (let de = 0; de < limite; de += 1000) {
+    let q = db
+      .from("wa_chats")
+      .select("*")
+      .eq("arquivado", false)
+      .order("ultima_msg_em", { ascending: false, nullsFirst: false })
+      .order("chat_jid")
+      .range(de, Math.min(de + 1000, limite) - 1);
+    if (soNaoLidas) q = q.gt("nao_lidas", 0);
+    const termo = busca?.replace(/[%_,()]/g, " ").trim();
+    if (termo) {
+      const digitos = termo.replace(/\D/g, "");
+      q = digitos.length >= 6 ? q.like("chat_jid", `%${digitos}%`) : q.ilike("nome", `%${termo}%`);
+    }
+    const { data, error } = await q;
+    if (error) throw new Error(error.message);
+    out.push(...(data ?? []));
+    if ((data ?? []).length < 1000) break;
   }
-  const { data, error } = await q;
-  if (error) throw new Error(error.message);
-  return data ?? [];
+  return comFotos(out);
+}
+
+/* ───────── mídia no VPS: link assinado ───────── */
+
+const PREFIXO_VPS = "vps:";
+
+/** Link do servidor de mídia válido por `segundos` (null se não configurado). */
+export function linkVps(caminho: string, { segundos = 3600, baixarComo }: { segundos?: number; baixarComo?: string } = {}): string | null {
+  const base = process.env.WA_MIDIA_URL;
+  const segredo = process.env.WA_MIDIA_SEGREDO;
+  if (!base || !segredo) return null;
+  const rel = caminho.startsWith(PREFIXO_VPS) ? caminho.slice(PREFIXO_VPS.length) : caminho;
+  // arredonda a validade pra hora cheia: o mesmo link se repete e o navegador usa o cache
+  const expira = (Math.floor(Date.now() / 3_600_000) + 1) * 3600 + segundos;
+  const assinatura = createHmac("sha256", segredo).update(`${rel}:${expira}`).digest("base64url");
+  const url = `${base.replace(/\/$/, "")}/m/${rel.split("/").map(encodeURIComponent).join("/")}?e=${expira}&s=${assinatura}`;
+  return baixarComo ? `${url}&n=${encodeURIComponent(baixarComo)}` : url;
+}
+
+/** Troca o caminho guardado da foto de perfil por um link que abre. */
+export function comFotos<T extends { foto_url: string | null }>(chats: T[]): (T & { foto_caminho?: string | null })[] {
+  return chats.map((c) =>
+    c.foto_url?.startsWith(PREFIXO_VPS) ? { ...c, foto_caminho: c.foto_url, foto_url: linkVps(c.foto_url, { segundos: 86_400 }) } : c
+  );
 }
 
 /** Mensagens de uma conversa, da mais antiga pra mais nova (com link da mídia). */
@@ -60,13 +115,43 @@ export async function lerConversa(
   return comLinksDeMidia(msgs);
 }
 
-/** Troca media_path por um link temporário (1h) pra tela conseguir mostrar. */
+/**
+ * Troca media_path por um link temporário pra tela conseguir mostrar (VPS ou,
+ * nas mídias antigas e arquivos enviados pelo portal, o Storage do Supabase).
+ * Também tira o `raw` (pesado) e marca o que ainda está na fila de download.
+ */
 export async function comLinksDeMidia(msgs: WaMensagem[]): Promise<WaMensagem[]> {
-  const paths = msgs.map((m) => m.media_path).filter((p): p is string => !!p);
-  if (!paths.length) return msgs;
-  const { data } = await createAdminClient().storage.from(BUCKET_WHATSAPP).createSignedUrls(paths, 3600);
-  const url = new Map((data ?? []).map((d) => [d.path, d.signedUrl]));
-  return msgs.map((m) => (m.media_path ? { ...m, media_url: url.get(m.media_path) ?? null } : m));
+  const doSupabase = msgs.map((m) => m.media_path).filter((p): p is string => !!p && !p.startsWith(PREFIXO_VPS));
+  const url = new Map<string, string>();
+  if (doSupabase.length) {
+    const { data } = await createAdminClient().storage.from(BUCKET_WHATSAPP).createSignedUrls(doSupabase, 3600);
+    for (const d of data ?? []) if (d.path && d.signedUrl) url.set(d.path, d.signedUrl);
+  }
+  return msgs.map(({ raw, ...m }) => {
+    const pendente = !m.media_path && !!raw && !m.media_erro;
+    if (!m.media_path) return { ...m, media_pendente: pendente };
+    if (m.media_path.startsWith(PREFIXO_VPS)) {
+      const nome = m.media_nome || m.media_path.split("/").pop() || "arquivo";
+      return { ...m, media_url: linkVps(m.media_path), media_download_url: linkVps(m.media_path, { baixarComo: nome }) };
+    }
+    return { ...m, media_url: url.get(m.media_path) ?? null };
+  });
+}
+
+/** Contatos da agenda do celular (pra começar conversa nova). */
+export async function listarContatos(db: Db): Promise<WaContato[]> {
+  const out: WaContato[] = [];
+  for (let de = 0; de < 10_000; de += 1000) {
+    const { data } = await (db as unknown as SupabaseClient)
+      .from("wa_contatos")
+      .select("jid, nome, nome_perfil")
+      .order("nome", { ascending: true, nullsFirst: false })
+      .order("jid")
+      .range(de, de + 999);
+    out.push(...((data as WaContato[] | null) ?? []));
+    if ((data ?? []).length < 1000) break;
+  }
+  return out;
 }
 
 /**

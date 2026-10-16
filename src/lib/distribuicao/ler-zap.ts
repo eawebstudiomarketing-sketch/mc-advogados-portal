@@ -6,8 +6,9 @@ import { getEscritorioConfig, listPessoas, sugerirResponsavel } from "@/lib/data
 import { ACTIVITY_TYPES } from "@/lib/activity-type";
 import { criarAvisos } from "@/lib/avisos";
 
-// Lê as mensagens novas das conversas do WhatsApp ligadas a clientes e pede à
-// IA só os PEDIDOS de trabalho. Cada pedido vira um cartão na Distribuição,
+// Lê as mensagens novas das conversas do WhatsApp ligadas a clientes (e de
+// todo grupo com "ASSESSORIA JURÍDICA" no nome, mesmo sem cliente vinculado) e
+// pede à IA só os PEDIDOS de trabalho. Cada pedido vira um cartão na Distribuição,
 // com área e responsável sugeridos. Nada é criado como atividade sozinho.
 
 const MAX_MSGS = 80; // por conversa e por leitura
@@ -70,7 +71,8 @@ export async function lerConversasDoZap(): Promise<ResultadoLeitura> {
   const { data: chats } = await db
     .from("wa_chats")
     .select("chat_jid, nome, is_group, client_id, demandas_lidas_ate, ultima_msg_em, clients(name)")
-    .not("client_id", "is", null)
+    // "jur*dica" pega com e sem acento
+    .or("client_id.not.is.null,and(is_group.eq.true,nome.ilike.*assessoria*jur*dica*)")
     .eq("arquivado", false);
 
   const hojeISO = new Intl.DateTimeFormat("en-CA", { timeZone: "America/Bahia" }).format(new Date());
@@ -95,12 +97,9 @@ export async function lerConversasDoZap(): Promise<ResultadoLeitura> {
     }
 
     // o que já está esperando na Distribuição para este cliente (não repetir)
-    const { data: pendentes } = await db
-      .from("distribuicao")
-      .select("titulo")
-      .eq("client_id", chat.client_id!)
-      .eq("status", "pendente")
-      .limit(30);
+    let qPendentes = db.from("distribuicao").select("titulo").eq("status", "pendente").limit(30);
+    qPendentes = chat.client_id ? qPendentes.eq("client_id", chat.client_id) : qPendentes.eq("chat_jid", chat.chat_jid);
+    const { data: pendentes } = await qPendentes;
 
     const cliente = (chat.clients as unknown as { name: string } | null)?.name ?? chat.nome ?? "cliente";
     const linhas = novas.map((m, i) => {
