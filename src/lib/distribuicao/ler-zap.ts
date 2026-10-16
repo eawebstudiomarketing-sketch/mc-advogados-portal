@@ -5,6 +5,7 @@ import { MODELOS } from "@/lib/ia-modelos";
 import { getEscritorioConfig, listPessoas, sugerirResponsavel } from "@/lib/data/escritorio";
 import { ACTIVITY_TYPES } from "@/lib/activity-type";
 import { criarAvisos } from "@/lib/avisos";
+import { transcreverAudioDoZap } from "@/lib/whatsapp-audio";
 
 // Lê as mensagens novas das conversas do WhatsApp ligadas a clientes (e de
 // todo grupo com "ASSESSORIA JURÍDICA" no nome, mesmo sem cliente vinculado) e
@@ -13,8 +14,21 @@ import { criarAvisos } from "@/lib/avisos";
 
 const MAX_MSGS = 80; // por conversa e por leitura
 const PRIMEIRA_JANELA_H = 24; // conversa nunca lida: só as últimas 24h
+const MAX_AUDIOS = 15; // áudios transcritos por conversa e por leitura
 
-type Msg = { wa_timestamp: string; from_me: boolean; texto: string | null; tipo: string; media_nome: string | null; sender_jid: string | null; raw: unknown };
+type Msg = {
+  wa_timestamp: string;
+  from_me: boolean;
+  texto: string | null;
+  tipo: string;
+  media_nome: string | null;
+  media_path: string | null;
+  media_mime: string | null;
+  sender_jid: string | null;
+  raw: unknown;
+  /** preenchido aqui: o que foi dito no áudio */
+  transcricao?: string | null;
+};
 
 type DemandaIA = {
   titulo: string;
@@ -59,7 +73,7 @@ function conteudo(m: Msg): string {
   if (m.texto?.trim()) return m.texto.trim();
   if (m.tipo === "documento") return `[enviou o documento ${m.media_nome ?? ""}]`.trim();
   if (m.tipo === "imagem") return "[enviou uma imagem]";
-  if (m.tipo === "audio") return "[enviou um áudio]";
+  if (m.tipo === "audio") return m.transcricao ? `[áudio] ${m.transcricao}` : "[enviou um áudio]";
   return "";
 }
 
@@ -84,12 +98,22 @@ export async function lerConversasDoZap(): Promise<ResultadoLeitura> {
 
     const { data: msgs } = await db
       .from("wa_messages")
-      .select("wa_timestamp, from_me, texto, tipo, media_nome, sender_jid, raw")
+      .select("wa_timestamp, from_me, texto, tipo, media_nome, media_path, media_mime, sender_jid, raw")
       .eq("chat_jid", chat.chat_jid)
       .gt("wa_timestamp", desde)
       .order("wa_timestamp", { ascending: false })
       .limit(MAX_MSGS);
-    const novas = ((msgs ?? []) as Msg[]).reverse().filter((m) => conteudo(m));
+    const lidas = ((msgs ?? []) as Msg[]).reverse();
+    // áudio do cliente: a IA ouve (transcreve) antes de procurar pedidos
+    const audios = lidas.filter((m) => m.tipo === "audio" && !m.from_me && m.media_path).slice(-MAX_AUDIOS);
+    for (let i = 0; i < audios.length; i += 3) {
+      await Promise.all(
+        audios.slice(i, i + 3).map(async (m) => {
+          m.transcricao = await transcreverAudioDoZap(m.media_path, m.media_mime);
+        })
+      );
+    }
+    const novas = lidas.filter((m) => conteudo(m));
     const ultima = msgs?.[0]?.wa_timestamp;
     if (!novas.some((m) => !m.from_me)) {
       if (ultima) await db.from("wa_chats").update({ demandas_lidas_ate: ultima }).eq("chat_jid", chat.chat_jid);
@@ -113,6 +137,7 @@ export async function lerConversasDoZap(): Promise<ResultadoLeitura> {
       system: [
         "Você faz a triagem do WhatsApp do escritório MC Advogados (advocacia empresarial).",
         `Hoje é ${hojeISO}. As mensagens abaixo são da conversa ${chat.is_group ? "do grupo" : "com o contato"} do cliente "${cliente}".`,
+        "Mensagens marcadas [áudio] são a transcrição do que a pessoa falou num áudio: trate como se ela tivesse escrito.",
         "Encontre só PEDIDOS DE TRABALHO para o escritório: o cliente pede algo (analisar, elaborar, revisar, registrar, responder, agendar), manda documento para análise, faz pergunta jurídica que exige estudo, informa prazo, notificação, audiência ou problema que precisa de providência.",
         "Ignore cumprimentos, agradecimentos, confirmações, conversa social, pedidos que o próprio escritório já respondeu como resolvidos na conversa e mensagens do escritório (\"Escritório\").",
         "Junte em UMA demanda as mensagens sobre o mesmo assunto. Se não houver pedido, devolva lista vazia.",
