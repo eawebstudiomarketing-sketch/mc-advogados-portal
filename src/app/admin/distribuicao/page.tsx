@@ -63,6 +63,7 @@ export default async function DistribuicaoPage({
     <div>
       <div className="mb-6 flex flex-wrap items-start justify-between gap-3">
         <div>
+          <p className="eyebrow mb-2">Dia a dia · Entrada de demandas</p>
           <h1 className="page-title">Distribuição</h1>
           <p className="text-sm text-muted">
             Pedidos que chegam de fora: grupos dos clientes no WhatsApp (lidos pela IA de hora em hora) e solicitações abertas no portal do cliente.
@@ -78,9 +79,9 @@ export default async function DistribuicaoPage({
           ["Do portal do cliente", cont.portal, "text-status-info"],
           ["Resolvidas hoje", cont.hoje, "text-status-success"],
         ].map(([rotulo, n, cor]) => (
-          <div key={rotulo as string} className="ui-card px-4 py-3">
-            <p className="text-xs text-muted">{rotulo}</p>
-            <p className={`text-2xl font-semibold tabular-nums ${cor}`}>{n}</p>
+          <div key={rotulo as string} className="ui-card p-5">
+            <p className={`numero-grande text-[2.25rem] leading-none ${n ? cor : "text-foreground"}`}>{n}</p>
+            <p className="eyebrow mt-2">{rotulo}</p>
           </div>
         ))}
       </div>

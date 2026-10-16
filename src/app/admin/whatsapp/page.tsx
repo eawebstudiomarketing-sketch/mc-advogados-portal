@@ -17,6 +17,7 @@ export default async function WhatsappPage() {
   return (
     <div>
       <div className="mb-4">
+        <p className="eyebrow mb-2">Dia a dia · WhatsApp do escritório</p>
         <h1 className="page-title">WhatsApp</h1>
         <p className="text-sm text-muted">
           Espelho do WhatsApp do escritório, ao vivo enquanto o Agente MC estiver ligado. Para mandar a IA agir, use o assistente (Ctrl+J).

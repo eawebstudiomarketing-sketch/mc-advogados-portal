@@ -35,6 +35,7 @@ export default async function AdminFinancialPage({ searchParams }: { searchParam
     <div>
       <div className="mb-7 flex flex-wrap items-end justify-between gap-3">
         <div>
+          <p className="eyebrow mb-2">Escritório · Financeiro</p>
           <h1 className="page-title">Financeiro</h1>
           <p className="text-sm text-muted">
             {records.length === 0 ? "Nenhum lançamento ainda" : `${records.length} lançamentos`}

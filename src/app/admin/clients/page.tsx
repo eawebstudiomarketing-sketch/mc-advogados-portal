@@ -7,6 +7,15 @@ import { StatusBadge } from "@/components/ui/status-badge";
 import { listClients } from "@/lib/data/clients";
 import { exigirPermissao } from "@/lib/dal";
 
+const COR_ETAPA: Record<string, string> = {
+  ficha_incompleta: "bg-status-danger",
+  ficha_completa: "bg-status-pending",
+  onboarding_gerado: "bg-gold",
+  onboarding_respondido: "bg-status-info",
+  demandas_geradas: "bg-[#7c5cc4]",
+  em_execucao: "bg-status-success",
+};
+
 export default async function AdminClientsPage({
   searchParams,
 }: {
@@ -37,15 +46,16 @@ export default async function AdminClientsPage({
     <div>
       <div className="mb-7 flex flex-wrap items-end justify-between gap-3">
         <div>
+          <p className="eyebrow mb-2">Dia a dia · Carteira</p>
           <h1 className="page-title">{arquivados ? "Clientes arquivados" : "Clientes"}</h1>
           <p className="text-sm text-muted">
             {clients.length} {clients.length === 1 ? "cliente" : "clientes"}
             {clients.length !== todos.length ? ` de ${todos.length}` : ""}
           </p>
         </div>
-        <div className="flex items-center gap-2">
+        <div className="flex flex-wrap items-center gap-2">
         {!arquivados && (
-          <div className="inline-flex items-center gap-0.5 rounded-xl bg-[#eceef2] p-1" role="tablist" aria-label="Como ver">
+          <div className="inline-flex items-center gap-0.5 rounded-full border border-border bg-surface p-1" role="tablist" aria-label="Como ver">
             {([
               ["lista", "Lista", List],
               ["pipeline", "Pipeline", Columns3],
@@ -57,7 +67,7 @@ export default async function AdminClientsPage({
                   href={alternar(id)}
                   role="tab"
                   aria-selected={on}
-                  className={`inline-flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-medium ${on ? "bg-surface text-foreground shadow-sm" : "text-muted hover:text-foreground"}`}
+                  className={`inline-flex items-center gap-1.5 rounded-full px-3 py-1.5 text-xs font-semibold ${on ? "bg-navy text-white" : "text-muted hover:text-foreground"}`}
                 >
                   <Icone className="h-3.5 w-3.5" aria-hidden /> {rotulo}
                 </Link>
@@ -91,6 +101,7 @@ export default async function AdminClientsPage({
         <table className="ui-table">
           <thead>
             <tr>
+              <th className="w-12 pl-5">Nº</th>
               <th className="px-5 py-2.5 font-medium">Cliente</th>
               <th className="px-5 py-2.5 font-medium">Tipo</th>
               <th className="px-5 py-2.5 font-medium">Etapa</th>
@@ -101,16 +112,19 @@ export default async function AdminClientsPage({
           <tbody className="divide-y divide-border">
             {clients.length === 0 && (
               <tr>
-                <td colSpan={5} className="px-5 py-12 text-center text-sm text-muted">
+                <td colSpan={6} className="px-5 py-12 text-center text-sm text-muted">
                   {todos.length && !clients.length ? "Nenhum cliente com esses filtros." : arquivados ? "Nenhum cliente arquivado." : "Nenhum cliente cadastrado ainda."}
                 </td>
               </tr>
             )}
-            {clients.map((c) => (
+            {clients.map((c, i) => (
               <tr key={c.id}>
+                <td className="pl-5">
+                  <span className="eyebrow !text-[11px] tabular-nums">{String(i + 1).padStart(2, "0")}</span>
+                </td>
                 <td className="px-5 py-3">
                   <Link href={`/admin/clients/${c.id}`} className="group flex items-center gap-3">
-                    <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-navy text-[11px] font-semibold text-gold-2">
+                    <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-navy text-[11px] font-semibold text-gold-2">
                       {c.name.replace(/[^A-Za-zÀ-ú0-9 ]/g, "").trim().slice(0, 2).toUpperCase()}
                     </span>
                     <span className="min-w-0">
@@ -120,7 +134,16 @@ export default async function AdminClientsPage({
                   </Link>
                 </td>
                 <td className="px-5 py-3 text-foreground/70">{c.tipo_pessoa}</td>
-                <td className="px-5 py-3 text-xs text-foreground/70">{ETAPAS.find((e) => e.id === etapaDe.get(c.id))?.rotulo ?? "—"}</td>
+                <td className="px-5 py-3 text-xs whitespace-nowrap text-foreground/75">
+                  {etapaDe.get(c.id) ? (
+                    <span className="inline-flex items-center gap-1.5">
+                      <span className={`h-1.5 w-1.5 rounded-full ${COR_ETAPA[etapaDe.get(c.id)!]}`} aria-hidden />
+                      {ETAPAS.find((e) => e.id === etapaDe.get(c.id))?.rotulo}
+                    </span>
+                  ) : (
+                    "—"
+                  )}
+                </td>
                 <td className="px-5 py-3 text-foreground/70">
                   {new Date(c.created_at).toLocaleDateString("pt-BR")}
                 </td>

@@ -1,18 +1,19 @@
 @import "tailwindcss";
 
-/* MC Advogados — sistema visual do portal (redesenho out/2026).
-   Ferramenta de gestão no padrão das consagradas (Linear/Notion): fundo
-   neutro frio, superfícies brancas, navy da marca para ação principal e
-   navegação, dourado só para seleção, foco de atenção e marca. Tema claro
-   fixo: o painel é usado em escritório, durante o expediente. */
+/* MC Advogados — sistema visual do portal (2º redesenho, 16/10/2026).
+   Referência: noubla.com. Fundo claro quase branco, linhas finas em vez de
+   sombras, títulos grandes e pesados (Inter Tight) com a 2ª linha em cinza,
+   rótulos pequenos em fonte mono maiúscula, listas numeradas 01/02/03.
+   Cores da MC só nos destaques: navy para ação principal e item ativo,
+   dourado para o que pede atenção. Tema claro fixo (uso no expediente). */
 :root {
-  --background: #f4f5f7;
-  --foreground: #0f1a2a;
+  --background: #fafaf8;
+  --foreground: #0d1117;
   --surface: #ffffff;
-  --surface-2: #f9fafb;
-  --border: #e4e7ec;
-  --border-strong: #d3d8e0;
-  --muted: #5d6878;
+  --surface-2: #f6f6f3;
+  --border: #e8e8e4;
+  --border-strong: #d6d6d0;
+  --muted: #6b6f76;
 
   --navy: #0b2545;
   --navy-2: #0a1b31;
@@ -33,7 +34,7 @@
   --status-info: #1d4ed8;
   --status-info-bg: #ebf1fe;
 
-  --shadow-sm: 0 1px 2px rgba(15, 26, 42, 0.05);
+  --shadow-sm: 0 1px 1px rgba(13, 17, 23, 0.03);
   --shadow-md: 0 1px 2px rgba(15, 26, 42, 0.04), 0 6px 16px -6px rgba(15, 26, 42, 0.1);
   --shadow-lg: 0 2px 4px rgba(15, 26, 42, 0.04), 0 18px 40px -12px rgba(15, 26, 42, 0.22);
   --ease-out: cubic-bezier(0.16, 1, 0.3, 1);
@@ -74,6 +75,7 @@
 
   --font-sans: var(--font-geist-sans);
   --font-mono: var(--font-geist-mono);
+  --font-display: var(--font-inter-tight);
 
   --animate-enter: enter 220ms var(--ease-out) both;
   --animate-page: page-in 200ms var(--ease-out) both;
@@ -146,18 +148,27 @@ select {
 
 /* título de página */
 @utility page-title {
-  font-size: 1.375rem;
-  line-height: 1.75rem;
-  font-weight: 650;
-  letter-spacing: -0.02em;
+  font-family: var(--font-inter-tight), var(--font-geist-sans), sans-serif;
+  font-size: 2rem;
+  line-height: 2.25rem;
+  font-weight: 700;
+  letter-spacing: -0.028em;
+  word-spacing: 0.06em;
   color: var(--foreground);
+  @media (max-width: 640px) {
+    font-size: 1.625rem;
+    line-height: 1.875rem;
+  }
 }
 
 /* título de seção dentro de cartão */
 @utility section-title {
-  font-size: 0.875rem;
-  line-height: 1.25rem;
-  font-weight: 600;
+  font-family: var(--font-inter-tight), var(--font-geist-sans), sans-serif;
+  font-size: 1rem;
+  line-height: 1.375rem;
+  font-weight: 700;
+  letter-spacing: -0.012em;
+  word-spacing: 0.04em;
   color: var(--foreground);
 }
 
@@ -165,8 +176,39 @@ select {
 @utility ui-card {
   background: var(--surface);
   border: 1px solid var(--border);
-  border-radius: 14px;
-  box-shadow: var(--shadow-sm);
+  border-radius: 16px;
+}
+
+/* rótulo técnico pequeno (data, categoria, cabeçalho de lista) */
+@utility eyebrow {
+  font-family: var(--font-geist-mono), monospace;
+  font-size: 0.625rem;
+  line-height: 1rem;
+  font-weight: 500;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+
+/* número grande de destaque (contadores) */
+@utility numero-grande {
+  font-family: var(--font-inter-tight), var(--font-geist-sans), sans-serif;
+  font-weight: 700;
+  letter-spacing: -0.04em;
+  font-variant-numeric: tabular-nums;
+}
+
+/* linha de lista numerada (01 · título · meta · Abrir ›) */
+@utility lista-linha {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  border-top: 1px solid var(--border);
+  padding: 0.875rem 0.25rem;
+  transition: background-color 120ms var(--ease-out);
+  &:hover {
+    background: #f7f7f4;
+  }
 }
 
 /* rótulo de campo */
@@ -174,8 +216,8 @@ select {
   display: block;
   margin-bottom: 0.375rem;
   font-size: 0.8125rem;
-  font-weight: 550;
-  color: #344054;
+  font-weight: 600;
+  color: #2b3038;
 }
 
 /* campo de formulário */
@@ -215,19 +257,15 @@ select {
   align-items: center;
   justify-content: center;
   gap: 0.5rem;
-  border-radius: 10px;
+  border-radius: 999px;
   background: var(--navy);
-  padding: 0.5rem 1rem;
-  font-size: 0.875rem;
-  font-weight: 550;
+  padding: 0.5rem 1.125rem;
+  font-size: 0.8125rem;
+  font-weight: 600;
   color: #fff;
-  box-shadow:
-    0 1px 2px rgba(11, 37, 69, 0.25),
-    inset 0 1px 0 rgba(255, 255, 255, 0.08);
   transition:
     background-color 150ms var(--ease-out),
-    transform 150ms var(--ease-out),
-    box-shadow 150ms var(--ease-out);
+    transform 150ms var(--ease-out);
   &:hover {
     background: var(--navy-3);
   }
@@ -235,7 +273,7 @@ select {
     transform: translateY(1px);
   }
   &:disabled {
-    opacity: 0.6;
+    opacity: 0.5;
     cursor: not-allowed;
     transform: none;
   }
@@ -247,23 +285,22 @@ select {
   align-items: center;
   justify-content: center;
   gap: 0.5rem;
-  border-radius: 10px;
+  border-radius: 999px;
   border: 1px solid var(--border-strong);
   background: var(--surface);
-  padding: 0.4375rem 0.875rem;
+  padding: 0.4375rem 1rem;
   font-size: 0.8125rem;
-  font-weight: 550;
+  font-weight: 600;
   color: var(--foreground);
-  box-shadow: var(--shadow-sm);
   transition:
     background-color 150ms var(--ease-out),
     border-color 150ms var(--ease-out);
   &:hover {
     background: var(--surface-2);
-    border-color: #b9c0cc;
+    border-color: #bdbdb6;
   }
   &:disabled {
-    opacity: 0.6;
+    opacity: 0.5;
   }
 }
 
@@ -291,19 +328,26 @@ select {
   font-size: 0.875rem;
   & thead tr {
     border-bottom: 1px solid var(--border);
-    background: var(--surface-2);
   }
   & th {
-    font-size: 0.75rem;
-    font-weight: 550;
-    letter-spacing: 0.01em;
+    font-family: var(--font-geist-mono), monospace;
+    font-size: 0.625rem;
+    font-weight: 500;
+    letter-spacing: 0.16em;
+    text-transform: uppercase;
     color: var(--muted);
+    padding-top: 0.875rem;
+    padding-bottom: 0.75rem;
+  }
+  & td {
+    padding-top: 0.875rem;
+    padding-bottom: 0.875rem;
   }
   & tbody tr {
     transition: background-color 120ms var(--ease-out);
   }
   & tbody tr:hover {
-    background: #f7f8fa;
+    background: #f7f7f4;
   }
 }
 

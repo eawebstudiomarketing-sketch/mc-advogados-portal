@@ -3,7 +3,7 @@
 import Image from "next/image";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { Suspense, useEffect, useMemo, useState, useSyncExternalStore } from "react";
+import { Suspense, useEffect, useMemo, useState } from "react";
 import {
   LayoutDashboard,
   Users,
@@ -20,8 +20,6 @@ import {
   Search,
   Menu,
   X,
-  ChevronsLeft,
-  ChevronsRight,
   LogOut,
   UserRound,
   type LucideIcon,
@@ -93,23 +91,6 @@ const iniciais = (nome: string) =>
     .map((p) => p[0]?.toUpperCase())
     .join("");
 
-// preferência "menu recolhido", guardada no navegador
-const CHAVE = "mc:sidebar-recolhida";
-const ouvintes = new Set<() => void>();
-function lerRecolhida() {
-  try {
-    return localStorage.getItem(CHAVE) === "1";
-  } catch {
-    return false;
-  }
-}
-function gravarRecolhida(v: boolean) {
-  try {
-    localStorage.setItem(CHAVE, v ? "1" : "0");
-  } catch {}
-  ouvintes.forEach((f) => f());
-}
-
 export function AdminShell({
   children,
   userName,
@@ -160,14 +141,6 @@ export function AdminShell({
       void supabase.removeChannel(canal);
     };
   }, []);
-  const recolhida = useSyncExternalStore(
-    (f) => {
-      ouvintes.add(f);
-      return () => ouvintes.delete(f);
-    },
-    lerRecolhida,
-    () => false
-  );
   const [menuMobile, setMenuMobile] = useState(false);
   const [busca, setBusca] = useState(false);
 
@@ -210,200 +183,171 @@ export function AdminShell({
     setMenuMobile(false);
   }
 
-  const compacta = recolhida && !menuMobile;
+  const badge = (href: string) =>
+    href === "/admin/mensagens" ? naoLidas : href === "/admin/distribuicao" ? distribuicaoPendentes : href === "/admin/publicacoes" ? publicacoesPendentes : 0;
 
-  const sidebar = (
+  // item do menu. "sempre" = gaveta do celular (nomes sempre à mostra);
+  // "hover" = trilho fino do computador (nome aparece quando o menu abre).
+  const itemNav = (item: NavItem, modo: "hover" | "sempre") => {
+    const on = ativo(item.href);
+    const Icone = item.icon;
+    const n = badge(item.href);
+    const rotulo = modo === "hover" ? "opacity-0 transition-opacity duration-150 group-hover/menu:opacity-100 group-focus-within/menu:opacity-100" : "";
+    return (
+      <li key={item.href}>
+        <Link
+          href={item.href}
+          aria-current={on ? "page" : undefined}
+          aria-label={item.label}
+          className={`relative flex h-10 items-center gap-3 rounded-xl px-[11px] text-sm whitespace-nowrap transition-colors duration-150 ${
+            on ? "bg-navy text-white" : "text-foreground/60 hover:bg-[#f1f1ef] hover:text-foreground"
+          }`}
+        >
+          <Icone className={`h-[18px] w-[18px] shrink-0 ${on ? "text-gold-2" : ""}`} aria-hidden />
+          <span className={`flex-1 truncate font-medium ${rotulo}`}>{item.label}</span>
+          {n > 0 && (
+            <>
+              <span
+                className={`rounded-full px-1.5 text-[10px] leading-4 font-semibold tabular-nums ${on ? "bg-gold text-navy-2" : "bg-navy text-white"} ${rotulo}`}
+                aria-label={`${n} pendentes`}
+              >
+                {n > 99 ? "99+" : n}
+              </span>
+              {modo === "hover" && (
+                <span className="absolute top-2 left-7 h-2 w-2 rounded-full bg-gold ring-2 ring-white transition-opacity group-hover/menu:opacity-0" aria-hidden />
+              )}
+            </>
+          )}
+        </Link>
+      </li>
+    );
+  };
+
+  const menu = (modo: "hover" | "sempre") => (
     <div className="flex h-full flex-col">
-      <div className={`flex items-center gap-3 px-4 pt-5 pb-4 ${compacta ? "justify-center px-0" : ""}`}>
-        <div className="shrink-0 overflow-hidden rounded-full ring-1 ring-gold/40">
+      <div className="flex h-16 shrink-0 items-center gap-3 px-[14px]">
+        <div className="shrink-0 overflow-hidden rounded-full ring-1 ring-border">
           <Image src="/brand/logo_mc.jpg" alt="MC Advogados" width={34} height={34} />
         </div>
-        {!compacta && (
-          <div className="min-w-0 leading-tight">
-            <p className="truncate text-sm font-semibold text-white">MC Advogados</p>
-            <p className="truncate text-xs text-white/50">Painel do escritório</p>
-          </div>
-        )}
-        {menuMobile && (
-          <button type="button" onClick={() => setMenuMobile(false)} aria-label="Fechar menu" className="ml-auto rounded-lg p-1.5 text-white/70 hover:bg-white/10">
+        <div className={`min-w-0 leading-tight whitespace-nowrap ${modo === "hover" ? "opacity-0 transition-opacity group-hover/menu:opacity-100 group-focus-within/menu:opacity-100" : ""}`}>
+          <p className="font-display text-[15px] font-bold tracking-tight text-foreground">MC Advogados</p>
+          <p className="eyebrow">Painel do escritório</p>
+        </div>
+        {modo === "sempre" && (
+          <button type="button" onClick={() => setMenuMobile(false)} aria-label="Fechar menu" className="ml-auto rounded-lg p-1.5 text-muted hover:bg-surface-2">
             <X className="h-5 w-5" />
           </button>
         )}
       </div>
 
-      <div className={compacta ? "px-2" : "px-3"}>
-        <button
-          type="button"
-          onClick={() => setBusca(true)}
-          title="Buscar (Ctrl+K)"
-          className={`flex w-full items-center gap-2.5 rounded-lg border border-white/10 bg-white/5 py-2 text-sm text-white/60 transition-colors hover:border-white/20 hover:text-white ${
-            compacta ? "justify-center px-0" : "px-3"
-          }`}
-        >
-          <Search className="h-4 w-4 shrink-0" aria-hidden />
-          {!compacta && (
-            <>
-              <span className="flex-1 text-left">Buscar</span>
-              <kbd className="rounded border border-white/15 px-1.5 text-[10px] font-medium text-white/50">Ctrl K</kbd>
-            </>
-          )}
-        </button>
-      </div>
-
-      {publicacoesPendentes > 0 && (
-        <div className={`mt-2 ${compacta ? "px-2" : "px-3"}`}>
-          <Link
-            href="/admin/publicacoes"
-            title={`${publicacoesPendentes} publicações não tratadas`}
-            className={`relative flex items-center gap-2.5 rounded-lg border border-gold/40 bg-gold/10 py-2 text-sm text-gold-2 transition-colors hover:bg-gold/20 ${
-              compacta ? "justify-center px-0" : "px-3"
-            }`}
-          >
-            <Bell className="h-4 w-4 shrink-0 animate-[pulse_2.4s_ease-in-out_3]" aria-hidden />
-            {!compacta && (
-              <span className="flex-1 truncate">
-                {publicacoesPendentes} {publicacoesPendentes === 1 ? "publicação nova" : "não tratadas"}
-              </span>
-            )}
-          </Link>
-        </div>
-      )}
-
-      <nav className={`mt-4 flex-1 space-y-5 overflow-y-auto pb-4 ${compacta ? "px-2" : "px-3"}`} aria-label="Menu principal">
+      <nav className="flex-1 space-y-4 overflow-x-hidden overflow-y-auto px-[10px] pt-2 pb-4" aria-label="Menu principal">
         {grupos.map((g) => (
           <div key={g.label}>
-            {!compacta && <p className="mb-1.5 px-3 text-[11px] font-medium text-white/40">{g.label}</p>}
-            <ul className="space-y-0.5">
-              {g.items.map((item) => {
-                const on = ativo(item.href);
-                const Icone = item.icon;
-                return (
-                  <li key={item.href}>
-                    <Link
-                      href={item.href}
-                      title={compacta ? item.label : undefined}
-                      aria-current={on ? "page" : undefined}
-                      className={`group relative flex items-center gap-3 rounded-lg py-2 text-sm transition-colors duration-150 ${
-                        compacta ? "justify-center px-0" : "px-3"
-                      } ${on ? "bg-white/10 font-medium text-white" : "text-white/65 hover:bg-white/[0.06] hover:text-white"}`}
-                    >
-                      {on && <span className="absolute inset-y-1.5 left-0 w-[3px] rounded-full bg-gold" aria-hidden />}
-                      <Icone
-                        className={`h-[18px] w-[18px] shrink-0 transition-colors ${on ? "text-gold-2" : "text-white/50 group-hover:text-white/80"}`}
-                        aria-hidden
-                      />
-                      {!compacta && <span className="truncate">{item.label}</span>}
-                      {item.href === "/admin/mensagens" && naoLidas > 0 && (
-                        <span
-                          className={`rounded-full bg-gold px-1.5 text-[10px] leading-4 font-semibold text-navy-2 ${compacta ? "absolute top-0.5 right-0.5" : "ml-auto"}`}
-                          aria-label={`${naoLidas} não lidas`}
-                        >
-                          {naoLidas > 99 ? "99+" : naoLidas}
-                        </span>
-                      )}
-                      {item.href === "/admin/distribuicao" && distribuicaoPendentes > 0 && (
-                        <span
-                          className={`rounded-full bg-gold px-1.5 text-[10px] leading-4 font-semibold text-navy-2 ${compacta ? "absolute top-0.5 right-0.5" : "ml-auto"}`}
-                          aria-label={`${distribuicaoPendentes} para distribuir`}
-                        >
-                          {distribuicaoPendentes > 99 ? "99+" : distribuicaoPendentes}
-                        </span>
-                      )}
-                      {item.href === "/admin/publicacoes" && publicacoesPendentes > 0 && (
-                        <span
-                          className={`rounded-full bg-gold px-1.5 text-[10px] leading-4 font-semibold text-navy-2 ${compacta ? "absolute top-0.5 right-0.5" : "ml-auto"}`}
-                          aria-label={`${publicacoesPendentes} não tratadas`}
-                        >
-                          {publicacoesPendentes > 99 ? "99+" : publicacoesPendentes}
-                        </span>
-                      )}
-                    </Link>
-                  </li>
-                );
-              })}
-            </ul>
+            <p
+              className={`eyebrow mb-1.5 h-4 px-[12px] whitespace-nowrap ${
+                modo === "hover" ? "opacity-0 transition-opacity group-hover/menu:opacity-100 group-focus-within/menu:opacity-100" : ""
+              }`}
+            >
+              {g.label}
+            </p>
+            <ul className="space-y-0.5">{g.items.map((i) => itemNav(i, modo))}</ul>
           </div>
         ))}
       </nav>
 
-      <div className={`border-t border-white/10 py-3 ${compacta ? "px-2" : "px-3"}`}>
-        <div className={`flex items-center gap-3 rounded-lg py-1.5 ${compacta ? "flex-col px-0" : "px-2"}`}>
-          <Link
-            href="/account"
-            title="Minha conta"
-            className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-gold-soft text-xs font-semibold text-gold-ink ring-1 ring-gold/50 transition-transform hover:scale-105"
-          >
-            {iniciais(userName) || "MC"}
-          </Link>
-          {!compacta && (
-            <Link href="/account" className="min-w-0 flex-1 leading-tight">
-              <p className="truncate text-xs font-medium text-white">{userName}</p>
-              <p className="truncate text-[11px] text-white/50">{ROLE_LABEL[userRole] ?? userRole}</p>
-            </Link>
-          )}
-          <form action={logout}>
-            <button type="submit" title="Sair" aria-label="Sair" className="rounded-lg p-1.5 text-white/50 transition-colors hover:bg-white/10 hover:text-white">
-              <LogOut className="h-4 w-4" />
+      <div className="border-t border-border px-[10px] py-3">
+        <Link
+          href="/account"
+          className="flex h-11 items-center gap-3 rounded-xl px-[6px] whitespace-nowrap hover:bg-[#f1f1ef]"
+          aria-label="Minha conta"
+        >
+          <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-navy text-[11px] font-semibold text-gold-2">{iniciais(userName) || "MC"}</span>
+          <span className={`min-w-0 leading-tight ${modo === "hover" ? "opacity-0 transition-opacity group-hover/menu:opacity-100 group-focus-within/menu:opacity-100" : ""}`}>
+            <span className="block truncate text-xs font-semibold text-foreground">{userName}</span>
+            <span className="block truncate text-[11px] text-muted">{ROLE_LABEL[userRole] ?? userRole}</span>
+          </span>
+        </Link>
+        {modo === "sempre" && (
+          <form action={logout} className="mt-1">
+            <button type="submit" className="flex h-10 w-full items-center gap-3 rounded-xl px-[11px] text-sm font-medium text-foreground/60 hover:bg-[#f1f1ef] hover:text-foreground">
+              <LogOut className="h-[18px] w-[18px]" aria-hidden /> Sair
             </button>
           </form>
-        </div>
-        <button
-          type="button"
-          onClick={() => gravarRecolhida(!recolhida)}
-          className={`mt-1 hidden w-full items-center gap-2 rounded-lg py-1.5 text-xs text-white/40 transition-colors hover:text-white/80 lg:flex ${
-            compacta ? "justify-center" : "px-2"
-          }`}
-          aria-label={recolhida ? "Expandir menu" : "Recolher menu"}
-        >
-          {recolhida ? <ChevronsRight className="h-4 w-4" /> : <ChevronsLeft className="h-4 w-4" />}
-          {!compacta && "Recolher menu"}
-        </button>
+        )}
       </div>
     </div>
   );
 
   return (
     <AtividadeModalProvider>
-    <div className="flex min-h-screen w-full">
-      {/* menu fixo (computador) */}
-      <aside
-        className={`sticky top-0 hidden h-screen shrink-0 bg-navy-2 transition-[width] duration-200 ease-[var(--ease-out)] lg:block ${
-          recolhida ? "w-[68px]" : "w-64"
-        }`}
-      >
-        {sidebar}
-      </aside>
+    <div className="flex min-h-screen w-full bg-background">
+      {/* computador: trilho fino de ícones que abre (por cima do conteúdo) ao passar o mouse */}
+      <div className="sticky top-0 z-40 hidden h-screen w-[64px] shrink-0 lg:block">
+        <aside
+          className="group/menu absolute inset-y-0 left-0 z-40 w-[64px] overflow-hidden border-r border-border bg-surface transition-[width,box-shadow] duration-200 ease-[var(--ease-out)] hover:w-60 hover:shadow-[12px_0_40px_-16px_rgba(15,26,42,0.25)] focus-within:w-60"
+        >
+          {menu("hover")}
+        </aside>
+      </div>
 
-      {/* menu gaveta (celular) */}
+      {/* celular: gaveta com os nomes */}
       {menuMobile && (
-        <div className="fixed inset-0 z-40 lg:hidden">
-          <button type="button" aria-label="Fechar menu" onClick={() => setMenuMobile(false)} className="absolute inset-0 bg-navy-2/50" />
-          <aside className="relative h-full w-72 bg-navy-2 shadow-lg animate-[enter_200ms_var(--ease-out)_both]">{sidebar}</aside>
+        <div className="fixed inset-0 z-50 lg:hidden">
+          <button type="button" aria-label="Fechar menu" onClick={() => setMenuMobile(false)} className="absolute inset-0 bg-navy-2/40" />
+          <aside className="relative h-full w-72 bg-surface shadow-lg animate-[enter_200ms_var(--ease-out)_both]">{menu("sempre")}</aside>
         </div>
       )}
 
       <div className="flex min-w-0 flex-1 flex-col">
-        <header className="sticky top-0 z-30 flex items-center gap-3 border-b border-border bg-surface/90 px-4 py-2.5 backdrop-blur lg:hidden">
-          <button type="button" onClick={() => setMenuMobile(true)} aria-label="Abrir menu" className="rounded-lg p-1.5 text-foreground hover:bg-surface-2">
+        <header className="sticky top-0 z-30 flex h-14 items-center gap-2 border-b border-border bg-surface/85 px-4 backdrop-blur-md sm:px-6 lg:px-10">
+          <button type="button" onClick={() => setMenuMobile(true)} aria-label="Abrir menu" className="rounded-lg p-1.5 text-foreground hover:bg-surface-2 lg:hidden">
             <Menu className="h-5 w-5" />
           </button>
-          <Image src="/brand/logo_mc.jpg" alt="" width={26} height={26} className="rounded-full" />
-          <p className="text-sm font-semibold text-foreground">MC Advogados</p>
-          {publicacoesPendentes > 0 && (
-            <Link href="/admin/publicacoes" aria-label={`${publicacoesPendentes} publicações não tratadas`} className="relative ml-auto rounded-lg p-1.5 text-muted hover:bg-surface-2">
-              <Bell className="h-5 w-5" />
-              <span className="absolute -top-0.5 -right-0.5 rounded-full bg-gold px-1 text-[10px] leading-4 font-semibold text-navy-2">
-                {publicacoesPendentes > 99 ? "99+" : publicacoesPendentes}
-              </span>
-            </Link>
-          )}
-          <button type="button" onClick={() => setBusca(true)} aria-label="Buscar" className={`${publicacoesPendentes > 0 ? "" : "ml-auto "}rounded-lg p-1.5 text-muted hover:bg-surface-2`}>
-            <Search className="h-5 w-5" />
+          <button
+            type="button"
+            onClick={() => setBusca(true)}
+            className="flex h-9 min-w-0 flex-1 items-center gap-2.5 rounded-full border border-border bg-[#f6f6f4] px-3.5 text-left text-[13px] text-muted transition-colors hover:border-border-strong hover:text-foreground sm:max-w-md"
+          >
+            <Search className="h-4 w-4 shrink-0" aria-hidden />
+            <span className="flex-1 truncate"><span className="sm:hidden">Buscar</span><span className="hidden sm:inline">Buscar cliente, atividade, processo…</span></span>
+            <kbd className="hidden rounded-md border border-border bg-surface px-1.5 font-mono text-[10px] text-muted sm:inline">Ctrl K</kbd>
           </button>
+          <div className="ml-auto flex shrink-0 items-center gap-0.5 sm:gap-1">
+            {publicacoesPendentes > 0 && (
+              <Link
+                href="/admin/publicacoes"
+                aria-label={`${publicacoesPendentes} publicações não tratadas`}
+                data-tip="Publicações não tratadas"
+                className="relative rounded-full p-2 text-muted transition-colors hover:bg-surface-2 hover:text-foreground"
+              >
+                <Bell className="h-[18px] w-[18px]" />
+                <span className="absolute top-0.5 right-0 rounded-full bg-gold px-1 text-[10px] leading-4 font-semibold text-navy-2 tabular-nums">
+                  {publicacoesPendentes > 99 ? "99+" : publicacoesPendentes}
+                </span>
+              </Link>
+            )}
+            <Link
+              href="/admin/mensagens"
+              aria-label="Mensagens"
+              data-tip="Mensagens e avisos"
+              className="relative rounded-full p-2 text-muted transition-colors hover:bg-surface-2 hover:text-foreground"
+            >
+              <MessagesSquare className="h-[18px] w-[18px]" />
+              {naoLidas > 0 && <span className="absolute top-1.5 right-1.5 h-2 w-2 rounded-full bg-gold ring-2 ring-surface" aria-hidden />}
+            </Link>
+            <Link href="/account" aria-label="Minha conta" className="ml-1 flex h-8 w-8 items-center justify-center rounded-full bg-navy text-[11px] font-semibold text-gold-2">
+              {iniciais(userName) || "MC"}
+            </Link>
+            <form action={logout} className="hidden sm:block">
+              <button type="submit" aria-label="Sair" data-tip="Sair" className="rounded-full p-2 text-muted transition-colors hover:bg-surface-2 hover:text-foreground">
+                <LogOut className="h-4 w-4" />
+              </button>
+            </form>
+          </div>
         </header>
 
         <main className="flex-1">
-          <div key={pathname} className="mx-auto w-full max-w-6xl px-4 py-6 animate-page sm:px-6 lg:px-10 lg:py-9">
+          <div key={pathname} className="mx-auto w-full max-w-[1240px] px-4 py-7 animate-page sm:px-6 lg:px-10 lg:py-10">
             {children}
           </div>
         </main>

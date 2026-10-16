@@ -1,12 +1,12 @@
 import Link from "next/link";
-import { CalendarClock, AlertTriangle, ArrowRight, CalendarCheck2, Inbox, Trophy, Building2, Sun, CalendarPlus } from "lucide-react";
-import { StatCard } from "@/components/ui/stat-card";
+import { AlertTriangle, ArrowRight, Inbox, Trophy, Building2, Sun, CalendarPlus } from "lucide-react";
 import { EmptyState } from "@/components/ui/empty-state";
 import { listActivities, type Activity } from "@/lib/data/activities";
 import { listFinancialRecords } from "@/lib/data/financial";
 import { responsavelDoPerfil } from "@/lib/data/responsaveis";
 import { listPessoas } from "@/lib/data/escritorio";
 import { contarDistribuicaoPendentes } from "@/lib/data/distribuicao";
+import { contarNaoTratadas } from "@/lib/data/publicacoes";
 import { ranking, clientesComMaisPendencias, hojeBahia, emAberto, somaDias } from "@/lib/data/painel";
 import { pipelineDosClientes } from "@/lib/data/pipeline";
 import { PipelineBoard } from "@/components/cliente/pipeline-board";
@@ -36,13 +36,14 @@ export default async function AdminOverviewPage({ searchParams }: { searchParams
   const hoje = hojeBahia();
 
   const supabase = await createClient();
-  const [activities, financeiro, meuResponsavel, pessoas, pipeline, pendentesDistribuicao, { data: compsHoje }] = await Promise.all([
+  const [activities, financeiro, meuResponsavel, pessoas, pipeline, pendentesDistribuicao, publicacoesPendentes, { data: compsHoje }] = await Promise.all([
     listActivities(),
     isAdmin ? listFinancialRecords() : Promise.resolve(null),
     responsavelDoPerfil(profile.id),
     listPessoas(),
     permissoes.clientes ? pipelineDosClientes() : Promise.resolve([]),
     permissoes.distribuicao ? contarDistribuicaoPendentes().catch(() => 0) : Promise.resolve(0),
+    isAdmin ? contarNaoTratadas().catch(() => 0) : Promise.resolve(0),
     supabase
       .from("compromissos")
       .select("id, titulo, tipo, inicio, participantes, clients(name)")
@@ -89,35 +90,159 @@ export default async function AdminOverviewPage({ searchParams }: { searchParams
     })),
   ].sort((x, y) => (x.hora || "99").localeCompare(y.hora || "99"));
 
+  const primeiroNome = profile.full_name.replace(/^(Dr\.?|Dra\.?)\s+/i, "").split(" ")[0] ?? "";
+  const dataCurta = new Date()
+    .toLocaleDateString("pt-BR", { timeZone: "America/Bahia", weekday: "long", day: "2-digit", month: "short" })
+    .replace(".", "")
+    .replace("-feira", "");
+  const horaAgora = new Date().toLocaleTimeString("pt-BR", { timeZone: "America/Bahia", hour: "2-digit", minute: "2-digit" });
+  const plural = (n: number, um: string, varios: string) => (n === 1 ? um : varios.replace("#", String(n)));
+
+  // resumo do dia numa frase (só o que existe)
+  const resumo: React.ReactNode[] = [];
+  if (deHoje.length) resumo.push(<>Hoje vence{deHoje.length > 1 ? "m" : ""} <strong className="font-semibold text-foreground">{plural(deHoje.length, "1 atividade sua", "# atividades suas")}</strong>.</>);
+  else resumo.push(<>Nada seu vence hoje.</>);
+  if (atrasadas.length) resumo.push(<><strong className="font-semibold text-status-danger">{plural(atrasadas.length, "1 está atrasada", "# estão atrasadas")}</strong>.</>);
+  if (agendaHoje.length) resumo.push(<>A agenda {verEquipe ? "do escritório " : ""}tem <strong className="font-semibold text-foreground">{plural(agendaHoje.length, "1 item", "# itens")}</strong> hoje.</>);
+  if (pendentesDistribuicao) resumo.push(<>Chegaram <strong className="font-semibold text-foreground">{plural(pendentesDistribuicao, "1 pedido", "# pedidos")}</strong> para distribuir.</>);
+  if (publicacoesPendentes) resumo.push(<>Há <strong className="font-semibold text-foreground">{plural(publicacoesPendentes, "1 publicação", "# publicações")}</strong> não tratada{publicacoesPendentes > 1 ? "s" : ""}.</>);
+
+  // "Precisa de você": atrasadas e de hoje primeiro, depois as caixas de entrada
+  const agora = [
+    ...atrasadas.slice(0, 4).map((a) => ({
+      chave: `at-${a.id}`,
+      href: `/admin/activities/${a.id}`,
+      titulo: a.title,
+      detalhe: `${a.clients?.name ?? "Sem cliente"} · venceu ${a.deadline!.split("-").reverse().slice(0, 2).join("/")}`,
+      cor: "bg-status-danger",
+    })),
+    ...deHoje.slice(0, 3).map((a) => ({
+      chave: `hj-${a.id}`,
+      href: `/admin/activities/${a.id}`,
+      titulo: a.title,
+      detalhe: `${a.clients?.name ?? "Sem cliente"} · vence hoje${a.hora ? ` às ${a.hora.slice(0, 5)}` : ""}`,
+      cor: "bg-status-pending",
+    })),
+    ...(pendentesDistribuicao
+      ? [{ chave: "dist", href: "/admin/distribuicao", titulo: plural(pendentesDistribuicao, "1 pedido para distribuir", "# pedidos para distribuir"), detalhe: "WhatsApp e portal do cliente", cor: "bg-gold" }]
+      : []),
+    ...(publicacoesPendentes
+      ? [{ chave: "pub", href: "/admin/publicacoes", titulo: plural(publicacoesPendentes, "1 publicação não tratada", "# publicações não tratadas"), detalhe: "Diário oficial e INPI", cor: "bg-status-info" }]
+      : []),
+  ].slice(0, 7);
+
   const linhasRanking = verEquipe ? ranking(activities, pessoas, periodo) : ranking(activities, pessoas.filter((p) => p.id === meuResponsavel), periodo);
   const maxConcluidas = Math.max(1, ...linhasRanking.map((l) => l.concluidas));
   const topClientes = clientesComMaisPendencias(activities, 8);
   const maxPend = Math.max(1, ...topClientes.map((c) => c.abertas));
 
-  const primeiroNome = profile.full_name.split(" ")[0] ?? "";
-  const dataLonga = new Date().toLocaleDateString("pt-BR", { timeZone: "America/Bahia", weekday: "long", day: "numeric", month: "long" });
-  const dataExtenso = dataLonga.charAt(0).toUpperCase() + dataLonga.slice(1);
 
   return (
     <div>
-      <div className="mb-6">
-        <p className="text-sm text-muted">{dataExtenso}</p>
-        <h1 className="page-title mt-0.5">
-          {saudacao()}
-          {primeiroNome ? `, ${primeiroNome}` : ""}
-        </h1>
-      </div>
+      {/* abertura: saudação grande, resumo do dia numa frase e o número que mais importa */}
+      <section className="mb-10 grid items-start gap-6 lg:grid-cols-[1fr_320px]">
+        <div>
+          <p className="eyebrow flex items-center gap-2">
+            <span className="h-1.5 w-1.5 rounded-full bg-status-success" aria-hidden /> {dataCurta} · atualizado {horaAgora}
+          </p>
+          <h1 className="page-title mt-3 !text-[2.6rem] !leading-[1.02] sm:!text-[3.25rem]">
+            {saudacao()},
+            <br />
+            <span className="text-foreground/30">{primeiroNome || "equipe"}.</span>
+          </h1>
+          <p className="mt-5 max-w-xl text-[15px] leading-relaxed text-foreground/70">
+            {resumo.map((parte, i) => (
+              <span key={i}>
+                {i > 0 ? " " : ""}
+                {parte}
+              </span>
+            ))}
+          </p>
+          <div className="mt-6 flex flex-wrap items-center gap-2">
+            <Link href="/admin/agenda" className="ui-btn">
+              Ver meu dia <ArrowRight className="h-4 w-4" aria-hidden />
+            </Link>
+            {permissoes.distribuicao && pendentesDistribuicao > 0 && (
+              <Link href="/admin/distribuicao" className="ui-btn-secondary">
+                Distribuir {pendentesDistribuicao} pedido{pendentesDistribuicao > 1 ? "s" : ""}
+              </Link>
+            )}
+          </div>
+        </div>
 
-      <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
-        <StatCard label="Suas atrasadas" value={String(atrasadas.length)} icon={AlertTriangle} tone={atrasadas.length ? "danger" : "success"} />
-        <StatCard label="Vencem hoje" value={String(deHoje.length)} icon={CalendarCheck2} tone="pending" href="/admin/agenda" />
-        <StatCard label="Próximos 7 dias" value={String(daSemana.length)} icon={CalendarClock} tone="info" />
-        {permissoes.distribuicao ? (
-          <StatCard label="Para distribuir" value={String(pendentesDistribuicao)} icon={Inbox} tone={pendentesDistribuicao ? "pending" : "success"} href="/admin/distribuicao" />
-        ) : (
-          <StatCard label="Em aberto" value={String(abertasMinhas.length)} icon={Inbox} />
-        )}
-      </div>
+        <Link
+          href={atrasadas.length ? "/admin/activities?prazo=atrasadas" : "/admin/agenda"}
+          className="group relative overflow-hidden rounded-2xl bg-navy p-6 text-white transition-transform duration-200 hover:-translate-y-0.5"
+        >
+          <span className="pointer-events-none absolute -top-16 -right-16 h-48 w-48 rounded-full border border-white/10" aria-hidden />
+          <span className="pointer-events-none absolute -top-8 -right-8 h-32 w-32 rounded-full border border-white/10" aria-hidden />
+          <p className="eyebrow flex items-center gap-2 !text-white/55">
+            <span className={`h-1.5 w-1.5 rounded-full ${atrasadas.length ? "bg-[#ff6b6b]" : "bg-gold"}`} aria-hidden />
+            {atrasadas.length ? "Atrasadas" : "Prazos · hoje"}
+          </p>
+          <p className="numero-grande mt-3 text-[5.5rem] leading-none text-white">{atrasadas.length || deHoje.length}</p>
+          <p className="font-display mt-2 text-lg leading-tight font-bold">
+            {atrasadas.length
+              ? atrasadas.length === 1
+                ? "atividade sua está atrasada."
+                : "atividades suas estão atrasadas."
+              : deHoje.length === 1
+                ? "atividade vence hoje."
+                : "atividades vencem hoje."}
+          </p>
+          <p className="mt-2 text-xs leading-relaxed text-white/60">
+            {daSemana.length} nos próximos 7 dias{atrasadas.length && deHoje.length ? ` · ${deHoje.length} vence(m) hoje` : ""}.
+          </p>
+          <p className="eyebrow mt-5 flex items-center justify-between !text-gold-2">
+            <span>{atrasadas.length ? "Ver atrasadas" : "Abrir agenda"}</span>
+            <ArrowRight className="h-3.5 w-3.5 transition-transform group-hover:translate-x-0.5" aria-hidden />
+          </p>
+        </Link>
+      </section>
+
+      {/* agora: o que precisa de atenção, numerado */}
+      {agora.length > 0 && (
+        <section className="mb-10">
+          <p className="eyebrow">Agora</p>
+          <h2 className="page-title mt-1 !text-2xl">Precisa de você.</h2>
+          <ol className="mt-4 border-b border-border">
+            {agora.map((item, i) => (
+              <li key={item.chave}>
+                <Link href={item.href} className="lista-linha group">
+                  <span className="eyebrow w-6 shrink-0 !text-[11px]">{String(i + 1).padStart(2, "0")}</span>
+                  <span className={`h-2 w-2 shrink-0 rounded-full ${item.cor}`} aria-hidden />
+                  <span className="min-w-0 flex-1">
+                    <span className="block truncate text-sm font-medium text-foreground">{item.titulo}</span>
+                    <span className="block truncate text-xs text-muted">{item.detalhe}</span>
+                  </span>
+                  <span className="eyebrow shrink-0 transition-colors group-hover:!text-foreground">Abrir ›</span>
+                </Link>
+              </li>
+            ))}
+          </ol>
+        </section>
+      )}
+
+      {/* faixa de números */}
+      <section className="mb-10 grid grid-cols-2 border-y border-border md:grid-cols-4">
+        {[
+          { n: atrasadas.length, rotulo: "Suas atrasadas", href: "/admin/activities?prazo=atrasadas", cor: atrasadas.length ? "text-status-danger" : "" },
+          { n: deHoje.length, rotulo: "Vencem hoje", href: "/admin/agenda", cor: "" },
+          { n: daSemana.length, rotulo: "Próximos 7 dias", href: "/admin/activities?prazo=semana", cor: "" },
+          permissoes.distribuicao
+            ? { n: pendentesDistribuicao, rotulo: "Para distribuir", href: "/admin/distribuicao", cor: pendentesDistribuicao ? "text-gold-ink" : "" }
+            : { n: abertasMinhas.length, rotulo: "Em aberto", href: "/admin/activities", cor: "" },
+        ].map((c, i) => (
+          <Link
+            key={c.rotulo}
+            href={c.href}
+            className={`px-1 py-5 transition-colors hover:bg-[#f7f7f4] md:px-6 ${i > 0 ? "md:border-l md:border-border" : ""} ${i % 2 ? "border-l border-border md:border-l" : ""} ${i > 1 ? "border-t border-border md:border-t-0" : ""}`}
+          >
+            <p className={`numero-grande text-4xl ${c.cor}`}>{c.n}</p>
+            <p className="eyebrow mt-1">{c.rotulo}</p>
+          </Link>
+        ))}
+      </section>
 
       {isAdmin && inadimplentes.length > 0 && (
         <Link

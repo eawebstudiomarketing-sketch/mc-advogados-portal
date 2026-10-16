@@ -49,6 +49,7 @@ export default async function AdminTeamPage({ searchParams }: { searchParams: Pr
     const [pessoas, config] = await Promise.all([listPessoas(), getEscritorioConfig()]);
     return (
       <div>
+        <p className="eyebrow mb-2">Escritório · Equipe</p>
         <h1 className="page-title mb-1">Equipe</h1>
         <p className="mb-5 text-sm text-muted">WhatsApp de cada pessoa (rotina das 7h) e as áreas que cada um atende.</p>
         {abas}
@@ -65,6 +66,7 @@ export default async function AdminTeamPage({ searchParams }: { searchParams: Pr
     const { cargas, semResponsavel } = serializarCargas(atividades, pessoas);
     return (
       <div>
+        <p className="eyebrow mb-2">Escritório · Equipe</p>
         <h1 className="page-title mb-1">Equipe</h1>
         <p className="mb-5 text-sm text-muted">Tudo o que está em aberto com cada pessoa, separado por prazo.</p>
         {abas}
@@ -83,6 +85,7 @@ export default async function AdminTeamPage({ searchParams }: { searchParams: Pr
     <div>
       <div className="mb-7 flex flex-wrap items-end justify-between gap-3">
         <div>
+          <p className="eyebrow mb-2">Escritório · Equipe</p>
           <h1 className="page-title">Equipe</h1>
           <p className="text-sm text-muted">
             {staff.length} {staff.length === 1 ? "pessoa com acesso ao painel" : "pessoas com acesso ao painel"}

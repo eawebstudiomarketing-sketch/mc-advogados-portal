@@ -80,15 +80,15 @@ export function ActivitiesKanban({
               if (dragId) moveTo(dragId, status);
             }}
             className={`flex min-h-[240px] flex-col gap-2 rounded-2xl border p-2.5 transition-colors duration-150 ${
-              dragOverStatus === status ? "border-navy-3/40 bg-navy/[0.04]" : "border-transparent bg-[#eceef2]"
+              dragOverStatus === status ? "border-navy-3/40 bg-navy/[0.04]" : "border-border bg-surface-2"
             }`}
           >
             <div className="mb-1 flex items-center justify-between px-1.5 pt-1">
-              <h3 className="section-title flex items-center gap-2">
-                <span className={`h-2 w-2 rounded-full ${COLUMN_DOT[status]}`} aria-hidden />
+              <h3 className="eyebrow flex items-center gap-2 !text-foreground/80">
+                <span className={`h-1.5 w-1.5 rounded-full ${COLUMN_DOT[status]}`} aria-hidden />
                 {ACTIVITY_STATUS_LABEL[status]}
               </h3>
-              <span className="rounded-full bg-surface px-2 py-0.5 text-xs font-medium tabular-nums text-muted">
+              <span className="numero-grande text-sm text-muted">
                 {columnItems.length}
               </span>
             </div>
@@ -109,7 +109,7 @@ export function ActivitiesKanban({
                   if ((e.target as HTMLElement).closest("a")) return;
                   abrir(a.id);
                 }}
-                className={`cursor-pointer rounded-xl border border-border bg-surface p-3 shadow-sm transition-[box-shadow,transform,opacity] duration-150 hover:-translate-y-px hover:shadow-md active:cursor-grabbing ${
+                className={`cursor-pointer rounded-xl border border-border bg-surface p-3.5 transition-[border-color,transform,opacity] duration-150 hover:-translate-y-px hover:border-border-strong active:cursor-grabbing ${
                   dragId === a.id ? "rotate-1 opacity-40" : ""
                 }`}
               >
@@ -124,7 +124,7 @@ export function ActivitiesKanban({
                   </p>
                 )}
                 <div className="mt-2 flex items-center justify-between text-xs text-muted">
-                  <span>{ACTIVITY_TYPE_LABEL[a.type]}</span>
+                  <span className="eyebrow">{ACTIVITY_TYPE_LABEL[a.type]}</span>
                   {a.deadline && <PrazoCartao deadline={a.deadline} status={a.status} />}
                 </div>
               </div>

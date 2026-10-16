@@ -41,7 +41,7 @@ export function QuadroInicial({ minhas, todas, rotuloTodas }: { minhas: Activity
   return (
     <section>
       <div className="mb-3 flex flex-wrap items-center justify-between gap-3">
-        <div role="tablist" aria-label="Quais atividades" className="inline-flex items-center gap-0.5 rounded-xl bg-[#eceef2] p-1">
+        <div role="tablist" aria-label="Quais atividades" className="inline-flex items-center gap-0.5 rounded-full border border-border bg-surface p-1">
           {([
             ["minhas", "Minhas atividades", minhas.length],
             ["todas", rotuloTodas, todas.length],
@@ -51,12 +51,12 @@ export function QuadroInicial({ minhas, todas, rotuloTodas }: { minhas: Activity
               role="tab"
               aria-selected={aba === id}
               onClick={() => gravar(id)}
-              className={`inline-flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-medium transition-[background-color,color,box-shadow] duration-150 ${
-                aba === id ? "bg-surface text-foreground shadow-sm" : "text-muted hover:text-foreground"
+              className={`inline-flex items-center gap-1.5 rounded-full px-3 py-1.5 text-xs font-semibold transition-[background-color,color] duration-150 ${
+                aba === id ? "bg-navy text-white" : "text-muted hover:text-foreground"
               }`}
             >
               {rotulo}
-              <span className="rounded-full bg-navy/[0.07] px-1.5 text-[11px] tabular-nums">{n}</span>
+              <span className={`rounded-full px-1.5 text-[11px] tabular-nums ${aba === id ? "bg-white/15" : "bg-navy/[0.07]"}`}>{n}</span>
             </button>
           ))}
         </div>

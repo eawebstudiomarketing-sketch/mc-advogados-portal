@@ -35,13 +35,14 @@ export default async function AdminActivitiesPage({ searchParams }: { searchPara
     <div>
       <div className="mb-7 flex flex-wrap items-end justify-between gap-3">
         <div>
+          <p className="eyebrow mb-2">Dia a dia · Atividades</p>
           <h1 className="page-title">{arquivadas ? "Atividades arquivadas" : "Atividades"}</h1>
           <p className="text-sm text-muted">
             {activities.length !== todas.length ? `${activities.length} de ${todas.length} · ` : ""}
             {todas.length} {arquivadas ? (todas.length === 1 ? "arquivada" : "arquivadas") : todas.length === 1 ? "atividade ativa" : "atividades ativas"}
           </p>
         </div>
-        <div className="flex items-center gap-2">
+        <div className="flex flex-wrap items-center gap-2">
         <Link href={arquivadas ? "/admin/activities" : "/admin/activities?arquivadas=1"} className="ui-btn-secondary">
           {arquivadas ? <ArrowLeft className="h-4 w-4" aria-hidden /> : <Archive className="h-4 w-4" aria-hidden />}
           {arquivadas ? "Voltar às ativas" : "Arquivadas"}

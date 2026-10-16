@@ -60,6 +60,16 @@ function Caixa({
   );
 }
 
+const HOJE = () => new Intl.DateTimeFormat("en-CA", { timeZone: "America/Bahia" }).format(new Date());
+function corDoPrazo(a: Activity): string {
+  if (a.status === "concluida" || a.status === "cancelada") return "bg-border-strong";
+  const h = HOJE();
+  if (!a.deadline) return "bg-border-strong";
+  if (a.deadline < h) return "bg-status-danger";
+  if (a.deadline === h) return "bg-status-pending";
+  return "bg-status-success";
+}
+
 export function ActivitiesView({
   activities: todasAtividades,
   arquivadas = false,
@@ -113,7 +123,7 @@ export function ActivitiesView({
   return (
     <div>
       <div className="mb-4 flex flex-wrap items-center gap-3">
-      <div role="tablist" aria-label="Modo de exibição" className="inline-flex items-center gap-0.5 rounded-xl bg-[#eceef2] p-1">
+      <div role="tablist" aria-label="Modo de exibição" className="inline-flex items-center gap-0.5 rounded-full border border-border bg-surface p-1">
         {([
           ["list", "Lista", List],
           ["kanban", "Quadro", Columns3],
@@ -123,8 +133,8 @@ export function ActivitiesView({
             role="tab"
             aria-selected={mode === m}
             onClick={() => setMode(m)}
-            className={`inline-flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-medium transition-[background-color,color,box-shadow] duration-150 ${
-              mode === m ? "bg-surface text-foreground shadow-sm" : "text-muted hover:text-foreground"
+            className={`inline-flex items-center gap-1.5 rounded-full px-3 py-1.5 text-xs font-semibold transition-[background-color,color] duration-150 ${
+              mode === m ? "bg-navy text-white" : "text-muted hover:text-foreground"
             }`}
           >
             <Icone className="h-3.5 w-3.5" aria-hidden />
@@ -150,12 +160,12 @@ export function ActivitiesView({
                       onChange={() => setSel(todas ? new Set() : new Set(activities.map((a) => a.id)))}
                     />
                   </th>
-                  <th className="px-5 py-2.5 font-medium">Atividade</th>
-                  <th className="px-5 py-2.5 font-medium">Cliente</th>
-                  <th className="px-5 py-2.5 font-medium">Responsável</th>
-                  <th className="px-5 py-2.5 font-medium">Prazo</th>
-                  <th className="px-5 py-2.5 font-medium">Status</th>
-                  <th className="px-5 py-2.5 font-medium"></th>
+                  <th className="w-10 px-2">Nº</th>
+                  <th className="px-4">Atividade</th>
+                  <th className="hidden px-4 md:table-cell">Responsável</th>
+                  <th className="px-4">Prazo</th>
+                  <th className="px-4">Status</th>
+                  <th className="px-4"></th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-border">
@@ -178,22 +188,43 @@ export function ActivitiesView({
                       }}
                       className={`cursor-pointer ${marcada ? "!bg-navy/[0.045]" : "hover:bg-surface-2/70"}`}
                     >
-                      <td className="py-3 pr-0 pl-5">
+                      <td className="pr-0 pl-5">
                         <Caixa checked={marcada} label={`Selecionar "${a.title}"`} onChange={(e) => alternar(i, e.shiftKey)} />
                       </td>
-                      <td className="px-5 py-3">
-                        <AtividadeLink id={a.id} className="font-medium text-navy-3 underline-offset-2 hover:underline">
+                      <td className="px-2 align-middle">
+                        <span className="eyebrow !text-[11px] tabular-nums">{String(i + 1).padStart(2, "0")}</span>
+                      </td>
+                      <td className="max-w-[420px] px-4">
+                        <AtividadeLink id={a.id} className="block truncate font-medium text-foreground underline-offset-2 hover:underline">
                           {a.title}
                         </AtividadeLink>
-                        <p className="text-xs text-muted">{ACTIVITY_TYPE_LABEL[a.type]}</p>
+                        <p className="mt-0.5 truncate text-xs text-muted">
+                          {a.clients?.name ?? "Sem cliente"}
+                          <span className="mx-1.5 text-border-strong">·</span>
+                          {ACTIVITY_TYPE_LABEL[a.type]}
+                          {a.area ? (
+                            <>
+                              <span className="mx-1.5 text-border-strong">·</span>
+                              {a.area}
+                            </>
+                          ) : null}
+                        </p>
                       </td>
-                      <td className="px-5 py-3 text-foreground/70">{a.clients?.name}</td>
-                      <td className="px-5 py-3 text-foreground/70">{nomeResponsavel(a) ?? "—"}</td>
-                      <td className="px-5 py-3 text-foreground/70">{a.deadline ? formatDate(a.deadline) : "—"}</td>
-                      <td className="px-5 py-3">
+                      <td className="hidden px-4 text-[13px] text-foreground/75 md:table-cell">{nomeResponsavel(a) ?? "—"}</td>
+                      <td className="px-4 text-[13px] whitespace-nowrap">
+                        {a.deadline ? (
+                          <span className="inline-flex items-center gap-1.5 text-foreground/80">
+                            <span className={`h-1.5 w-1.5 rounded-full ${corDoPrazo(a)}`} aria-hidden />
+                            {formatDate(a.deadline)}
+                          </span>
+                        ) : (
+                          <span className="text-muted">—</span>
+                        )}
+                      </td>
+                      <td className="px-4">
                         <StatusSelect key={`${a.id}-${a.status}`} id={a.id} status={a.status} />
                       </td>
-                      <td className="px-5 py-3">
+                      <td className="px-4">
                         <div className="flex items-center justify-end gap-0.5">
                           <button type="button" onClick={() => abrir(a.id, { editar: true })} className="icon-btn" aria-label="Editar" data-tip="Editar">
                             <Pencil aria-hidden />

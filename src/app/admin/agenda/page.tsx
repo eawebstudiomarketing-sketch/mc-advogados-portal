@@ -76,6 +76,7 @@ export default async function AgendaPage({ searchParams }: { searchParams: Promi
   const cabecalho = (
     <div className="mb-5 flex flex-wrap items-end justify-between gap-3">
       <div>
+        <p className="eyebrow mb-2">Dia a dia · Agenda</p>
         <h1 className="page-title">Agenda</h1>
         <p className="text-sm text-muted">Prazos, audiências, tarefas e compromissos. Toda manhã, às 7h, cada um recebe o seu dia no WhatsApp.</p>
       </div>

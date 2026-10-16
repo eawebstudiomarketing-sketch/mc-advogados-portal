@@ -62,6 +62,7 @@ export default async function LixeiraPage() {
   return (
     <div className="space-y-4">
       <div>
+        <p className="eyebrow mb-2">Escritório · Lixeira</p>
         <h1 className="page-title">Lixeira</h1>
         <p className="text-sm text-muted">
           Documentos removidos do portal ficam aqui por {TRASH_DAYS} dias e podem ser restaurados. Os arquivos no Google Drive nunca são apagados pelo portal.

@@ -24,6 +24,7 @@ export default async function MensagensPage({ searchParams }: { searchParams: Pr
   return (
     <div>
       <div className="mb-4">
+        <p className="eyebrow mb-2">Dia a dia · Comunicação interna</p>
         <h1 className="page-title">Mensagens</h1>
         <p className="text-sm text-muted">Conversas da equipe, o canal Escritório e os seus avisos (marcações, comentários e atividades que caíram com você).</p>
       </div>
