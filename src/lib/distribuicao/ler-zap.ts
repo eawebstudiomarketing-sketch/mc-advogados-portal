@@ -77,6 +77,8 @@ function conteudo(m: Msg): string {
   return "";
 }
 
+const chave = (iso: string) => String(Math.floor(Date.parse(iso) / 1000));
+
 export type ResultadoLeitura = { conversas: number; mensagens: number; sugestoes: number; erro?: string };
 
 export async function lerConversasDoZap(): Promise<ResultadoLeitura> {
@@ -103,7 +105,17 @@ export async function lerConversasDoZap(): Promise<ResultadoLeitura> {
       .gt("wa_timestamp", desde)
       .order("wa_timestamp", { ascending: false })
       .limit(MAX_MSGS);
-    const lidas = ((msgs ?? []) as Msg[]).reverse();
+    // trava contra repetição: mensagem que já gerou sugestão (em qualquer
+    // situação) não volta para a IA, mesmo que o marcador de leitura se perca
+    const { data: jaFeitas } = await db
+      .from("distribuicao")
+      .select("titulo, trechos")
+      .eq("chat_jid", chat.chat_jid)
+      .gte("created_at", new Date(Date.now() - 14 * 86_400_000).toISOString())
+      .limit(200);
+    const usadas = new Set<string>();
+    for (const d of jaFeitas ?? []) for (const tr of (Array.isArray(d.trechos) ? d.trechos : []) as { em?: string }[]) if (tr.em) usadas.add(chave(tr.em));
+    const lidas = ((msgs ?? []) as Msg[]).reverse().filter((m) => m.from_me || !usadas.has(chave(m.wa_timestamp)));
     // áudio do cliente: a IA ouve (transcreve) antes de procurar pedidos
     const audios = lidas.filter((m) => m.tipo === "audio" && !m.from_me && m.media_path).slice(-MAX_AUDIOS);
     for (let i = 0; i < audios.length; i += 3) {
@@ -121,7 +133,7 @@ export async function lerConversasDoZap(): Promise<ResultadoLeitura> {
     }
 
     // o que já está esperando na Distribuição para este cliente (não repetir)
-    let qPendentes = db.from("distribuicao").select("titulo").eq("status", "pendente").limit(30);
+    let qPendentes = db.from("distribuicao").select("titulo").gte("created_at", new Date(Date.now() - 14 * 86_400_000).toISOString()).limit(40);
     qPendentes = chat.client_id ? qPendentes.eq("client_id", chat.client_id) : qPendentes.eq("chat_jid", chat.chat_jid);
     const { data: pendentes } = await qPendentes;
 
@@ -141,7 +153,7 @@ export async function lerConversasDoZap(): Promise<ResultadoLeitura> {
         "Encontre só PEDIDOS DE TRABALHO para o escritório: o cliente pede algo (analisar, elaborar, revisar, registrar, responder, agendar), manda documento para análise, faz pergunta jurídica que exige estudo, informa prazo, notificação, audiência ou problema que precisa de providência.",
         "Ignore cumprimentos, agradecimentos, confirmações, conversa social, pedidos que o próprio escritório já respondeu como resolvidos na conversa e mensagens do escritório (\"Escritório\").",
         "Junte em UMA demanda as mensagens sobre o mesmo assunto. Se não houver pedido, devolva lista vazia.",
-        `Já registradas e pendentes (NÃO repita): ${(pendentes ?? []).map((p) => `"${p.titulo}"`).join(", ") || "nenhuma"}.`,
+        `Já registradas nos últimos dias (NÃO repita nem reescreva com outras palavras): ${(pendentes ?? []).map((p) => `"${p.titulo}"`).join(", ") || "nenhuma"}.`,
         `Área: escolha uma destas ou null: ${config.areas.join(", ")}.`,
         "titulo: curto, começando com verbo no infinitivo (ex.: \"Revisar contrato de locação da filial\"). descricao: o que o cliente pediu, com os detalhes úteis, em 1 a 4 frases. prazo: só se o cliente citou data ou prazo. mensagens: índices [n] que originaram a demanda.",
       ].join("\n"),
@@ -163,6 +175,9 @@ export async function lerConversasDoZap(): Promise<ResultadoLeitura> {
         .filter((i) => novas[i])
         .slice(0, 8)
         .map((i) => ({ texto: conteudo(novas[i]).slice(0, 600), quem: autor(novas[i]), em: novas[i].wa_timestamp }));
+      const doCliente = trechos.filter((tr) => !novas.find((m) => m.wa_timestamp === tr.em)?.from_me);
+      if (doCliente.some((tr) => usadas.has(chave(tr.em)))) continue;
+      doCliente.forEach((tr) => usadas.add(chave(tr.em)));
       linhasNovas.push({
         origem: "whatsapp",
         client_id: chat.client_id,
