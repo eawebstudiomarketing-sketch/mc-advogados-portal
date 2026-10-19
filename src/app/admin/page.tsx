@@ -29,14 +29,14 @@ const horaBahia = (iso: string) => new Date(iso).toLocaleTimeString("pt-BR", { t
 export default async function AdminOverviewPage({ searchParams }: { searchParams: Promise<{ periodo?: string }> }) {
   const { profile, permissoes } = await exigirPermissao("visao_geral");
   const isAdmin = profile.role === "admin";
-  const verEquipe = isAdmin || permissoes.ver_equipe;
+  const verEquipe = permissoes.ver_equipe;
   const periodo = (await searchParams).periodo === "30" ? 30 : 7;
   const hoje = hojeBahia();
 
   const supabase = await createClient();
   const [activities, financeiro, meuResponsavel, pessoas, pendentesDistribuicao, publicacoesPendentes, { data: compsHoje }] = await Promise.all([
     listActivities(),
-    isAdmin ? listFinancialRecords() : Promise.resolve(null),
+    permissoes.financeiro ? listFinancialRecords() : Promise.resolve(null),
     responsavelDoPerfil(profile.id),
     listPessoas(),
     permissoes.distribuicao ? contarDistribuicaoPendentes().catch(() => 0) : Promise.resolve(0),
@@ -241,7 +241,7 @@ export default async function AdminOverviewPage({ searchParams }: { searchParams
         ))}
       </section>
 
-      {isAdmin && inadimplentes.length > 0 && (
+      {permissoes.financeiro && inadimplentes.length > 0 && (
         <Link
           href="/admin/financial"
           className="mt-3 flex items-center gap-2 rounded-xl border border-status-danger/25 bg-status-danger/[0.06] px-4 py-2.5 text-sm text-status-danger transition-colors hover:bg-status-danger/[0.1]"
@@ -373,7 +373,7 @@ export default async function AdminOverviewPage({ searchParams }: { searchParams
                     {linhasRanking.reduce((s, l) => s + l.atrasadas, 0)} atrasadas
                   </span>
                 </span>
-                {isAdmin && (
+                {permissoes.equipe && (
                   <Link href="/admin/team?aba=demandas" className="eyebrow hover:!text-foreground">
                     Por pessoa ›
                   </Link>
@@ -428,7 +428,7 @@ export default async function AdminOverviewPage({ searchParams }: { searchParams
       )}
 
       <div className="mt-10">
-        <QuadroInicial minhas={minhas} todas={noQuadro} rotuloTodas={isAdmin ? "Todas do escritório" : "Dos meus clientes"} />
+        <QuadroInicial minhas={minhas} todas={noQuadro} rotuloTodas={permissoes.todos_clientes ? "Todas do escritório" : "Dos meus clientes"} />
         <p className="mt-2 text-xs text-muted">
           Concluídas dos últimos {CONCLUIDAS_DIAS} dias. Arraste o cartão para mudar o status; clique para abrir.{" "}
           <Link href="/admin/activities" className="ui-link">

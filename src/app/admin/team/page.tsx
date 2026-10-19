@@ -1,8 +1,8 @@
 import Link from "next/link";
-import { ShieldCheck, UserPlus } from "lucide-react";
+import { Crown, ShieldCheck, UserPlus } from "lucide-react";
 import { listDesignacoes, listPermissoesSalvas, listStaff } from "@/lib/data/team";
 import { listClients } from "@/lib/data/clients";
-import { requireRole } from "@/lib/dal";
+import { ehSuperAdmin, exigirPermissao } from "@/lib/dal";
 import { resolverPermissoes } from "@/lib/permissoes";
 import { removeStaffAction } from "./actions";
 import { ConfirmSubmitButton } from "@/components/ui/confirm-submit-button";
@@ -21,10 +21,11 @@ const ABAS = [
 ] as const;
 type Aba = (typeof ABAS)[number][0];
 
-// Equipe (só admin): cada advogado com os clientes que cuida (só esses ele
-// enxerga) e o que pode ver/fazer no painel.
+// Equipe: cada pessoa com os clientes que cuida e o que pode ver/fazer no
+// painel. Só o admin máximo (Maurício) edita; quem tem a permissão Equipe vê.
 export default async function AdminTeamPage({ searchParams }: { searchParams: Promise<{ aba?: string }> }) {
-  const currentProfile = await requireRole(["admin"]);
+  const { profile: currentProfile } = await exigirPermissao("equipe");
+  const souSuper = ehSuperAdmin(currentProfile);
   const { aba: abaParam } = await searchParams;
   const aba: Aba = ABAS.some(([id]) => id === abaParam) ? (abaParam as Aba) : "acessos";
 
@@ -99,36 +100,62 @@ export default async function AdminTeamPage({ searchParams }: { searchParams: Pr
 
       {abas}
 
-      <h2 className="section-title mb-3">Administradores</h2>
-      <div className="mb-8 space-y-2">
-        {admins.map((t) => (
-          <div key={t.id} className="ui-card flex flex-wrap items-center gap-3 px-5 py-4">
-            <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-navy text-sm font-semibold text-gold-2">
-              {t.full_name.replace(/^(Dr\.?|Dra\.?)\s+/i, "").slice(0, 2).toUpperCase()}
-            </span>
-            <div className="min-w-0 flex-1">
-              <p className="font-medium text-foreground">{t.full_name}</p>
-              <p className="truncate text-xs text-muted">{t.email}</p>
+      {!souSuper && (
+        <p className="mb-6 rounded-xl border border-border bg-surface px-4 py-3 text-sm text-muted">
+          Só o admin máximo muda o que cada pessoa vê e quais clientes cuida.
+        </p>
+      )}
+
+      <h2 className="section-title mb-1">Administradores</h2>
+      <p className="mb-3 text-xs text-muted">O admin máximo vê tudo e decide o que cada um vê, inclusive os outros admins.</p>
+      <div className="mb-8 space-y-3">
+        {admins.map((t) =>
+          t.super_admin ? (
+            <div key={t.id} className="ui-card flex flex-wrap items-center gap-3 px-5 py-4">
+              <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-navy text-sm font-semibold text-gold-2">
+                {t.full_name.replace(/^(Dr\.?|Dra\.?)\s+/i, "").slice(0, 2).toUpperCase()}
+              </span>
+              <div className="min-w-0 flex-1">
+                <p className="font-medium text-foreground">{t.full_name}</p>
+                <p className="truncate text-xs text-muted">{t.email}</p>
+              </div>
+              <span className="inline-flex items-center gap-1.5 rounded-full bg-gold-soft px-2.5 py-1 text-xs font-medium text-gold-ink">
+                <Crown className="h-3.5 w-3.5" aria-hidden /> Admin máximo
+              </span>
             </div>
-            <span className="inline-flex items-center gap-1.5 rounded-full bg-navy/[0.06] px-2.5 py-1 text-xs font-medium text-navy-3">
-              <ShieldCheck className="h-3.5 w-3.5" aria-hidden /> Acesso total
-            </span>
-            {t.id !== currentProfile.id && (
-              <ConfirmSubmitButton
-                action={removeStaffAction}
-                hiddenFields={{ profile_id: t.id }}
-                confirmMessage={`Remover o acesso de ${t.full_name}? Essa ação não pode ser desfeita.`}
-                label="Remover acesso"
-                icon="user-x"
-              />
-            )}
-          </div>
-        ))}
+          ) : (
+            <MembroCard
+              key={t.id}
+              papel="admin"
+              podeEditar={souSuper}
+              membro={{ id: t.id, nome: t.full_name, email: t.email, ativo: t.ativo }}
+              clientes={listaClientes}
+              designados={designacoes.get(t.id) ?? []}
+              permissoes={resolverPermissoes("admin", salvas.get(t.id))}
+              acoes={
+                souSuper ? (
+                  <ConfirmSubmitButton
+                    action={removeStaffAction}
+                    hiddenFields={{ profile_id: t.id }}
+                    confirmMessage={`Remover de vez o acesso de ${t.full_name}? O login é apagado (prefira desativar).`}
+                    label="Remover de vez"
+                    icon="user-x"
+                  />
+                ) : (
+                  <span className="inline-flex items-center gap-1.5 rounded-full bg-navy/[0.06] px-2.5 py-1 text-xs font-medium text-navy-3">
+                    <ShieldCheck className="h-3.5 w-3.5" aria-hidden /> Administrador
+                  </span>
+                )
+              }
+            />
+          )
+        )}
       </div>
 
       <h2 className="section-title mb-1">Advogados</h2>
       <p className="mb-3 text-xs text-muted">
-        Cada advogado só enxerga os clientes designados a ele. Abra &ldquo;Clientes&rdquo; para escolher quais e &ldquo;O que pode ver e fazer&rdquo; para liberar ou bloquear telas e ações.
+        Cada advogado só enxerga os clientes designados a ele (a não ser que &ldquo;Ver todos os clientes&rdquo; esteja ligado).{" "}
+        {souSuper ? "Abra “Clientes” para escolher quais e “O que pode ver e fazer” para liberar ou bloquear telas e ações." : ""}
       </p>
       <div className="space-y-3">
         {advogados.length === 0 && (
@@ -142,6 +169,8 @@ export default async function AdminTeamPage({ searchParams }: { searchParams: Pr
         {advogados.map((t) => (
           <MembroCard
             key={t.id}
+            papel="advogado"
+            podeEditar={souSuper}
             membro={{ id: t.id, nome: t.full_name, email: t.email, ativo: t.ativo }}
             clientes={listaClientes}
             designados={designacoes.get(t.id) ?? []}

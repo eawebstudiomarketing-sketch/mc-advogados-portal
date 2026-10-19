@@ -5,7 +5,7 @@ import { StatusBadge } from "@/components/ui/status-badge";
 import { listFinancialRecords } from "@/lib/data/financial";
 import { markAsPaidAction } from "./actions";
 import { ReminderButton } from "./reminder-button";
-import { requireRole } from "@/lib/dal";
+import { exigirPermissao } from "@/lib/dal";
 import { formatCurrency, formatDate } from "@/lib/mock-data";
 
 type F = { busca?: string; cliente?: string; status?: string; de?: string; ate?: string };
@@ -14,7 +14,7 @@ export default async function AdminFinancialPage({ searchParams }: { searchParam
   // Financeiro é a única área sem acesso de advogado — sem isso, um
   // advogado logado veria a lista vazia (RLS bloqueia a query) e pareceria
   // que não há nenhum lançamento, quando na verdade ele só não tem acesso.
-  await requireRole(["admin"]);
+  await exigirPermissao("financeiro");
   const f = await searchParams;
   const todos = await listFinancialRecords();
   const termo = (f.busca ?? "").trim().toLowerCase();

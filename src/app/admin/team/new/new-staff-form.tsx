@@ -6,7 +6,7 @@ import { VoltarInput } from "@/components/nav/back-button";
 
 const initialState: InviteUserState = { error: null };
 
-export function NewStaffForm() {
+export function NewStaffForm({ podeAdmin }: { podeAdmin: boolean }) {
   const [state, formAction, pending] = useActionState(inviteStaffAction, initialState);
 
   return (
@@ -49,7 +49,7 @@ export function NewStaffForm() {
           className="ui-input"
         >
           <option value="advogado">Advogado(a)</option>
-          <option value="admin">Administrador</option>
+          {podeAdmin && <option value="admin">Administrador</option>}
         </select>
       </div>
 

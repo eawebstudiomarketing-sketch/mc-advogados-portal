@@ -55,15 +55,25 @@ export async function requireRole(allowedRoles: Profile["role"][]): Promise<Prof
   return profile;
 }
 
-/** Permissões efetivas de quem está logado (admin: tudo). */
+/** Admin máximo: vê tudo e é o único que muda o que cada pessoa vê. */
+export const ehSuperAdmin = (profile: Pick<Profile, "role" | "super_admin"> | null) => !!profile && profile.role === "admin" && !!profile.super_admin;
+
+/** Permissões efetivas de quem está logado (admin máximo: tudo). */
 export const getPermissoes = cache(async (): Promise<Permissoes | null> => {
   const profile = await getProfile();
   if (!profile || profile.role === "client") return null;
-  if (profile.role === "admin") return resolverPermissoes("admin", null);
+  if (ehSuperAdmin(profile)) return resolverPermissoes("admin", null, true);
   const supabase = await createClient();
   const { data } = await supabase.from("equipe_permissoes").select("permissoes").eq("profile_id", profile.id).maybeSingle();
   return resolverPermissoes(profile.role, data?.permissoes);
 });
+
+/** Só o admin máximo (permissões e clientes de cada pessoa). */
+export async function exigirSuperAdmin(): Promise<Profile> {
+  const profile = await requireRole(["admin"]);
+  if (!ehSuperAdmin(profile)) redirect("/admin/team");
+  return profile;
+}
 
 /**
  * Equipe (admin ou advogado) com as permissões pedidas; sem elas, volta para

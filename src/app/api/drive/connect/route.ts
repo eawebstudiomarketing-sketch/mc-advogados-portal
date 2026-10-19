@@ -1,12 +1,12 @@
 import { NextResponse } from "next/server";
 import { cookies } from "next/headers";
-import { requireRole } from "@/lib/dal";
+import { exigirPermissao } from "@/lib/dal";
 import { buildAuthUrl, isDriveConfigured } from "@/lib/google-drive";
 
 // Inicia a autorização do Google Drive. Só admin. O `state` aleatório vai num
 // cookie httpOnly e é conferido no callback (proteção contra CSRF).
 export async function GET(request: Request) {
-  await requireRole(["admin"]);
+  await exigirPermissao("integracoes");
   const origin = new URL(request.url).origin;
 
   if (!isDriveConfigured()) {

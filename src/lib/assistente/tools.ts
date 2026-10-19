@@ -805,7 +805,8 @@ export const TOOL_MAP = new Map(TOOLS.map((t) => [t.name, t]));
 /** A pessoa pode usar a ferramenta? (admin: todas; advogado: conforme as permissões) */
 export function podeUsar(t: ToolDef, ctx: Ctx): boolean {
   if (ctx.role === "admin") return true;
-  return !t.soAdmin && (t.perm ?? []).every((c) => ctx.permissoes[c]);
+  // ferramentas "só admin" são as do WhatsApp do escritório
+  return (!t.soAdmin || ctx.permissoes.whatsapp) && (t.perm ?? []).every((c) => ctx.permissoes[c]);
 }
 
 /** Executa a ferramenta, corta respostas enormes e registra escritas no log de auditoria. */

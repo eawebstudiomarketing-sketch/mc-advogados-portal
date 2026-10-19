@@ -1,11 +1,11 @@
 import { NextResponse } from "next/server";
 import { cookies } from "next/headers";
-import { requireRole } from "@/lib/dal";
+import { exigirPermissao } from "@/lib/dal";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { clearDriveHealthCache, createFolder, DRIVE_ROOT_FOLDER_NAME, exchangeCode, getDriveConnection } from "@/lib/google-drive";
 
 export async function GET(request: Request) {
-  const profile = await requireRole(["admin"]);
+  const { profile } = await exigirPermissao("integracoes");
   const url = new URL(request.url);
   const origin = url.origin;
   const back = (status: string) => NextResponse.redirect(`${origin}/admin/integracoes?drive=${status}`);

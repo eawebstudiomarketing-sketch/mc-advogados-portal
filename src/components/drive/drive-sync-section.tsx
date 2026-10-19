@@ -1,4 +1,4 @@
-import { getProfile } from "@/lib/dal";
+import { getProfile, getPermissoes } from "@/lib/dal";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { getDriveHealth } from "@/lib/google-drive";
 import { DriveSyncBar } from "./drive-sync-bar";
@@ -42,7 +42,8 @@ async function lastSyncOf(clientId?: string): Promise<string | null> {
 export async function DriveSyncSection(props: { clientId?: string; clients?: { id: string; name: string }[] }) {
   const [health, profile] = await Promise.all([getDriveHealth(), getProfile()]);
   if (!profile || (profile.role !== "admin" && profile.role !== "advogado")) return null;
-  const isAdmin = profile.role === "admin";
+  // atalhos de reconectar/configurar: quem tem a permissão Integrações
+  const isAdmin = !!(await getPermissoes())?.integracoes;
 
   if (health.ok) {
     return (

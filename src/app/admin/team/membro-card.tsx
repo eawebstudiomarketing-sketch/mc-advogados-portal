@@ -23,15 +23,19 @@ function Interruptor({ on, onChange, rotulo }: { on: boolean; onChange: (v: bool
   );
 }
 
-/** Gerenciamento de um advogado: clientes que ele cuida, o que pode ver/fazer e acesso. */
+/** Uma pessoa da equipe: clientes que cuida, o que pode ver/fazer e acesso (só o admin máximo edita). */
 export function MembroCard({
   membro,
+  papel,
+  podeEditar,
   clientes,
   designados,
   permissoes,
   acoes,
 }: {
   acoes?: React.ReactNode;
+  papel: "admin" | "advogado";
+  podeEditar: boolean;
   membro: { id: string; nome: string; email: string; ativo: boolean };
   clientes: { id: string; name: string }[];
   designados: string[];
@@ -88,17 +92,21 @@ export function MembroCard({
             {membro.nome} {!ativo && <span className="ml-1 rounded-full bg-surface-2 px-2 py-0.5 text-[11px] font-medium text-muted">Desativado</span>}
           </p>
           <p className="truncate text-xs text-muted">
-            {membro.email} · Advogado(a) · {sel.size} {sel.size === 1 ? "cliente" : "clientes"}
+            {membro.email} · {papel === "admin" ? "Administrador(a)" : "Advogado(a)"} ·{" "}
+            {perm.todos_clientes ? "todos os clientes" : `${sel.size} ${sel.size === 1 ? "cliente" : "clientes"}`}
             {bloqueadas ? ` · ${bloqueadas} ${bloqueadas === 1 ? "bloqueio" : "bloqueios"}` : ""}
           </p>
         </div>
-        <label className="flex items-center gap-2 text-xs text-muted">
-          Acesso
-          <Interruptor on={ativo} onChange={alternarAtivo} rotulo={`Acesso de ${membro.nome}`} />
-        </label>
+        {podeEditar && (
+          <label className="flex items-center gap-2 text-xs text-muted">
+            Acesso
+            <Interruptor on={ativo} onChange={alternarAtivo} rotulo={`Acesso de ${membro.nome}`} />
+          </label>
+        )}
         {acoes}
       </div>
 
+      {podeEditar && (
       <div className="flex border-t border-border">
         {([
           ["clientes", "Clientes", Users],
@@ -119,9 +127,15 @@ export function MembroCard({
           </button>
         ))}
       </div>
+      )}
 
-      {aberto === "clientes" && (
+      {podeEditar && aberto === "clientes" && (
         <div className="border-t border-border bg-surface-2/40 px-5 py-4">
+          {perm.todos_clientes && (
+            <p className="mb-3 rounded-lg bg-gold-soft px-3 py-2 text-xs text-gold-ink">
+              &ldquo;Ver todos os clientes&rdquo; está ligado em &ldquo;O que pode ver e fazer&rdquo;: a lista abaixo só passa a valer se desligar.
+            </p>
+          )}
           <div className="flex flex-wrap items-center gap-2">
             <div className="relative min-w-[200px] flex-1">
               <Search className="pointer-events-none absolute top-1/2 left-2.5 h-3.5 w-3.5 -translate-y-1/2 text-muted" aria-hidden />
@@ -164,9 +178,12 @@ export function MembroCard({
         </div>
       )}
 
-      {aberto === "permissoes" && (
+      {podeEditar && aberto === "permissoes" && (
         <div className="border-t border-border bg-surface-2/40 px-5 py-4">
-          <p className="text-xs text-muted">Financeiro, Equipe, Integrações e Lixeira nunca aparecem para advogado.</p>
+          <p className="text-xs text-muted">
+            Desligado some do menu e o sistema bloqueia também por dentro.{" "}
+            {papel === "advogado" ? "As opções de Gestão começam desligadas para advogado." : "Admin começa com tudo ligado."}
+          </p>
           <div className="mt-3 grid grid-cols-1 gap-x-8 gap-y-4 md:grid-cols-2">
             {GRUPOS.map((g) => (
               <div key={g}>

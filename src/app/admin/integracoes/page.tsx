@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { requireRole } from "@/lib/dal";
+import { exigirPermissao } from "@/lib/dal";
 import { clearDriveHealthCache, getDriveConnection, getDriveHealth, isDriveConfigured } from "@/lib/google-drive";
 import { ConfirmSubmitButton } from "@/components/ui/confirm-submit-button";
 import { disconnectDriveAction } from "./actions";
@@ -14,7 +14,7 @@ const MESSAGES: Record<string, { text: string; ok: boolean }> = {
 };
 
 export default async function IntegracoesPage({ searchParams }: { searchParams: Promise<{ drive?: string }> }) {
-  await requireRole(["admin"]);
+  await exigirPermissao("integracoes");
   const { drive } = await searchParams;
   const connection = await getDriveConnection();
   const configured = isDriveConfigured();

@@ -1,4 +1,4 @@
-import { requireRole } from "@/lib/dal";
+import { exigirPermissao } from "@/lib/dal";
 import { createClient } from "@/lib/supabase/server";
 import { listarContatos, listarConversas, statusAgente } from "@/lib/whatsapp";
 import { WhatsappApp } from "./whatsapp-app";
@@ -6,7 +6,7 @@ import { WhatsappApp } from "./whatsapp-app";
 export const metadata = { title: "WhatsApp" };
 
 export default async function WhatsappPage() {
-  await requireRole(["admin"]);
+  await exigirPermissao("whatsapp");
   const db = await createClient();
   const [agente, conversas, contatos, clientes] = await Promise.all([
     statusAgente(db),
@@ -18,7 +18,7 @@ export default async function WhatsappPage() {
   return (
     <div>
       <div className="mb-4">
-        <p className="eyebrow mb-2">Dia a dia · WhatsApp do escritório</p>
+        <p className="eyebrow mb-2">Comercial · WhatsApp do escritório</p>
         <h1 className="page-title">WhatsApp</h1>
         <p className="text-sm text-muted">
           WhatsApp do escritório ao vivo, com backup permanente: o que for apagado no celular continua aqui. Para mandar a IA agir, use o assistente (Ctrl+J).

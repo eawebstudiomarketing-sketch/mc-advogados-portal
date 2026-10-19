@@ -1556,6 +1556,7 @@ export type Database = {
           id: string
           ativo: boolean
           oculto: boolean
+          super_admin: boolean
           role: Database["public"]["Enums"]["user_role"]
           user_id: string
         }
@@ -1567,6 +1568,7 @@ export type Database = {
           id?: string
           ativo?: boolean
           oculto?: boolean
+          super_admin?: boolean
           role: Database["public"]["Enums"]["user_role"]
           user_id: string
         }
@@ -1578,6 +1580,7 @@ export type Database = {
           id?: string
           ativo?: boolean
           oculto?: boolean
+          super_admin?: boolean
           role?: Database["public"]["Enums"]["user_role"]
           user_id?: string
         }

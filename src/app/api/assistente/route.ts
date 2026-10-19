@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { GoogleGenAI, ApiError, type Content, type Part } from "@google/genai";
 import { exigirPermissao } from "@/lib/dal";
+import { tudoLiberado } from "@/lib/permissoes";
 import { PREFIXO_ANEXOS, TOOLS, TOOL_MAP, executar, podeUsar, type Ctx } from "@/lib/assistente/tools";
 import { MODELOS } from "@/lib/ia-modelos";
 
@@ -75,7 +76,8 @@ function limitarHistorico(h: Content[]): Content[] {
 
 export async function POST(request: Request) {
   const { profile, permissoes } = await exigirPermissao("assistente");
-  const role = profile.role === "admin" ? "admin" : "advogado";
+  // admin máximo ou admin sem nenhuma restrição: acesso pleno; com restrição, segue as permissões
+  const role = profile.role === "admin" && tudoLiberado(permissoes) ? "admin" : "advogado";
   const apiKey = process.env.GEMINI_API_KEY;
   if (!apiKey) return NextResponse.json({ error: "A chave do Gemini não está configurada no servidor." }, { status: 500 });
 

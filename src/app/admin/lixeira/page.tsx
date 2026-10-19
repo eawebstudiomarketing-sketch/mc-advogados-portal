@@ -1,4 +1,4 @@
-import { requireRole } from "@/lib/dal";
+import { exigirPermissao } from "@/lib/dal";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { TRASH_DAYS } from "@/lib/trash";
 import { RestoreButton } from "./restore-button";
@@ -21,7 +21,7 @@ type Batch = { id: string; clientId: string; reason: string; deletedAt: string; 
 // Lixeira do portal: tudo que foi removido fica aqui 30 dias, agrupado pelo
 // que saiu junto. Os arquivos no Google Drive nunca são apagados pelo portal.
 export default async function LixeiraPage() {
-  await requireRole(["admin"]);
+  await exigirPermissao("lixeira");
   const admin = createAdminClient();
 
   const rows: Row[] = [];

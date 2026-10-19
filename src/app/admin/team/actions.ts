@@ -4,7 +4,7 @@ import { redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
-import { exigirPermissao, requireRole } from "@/lib/dal";
+import { ehSuperAdmin, exigirPermissao, exigirSuperAdmin } from "@/lib/dal";
 import { PERMISSOES } from "@/lib/permissoes";
 import { destinoDeVolta } from "@/lib/voltar";
 
@@ -16,7 +16,7 @@ export async function inviteStaffAction(
   _prevState: InviteUserState,
   formData: FormData
 ): Promise<InviteUserState> {
-  await requireRole(["admin"]);
+  const { profile } = await exigirPermissao("equipe");
 
   const fullName = formData.get("full_name");
   const email = formData.get("email");
@@ -30,6 +30,10 @@ export async function inviteStaffAction(
   }
   if (typeof role !== "string" || !STAFF_ROLES.includes(role as (typeof STAFF_ROLES)[number])) {
     return { error: "Selecione o papel." };
+  }
+  // admin novo começa vendo tudo: só o admin máximo cria
+  if (role === "admin" && !ehSuperAdmin(profile)) {
+    return { error: "Só o admin máximo pode convidar outro administrador." };
   }
 
   const result = await inviteAndCreateProfile({
@@ -80,7 +84,7 @@ export async function inviteClientPortalUserAction(
 }
 
 export async function removeStaffAction(formData: FormData): Promise<void> {
-  const profile = await requireRole(["admin"]);
+  const { profile } = await exigirPermissao("equipe");
 
   const profileId = formData.get("profile_id");
   if (typeof profileId !== "string" || !profileId) return;
@@ -89,11 +93,12 @@ export async function removeStaffAction(formData: FormData): Promise<void> {
   // o user_id vem do banco (nunca do formulário) e só de perfil visível da equipe
   const { data: alvo } = await (await createClient())
     .from("profiles")
-    .select("user_id, oculto")
+    .select("user_id, oculto, role, super_admin")
     .eq("id", profileId)
     .in("role", ["admin", "advogado"])
     .maybeSingle();
-  if (!alvo || alvo.oculto) return;
+  if (!alvo || alvo.oculto || alvo.super_admin) return;
+  if (alvo.role === "admin" && !ehSuperAdmin(profile)) return; // admin só sai pelo admin máximo
 
   const admin = createAdminClient();
   await admin.auth.admin.deleteUser(alvo.user_id); // cascade apaga o profile também
@@ -151,8 +156,7 @@ async function inviteAndCreateProfile(params: {
     return { error: "Não foi possível enviar o convite. Tente novamente." };
   }
 
-  const supabase = await createClient();
-  const { error: profileError } = await supabase.from("profiles").insert({
+  const { error: profileError } = await admin.from("profiles").insert({
     user_id: invited.user.id,
     client_id: params.clientId,
     role: params.role,
@@ -191,7 +195,7 @@ async function reaproveitarLoginSemPerfil(params: {
   const { data: perfil } = await admin.from("profiles").select("id").eq("user_id", userId).maybeSingle();
   if (perfil) return jaExiste;
 
-  const { error: profileError } = await (await createClient()).from("profiles").insert({
+  const { error: profileError } = await admin.from("profiles").insert({
     user_id: userId,
     client_id: params.clientId,
     role: params.role,
@@ -226,12 +230,24 @@ async function advogadoValido(profileId: string) {
   return data && !data.oculto ? data : null;
 }
 
+/** Advogado ou admin comum visível (o admin máximo não tem o que limitar). */
+async function membroValido(profileId: string) {
+  if (!UUID.test(profileId)) return null;
+  const { data } = await (await createClient())
+    .from("profiles")
+    .select("id, role, oculto, super_admin")
+    .eq("id", profileId)
+    .in("role", ["admin", "advogado"])
+    .maybeSingle();
+  return data && !data.oculto && !data.super_admin ? data : null;
+}
+
 export type TeamResult = { ok: true } | { ok: false; error: string };
 
-/** Define todos os clientes de um advogado de uma vez. */
+/** Define todos os clientes de uma pessoa da equipe de uma vez (só o admin máximo). */
 export async function setClientesDoAdvogadoAction(profileId: string, clientIds: string[]): Promise<TeamResult> {
-  await requireRole(["admin"]);
-  if (!(await advogadoValido(profileId))) return { ok: false, error: "Advogado inválido." };
+  await exigirSuperAdmin();
+  if (!(await membroValido(profileId))) return { ok: false, error: "Pessoa inválida." };
   const ids = [...new Set(clientIds.filter((i) => UUID.test(i)))];
   const supabase = await createClient();
   const { error: e1 } = await supabase.from("equipe_clientes").delete().eq("profile_id", profileId);
@@ -246,12 +262,18 @@ export async function setClientesDoAdvogadoAction(profileId: string, clientIds: 
 
 /** Define os advogados de um cliente (a partir da ficha do cliente). */
 export async function setAdvogadosDoClienteAction(clientId: string, profileIds: string[]): Promise<TeamResult> {
-  await requireRole(["admin"]);
+  await exigirSuperAdmin();
   if (!UUID.test(clientId)) return { ok: false, error: "Cliente inválido." };
   const validos: string[] = [];
   for (const id of new Set(profileIds)) if (await advogadoValido(id)) validos.push(id);
   const supabase = await createClient();
-  const { error: e1 } = await supabase.from("equipe_clientes").delete().eq("client_id", clientId);
+  // a ficha só mexe nos advogados; designações de admins comuns ficam como estão
+  const { data: advs } = await supabase.from("profiles").select("id").eq("role", "advogado");
+  const { error: e1 } = await supabase
+    .from("equipe_clientes")
+    .delete()
+    .eq("client_id", clientId)
+    .in("profile_id", (advs ?? []).map((a) => a.id));
   if (e1) return { ok: false, error: "Não foi possível salvar. Tente novamente." };
   if (validos.length) {
     const { error: e2 } = await supabase.from("equipe_clientes").insert(validos.map((profile_id) => ({ profile_id, client_id: clientId })));
@@ -262,11 +284,13 @@ export async function setAdvogadosDoClienteAction(clientId: string, profileIds: 
   return { ok: true };
 }
 
-/** Salva as permissões (liga/desliga) de um advogado. */
+/** Salva as permissões (liga/desliga) de um advogado ou admin comum (só o admin máximo). */
 export async function savePermissoesAction(profileId: string, valores: Record<string, boolean>): Promise<TeamResult> {
-  await requireRole(["admin"]);
-  if (!(await advogadoValido(profileId))) return { ok: false, error: "Advogado inválido." };
-  const limpas = Object.fromEntries(PERMISSOES.map((p) => [p.chave, typeof valores[p.chave] === "boolean" ? valores[p.chave] : p.padrao]));
+  await exigirSuperAdmin();
+  const membro = await membroValido(profileId);
+  if (!membro) return { ok: false, error: "Pessoa inválida." };
+  const padrao = (p: (typeof PERMISSOES)[number]) => (membro.role === "admin" ? true : p.padrao);
+  const limpas = Object.fromEntries(PERMISSOES.map((p) => [p.chave, typeof valores[p.chave] === "boolean" ? valores[p.chave] : padrao(p)]));
   const { error } = await (await createClient())
     .from("equipe_permissoes")
     .upsert({ profile_id: profileId, permissoes: limpas, updated_at: new Date().toISOString() });
@@ -275,10 +299,10 @@ export async function savePermissoesAction(profileId: string, valores: Record<st
   return { ok: true };
 }
 
-/** Desativa/reativa o acesso de um advogado (sem apagar nada). */
+/** Desativa/reativa o acesso de um advogado ou admin comum (só o admin máximo). */
 export async function setAtivoAction(profileId: string, ativo: boolean): Promise<TeamResult> {
-  await requireRole(["admin"]);
-  if (!(await advogadoValido(profileId))) return { ok: false, error: "Advogado inválido." };
+  await exigirSuperAdmin();
+  if (!(await membroValido(profileId))) return { ok: false, error: "Pessoa inválida." };
   const { error } = await (await createClient()).from("profiles").update({ ativo }).eq("id", profileId);
   if (error) return { ok: false, error: "Não foi possível salvar. Tente novamente." };
   revalidatePath("/admin/team");
@@ -293,7 +317,7 @@ export async function salvarPessoaAction(
   responsavelId: string,
   dados: { telefone: string; areas: string[]; rotinaZap: boolean }
 ): Promise<{ ok: true } | { ok: false; error: string }> {
-  await requireRole(["admin"]);
+  await exigirPermissao("equipe");
   const tel = soDigitos(dados.telefone);
   if (tel && (tel.length < 10 || tel.length > 13)) return { ok: false, error: "Telefone inválido. Use DDD + número, ex.: 73 99999-9999." };
   const { error } = await createAdminClient()
@@ -306,7 +330,7 @@ export async function salvarPessoaAction(
 }
 
 export async function salvarAreasEscritorioAction(areas: string[]): Promise<{ ok: true } | { ok: false; error: string }> {
-  await requireRole(["admin"]);
+  await exigirPermissao("equipe");
   const lista = [...new Set(areas.map((a) => a.trim()).filter(Boolean))];
   if (!lista.length) return { ok: false, error: "Deixe pelo menos uma área." };
   const { error } = await createAdminClient().from("escritorio_config").update({ areas: lista, updated_at: new Date().toISOString() }).eq("id", 1);
@@ -321,7 +345,7 @@ export async function salvarZapConfigAction(dados: {
   lembretes_ativos: boolean;
   rotina_ativa: boolean;
 }): Promise<{ ok: true } | { ok: false; error: string }> {
-  await requireRole(["admin"]);
+  await exigirPermissao("equipe");
   if (!dados.lembrete_24h.trim() || !dados.lembrete_1h.trim()) return { ok: false, error: "Os dois textos de lembrete são obrigatórios." };
   const { error } = await createAdminClient()
     .from("escritorio_config")

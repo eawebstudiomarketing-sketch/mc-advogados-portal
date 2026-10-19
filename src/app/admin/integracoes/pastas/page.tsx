@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { requireRole } from "@/lib/dal";
+import { exigirPermissao } from "@/lib/dal";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { getDriveHealth, getDriveSession, getFolderMeta } from "@/lib/google-drive";
 import { FolderLinkTable, type ClientRowData } from "@/components/drive/folder-link-table";
@@ -17,7 +17,7 @@ function whenText(iso: string | null | undefined): string | null {
 }
 
 export default async function PastasPage() {
-  await requireRole(["admin"]);
+  await exigirPermissao("integracoes");
   const health = await getDriveHealth();
   const admin = createAdminClient();
 

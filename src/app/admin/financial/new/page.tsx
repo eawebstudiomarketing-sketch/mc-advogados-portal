@@ -1,11 +1,11 @@
 import Link from "next/link";
 import { listClients } from "@/lib/data/clients";
-import { requireRole } from "@/lib/dal";
+import { exigirPermissao } from "@/lib/dal";
 import { FinancialRecordForm } from "./financial-record-form";
 import { BackButton } from "@/components/nav/back-button";
 
 export default async function NewFinancialRecordPage() {
-  await requireRole(["admin"]);
+  await exigirPermissao("financeiro");
   const clients = await listClients();
 
   return (

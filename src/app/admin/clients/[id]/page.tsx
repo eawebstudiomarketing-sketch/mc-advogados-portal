@@ -15,7 +15,7 @@ import { listContracts } from "@/lib/data/contracts";
 import { listOnboardings } from "@/lib/data/onboardings";
 import { getClientPortalUser, listDesignados, listStaff } from "@/lib/data/team";
 import { removeClientPortalUserAction } from "@/app/admin/team/actions";
-import { exigirPermissao } from "@/lib/dal";
+import { exigirPermissao, ehSuperAdmin } from "@/lib/dal";
 import { DOCUMENT_CATEGORY_LABEL } from "@/lib/document-category";
 import { formatCurrency } from "@/lib/mock-data";
 import { PortalAccessInvite } from "./portal-access";
@@ -68,7 +68,8 @@ export default async function AdminClientDetailPage({
   const { docs: docsParam, aba: abaParam } = await searchParams;
 
   const { profile, permissoes: perm } = await exigirPermissao("clientes");
-  const isAdmin = profile.role === "admin";
+  // designar advogados é do admin máximo; o cartão do WhatsApp, de quem tem a permissão
+  const isAdmin = ehSuperAdmin(profile);
 
   const [client, activities, docsPage, contracts, portalUser, onboardings, atas, drafts, relatorios, ficha] = await Promise.all([
     getClient(id),
@@ -222,7 +223,7 @@ export default async function AdminClientDetailPage({
               <StatCard label="Concluídas" value={String(contar("concluida"))} tone="success" href={hrefAba("atividades")} />
             </div>
             {isAdmin && <EquipeDoCliente clientId={client.id} equipe={equipe.filter((p) => p.role === "advogado").map((p) => ({ id: p.id, nome: p.full_name, ativo: p.ativo }))} designados={designados} />}
-            {isAdmin && <WhatsappCard clientId={client.id} grupos={client.whatsapp_grupos ?? []} numeros={client.whatsapp_numeros ?? []} />}
+            {perm.whatsapp && <WhatsappCard clientId={client.id} grupos={client.whatsapp_grupos ?? []} numeros={client.whatsapp_numeros ?? []} />}
             {perm.ficha_handoff && (
               <HandoffCard
                 clientId={client.id}

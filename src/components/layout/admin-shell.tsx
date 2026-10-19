@@ -48,12 +48,11 @@ const ROLE_LABEL: Record<string, string> = {
   advogado: "Advogado",
 };
 
-type NavItem = { href: string; label: string; icon: LucideIcon; adminOnly?: boolean; todos?: boolean };
+type NavItem = { href: string; label: string; icon: LucideIcon; todos?: boolean };
 
 // Menu em 3 grandes áreas que abrem as subopções ao clicar (a Visão geral
-// fica solta no topo). Advogado vê só as telas que o admin liberou
-// (PERM_DA_TELA); Financeiro, WhatsApp, Equipe, Integrações e Lixeira são
-// sempre só do admin.
+// fica solta no topo). Cada pessoa vê só as telas liberadas para ela
+// (PERM_DA_TELA); o admin máximo vê tudo.
 const INICIO: NavItem = { href: "/admin", label: "Visão geral", icon: LayoutDashboard };
 const NAV_GROUPS: { id: string; label: string; icon: LucideIcon; items: NavItem[] }[] = [
   {
@@ -63,7 +62,7 @@ const NAV_GROUPS: { id: string; label: string; icon: LucideIcon; items: NavItem[
     items: [
       { href: "/admin/clients", label: "Clientes", icon: Users },
       { href: "/admin/contracts", label: "Contratos", icon: FileSignature },
-      { href: "/admin/whatsapp", label: "WhatsApp", icon: MessageCircle, adminOnly: true },
+      { href: "/admin/whatsapp", label: "WhatsApp", icon: MessageCircle },
     ],
   },
   {
@@ -86,11 +85,11 @@ const NAV_GROUPS: { id: string; label: string; icon: LucideIcon; items: NavItem[
     icon: Settings2,
     items: [
       { href: "/admin/reports", label: "Relatórios", icon: BarChart3 },
-      { href: "/admin/financial", label: "Financeiro", icon: Wallet, adminOnly: true },
-      { href: "/admin/team", label: "Equipe", icon: UserCog, adminOnly: true },
+      { href: "/admin/financial", label: "Financeiro", icon: Wallet },
+      { href: "/admin/team", label: "Equipe", icon: UserCog },
       { href: "/admin/mensagens", label: "Mensagens", icon: MessagesSquare, todos: true },
-      { href: "/admin/integracoes", label: "Integrações", icon: Plug, adminOnly: true },
-      { href: "/admin/lixeira", label: "Lixeira", icon: Trash2, adminOnly: true },
+      { href: "/admin/integracoes", label: "Integrações", icon: Plug },
+      { href: "/admin/lixeira", label: "Lixeira", icon: Trash2 },
     ],
   },
 ];
@@ -178,7 +177,7 @@ export function AdminShell({
   const grupos = NAV_GROUPS.map((g) => ({
     ...g,
     items: g.items.filter((i) => {
-      if (userRole === "admin" || i.todos) return true;
+      if (i.todos) return true;
       const chave = PERM_DA_TELA[i.href];
       return !!chave && permissoes[chave];
     }),

@@ -1,7 +1,7 @@
 "use server";
 
 import { createClient } from "@/lib/supabase/server";
-import { requireRole } from "@/lib/dal";
+import { exigirPermissao } from "@/lib/dal";
 import { comFotos, comLinksDeMidia, criarOrdem, lerConversa, statusAgente, type WaChat, type WaMensagem } from "@/lib/whatsapp";
 
 // Ações da tela WhatsApp (só admin). Enviar = criar ordem; quem manda de fato
@@ -9,27 +9,27 @@ import { comFotos, comLinksDeMidia, criarOrdem, lerConversa, statusAgente, type 
 // backup permanente (o banco bloqueia apagar mensagem).
 
 export async function carregarConversaAction(chatJid: string, antesDe?: string): Promise<WaMensagem[]> {
-  await requireRole(["admin"]);
+  await exigirPermissao("whatsapp");
   const db = await createClient();
   return lerConversa(db, chatJid, { limite: 60, antesDe });
 }
 
 /** Mensagem que chegou pelo tempo real, pronta pra tela (links da mídia, sem o raw). */
 export async function prepararMensagemAction(mensagem: WaMensagem): Promise<WaMensagem> {
-  await requireRole(["admin"]);
+  await exigirPermissao("whatsapp");
   const [m] = await comLinksDeMidia([mensagem]);
   return m;
 }
 
 /** Link da foto de perfil de uma conversa que mudou pelo tempo real. */
 export async function linkFotoAction(fotoUrl: string | null): Promise<string | null> {
-  await requireRole(["admin"]);
+  await exigirPermissao("whatsapp");
   return comFotos([{ foto_url: fotoUrl }])[0].foto_url;
 }
 
 /** Abre (ou cria) a conversa com um contato da agenda. */
 export async function abrirContatoAction(jid: string, nome: string | null): Promise<WaChat | null> {
-  await requireRole(["admin"]);
+  await exigirPermissao("whatsapp");
   if (!/^\d{8,15}@s\.whatsapp\.net$/.test(jid)) return null;
   const db = await createClient();
   const { data: existe } = await db.from("wa_chats").select("*").eq("chat_jid", jid).maybeSingle();
@@ -39,7 +39,7 @@ export async function abrirContatoAction(jid: string, nome: string | null): Prom
 }
 
 export async function enviarMensagemAction(chatJid: string, texto: string): Promise<{ ok: boolean; erro?: string }> {
-  const profile = await requireRole(["admin"]);
+  const { profile } = await exigirPermissao("whatsapp");
   const t = texto.trim();
   if (!t) return { ok: false, erro: "Mensagem vazia." };
   const db = await createClient();
@@ -50,7 +50,7 @@ export async function enviarMensagemAction(chatJid: string, texto: string): Prom
 }
 
 export async function marcarLidoAction(chatJid: string): Promise<void> {
-  const profile = await requireRole(["admin"]);
+  const { profile } = await exigirPermissao("whatsapp");
   const db = await createClient();
   await db.from("wa_chats").update({ nao_lidas: 0 }).eq("chat_jid", chatJid);
   // também marca como lida no celular (tiques azuis) — só se o Agente estiver ligado
@@ -61,13 +61,13 @@ export async function marcarLidoAction(chatJid: string): Promise<void> {
 }
 
 export async function desligarAgenteAction(): Promise<void> {
-  const profile = await requireRole(["admin"]);
+  const { profile } = await exigirPermissao("whatsapp");
   const db = await createClient();
   await criarOrdem(db, { tipo: "desligar", payload: {}, criado_por: profile.id });
 }
 
 export async function vincularClienteAction(chatJid: string, clientId: string | null): Promise<void> {
-  await requireRole(["admin"]);
+  await exigirPermissao("whatsapp");
   const db = await createClient();
   await db.from("wa_chats").update({ client_id: clientId }).eq("chat_jid", chatJid);
 }
@@ -78,7 +78,7 @@ export async function vincularClienteAction(chatJid: string, clientId: string | 
  * até alguém clicar em "Conectar número". As conversas continuam no portal.
  */
 export async function sairDoNumeroAction(gerarQr: boolean): Promise<{ ok: boolean; erro?: string }> {
-  const profile = await requireRole(["admin"]);
+  const { profile } = await exigirPermissao("whatsapp");
   const db = await createClient();
   const agente = await statusAgente(db);
   if (!agente?.ligado) return { ok: false, erro: "O Agente MC está fora do ar no servidor (ele precisa estar ligado pra sair do WhatsApp)." };
@@ -88,7 +88,7 @@ export async function sairDoNumeroAction(gerarQr: boolean): Promise<{ ok: boolea
 
 /** Gera o QR pra conectar um número (só quando pedem). */
 export async function gerarQrAction(): Promise<{ ok: boolean; erro?: string }> {
-  const profile = await requireRole(["admin"]);
+  const { profile } = await exigirPermissao("whatsapp");
   const db = await createClient();
   const agente = await statusAgente(db);
   if (!agente?.ligado) return { ok: false, erro: "O Agente MC está fora do ar no servidor. Tente de novo em alguns segundos." };
@@ -98,7 +98,7 @@ export async function gerarQrAction(): Promise<{ ok: boolean; erro?: string }> {
 
 /** Para de mostrar QR (desiste de conectar agora). */
 export async function cancelarQrAction(): Promise<{ ok: boolean }> {
-  const profile = await requireRole(["admin"]);
+  const { profile } = await exigirPermissao("whatsapp");
   const db = await createClient();
   await criarOrdem(db, { tipo: "cancelar_qr", payload: {}, criado_por: profile.id });
   return { ok: true };

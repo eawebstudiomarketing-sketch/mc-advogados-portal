@@ -3,7 +3,7 @@
 import { redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
-import { requireRole } from "@/lib/dal";
+import { exigirPermissao } from "@/lib/dal";
 import { getClient } from "@/lib/data/clients";
 import { getClientPortalUser } from "@/lib/data/team";
 import { getResendClient } from "@/lib/email/resend";
@@ -19,7 +19,7 @@ export async function createFinancialRecordAction(
   // Financeiro é a única área do sistema sem acesso de advogado (regra
   // explícita do escopo original) — RLS de public.financial_records já
   // bloqueia, mas checar aqui evita a viagem ao banco só pra receber erro.
-  await requireRole(["admin"]);
+  await exigirPermissao("financeiro");
 
   const clientId = formData.get("client_id");
   const description = formData.get("description");
@@ -57,7 +57,7 @@ export async function createFinancialRecordAction(
 }
 
 export async function markAsPaidAction(formData: FormData): Promise<void> {
-  await requireRole(["admin"]);
+  await exigirPermissao("financeiro");
 
   const id = formData.get("id");
   if (typeof id !== "string" || !id) return;
@@ -77,7 +77,7 @@ export async function sendReminderAction(
   _prevState: SendReminderState,
   formData: FormData
 ): Promise<SendReminderState> {
-  const profile = await requireRole(["admin"]);
+  const { profile } = await exigirPermissao("financeiro");
 
   const id = formData.get("id");
   if (typeof id !== "string" || !id) {
