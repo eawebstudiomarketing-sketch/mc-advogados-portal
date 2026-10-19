@@ -31,11 +31,17 @@ export async function login(_prevState: LoginState, formData: FormData): Promise
     .eq("user_id", data.user.id)
     .single();
 
-  if (profile && !profile.ativo) {
+  // login sem perfil (ex.: cliente excluído) entrava em loop /admin → /login → /
+  if (!profile) {
+    await supabase.auth.signOut();
+    return { error: "Seu acesso ao portal não está ativo. Fale com o escritório para receber um novo convite." };
+  }
+
+  if (!profile.ativo) {
     await supabase.auth.signOut();
     return { error: "Seu acesso ao portal foi desativado. Fale com o administrador." };
   }
 
   const next = safeNextPath(formData.get("next"));
-  redirect(next ?? (profile?.role === "client" ? "/dashboard" : "/admin"));
+  redirect(next ?? (profile.role === "client" ? "/dashboard" : "/admin"));
 }

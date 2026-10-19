@@ -3,6 +3,7 @@
 import { redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
+import { createAdminClient } from "@/lib/supabase/admin";
 import { exigirPermissao, getPermissoes, requireRole } from "@/lib/dal";
 import { destinoDeVolta } from "@/lib/voltar";
 import { lerCamposWhatsapp } from "@/components/cliente/campos-whatsapp";
@@ -173,8 +174,14 @@ export async function deleteClientAction(
     return { error: "O nome digitado não confere com o nome do cliente." };
   }
 
+  // o cascade apaga o perfil, mas o login (Auth) ficava solto e travava o e-mail
+  const admin = createAdminClient();
+  const { data: logins } = await admin.from("profiles").select("user_id").eq("client_id", id).eq("role", "client");
+
   const { error } = await supabase.from("clients").delete().eq("id", id);
   if (error) return { error: "Não foi possível excluir o cliente. Tente novamente." };
+
+  for (const l of logins ?? []) await admin.auth.admin.deleteUser(l.user_id);
 
   revalidatePath("/admin/clients");
   revalidatePath("/admin");

@@ -49,6 +49,9 @@ function LoginForm() {
       {!state.error && searchParams.get("erro") === "desativado" && (
         <p className="text-sm text-status-danger">Seu acesso ao portal foi desativado. Fale com o administrador.</p>
       )}
+      {!state.error && searchParams.get("erro") === "sem-perfil" && (
+        <p className="text-sm text-status-danger">Seu acesso ao portal não está ativo. Fale com o escritório para receber um novo convite.</p>
+      )}
 
       <button
         type="submit"

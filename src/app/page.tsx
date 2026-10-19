@@ -1,9 +1,9 @@
 import { redirect } from "next/navigation";
-import { getProfile } from "@/lib/dal";
+import { getProfile, getUser } from "@/lib/dal";
 
 export default async function Home() {
   const profile = await getProfile();
 
-  if (!profile) redirect("/login");
+  if (!profile) redirect((await getUser()) ? "/api/sair?motivo=sem-perfil" : "/login");
   redirect(profile.role === "client" ? "/dashboard" : "/admin");
 }

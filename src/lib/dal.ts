@@ -37,7 +37,11 @@ export const getProfile = cache(async (): Promise<Profile | null> => {
 
 export async function requireProfile(): Promise<Profile> {
   const profile = await getProfile();
-  if (!profile) redirect("/login");
+  if (!profile) {
+    // sessão válida sem perfil: só ir pro /login fazia o proxy devolver pra "/" em loop
+    if (await getUser()) redirect("/api/sair?motivo=sem-perfil");
+    redirect("/login");
+  }
   // acesso desativado pelo admin: encerra a sessão
   if (!profile.ativo) redirect("/api/sair?motivo=desativado");
   return profile;

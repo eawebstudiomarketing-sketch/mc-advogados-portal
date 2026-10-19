@@ -140,7 +140,7 @@ async function inviteAndCreateProfile(params: {
   if (inviteError || !invited.user) {
     const message = inviteError?.message?.toLowerCase() ?? "";
     if (message.includes("already") || message.includes("registered") || message.includes("exists")) {
-      return { error: "Já existe um usuário cadastrado com esse e-mail." };
+      return reaproveitarLoginSemPerfil(params);
     }
     if (message.includes("rate limit")) {
       return {
@@ -165,6 +165,48 @@ async function inviteAndCreateProfile(params: {
     return { error: "Convite enviado, mas não foi possível vincular o perfil. Tente novamente." };
   }
 
+  return { error: null };
+}
+
+// Login que ficou sem perfil (ex.: cliente excluído antes de o login ser
+// apagado junto): vincula o perfil novo e manda o link pra criar a senha.
+async function reaproveitarLoginSemPerfil(params: {
+  email: string;
+  fullName: string;
+  role: "admin" | "advogado" | "client";
+  clientId: string | null;
+}): Promise<{ error: string | null }> {
+  const jaExiste = { error: "Já existe um usuário cadastrado com esse e-mail." };
+  const admin = createAdminClient();
+  const alvo = params.email.toLowerCase();
+  let userId: string | null = null;
+  for (let page = 1; page <= 20 && !userId; page++) {
+    const { data, error } = await admin.auth.admin.listUsers({ page, perPage: 200 });
+    if (error) return jaExiste;
+    userId = data.users.find((u) => u.email?.toLowerCase() === alvo)?.id ?? null;
+    if (data.users.length < 200) break;
+  }
+  if (!userId) return jaExiste;
+
+  const { data: perfil } = await admin.from("profiles").select("id").eq("user_id", userId).maybeSingle();
+  if (perfil) return jaExiste;
+
+  const { error: profileError } = await (await createClient()).from("profiles").insert({
+    user_id: userId,
+    client_id: params.clientId,
+    role: params.role,
+    full_name: params.fullName,
+    email: params.email,
+  });
+  if (profileError) return { error: "Não foi possível vincular o perfil. Tente novamente." };
+
+  const siteUrl = process.env.NEXT_PUBLIC_SITE_URL ?? "http://localhost:3000";
+  const { error: linkError } = await admin.auth.resetPasswordForEmail(params.email, {
+    redirectTo: `${siteUrl}/reset-password`,
+  });
+  if (linkError) {
+    return { error: "Acesso liberado, mas o e-mail não saiu. Peça para a pessoa usar \"Esqueci minha senha\" no login." };
+  }
   return { error: null };
 }
 
