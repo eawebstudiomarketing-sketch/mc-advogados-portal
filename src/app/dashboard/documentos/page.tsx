@@ -16,9 +16,14 @@ export default async function ClientDocumentsPage() {
 
   return (
     <div>
-      <div className="mb-6">
-        <h1 className="page-title">Documentos</h1>
-        <p className="mt-1 text-sm text-muted">Envie o que o escritório pediu e acesse os documentos do seu caso.</p>
+      <div className="mb-8">
+        <p className="eyebrow">Documentos · {documentos.length}</p>
+        <h1 className="page-title mt-2 !text-[2.2rem] !leading-[1.05]">
+          Seus documentos,
+          <br />
+          <span className="text-foreground/30">num lugar só.</span>
+        </h1>
+        <p className="mt-4 text-[15px] text-foreground/70">Envie o que o escritório pediu e acesse os documentos do seu caso.</p>
       </div>
 
       {pedidos.length > 0 && (

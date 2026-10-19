@@ -63,8 +63,8 @@ export default async function ClientReportsPage({ searchParams }: { searchParams
     <div>
       <div className="mb-6 flex flex-wrap items-end justify-between gap-3">
         <div>
-          <p className="text-sm text-muted">Relatório de atividades</p>
-          <h1 className="page-title mt-0.5">{p.rotulo}</h1>
+          <p className="eyebrow">Relatório de atividades</p>
+          <h1 className="page-title mt-2">{p.rotulo}</h1>
         </div>
         <a href={`/api/cliente/relatorio?periodo=${p.id}`} target="_blank" rel="noreferrer" className="ui-btn">
           <Download className="h-4 w-4 text-gold-2" aria-hidden /> Baixar PDF

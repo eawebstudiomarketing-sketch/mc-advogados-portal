@@ -1,179 +1,275 @@
 import Link from "next/link";
-import { ArrowRight, CheckCircle2, Clock3, CircleDashed, Gavel, FolderUp, FileText, Download, FileBarChart2 } from "lucide-react";
+import { ArrowRight, Download, FileBarChart2, FolderUp, Plus } from "lucide-react";
 import { requireRole } from "@/lib/dal";
-import { createClient } from "@/lib/supabase/server";
+import { getClient } from "@/lib/data/clients";
 import { listProcesses } from "@/lib/data/processes";
 import { listDocuments } from "@/lib/data/documents";
-import { atividadesDoPeriodo } from "@/lib/relatorio";
-import { intervaloDoMes, MESES } from "@/lib/relatorio-datas";
 import { pedidosDoCliente } from "@/lib/pedidos-documentos";
-import { ACTIVITY_TYPE_LABEL } from "@/lib/activity-type";
-import type { Activity } from "@/lib/data/activities";
+import { MESES } from "@/lib/relatorio-datas";
+import { atividadesDoPortal } from "@/lib/data/portal-cliente";
+import { LinhaAtividade } from "@/components/cliente/linha-atividade";
+import { CartaoPedido } from "@/components/cliente/cartao-pedido";
 
-const dataBR = (iso: string) => new Date(iso.length === 10 ? iso + "T00:00:00" : iso).toLocaleDateString("pt-BR", { day: "2-digit", month: "2-digit" });
+const plural = (n: number, um: string, varios: string) => (n === 1 ? um : varios.replace("#", String(n)));
 
-function Lista({ itens, vazio, meta }: { itens: Activity[]; vazio: string; meta: (a: Activity) => string }) {
-  if (!itens.length) return <p className="py-3 text-sm text-muted">{vazio}</p>;
-  return (
-    <ul className="divide-y divide-border">
-      {itens.slice(0, 6).map((a) => (
-        <li key={a.id} className="py-3">
-          <p className="text-[15px] font-medium leading-snug text-foreground sm:text-sm">{a.title}</p>
-          <p className="mt-0.5 text-xs text-muted">{meta(a)}</p>
-        </li>
-      ))}
-    </ul>
-  );
+function saudacao() {
+  const h = Number(new Intl.DateTimeFormat("pt-BR", { hour: "numeric", hour12: false, timeZone: "America/Bahia" }).format(new Date()));
+  return h < 12 ? "Bom dia" : h < 18 ? "Boa tarde" : "Boa noite";
 }
 
-// Início do portal do cliente: o que o escritório está fazendo no mês.
-// Sem horas e sem financeiro (decisão do usuário, 08/10/2026).
+// Início do portal do cliente: o que o escritório está fazendo agora e os
+// pedidos que ele mesmo abriu. Sem horas e sem financeiro (decisão de 08/10).
 export default async function DashboardPage() {
   const profile = await requireRole(["client"]);
   const clientId = profile.client_id!;
   const hoje = new Intl.DateTimeFormat("en-CA", { timeZone: "America/Bahia" }).format(new Date());
   const [ano, mes] = hoje.split("-").map(Number);
-  const { inicio, fim } = intervaloDoMes(ano, mes);
+  const inicioMes = `${hoje.slice(0, 7)}-01`;
 
-  const supabase = await createClient();
-  const [ativ, processos, documentos, pedidos] = await Promise.all([
-    atividadesDoPeriodo(supabase, clientId, inicio, fim),
+  const [atividades, cliente, processos, documentos, docsPedidos] = await Promise.all([
+    atividadesDoPortal(profile),
+    getClient(clientId),
     listProcesses({ clientId }),
     listDocuments({ clientId }),
     pedidosDoCliente(clientId),
   ]);
-  const pendentes = pedidos.filter((p) => !p.enviado);
+
+  const emAndamento = atividades.filter((a) => a.status === "em_andamento");
+  const naFila = atividades.filter((a) => a.status === "aberta");
+  const abertas = [...emAndamento, ...naFila];
+  const concluidasMes = atividades
+    .filter((a) => a.status === "concluida" && (a.concluida_em ?? a.updated_at).slice(0, 10) >= inicioMes)
+    .sort((x, y) => (y.concluida_em ?? y.updated_at).localeCompare(x.concluida_em ?? x.updated_at));
+  const meusPedidos = atividades
+    .filter((a) => a.doCliente && (a.etapa !== "concluido" || (a.concluida_em ?? a.updated_at).slice(0, 10) >= inicioMes))
+    .sort((x, y) => y.created_at.localeCompare(x.created_at));
+  const docsFaltando = docsPedidos.filter((p) => !p.enviado);
   const primeiroNome = profile.full_name.split(" ")[0];
 
-  const numeros = [
-    { n: ativ.concluidas.length, l: "Concluídas no mês", icone: CheckCircle2, cor: "text-status-success", bg: "bg-status-success-bg" },
-    { n: ativ.emAndamento.length, l: "Em andamento", icone: Clock3, cor: "text-status-info", bg: "bg-status-info-bg" },
-    { n: ativ.aFazer.length, l: "A fazer", icone: CircleDashed, cor: "text-status-pending", bg: "bg-status-pending-bg" },
-    { n: processos.length, l: "Processos", icone: Gavel, cor: "text-navy-3", bg: "bg-navy/[0.07]", href: "/dashboard/processos" },
-  ];
+  const resumo: React.ReactNode[] = [];
+  if (abertas.length) {
+    resumo.push(
+      <>
+        Estamos cuidando de <strong className="font-semibold text-foreground">{plural(abertas.length, "1 atividade", "# atividades")}</strong> para você
+        {emAndamento.length ? <> ({plural(emAndamento.length, "1 em andamento", "# em andamento")})</> : null}.
+      </>
+    );
+  } else {
+    resumo.push(<>Nada em aberto agora. Precisa de algo? É só fazer um pedido.</>);
+  }
+  if (concluidasMes.length) resumo.push(<>Em {MESES[mes].toLowerCase()}, já {plural(concluidasMes.length, "concluímos 1", "concluímos #")}.</>);
+  if (docsFaltando.length) resumo.push(<><strong className="font-semibold text-gold-ink">{plural(docsFaltando.length, "1 documento", "# documentos")}</strong> aguardando você.</>);
 
   return (
-    <>
-      <div className="mb-6">
-        <p className="text-sm text-muted">
-          {MESES[mes]} de {ano}
-        </p>
-        <h1 className="page-title mt-0.5">Olá, {primeiroNome}</h1>
-        <p className="mt-1 text-sm text-muted">Veja o que o escritório está fazendo por você este mês.</p>
-      </div>
+    <div>
+      {/* abertura */}
+      <section className="mb-10 grid items-start gap-6 lg:grid-cols-[1fr_300px]">
+        <div>
+          <p className="eyebrow flex items-center gap-2">
+            <span className="h-1.5 w-1.5 rounded-full bg-status-success" aria-hidden /> {MESES[mes]} de {ano} · {cliente?.name ?? "MC Advogados"}
+          </p>
+          <h1 className="page-title mt-3 !text-[2.4rem] !leading-[1.02] sm:!text-[3.1rem]">
+            {saudacao()},
+            <br />
+            <span className="text-foreground/30">{primeiroNome}.</span>
+          </h1>
+          <p className="mt-5 max-w-xl text-[15px] leading-relaxed text-foreground/70">
+            {resumo.map((parte, i) => (
+              <span key={i}>
+                {i > 0 ? " " : ""}
+                {parte}
+              </span>
+            ))}
+          </p>
+          <div className="mt-6 flex flex-wrap items-center gap-2">
+            <Link href="/dashboard/pedidos/novo" className="ui-btn">
+              <Plus className="h-4 w-4" aria-hidden /> Fazer um pedido
+            </Link>
+            {meusPedidos.length > 0 && (
+              <Link href="/dashboard/pedidos" className="ui-btn-secondary">
+                Acompanhar meus pedidos
+              </Link>
+            )}
+          </div>
+        </div>
 
-      {pendentes.length > 0 && (
+        <Link
+          href="/dashboard/activities"
+          className="group relative overflow-hidden rounded-2xl bg-navy p-6 text-white transition-transform duration-200 hover:-translate-y-0.5"
+        >
+          <span className="pointer-events-none absolute -top-16 -right-16 h-48 w-48 rounded-full border border-white/10" aria-hidden />
+          <span className="pointer-events-none absolute -top-8 -right-8 h-32 w-32 rounded-full border border-white/10" aria-hidden />
+          <p className="eyebrow flex items-center gap-2 !text-white/55">
+            <span className="h-1.5 w-1.5 rounded-full bg-gold" aria-hidden /> Em aberto
+          </p>
+          <p className="numero-grande mt-3 text-[5rem] leading-none text-white">{abertas.length}</p>
+          <p className="font-display mt-2 text-lg leading-tight font-bold">{abertas.length === 1 ? "atividade em aberto." : "atividades em aberto."}</p>
+          <p className="mt-2 text-xs leading-relaxed text-white/60">
+            {emAndamento.length} em andamento · {naFila.length} na fila · {concluidasMes.length} concluída{concluidasMes.length === 1 ? "" : "s"} no mês.
+          </p>
+          <p className="eyebrow mt-5 flex items-center justify-between !text-gold-2">
+            <span>Ver todas</span>
+            <ArrowRight className="h-3.5 w-3.5 transition-transform group-hover:translate-x-0.5" aria-hidden />
+          </p>
+        </Link>
+      </section>
+
+      {docsFaltando.length > 0 && (
         <Link
           href="/dashboard/documentos"
-          className="mb-5 flex items-center gap-3 rounded-2xl border border-gold/40 bg-gold-soft px-4 py-3 transition-colors hover:border-gold"
+          className="mb-10 flex items-center gap-3 rounded-2xl border border-gold/40 bg-gold-soft px-4 py-3.5 transition-colors hover:border-gold"
         >
           <FolderUp className="h-5 w-5 shrink-0 text-gold-ink" aria-hidden />
-          <p className="flex-1 text-sm text-gold-ink">
-            <span className="font-semibold">Aguardando {pendentes.length} documento(s) seu(s):</span> {pendentes.slice(0, 3).map((p) => p.item).join(", ")}
-            {pendentes.length > 3 ? "…" : ""}
+          <p className="min-w-0 flex-1 text-sm text-gold-ink">
+            <span className="font-semibold">Aguardando você:</span> {docsFaltando.slice(0, 3).map((p) => p.item).join(", ")}
+            {docsFaltando.length > 3 ? "…" : ""}
           </p>
-          <ArrowRight className="h-4 w-4 shrink-0 text-gold-ink" aria-hidden />
+          <span className="eyebrow shrink-0 !text-gold-ink">Enviar ›</span>
         </Link>
       )}
 
-      <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
-        {numeros.map((x) => {
-          const corpo = (
-            <>
-              <span className={`flex h-9 w-9 items-center justify-center rounded-xl ${x.bg} ${x.cor}`}>
-                <x.icone className="h-[18px] w-[18px]" aria-hidden />
-              </span>
-              <p className={`mt-3 text-[1.75rem] leading-none font-semibold tabular-nums ${x.cor}`}>{x.n}</p>
-              <p className="mt-1 text-[13px] text-muted">{x.l}</p>
-            </>
-          );
-          return x.href ? (
-            <Link key={x.l} href={x.href} className="ui-card p-4 transition-shadow hover:shadow-md">
-              {corpo}
+      {/* o que estamos fazendo */}
+      <section className="mb-10">
+        <div className="flex items-end justify-between gap-3">
+          <div>
+            <p className="eyebrow">Em aberto</p>
+            <h2 className="page-title mt-1 !text-2xl">O que estamos fazendo.</h2>
+          </div>
+          {abertas.length > 8 && (
+            <Link href="/dashboard/activities" className="eyebrow shrink-0 hover:!text-foreground">
+              Ver todas ›
             </Link>
-          ) : (
-            <Link key={x.l} href="/dashboard/activities" className="ui-card p-4 transition-shadow hover:shadow-md">
-              {corpo}
-            </Link>
-          );
-        })}
-      </div>
+          )}
+        </div>
+        {abertas.length === 0 ? (
+          <p className="mt-4 border-y border-border py-6 text-sm text-muted">Nenhuma atividade em aberto no momento.</p>
+        ) : (
+          <ol className="mt-4 border-b border-border">
+            {abertas.slice(0, 8).map((a, i) => (
+              <LinhaAtividade key={a.id} a={a} n={i + 1} />
+            ))}
+          </ol>
+        )}
+      </section>
 
-      <div className="mt-5 grid grid-cols-1 gap-4 lg:grid-cols-2">
-        <section className="ui-card p-5">
-          <h2 className="section-title flex items-center gap-2">
-            <Clock3 className="h-4 w-4 text-status-info" aria-hidden /> Em andamento agora
-          </h2>
-          <Lista
-            itens={ativ.emAndamento}
-            vazio="Nada em andamento neste momento."
-            meta={(a) => `${ACTIVITY_TYPE_LABEL[a.type]}${a.deadline ? ` · prazo ${dataBR(a.deadline)}` : ""}`}
-          />
-        </section>
-        <section className="ui-card p-5">
-          <h2 className="section-title flex items-center gap-2">
-            <CheckCircle2 className="h-4 w-4 text-status-success" aria-hidden /> Concluídas este mês
-          </h2>
-          <Lista
-            itens={ativ.concluidas}
-            vazio="Nenhuma atividade concluída ainda este mês."
-            meta={(a) => `${ACTIVITY_TYPE_LABEL[a.type]} · concluída em ${dataBR(a.updated_at)}`}
-          />
-        </section>
-        <section className="ui-card p-5">
-          <h2 className="section-title flex items-center gap-2">
-            <CircleDashed className="h-4 w-4 text-status-pending" aria-hidden /> Próximos passos
-          </h2>
-          <Lista
-            itens={ativ.aFazer}
-            vazio="Nenhuma atividade programada."
-            meta={(a) => `${ACTIVITY_TYPE_LABEL[a.type]}${a.deadline ? ` · prazo ${dataBR(a.deadline)}` : ""}`}
-          />
-        </section>
-        <section className="ui-card p-5">
-          <div className="flex items-center justify-between">
-            <h2 className="section-title flex items-center gap-2">
-              <FileText className="h-4 w-4 text-navy-3" aria-hidden /> Documentos recentes
-            </h2>
-            <Link href="/dashboard/documentos" className="ui-link">
-              Todos
+      {/* faixa de números */}
+      <section className="mb-10 grid grid-cols-2 border-y border-border md:grid-cols-4">
+        {[
+          { n: emAndamento.length, rotulo: "Em andamento", href: "/dashboard/activities" },
+          { n: naFila.length, rotulo: "Na fila", href: "/dashboard/activities" },
+          { n: concluidasMes.length, rotulo: "Concluídas no mês", href: "/dashboard/relatorios" },
+          { n: processos.length, rotulo: "Processos", href: "/dashboard/processos" },
+        ].map((c, i) => (
+          <Link
+            key={c.rotulo}
+            href={c.href}
+            className={`px-1 py-5 transition-colors hover:bg-[#f7f7f4] md:px-6 ${i > 0 ? "md:border-l md:border-border" : ""} ${i % 2 ? "border-l border-border pl-4 md:border-l" : ""} ${i > 1 ? "border-t border-border md:border-t-0" : ""}`}
+          >
+            <p className="numero-grande text-4xl text-foreground">{c.n}</p>
+            <p className="eyebrow mt-1">{c.rotulo}</p>
+          </Link>
+        ))}
+      </section>
+
+      <div className="grid grid-cols-1 gap-8 lg:grid-cols-[1.15fr_1fr]">
+        {/* pedidos dele */}
+        <section>
+          <div className="flex items-end justify-between gap-3">
+            <div>
+              <p className="eyebrow">Seus pedidos</p>
+              <h2 className="section-title !text-lg">Acompanhe cada etapa.</h2>
+            </div>
+            <Link href="/dashboard/pedidos/novo" className="icon-btn" aria-label="Fazer um pedido" data-tip="Fazer um pedido">
+              <Plus aria-hidden />
             </Link>
           </div>
-          {documentos.length === 0 ? (
-            <p className="py-3 text-sm text-muted">Nenhum documento ainda.</p>
+          {meusPedidos.length === 0 ? (
+            <Link
+              href="/dashboard/pedidos/novo"
+              className="mt-4 flex flex-col items-start gap-1 rounded-2xl border border-dashed border-border-strong p-5 transition-colors hover:border-navy hover:bg-surface"
+            >
+              <span className="font-display text-base font-bold text-foreground">Precisa de algo do escritório?</span>
+              <span className="text-sm text-muted">Faça o pedido por aqui e acompanhe até a conclusão.</span>
+              <span className="eyebrow mt-2 !text-navy">Fazer um pedido ›</span>
+            </Link>
           ) : (
-            <ul className="divide-y divide-border">
-              {documentos.slice(0, 5).map((d) => (
-                <li key={d.id} className="flex items-center gap-3 py-2.5">
-                  <div className="min-w-0 flex-1">
-                    <p className="truncate text-[15px] text-foreground sm:text-sm">{d.title}</p>
-                    <p className="text-xs text-muted">{dataBR(d.created_at)}</p>
-                  </div>
-                  {d.downloadUrl && (
-                    <a href={d.downloadUrl} target="_blank" rel="noreferrer" className="icon-btn h-10 w-10" aria-label="Baixar" data-tip="Baixar">
-                      <Download aria-hidden />
-                    </a>
-                  )}
-                </li>
-              ))}
-            </ul>
+            <>
+              <ul className="mt-4 space-y-3">
+                {meusPedidos.slice(0, 3).map((p) => (
+                  <CartaoPedido key={p.id} p={p} />
+                ))}
+              </ul>
+              {meusPedidos.length > 3 && (
+                <Link href="/dashboard/pedidos" className="eyebrow mt-3 inline-block hover:!text-foreground">
+                  + {meusPedidos.length - 3} pedido{meusPedidos.length - 3 > 1 ? "s" : ""} ›
+                </Link>
+              )}
+            </>
           )}
         </section>
+
+        {/* concluídas e documentos */}
+        <div className="space-y-8">
+          <section>
+            <p className="eyebrow">Concluídas</p>
+            <h2 className="section-title !text-lg">Feito em {MESES[mes].toLowerCase()}.</h2>
+            {concluidasMes.length === 0 ? (
+              <p className="mt-4 border-y border-border py-5 text-sm text-muted">Nenhuma atividade concluída ainda este mês.</p>
+            ) : (
+              <ol className="mt-4 border-b border-border">
+                {concluidasMes.slice(0, 5).map((a, i) => (
+                  <LinhaAtividade key={a.id} a={a} n={i + 1} />
+                ))}
+              </ol>
+            )}
+          </section>
+
+          <section>
+            <div className="flex items-end justify-between gap-3">
+              <div>
+                <p className="eyebrow">Documentos</p>
+                <h2 className="section-title !text-lg">Recentes.</h2>
+              </div>
+              <Link href="/dashboard/documentos" className="eyebrow hover:!text-foreground">
+                Todos ›
+              </Link>
+            </div>
+            {documentos.length === 0 ? (
+              <p className="mt-4 border-y border-border py-5 text-sm text-muted">Nenhum documento ainda.</p>
+            ) : (
+              <ul className="mt-4 border-b border-border">
+                {documentos.slice(0, 4).map((d) => (
+                  <li key={d.id} className="lista-linha !py-2.5">
+                    <span className="min-w-0 flex-1">
+                      <span className="block truncate text-sm text-foreground">{d.title}</span>
+                      <span className="eyebrow">{new Date(d.created_at).toLocaleDateString("pt-BR")}</span>
+                    </span>
+                    {d.downloadUrl && (
+                      <a href={d.downloadUrl} target="_blank" rel="noreferrer" className="icon-btn" aria-label="Baixar" data-tip="Baixar">
+                        <Download aria-hidden />
+                      </a>
+                    )}
+                  </li>
+                ))}
+              </ul>
+            )}
+          </section>
+        </div>
       </div>
 
       <Link
         href="/dashboard/relatorios"
-        className="mt-5 flex items-center gap-4 rounded-2xl bg-navy-2 p-5 text-white transition-opacity hover:opacity-95"
+        className="group mt-10 flex items-center gap-4 rounded-2xl bg-navy-2 p-5 text-white transition-transform duration-200 hover:-translate-y-0.5"
       >
         <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-white/10">
           <FileBarChart2 className="h-5 w-5 text-gold-2" aria-hidden />
         </span>
         <div className="min-w-0 flex-1">
           <p className="font-semibold">Relatório da semana e do mês</p>
-          <p className="text-sm text-white/60">Tudo o que foi feito, em andamento e a fazer. Dá para baixar em PDF.</p>
+          <p className="text-sm text-white/60">Tudo o que foi feito, em andamento e na fila. Dá para baixar em PDF.</p>
         </div>
-        <ArrowRight className="h-5 w-5 shrink-0 text-gold-2" aria-hidden />
+        <ArrowRight className="h-5 w-5 shrink-0 text-gold-2 transition-transform group-hover:translate-x-0.5" aria-hidden />
       </Link>
-    </>
+    </div>
   );
 }

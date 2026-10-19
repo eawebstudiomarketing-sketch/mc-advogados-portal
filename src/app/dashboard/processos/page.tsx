@@ -13,9 +13,10 @@ export default async function ClientProcessesPage() {
 
   return (
     <div>
-      <div className="mb-6">
-        <h1 className="page-title">Processos</h1>
-        <p className="mt-1 text-sm text-muted">Seus processos acompanhados pelo escritório.</p>
+      <div className="mb-8">
+        <p className="eyebrow">Processos</p>
+        <h1 className="page-title mt-2">Seus processos.</h1>
+        <p className="mt-2 text-[15px] text-foreground/70">Acompanhados pelo escritório.</p>
       </div>
 
       {processos.length === 0 ? (

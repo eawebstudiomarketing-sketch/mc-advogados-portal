@@ -1,64 +1,54 @@
 import Link from "next/link";
-import { Plus, CheckCircle2, Clock3, CircleDashed, ListChecks } from "lucide-react";
+import { Plus } from "lucide-react";
 import { requireRole } from "@/lib/dal";
-import { listActivities, type Activity } from "@/lib/data/activities";
-import { ACTIVITY_TYPE_LABEL } from "@/lib/activity-type";
-import { EmptyState } from "@/components/ui/empty-state";
-
-const dataBR = (iso: string) => new Date(iso.length === 10 ? iso + "T00:00:00" : iso).toLocaleDateString("pt-BR");
+import { atividadesDoPortal } from "@/lib/data/portal-cliente";
+import { LinhaAtividade } from "@/components/cliente/linha-atividade";
 
 const GRUPOS = [
-  { status: "em_andamento", titulo: "Em andamento", icone: Clock3, cor: "text-status-info" },
-  { status: "aberta", titulo: "A fazer", icone: CircleDashed, cor: "text-status-pending" },
-  { status: "concluida", titulo: "Concluídas", icone: CheckCircle2, cor: "text-status-success" },
+  { status: "em_andamento", titulo: "Em andamento" },
+  { status: "aberta", titulo: "Na fila" },
+  { status: "concluida", titulo: "Concluídas" },
 ] as const;
 
-// Atividades do cliente em cartões (funciona bem no celular), agrupadas pela situação.
+// Todas as atividades do cliente (as do escritório e os pedidos dele), por situação.
 export default async function ClientActivitiesPage() {
   const profile = await requireRole(["client"]);
-  const activities = (await listActivities({ clientId: profile.client_id! })).filter((a) => a.status !== "cancelada");
+  const atividades = await atividadesDoPortal(profile);
 
   return (
     <div>
-      <div className="mb-6 flex flex-wrap items-end justify-between gap-3">
+      <div className="mb-8 flex flex-wrap items-end justify-between gap-4">
         <div>
-          <h1 className="page-title">Atividades</h1>
-          <p className="mt-1 text-sm text-muted">O que o escritório está fazendo por você.</p>
+          <p className="eyebrow">Atividades · {atividades.length}</p>
+          <h1 className="page-title mt-2 !text-[2.2rem] !leading-[1.05]">
+            Tudo o que fazemos
+            <br />
+            <span className="text-foreground/30">por você.</span>
+          </h1>
         </div>
-        <Link href="/dashboard/activities/new" className="ui-btn-secondary">
-          <Plus className="h-4 w-4" aria-hidden /> Nova solicitação
+        <Link href="/dashboard/pedidos/novo" className="ui-btn">
+          <Plus className="h-4 w-4" aria-hidden /> Fazer um pedido
         </Link>
       </div>
 
-      {activities.length === 0 ? (
-        <div className="ui-card">
-          <EmptyState icon={ListChecks} title="Nenhuma atividade ainda" />
-        </div>
+      {atividades.length === 0 ? (
+        <p className="border-y border-border py-6 text-sm text-muted">Nenhuma atividade ainda.</p>
       ) : (
-        <div className="space-y-6">
+        <div className="space-y-10">
           {GRUPOS.map((g) => {
-            const itens = activities.filter((a) => a.status === g.status);
+            const itens = atividades.filter((a) => a.status === g.status);
             if (!itens.length) return null;
+            const lista = g.status === "concluida" ? itens.sort((x, y) => (y.concluida_em ?? y.updated_at).localeCompare(x.concluida_em ?? x.updated_at)).slice(0, 30) : itens;
             return (
               <section key={g.status}>
-                <h2 className="mb-2.5 flex items-center gap-2 text-sm font-semibold text-foreground">
-                  <g.icone className={`h-4 w-4 ${g.cor}`} aria-hidden /> {g.titulo}
-                  <span className="rounded-full bg-surface-2 px-2 text-xs font-medium tabular-nums text-muted ring-1 ring-border">{itens.length}</span>
-                </h2>
-                <ul className="grid grid-cols-1 gap-2.5 md:grid-cols-2">
-                  {itens.map((a: Activity) => (
-                    <li key={a.id} className="ui-card p-4">
-                      <p className="text-[15px] font-medium leading-snug text-foreground">{a.title}</p>
-                      {a.description && <p className="mt-1 line-clamp-2 text-[13px] text-muted">{a.description}</p>}
-                      <p className="mt-2 flex flex-wrap gap-x-3 gap-y-1 text-xs text-muted">
-                        <span>{ACTIVITY_TYPE_LABEL[a.type]}</span>
-                        {a.deadline && g.status !== "concluida" && <span>Prazo {dataBR(a.deadline)}</span>}
-                        {g.status === "concluida" && <span>Concluída em {dataBR(a.updated_at)}</span>}
-                        {a.profiles?.full_name && <span>Responsável: {a.profiles.full_name}</span>}
-                      </p>
-                    </li>
+                <p className="eyebrow">
+                  {g.titulo} · {itens.length}
+                </p>
+                <ol className="mt-3 border-b border-border">
+                  {lista.map((a, i) => (
+                    <LinhaAtividade key={a.id} a={a} n={i + 1} />
                   ))}
-                </ul>
+                </ol>
               </section>
             );
           })}

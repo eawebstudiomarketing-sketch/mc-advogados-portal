@@ -1,17 +1,6 @@
-import { requireRole } from "@/lib/dal";
-import { ActivityForm } from "./activity-form";
-import { BackButton } from "@/components/nav/back-button";
+import { redirect } from "next/navigation";
 
-export default async function NewOwnActivityPage() {
-  await requireRole(["client"]);
-
-  return (
-    <div>
-      <BackButton fallback="/dashboard/activities" />
-
-      <h1 className="mt-3 mb-6 page-title">Nova atividade</h1>
-
-      <ActivityForm />
-    </div>
-  );
+// O pedido do cliente agora fica em /dashboard/pedidos/novo (formulário simples, com anexo e urgência).
+export default function NewOwnActivityPage() {
+  redirect("/dashboard/pedidos/novo");
 }
