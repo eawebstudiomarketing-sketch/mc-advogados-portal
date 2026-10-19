@@ -11,7 +11,8 @@ export function CartaoPedido({ p }: { p: AtividadeCliente }) {
         <div className="min-w-0">
           <p className="eyebrow">Enviado em {new Date(p.created_at).toLocaleDateString("pt-BR", { day: "2-digit", month: "short" })}</p>
           <p className="mt-1 text-[15px] font-semibold leading-snug text-foreground">{p.title}</p>
-          {p.description && <p className="mt-1 line-clamp-2 text-[13px] text-muted">{p.description}</p>}
+          {/* só o que ele escreveu/falou; as notas de anexo/áudio vêm depois, em outro parágrafo */}
+          {p.description && <p className="mt-1 line-clamp-2 text-[13px] text-muted">{p.description.split("\n\n")[0]}</p>}
         </div>
         {p.pessoa && (
           <span className="flex shrink-0 items-center gap-2" title={`Com ${p.pessoa.nome}`}>

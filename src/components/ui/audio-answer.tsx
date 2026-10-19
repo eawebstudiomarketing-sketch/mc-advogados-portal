@@ -25,6 +25,9 @@ export function AudioAnswer({
   onTexto,
   modo = "resposta",
   grande = false,
+  endpoint = "/api/transcrever",
+  onDados,
+  destaque = false,
 }: {
   pergunta?: string;
   onTexto: (texto: string) => void;
@@ -32,6 +35,12 @@ export function AudioAnswer({
   modo?: "resposta" | "comando";
   /** botão redondo de 40px (tela do assistente no celular) */
   grande?: boolean;
+  /** outra rota de transcrição (ex.: pedido do cliente) */
+  endpoint?: string;
+  /** recebe a resposta inteira da rota e o áudio gravado */
+  onDados?: (dados: Record<string, string>, audio: Blob) => void;
+  /** microfone redondo grande em azul-marinho (formulário de pedido do cliente) */
+  destaque?: boolean;
 }) {
   const [estado, setEstado] = useState<Estado>("parado");
   const [seg, setSeg] = useState(0);
@@ -77,14 +86,15 @@ export function AudioAnswer({
       fd.set("audio", blob, `resposta.${ext}`);
       fd.set("pergunta", pergunta);
       if (modo === "comando") fd.set("modo", "comando");
-      const res = await fetch("/api/transcrever", { method: "POST", body: fd });
+      const res = await fetch(endpoint, { method: "POST", body: fd });
       const data = await res.json().catch(() => ({}));
       if (!res.ok || !data.resposta) {
         toast.error(data.error ?? "Não foi possível transcrever. Tente de novo.");
         return;
       }
       onTexto(data.resposta);
-      if (modo === "resposta") toast.success("Resposta escrita a partir do áudio");
+      onDados?.(data, blob);
+      if (modo === "resposta" && !onDados) toast.success("Resposta escrita a partir do áudio");
     } catch {
       toast.error("Falha de conexão ao enviar o áudio.");
     } finally {
@@ -155,7 +165,7 @@ export function AudioAnswer({
   if (estado === "enviando") {
     return (
       <span className="inline-flex items-center gap-2 rounded-full bg-navy/[0.06] px-3 py-1.5 text-xs font-medium text-navy-3" role="status">
-        <Loader2 className="h-3.5 w-3.5 animate-spin" aria-hidden /> {modo === "comando" ? "Entendendo…" : "Escrevendo a resposta…"}
+        <Loader2 className="h-3.5 w-3.5 animate-spin" aria-hidden /> {modo === "comando" ? "Entendendo…" : onDados ? "Transcrevendo o áudio…" : "Escrevendo a resposta…"}
       </span>
     );
   }
@@ -189,11 +199,17 @@ export function AudioAnswer({
     <button
       type="button"
       onClick={gravar}
-      className={grande ? "icon-btn h-10 w-10 rounded-full" : "icon-btn border border-border bg-surface"}
-      aria-label={modo === "comando" ? "Falar com o assistente" : "Responder por áudio"}
-      data-tip={modo === "comando" ? "Falar" : "Responder por áudio"}
+      className={
+        destaque
+          ? "flex h-12 w-12 shrink-0 items-center justify-center rounded-full bg-navy text-gold-2 shadow-md shadow-navy/20 transition-transform active:scale-95"
+          : grande
+            ? "icon-btn h-10 w-10 rounded-full"
+            : "icon-btn border border-border bg-surface"
+      }
+      aria-label={destaque ? "Gravar áudio" : modo === "comando" ? "Falar com o assistente" : "Responder por áudio"}
+      data-tip={destaque ? undefined : modo === "comando" ? "Falar" : "Responder por áudio"}
     >
-      <Mic aria-hidden />
+      <Mic className={destaque ? "h-5 w-5" : undefined} aria-hidden />
     </button>
   );
 }

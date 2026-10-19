@@ -8,7 +8,7 @@ import { categoriaDoItem } from "@/lib/pedidos-documentos";
 
 // Pedido aberto pelo cliente no portal dele. Vira atividade do cliente (o
 // gatilho do banco põe na Distribuição); urgência vai como prioridade da
-// Distribuição e o anexo entra nos documentos do cliente.
+// Distribuição; anexo e áudio (pedido falado) entram nos documentos do cliente.
 export const maxDuration = 60;
 
 const MAX_BYTES = 4 * 1024 * 1024; // limite de envio da Vercel
@@ -26,41 +26,57 @@ export async function POST(request: Request) {
   const prazoTxt = String(form.get("prazo") ?? "").trim();
   const prazo = /^\d{4}-\d{2}-\d{2}$/.test(prazoTxt) ? prazoTxt : null;
   const arquivo = form.get("arquivo");
+  const audio = form.get("audio");
 
   if (!titulo) return NextResponse.json({ error: "Conte em poucas palavras do que você precisa." }, { status: 400 });
   const temArquivo = arquivo instanceof File && arquivo.size > 0;
-  if (temArquivo && arquivo.size > MAX_BYTES) {
-    return NextResponse.json({ error: "Arquivo grande demais (máx. 4 MB). Se precisar, mande por e-mail ao escritório." }, { status: 413 });
+  const temAudio = audio instanceof File && audio.size > 0 && (audio.type || "audio/").startsWith("audio/");
+  if ((temArquivo ? arquivo.size : 0) + (temAudio ? audio.size : 0) > MAX_BYTES) {
+    return NextResponse.json({ error: "Anexo e áudio juntos passam de 4 MB. Tire o anexo e mande por e-mail ao escritório." }, { status: 413 });
   }
 
   const db = createAdminClient();
 
-  // anexo primeiro: se falhar, o pedido nem é criado
-  let docId: string | null = null;
-  let filePath: string | null = null;
-  if (temArquivo) {
-    filePath = `${clientId}/cliente-${Date.now()}-${sanitizar(arquivo.name)}`;
-    const { error: upErr } = await db.storage.from("documents").upload(filePath, arquivo, { contentType: arquivo.type || undefined });
-    if (upErr) return NextResponse.json({ error: "Não foi possível enviar o anexo. Tente novamente." }, { status: 500 });
+  // anexo e áudio primeiro: se falharem, o pedido nem é criado
+  const guardados: { docId: string; filePath: string }[] = [];
+  const desfazer = async () => {
+    if (guardados.length) {
+      await db.from("documents").delete().in("id", guardados.map((g) => g.docId));
+      await db.storage.from("documents").remove(guardados.map((g) => g.filePath));
+    }
+  };
+  const envios = [
+    temArquivo ? { file: arquivo, titulo: `Anexo do pedido: ${titulo}` } : null,
+    temAudio ? { file: audio, titulo: `Áudio do pedido: ${titulo}` } : null,
+  ].filter((x): x is { file: File; titulo: string } => !!x);
+  for (const e of envios) {
+    const filePath = `${clientId}/cliente-${Date.now()}-${sanitizar(e.file.name)}`;
+    const { error: upErr } = await db.storage.from("documents").upload(filePath, e.file, { contentType: e.file.type || undefined });
+    if (upErr) {
+      await desfazer();
+      return NextResponse.json({ error: "Não foi possível enviar o anexo. Tente novamente." }, { status: 500 });
+    }
     const { data: doc, error: docErr } = await db
       .from("documents")
-      .insert({
-        client_id: clientId,
-        uploaded_by: profile.id,
-        category: categoriaDoItem(null),
-        title: `Anexo do pedido: ${titulo}`,
-        file_path: filePath,
-      })
+      .insert({ client_id: clientId, uploaded_by: profile.id, category: categoriaDoItem(null), title: e.titulo, file_path: filePath })
       .select("id")
       .single();
     if (docErr || !doc) {
       await db.storage.from("documents").remove([filePath]);
+      await desfazer();
       return NextResponse.json({ error: "Não foi possível registrar o anexo. Tente novamente." }, { status: 500 });
     }
-    docId = doc.id;
+    guardados.push({ docId: doc.id, filePath });
   }
 
-  const descricaoFinal = [descricao, temArquivo ? `Anexo: ${arquivo.name} (nos documentos do cliente)` : ""].filter(Boolean).join("\n\n") || null;
+  const descricaoFinal =
+    [
+      descricao,
+      temAudio ? "Pedido feito por áudio: o texto acima é a transcrição e o áudio original está nos documentos do cliente." : "",
+      temArquivo ? `Anexo: ${arquivo.name} (nos documentos do cliente)` : "",
+    ]
+      .filter(Boolean)
+      .join("\n\n") || null;
   const supabase = await createClient();
   const { data: atividade, error } = await supabase
     .from("activities")
@@ -76,8 +92,7 @@ export async function POST(request: Request) {
     .single();
 
   if (error || !atividade) {
-    if (docId) await db.from("documents").delete().eq("id", docId);
-    if (filePath) await db.storage.from("documents").remove([filePath]);
+    await desfazer();
     return NextResponse.json({ error: "Não foi possível enviar o pedido. Tente novamente." }, { status: 500 });
   }
 
@@ -98,7 +113,7 @@ export async function POST(request: Request) {
         from: resend.from,
         to: para,
         subject: `${urgente ? "[URGENTE] " : ""}Pedido de ${cliente?.name ?? "cliente"}: ${titulo}`,
-        html: `<p><strong>${nome}</strong> fez um pedido pelo portal${urgente ? " e marcou como <strong>urgente</strong>" : ""}:</p><p><strong>${escapar(titulo)}</strong></p>${descricao ? `<p>${escapar(descricao).replace(/\n/g, "<br>")}</p>` : ""}${temArquivo ? "<p>Com anexo (nos documentos do cliente).</p>" : ""}<p><a href="${site()}/admin/distribuicao">Abrir a Distribuição</a></p>`,
+        html: `<p><strong>${nome}</strong> fez um pedido pelo portal${urgente ? " e marcou como <strong>urgente</strong>" : ""}:</p><p><strong>${escapar(titulo)}</strong></p>${descricao ? `<p>${escapar(descricao).replace(/\n/g, "<br>")}</p>` : ""}${temAudio ? "<p>Pedido feito por áudio (transcrito acima; o áudio está nos documentos do cliente).</p>" : ""}${temArquivo ? "<p>Com anexo (nos documentos do cliente).</p>" : ""}<p><a href="${site()}/admin/distribuicao">Abrir a Distribuição</a></p>`,
       });
     }
   } catch (e) {

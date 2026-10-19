@@ -1,9 +1,10 @@
 "use client";
 
-import { useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import { Loader2, Paperclip, Send, X } from "lucide-react";
+import { AudioAnswer } from "@/components/ui/audio-answer";
 
 const MAX_BYTES = 4 * 1024 * 1024;
 
@@ -14,6 +15,19 @@ export function FormPedido() {
   const [urgente, setUrgente] = useState(false);
   const [enviando, setEnviando] = useState(false);
   const [erro, setErro] = useState<string | null>(null);
+  const [titulo, setTitulo] = useState("");
+  const [descricao, setDescricao] = useState("");
+  const [audio, setAudio] = useState<Blob | null>(null);
+  const audioUrl = useAudioUrl(audio);
+
+  function aoTranscrever(dados: Record<string, string>, blob: Blob) {
+    setAudio(blob);
+    if (!titulo.trim() && dados.titulo) setTitulo(dados.titulo);
+    setDescricao((d) => (d.trim() ? `${d.trim()}
+
+${dados.resposta}` : dados.resposta));
+    toast.success("Áudio transcrito", { description: "Confira o texto abaixo e envie." });
+  }
 
   function escolher(f: File | undefined) {
     if (!f) return;
@@ -35,6 +49,10 @@ export function FormPedido() {
     fd.set("urgencia", urgente ? "urgente" : "normal");
     fd.delete("arquivo");
     if (arquivo) fd.set("arquivo", arquivo);
+    if (audio) {
+      const ext = audio.type.includes("mp4") ? "m4a" : audio.type.includes("ogg") ? "ogg" : "webm";
+      fd.set("audio", audio, `audio-do-pedido.${ext}`);
+    }
     setEnviando(true);
     setErro(null);
     try {
@@ -56,6 +74,37 @@ export function FormPedido() {
 
   return (
     <form onSubmit={enviar} className="mt-8 space-y-7">
+      {/* falar em vez de escrever: o áudio vira texto e vai junto com o pedido */}
+      <div className="rounded-2xl border border-border bg-surface p-4 sm:p-5">
+        {audio && audioUrl ? (
+          <div className="space-y-3">
+            <p className="eyebrow flex items-center gap-2">
+              <span className="h-1.5 w-1.5 rounded-full bg-status-success" aria-hidden /> Seu áudio vai junto com o pedido
+            </p>
+            <div className="flex items-center gap-2">
+              <audio src={audioUrl} controls className="h-10 min-w-0 flex-1" />
+              <button type="button" onClick={() => setAudio(null)} className="icon-btn" aria-label="Tirar o áudio" data-tip="Tirar o áudio">
+                <X aria-hidden />
+              </button>
+            </div>
+            <p className="text-xs text-muted">O texto abaixo foi escrito a partir dele. Pode ajustar à vontade.</p>
+          </div>
+        ) : (
+          <div className="flex flex-wrap items-center gap-4">
+            <AudioAnswer
+              endpoint="/api/cliente/pedidos/transcrever"
+              onTexto={() => {}}
+              onDados={aoTranscrever}
+              destaque
+            />
+            <div className="min-w-0 flex-1">
+              <p className="text-sm font-semibold text-foreground">Prefere falar? Grave um áudio.</p>
+              <p className="text-xs text-muted">Até 4 minutos. A gente escreve o pedido pra você conferir antes de enviar.</p>
+            </div>
+          </div>
+        )}
+      </div>
+
       <div>
         <label htmlFor="titulo" className="eyebrow block">
           01 · O que você precisa
@@ -65,6 +114,8 @@ export function FormPedido() {
           name="titulo"
           required
           maxLength={140}
+          value={titulo}
+          onChange={(e) => setTitulo(e.target.value)}
           placeholder="Ex.: Revisar o contrato com o fornecedor novo"
           className="mt-2 w-full border-0 border-b-2 border-border bg-transparent px-0 py-2 font-display text-xl font-bold text-foreground placeholder:font-normal placeholder:text-muted/60 focus:border-navy focus:ring-0 focus:outline-none sm:text-2xl"
         />
@@ -79,6 +130,8 @@ export function FormPedido() {
           name="descricao"
           rows={4}
           maxLength={4000}
+          value={descricao}
+          onChange={(e) => setDescricao(e.target.value)}
           placeholder="Contexto, nomes, valores, o que já aconteceu…"
           className="ui-input mt-2"
         />
@@ -174,4 +227,13 @@ export function FormPedido() {
       </button>
     </form>
   );
+}
+
+/** Link temporário do áudio gravado, pro player (liberado ao trocar/sair). */
+function useAudioUrl(blob: Blob | null) {
+  const url = useMemo(() => (blob ? URL.createObjectURL(blob) : null), [blob]);
+  useEffect(() => () => {
+    if (url) URL.revokeObjectURL(url);
+  }, [url]);
+  return url;
 }
