@@ -60,6 +60,7 @@
   --bolha-ink: #111b21;
   --focus-ring: rgba(19, 50, 90, 0.14);
   --tip-bg: var(--navy-2);
+  --btn-hover: var(--navy-3);
 
   /* formulário de onboarding (paleta própria) */
   --ob-paper: #f7f4ee;
@@ -81,72 +82,75 @@
 }
 
 /* ───────────── tema escuro ───────────── */
+/* escuro "clean": preto neutro, sem azul nos fundos; destaque em grafite e
+   texto/links em cinza claro (pedido de 20/10: azul forte cansava a vista) */
 :root[data-theme="dark"] {
   color-scheme: dark;
-  --background: #0a0c0f;
-  --foreground: #e9ebee;
-  --surface: #121519;
-  --surface-2: #181c21;
-  --border: #23282f;
-  --border-strong: #323840;
-  --muted: #8d949e;
+  --background: #0b0c0e;
+  --foreground: #e6e7e9;
+  --surface: #131417;
+  --surface-2: #18191d;
+  --border: #232529;
+  --border-strong: #2f3237;
+  --muted: #8a8f98;
 
-  /* navy fica mais claro para funcionar como botão e como texto/link no escuro */
-  --navy: #1f4f8a;
-  --navy-2: #0f1f35;
-  --navy-3: #6c9bd8;
-  --gold: #d1ad5c;
-  --gold-2: #e6d3a0;
-  --gold-soft: #2a2416;
-  --gold-ink: #e6cf8f;
-  --gold-foreground: #171f2e;
+  /* "navy" vira grafite (botão, item ativo, cartão de destaque) e cinza claro (texto/link) */
+  --navy: #2a2d33;
+  --navy-2: #16171a;
+  --navy-3: #c4c8cf;
+  --btn-hover: #363a41;
+  --gold: #c9a95e;
+  --gold-2: #ddc999;
+  --gold-soft: #211d14;
+  --gold-ink: #dcc68e;
+  --gold-foreground: #16171a;
 
-  --status-success: #4ade80;
-  --status-success-bg: #10291a;
-  --status-pending: #f5a54a;
-  --status-pending-bg: #2d1f0c;
-  --status-danger: #f87171;
-  --status-danger-bg: #2e1313;
-  --status-info: #7aa7ff;
-  --status-info-bg: #12203a;
+  --status-success: #6fcf97;
+  --status-success-bg: #13201a;
+  --status-pending: #e0a35a;
+  --status-pending-bg: #241b10;
+  --status-danger: #ef7d7d;
+  --status-danger-bg: #261415;
+  --status-info: #a9b6c9;
+  --status-info-bg: #1a1d22;
 
-  --shadow-sm: 0 1px 1px rgba(0, 0, 0, 0.4);
-  --shadow-md: 0 1px 2px rgba(0, 0, 0, 0.4), 0 6px 16px -6px rgba(0, 0, 0, 0.6);
-  --shadow-lg: 0 2px 4px rgba(0, 0, 0, 0.4), 0 18px 40px -12px rgba(0, 0, 0, 0.75);
+  --shadow-sm: 0 1px 1px rgba(0, 0, 0, 0.35);
+  --shadow-md: 0 1px 2px rgba(0, 0, 0, 0.35), 0 6px 16px -6px rgba(0, 0, 0, 0.55);
+  --shadow-lg: 0 2px 4px rgba(0, 0, 0, 0.35), 0 18px 40px -12px rgba(0, 0, 0, 0.7);
 
-  --hover: #171b20;
-  --track: #22272e;
-  --label: #c9ced5;
-  --placeholder: #5f6772;
-  --input-hover: #454c56;
-  --btn2-hover-border: #454c56;
-  --skeleton-2: #1d2228;
-  --roxo: #a48be6;
-  --roxo-bg: #221a38;
-  --roxo-ink: #c9b8f5;
-  --zap-bg: #102619;
-  --zap-ink: #5fd38d;
-  --bolha: #134d37;
-  --bolha-ink: #e9edef;
-  --focus-ring: rgba(108, 155, 216, 0.28);
-  --tip-bg: #2a3240;
+  --hover: #17181b;
+  --track: #212327;
+  --label: #c4c8cf;
+  --placeholder: #5d626b;
+  --input-hover: #3d4047;
+  --btn2-hover-border: #3d4047;
+  --skeleton-2: #1c1e22;
+  --roxo: #a99bd8;
+  --roxo-bg: #1d1a26;
+  --roxo-ink: #c9bff0;
+  --zap-bg: #12201a;
+  --zap-ink: #79cf9c;
+  --bolha: #1d3a2e;
+  --bolha-ink: #e6e7e9;
+  --focus-ring: rgba(255, 255, 255, 0.12);
+  --tip-bg: #2a2d33;
 
-  --ob-paper: #0a0c0f;
-  --ob-ink: #dfe3e8;
-  --ob-muted: #8d949e;
-  --ob-title: #eef0f3;
-  --ob-card: #121519;
-  --ob-card-2: #171a1f;
-  --ob-line: rgba(255, 255, 255, 0.08);
-  --ob-line-2: rgba(255, 255, 255, 0.12);
-  --ob-gold-soft: #2a2416;
-  --ob-gold-ink: #e6cf8f;
-  --ob-eyebrow: #d1ad5c;
-  --ob-track: #23282f;
-  --ob-tab: #181c21;
-  --ob-aside: #15181d;
-  --ob-grad: #15181d;
-  --ob-note: #221d12;
+  --ob-paper: #0b0c0e;
+  --ob-ink: #dcdee2;
+  --ob-muted: #8a8f98;
+  --ob-title: #eceef0;
+  --ob-card: #131417;
+  --ob-card-2: #17181b;
+  --ob-line: rgba(255, 255, 255, 0.07);
+  --ob-line-2: rgba(255, 255, 255, 0.11);
+  --ob-gold-soft: #211d14;
+  --ob-gold-ink: #dcc68e;
+  --ob-eyebrow: #c9a95e;
+  --ob-track: #212327;
+  --ob-tab: #18191d;
+  --ob-aside: #15161a;
+  --ob-grad: #15161a;
+  --ob-note: #1d1a12;
 }
 
 @theme inline {
@@ -385,7 +389,7 @@ select {
     background-color 150ms var(--ease-out),
     transform 150ms var(--ease-out);
   &:hover {
-    background: var(--navy-3);
+    background: var(--btn-hover);
   }
   &:active {
     transform: translateY(1px);
@@ -555,10 +559,14 @@ html.trocando-tema * {
 
 /* navy como TEXTO some no fundo escuro: vira o azul claro (como botão continua navy) */
 [data-theme="dark"] :is(.text-navy, .text-navy-2) {
-  color: var(--navy-3);
+  color: var(--foreground);
 }
 [data-theme="dark"] :is(.hover\:text-navy:hover, .group:hover .group-hover\:text-navy) {
-  color: #9dbfe8;
+  color: #fff;
+}
+/* interruptor ligado (bg-navy-3) e fundos navy-3: grafite claro, não cinza quase branco */
+[data-theme="dark"] .bg-navy-3 {
+  background-color: #7a828e;
 }
 
 /* selo de etiqueta: a cor vem do cadastro (--et); fundo bem claro, texto escuro do mesmo tom */
