@@ -16,7 +16,7 @@ export type DiaDaPessoa = {
   deHoje: AtividadeDoDia[];
   atrasadas: AtividadeDoDia[];
   proximas: AtividadeDoDia[]; // próximos 3 dias, para não pegar ninguém de surpresa
-  rotina: string[]; // itens da rotina diária da pessoa neste dia (definidos pelo admin máximo)
+  rotina: { titulo: string; hora: string | null }[]; // itens da rotina diária da pessoa neste dia (definidos pelo admin máximo)
 };
 
 const horaBahia = (iso: string) => new Date(iso).toLocaleTimeString("pt-BR", { timeZone: "America/Bahia", hour: "2-digit", minute: "2-digit" });
@@ -64,7 +64,7 @@ export async function diaDaPessoa(responsavelId: string | null, dia: string): Pr
     responsavelId: a.responsavel_id,
   });
   const lista = ativs ?? [];
-  const rotina = responsavelId ? (await rotinaDoDia(responsavelId, dia, db as unknown as SupabaseClient)).map((i) => i.titulo) : [];
+  const rotina = responsavelId ? (await rotinaDoDia(responsavelId, dia, db as unknown as SupabaseClient)).map((i) => ({ titulo: i.titulo, hora: i.hora_inicio ? `${i.hora_inicio.slice(0, 5)}${i.hora_fim ? `–${i.hora_fim.slice(0, 5)}` : ""}` : null })) : [];
   return {
     rotina,
     compromissos: (comps ?? []).map((c) => ({
@@ -95,7 +95,7 @@ export function textoDaRotina(nome: string, dia: string, d: DiaDaPessoa, url: st
 
   if (d.rotina.length) {
     linhas.push("", "✅ *Sua rotina de hoje* (marque no portal, vale ponto)");
-    for (const r of d.rotina) linhas.push(`☐ ${r}`);
+    for (const r of d.rotina) linhas.push(`☐ ${r.hora ? `${r.hora} ` : ""}${r.titulo}`);
   }
   if (d.compromissos.length) {
     linhas.push("", "📅 *Compromissos*");

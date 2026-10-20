@@ -4,36 +4,7 @@ import Image from "next/image";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { Suspense, useEffect, useMemo, useState, useSyncExternalStore } from "react";
-import {
-  LayoutDashboard,
-  Users,
-  ListChecks,
-  Gavel,
-  FileText,
-  FileSignature,
-  Wallet,
-  ClipboardList,
-  BarChart3,
-  UserCog,
-  Plug,
-  Trash2,
-  Search,
-  Menu,
-  X,
-  LogOut,
-  UserRound,
-  type LucideIcon,
-  Briefcase,
-  Layers,
-  Settings2,
-  ChevronDown,
-  Newspaper,
-  Bell,
-  CalendarDays,
-  MessageCircle,
-  MessagesSquare,
-  Inbox,
-} from "lucide-react";
+import { LayoutDashboard, Users, ListChecks, Gavel, FileText, FileSignature, Wallet, ClipboardList, BarChart3, UserCog, Plug, Trash2, Search, Menu, X, LogOut, UserRound, type LucideIcon, Briefcase, Layers, Settings2, ChevronDown, Newspaper, Bell, CalendarDays, MessageCircle, MessagesSquare, Inbox, CalendarCheck } from "lucide-react";
 import { logout } from "@/app/logout/actions";
 import { CommandPalette, type PaletteItem } from "./command-palette";
 import { PERM_DA_TELA, type Permissoes } from "@/lib/permissoes";
@@ -75,6 +46,7 @@ const NAV_GROUPS: { id: string; label: string; icon: LucideIcon; items: NavItem[
       { href: "/admin/distribuicao", label: "Distribuição", icon: Inbox },
       { href: "/admin/onboarding", label: "Onboarding", icon: ClipboardList },
       { href: "/admin/activities", label: "Atividades", icon: ListChecks },
+      { href: "/admin/rotinas", label: "Rotinas", icon: CalendarCheck, todos: true },
       { href: "/admin/publicacoes", label: "Publicações", icon: Newspaper },
       { href: "/admin/processes", label: "Processos", icon: Gavel },
       { href: "/admin/documents", label: "Documentos", icon: FileText },

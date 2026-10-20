@@ -8,9 +8,6 @@ import { removeStaffAction } from "./actions";
 import { ConfirmSubmitButton } from "@/components/ui/confirm-submit-button";
 import { MembroCard } from "./membro-card";
 import { DesignacoesProvider } from "./designacoes";
-import { RotinaEditor } from "./rotina-editor";
-import { listarItensRotina, progressoDoDia } from "@/lib/data/rotina-diaria";
-import { hojeBahia } from "@/lib/periodo";
 import { PessoasZap } from "./pessoas-zap";
 import { ZapConfig } from "./zap-config";
 import { DemandasEquipe } from "./demandas-equipe";
@@ -51,32 +48,20 @@ export default async function AdminTeamPage({ searchParams }: { searchParams: Pr
   );
 
   if (aba === "pessoas") {
-    const hoje = hojeBahia();
-    const [pessoas, config, itensRotina, progresso] = await Promise.all([listPessoas(), getEscritorioConfig(), listarItensRotina(), progressoDoDia(hoje)]);
+    const [pessoas, config] = await Promise.all([listPessoas(), getEscritorioConfig()]);
     return (
       <div>
         <p className="eyebrow mb-2">Gestão · Equipe</p>
         <h1 className="page-title mb-1">Equipe</h1>
         <p className="mb-5 text-sm text-muted">WhatsApp de cada pessoa (rotina das 7h) e as áreas que cada um atende.</p>
         {abas}
-        <section className="mb-8">
-          <h2 className="section-title">Rotina diária de cada pessoa</h2>
-          <p className="mb-3 text-xs text-muted">
-            O que cada um faz todo dia. A pessoa marca no portal (Visão geral e Agenda) e cada item feito vale 1 ponto no ranking. Também vai na mensagem das 7h.
-            {souSuper ? "" : " Só o admin máximo altera."}
-          </p>
-          <div className="grid grid-cols-1 gap-3 xl:grid-cols-2">
-            {pessoas.map((p) => (
-              <RotinaEditor
-                key={p.id}
-                pessoa={{ id: p.id, nome: p.nome, foto: p.foto }}
-                itens={itensRotina.filter((i) => i.responsavel_id === p.id).map((i) => ({ id: i.id, titulo: i.titulo, dias: i.dias }))}
-                progresso={progresso.get(p.id) ?? null}
-                podeEditar={souSuper}
-              />
-            ))}
-          </div>
-        </section>
+        <Link href="/admin/rotinas" className="mb-8 flex items-center justify-between gap-3 rounded-2xl border border-border bg-surface px-5 py-4 hover:border-border-strong">
+          <span>
+            <span className="block text-sm font-semibold text-foreground">Rotina diária de cada pessoa</span>
+            <span className="block text-xs text-muted">Horários, dias, quem fez e quem não fez: tudo em Operacional → Rotinas.</span>
+          </span>
+          <span className="eyebrow">Abrir ›</span>
+        </Link>
         <div className="space-y-6">
           <PessoasZap pessoas={pessoas} areas={config.areas} />
           <ZapConfig config={config} />

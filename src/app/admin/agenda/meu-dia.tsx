@@ -174,7 +174,7 @@ export async function MeuDia({
           {rotina.length > 0 && (
             <MinhaRotina
               key={`${pessoaId}-${dia}`}
-              itens={rotina.map((i) => ({ id: i.id, titulo: i.titulo, feito: i.feito }))}
+              itens={rotina.map((i) => ({ id: i.id, titulo: i.titulo, feito: i.feito, feitoEm: i.feitoEm, hora_inicio: i.hora_inicio, hora_fim: i.hora_fim, observacao: i.observacao, situacao: i.situacao }))}
               podeMarcar={pessoaId === meuId && dia === hoje}
               titulo={pessoaId === meuId ? (dia === hoje ? "Minha rotina de hoje" : "Minha rotina do dia") : `Rotina de ${nomeDaPessoa?.split(" ")[0] ?? "pessoa"}`}
             />

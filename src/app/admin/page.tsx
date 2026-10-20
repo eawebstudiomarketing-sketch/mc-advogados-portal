@@ -226,7 +226,7 @@ export default async function AdminOverviewPage({
 
       {minhaRotina.length > 0 && (
         <div className="mb-10">
-          <MinhaRotina itens={minhaRotina.map((i) => ({ id: i.id, titulo: i.titulo, feito: i.feito }))} podeMarcar />
+          <MinhaRotina itens={minhaRotina.map((i) => ({ id: i.id, titulo: i.titulo, feito: i.feito, feitoEm: i.feitoEm, hora_inicio: i.hora_inicio, hora_fim: i.hora_fim, observacao: i.observacao, situacao: i.situacao }))} podeMarcar />
         </div>
       )}
 
