@@ -1,4 +1,6 @@
 import Link from "next/link";
+import { rotinaDoDia } from "@/lib/data/rotina-diaria";
+import { MinhaRotina } from "@/components/rotina/minha-rotina";
 import { ChevronLeft, ChevronRight, Coffee, MapPin } from "lucide-react";
 import { diaDaPessoa, type AtividadeDoDia } from "@/lib/data/rotina";
 import { Avatar } from "@/components/ui/avatar";
@@ -66,7 +68,10 @@ export async function MeuDia({
   hoje,
   pessoas,
   hrefDia,
+  meuId = null,
 }: {
+  /** responsável de quem está vendo: só ele marca a própria rotina */
+  meuId?: string | null;
   /** null = o escritório inteiro */
   pessoaId: string | null;
   dia: string;
@@ -74,7 +79,8 @@ export async function MeuDia({
   pessoas: Pessoa[];
   hrefDia: (dia: string) => string;
 }) {
-  const d = await diaDaPessoa(pessoaId, dia);
+  const [d, rotina] = await Promise.all([diaDaPessoa(pessoaId, dia), pessoaId && pessoaId !== "__ninguem__" ? rotinaDoDia(pessoaId, dia) : Promise.resolve([])]);
+  const nomeDaPessoa = pessoaId ? pessoas.find((p) => p.id === pessoaId)?.nome : null;
   const mapa = new Map(pessoas.map((p) => [p.id, p]));
   const semana = new Date(`${dia}T12:00:00Z`).toLocaleDateString("pt-BR", { weekday: "long", day: "2-digit", month: "long", timeZone: "UTC" });
 
@@ -165,6 +171,14 @@ export async function MeuDia({
         </section>
 
         <div className="space-y-4">
+          {rotina.length > 0 && (
+            <MinhaRotina
+              key={`${pessoaId}-${dia}`}
+              itens={rotina.map((i) => ({ id: i.id, titulo: i.titulo, feito: i.feito }))}
+              podeMarcar={pessoaId === meuId && dia === hoje}
+              titulo={pessoaId === meuId ? (dia === hoje ? "Minha rotina de hoje" : "Minha rotina do dia") : `Rotina de ${nomeDaPessoa?.split(" ")[0] ?? "pessoa"}`}
+            />
+          )}
           {d.atrasadas.length > 0 && <ListaCurta titulo="Atrasadas" cor="bg-status-danger" itens={d.atrasadas} pessoas={mapa} />}
           {d.proximas.length > 0 && <ListaCurta titulo="Próximos 3 dias" cor="bg-status-info" itens={d.proximas} pessoas={mapa} />}
           {!d.atrasadas.length && !d.proximas.length && (

@@ -111,6 +111,7 @@ export default async function AgendaPage({ searchParams }: { searchParams: Promi
         {abas}
         {filtroQuem && <div className="mb-5">{filtroQuem}</div>}
         <MeuDia
+          meuId={eu}
           pessoaId={filtroPessoa}
           dia={dia}
           hoje={hoje}

@@ -17,14 +17,15 @@ export const somaDias = (iso: string, n: number) => {
 
 export const emAberto = (a: Pick<Activity, "status">) => a.status === "aberta" || a.status === "em_andamento";
 
-export type LinhaRanking = { responsavelId: string; nome: string; concluidas: number; abertas: number; atrasadas: number };
+export type LinhaRanking = { responsavelId: string; nome: string; concluidas: number; rotina: number; pontos: number; abertas: number; atrasadas: number };
 
 /** Quem mais concluiu no período (concluida_em dentro dos últimos `dias`). */
-export function ranking(atividades: Activity[], pessoas: Pessoa[], dias: number): LinhaRanking[] {
+/** Pontos = demandas concluídas + itens de rotina feitos no período (1 ponto cada). */
+export function ranking(atividades: Activity[], pessoas: Pessoa[], dias: number, rotina: Map<string, number> = new Map()): LinhaRanking[] {
   const hoje = hojeBahia();
   const desde = Date.parse(`${somaDias(hoje, -dias + 1)}T00:00:00-03:00`);
   const linhas = new Map<string, LinhaRanking>(
-    pessoas.map((p) => [p.id, { responsavelId: p.id, nome: p.nome, concluidas: 0, abertas: 0, atrasadas: 0 }])
+    pessoas.map((p) => [p.id, { responsavelId: p.id, nome: p.nome, concluidas: 0, rotina: rotina.get(p.id) ?? 0, pontos: 0, abertas: 0, atrasadas: 0 }])
   );
   for (const a of atividades) {
     if (!a.responsavel_id) continue;
@@ -36,9 +37,10 @@ export function ranking(atividades: Activity[], pessoas: Pessoa[], dias: number)
       if (a.deadline && a.deadline < hoje) l.atrasadas++;
     }
   }
+  for (const l of linhas.values()) l.pontos = l.concluidas + l.rotina;
   return [...linhas.values()]
-    .filter((l) => l.concluidas || l.abertas)
-    .sort((a, b) => b.concluidas - a.concluidas || a.atrasadas - b.atrasadas || a.nome.localeCompare(b.nome));
+    .filter((l) => l.pontos || l.abertas)
+    .sort((a, b) => b.pontos - a.pontos || a.atrasadas - b.atrasadas || a.nome.localeCompare(b.nome));
 }
 
 export type GrupoPrazo = "atrasadas" | "hoje" | "semana" | "depois" | "sem_prazo";

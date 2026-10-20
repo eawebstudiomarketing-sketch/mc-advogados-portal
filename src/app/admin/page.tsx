@@ -1,6 +1,8 @@
 import Link from "next/link";
 import { PeriodoFiltro } from "@/components/ui/periodo-filtro";
 import { lerPeriodo } from "@/lib/periodo";
+import { pontosDeRotina, rotinaDoDia } from "@/lib/data/rotina-diaria";
+import { MinhaRotina } from "@/components/rotina/minha-rotina";
 import { listEtiquetas } from "@/lib/data/etiquetas";
 import { AlertTriangle, ArrowRight, Trophy, Sun, CalendarPlus } from "lucide-react";
 import { listActivities, type Activity } from "@/lib/data/activities";
@@ -148,8 +150,13 @@ export default async function AdminOverviewPage({
       : []),
   ].slice(0, 7);
 
-  const linhasRanking = verEquipe ? ranking(activities, pessoas, periodo) : ranking(activities, pessoas.filter((p) => p.id === meuResponsavel), periodo);
-  const maxConcluidas = Math.max(1, ...linhasRanking.map((l) => l.concluidas));
+  const [pontosRotina, minhaRotina] = await Promise.all([
+    pontosDeRotina(somaDias(hoje, -periodo + 1)),
+    meuResponsavel ? rotinaDoDia(meuResponsavel, hoje) : Promise.resolve([]),
+  ]);
+  const linhasRanking = verEquipe
+    ? ranking(activities, pessoas, periodo, pontosRotina)
+    : ranking(activities, pessoas.filter((p) => p.id === meuResponsavel), periodo, pontosRotina);
   const topClientes = clientesComMaisPendencias(activities, 8);
   const maxPend = Math.max(1, ...topClientes.map((c) => c.abertas));
 
@@ -216,6 +223,12 @@ export default async function AdminOverviewPage({
           </p>
         </Link>
       </section>
+
+      {minhaRotina.length > 0 && (
+        <div className="mb-10">
+          <MinhaRotina itens={minhaRotina.map((i) => ({ id: i.id, titulo: i.titulo, feito: i.feito }))} podeMarcar />
+        </div>
+      )}
 
       {/* agora: o que precisa de atenção, numerado */}
       {agora.length > 0 && (
@@ -346,7 +359,7 @@ export default async function AdminOverviewPage({
         <section className="ui-card p-5">
           <div className="mb-4 flex items-center justify-between gap-2">
             <div>
-              <p className="eyebrow">Concluídas</p>
+              <p className="eyebrow">Pontos · demandas + rotina</p>
               <h2 className="section-title !text-lg">{verEquipe ? "Ranking da equipe" : "Seu desempenho"}</h2>
             </div>
             <div className="inline-flex rounded-full border border-border p-0.5 text-xs">
@@ -365,7 +378,7 @@ export default async function AdminOverviewPage({
             </div>
           </div>
           {linhasRanking.length === 0 ? (
-            <p className="py-8 text-center text-sm text-muted">Ninguém concluiu atividades neste período.</p>
+            <p className="py-8 text-center text-sm text-muted">Ninguém pontuou neste período.</p>
           ) : (
             <>
               {/* pódio: 2º, 1º, 3º */}
@@ -383,7 +396,9 @@ export default async function AdminOverviewPage({
                       </div>
                       <p className="mt-1.5 w-full truncate text-center text-xs font-semibold text-foreground">{l.nome.replace(/^(Dr\.?|Dra\.?)\s+/i, "").split(" ")[0]}</p>
                       <div className={`mt-1.5 flex w-full ${altura} items-start justify-center rounded-t-xl ${pos === 0 ? "bg-navy text-white" : "bg-surface-2 text-foreground"}`}>
-                        <span className="numero-grande mt-1.5 text-xl">{l.concluidas}</span>
+                        <span className="numero-grande mt-1.5 text-xl" title={`${l.concluidas} demanda(s) + ${l.rotina} item(ns) de rotina`}>
+                          {l.pontos}
+                        </span>
                       </div>
                     </div>
                   );
@@ -398,7 +413,9 @@ export default async function AdminOverviewPage({
                         <span className="eyebrow w-5">{String(i + 4).padStart(2, "0")}</span>
                         <Avatar nome={l.nome} foto={p?.foto} tamanho={26} />
                         <span className="min-w-0 flex-1 truncate text-sm text-foreground">{l.nome}</span>
-                        <span className="numero-grande text-base">{l.concluidas}</span>
+                        <span className="numero-grande text-base" title={`${l.concluidas} demanda(s) + ${l.rotina} item(ns) de rotina`}>
+                          {l.pontos}
+                        </span>
                       </li>
                     );
                   })}
