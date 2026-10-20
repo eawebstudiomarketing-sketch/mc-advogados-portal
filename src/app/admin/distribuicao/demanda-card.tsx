@@ -1,6 +1,7 @@
 "use client";
 
-import { useActionState, useState } from "react";
+import { useActionState, useState, useTransition } from "react";
+import { toast } from "sonner";
 import Link from "next/link";
 import { MessageCircle, Globe, Newspaper, CheckCheck, X, ExternalLink, ChevronDown } from "lucide-react";
 import { ACTIVITY_TYPE_LABEL, ACTIVITY_TYPES } from "@/lib/activity-type";
@@ -26,7 +27,7 @@ export type DemandaSerial = {
 };
 
 const ORIGEM: Record<string, { rotulo: string; icone: typeof Globe; cor: string }> = {
-  whatsapp: { rotulo: "WhatsApp", icone: MessageCircle, cor: "bg-[#e7f6ec] text-[#1f7a43]" },
+  whatsapp: { rotulo: "WhatsApp", icone: MessageCircle, cor: "bg-zap-bg text-zap-ink" },
   portal_cliente: { rotulo: "Portal do cliente", icone: Globe, cor: "bg-status-info-bg text-status-info" },
   publicacao: { rotulo: "Publicação", icone: Newspaper, cor: "bg-gold-soft text-gold-ink" },
   email: { rotulo: "E-mail", icone: Globe, cor: "bg-surface-2 text-muted" },
@@ -69,6 +70,34 @@ export function DemandaCard({
   const daArea = (r: { areas: string[] }) => !!area && r.areas.some((a) => a.toLowerCase() === area.toLowerCase());
   const ordenados = [...responsaveis].sort((a, b) => Number(daArea(b)) - Number(daArea(a)) || a.nome.localeCompare(b.nome));
   const escolhido = responsaveis.find((r) => r.id === resp);
+  // descartar some na hora (antes esperava a página inteira recarregar e parecia travado)
+  const [descartada, setDescartada] = useState(false);
+  const [, startDescarte] = useTransition();
+  function mudarStatus(status: "descartada" | "pendente") {
+    setDescartada(status === "descartada");
+    const fd = new FormData();
+    fd.set("id", d.id);
+    fd.set("status", status);
+    startDescarte(async () => {
+      try {
+        await mudarStatusDistribuicaoAction(fd);
+      } catch {
+        setDescartada(status !== "descartada");
+        toast.error("Não foi possível salvar. Tente de novo.");
+      }
+    });
+  }
+
+  if (descartada) {
+    return (
+      <li className="ui-card flex items-center gap-3 px-5 py-3 text-sm text-muted">
+        <X className="h-4 w-4" aria-hidden /> Descartada: <span className="min-w-0 flex-1 truncate">{d.titulo}</span>
+        <button type="button" onClick={() => mudarStatus("pendente")} className="ui-link shrink-0">
+          Desfazer
+        </button>
+      </li>
+    );
+  }
 
   if (state.ok) {
     return (
@@ -179,7 +208,7 @@ export function DemandaCard({
           <input type="date" name="prazo" defaultValue={d.prazo ?? ""} className={campo} aria-label="Prazo" />
           <div className="ml-auto flex items-center gap-2">
             {state.error && <p className="text-xs text-status-danger">{state.error}</p>}
-            <button type="submit" formAction={mudarStatusDistribuicaoAction} name="status" value="descartada" formNoValidate className="ui-btn-secondary" aria-label="Descartar">
+            <button type="button" onClick={() => mudarStatus("descartada")} disabled={pending} className="ui-btn-secondary" aria-label="Descartar">
               <X className="h-4 w-4" aria-hidden /> Descartar
             </button>
             <button type="submit" disabled={pending} className="ui-btn">

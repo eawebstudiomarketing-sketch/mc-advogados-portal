@@ -71,7 +71,7 @@ export default async function ClientReportsPage({ searchParams }: { searchParams
         </a>
       </div>
 
-      <nav aria-label="Período" className="mb-6 inline-flex flex-wrap gap-0.5 rounded-xl bg-[#eceef2] p-1">
+      <nav aria-label="Período" className="mb-6 inline-flex flex-wrap gap-0.5 rounded-xl bg-track p-1">
         {PERIODOS.map((x) => (
           <Link
             key={x.id}

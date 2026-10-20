@@ -45,7 +45,8 @@ export async function diaDaPessoa(responsavelId: string | null, dia: string): Pr
     .lte("deadline", somaDias(dia, 3))
     .order("deadline")
     .order("hora", { nullsFirst: true });
-  if (responsavelId) qa = qa.eq("responsavel_id", responsavelId);
+  // responsável ou envolvido (mesmos poderes)
+  if (responsavelId) qa = qa.or(`responsavel_id.eq.${responsavelId},envolvidos.cs.{${responsavelId}}`);
   const [{ data: comps }, { data: ativs }] = await Promise.all([qc, qa]);
 
   const nome = (c: unknown) => (c as { name: string } | null)?.name ?? null;

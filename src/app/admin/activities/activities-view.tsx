@@ -5,6 +5,8 @@ import { Columns3, List, Pencil } from "lucide-react";
 import type { Activity } from "@/lib/data/activities";
 import { ACTIVITY_TYPE_LABEL } from "@/lib/activity-type";
 import { StatusSelect } from "./status-select";
+import { EtiquetasLinha } from "@/components/atividade/etiquetas";
+import type { Etiqueta } from "@/lib/data/etiquetas";
 import { deleteActivityAction } from "./actions";
 import { ConfirmSubmitButton } from "@/components/ui/confirm-submit-button";
 import { formatDate } from "@/lib/mock-data";
@@ -88,7 +90,9 @@ export function ActivitiesView({
   activities: todasAtividades,
   arquivadas = false,
   podeExcluir = true,
+  etiquetas = [],
 }: {
+  etiquetas?: Etiqueta[];
   activities: Activity[];
   arquivadas?: boolean;
   podeExcluir?: boolean;
@@ -159,7 +163,7 @@ export function ActivitiesView({
       </div>
 
       {mode === "kanban" ? (
-        <ActivitiesKanban activities={activities} />
+        <ActivitiesKanban etiquetas={etiquetas} activities={activities} />
       ) : (
         <>
           <div className="overflow-x-auto ui-card">
@@ -212,6 +216,11 @@ export function ActivitiesView({
                         <AtividadeLink id={a.id} className="block truncate font-medium text-foreground underline-offset-2 hover:underline">
                           {a.title}
                         </AtividadeLink>
+                        {(a.etiquetas ?? []).length > 0 && (
+                          <div className="mt-1">
+                            <EtiquetasLinha ids={a.etiquetas ?? []} todas={etiquetas} />
+                          </div>
+                        )}
                         <p className="mt-0.5 truncate text-xs text-muted">
                           {a.clients?.name ?? "Sem cliente"}
                           <span className="mx-1.5 text-border-strong">·</span>

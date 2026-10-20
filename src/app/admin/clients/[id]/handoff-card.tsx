@@ -77,7 +77,7 @@ export function HandoffCard({
         </Link>
       </div>
 
-      <div className="mt-3 h-1 overflow-hidden rounded-full bg-[#eceef2]">
+      <div className="mt-3 h-1 overflow-hidden rounded-full bg-track">
         <div className="h-full rounded-full bg-gold transition-[width] duration-500" style={{ width: `${pct}%` }} />
       </div>
 

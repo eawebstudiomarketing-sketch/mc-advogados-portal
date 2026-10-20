@@ -5,6 +5,7 @@ import Link from "next/link";
 import { Plus } from "lucide-react";
 import type { Activity } from "@/lib/data/activities";
 import { ActivitiesKanban } from "./activities/activities-kanban";
+import type { Etiqueta } from "@/lib/data/etiquetas";
 
 // Quadro da Visão geral: abre nas atividades da pessoa ("Minhas") e tem a aba
 // com todas as dos clientes dela (para o admin, todas do escritório). A aba
@@ -27,7 +28,17 @@ function gravar(a: Aba) {
   ouvintes.forEach((f) => f());
 }
 
-export function QuadroInicial({ minhas, todas, rotuloTodas }: { minhas: Activity[]; todas: Activity[]; rotuloTodas: string }) {
+export function QuadroInicial({
+  minhas,
+  todas,
+  rotuloTodas,
+  etiquetas = [],
+}: {
+  minhas: Activity[];
+  todas: Activity[];
+  rotuloTodas: string;
+  etiquetas?: Etiqueta[];
+}) {
   const aba = useSyncExternalStore(
     (f) => {
       ouvintes.add(f);
@@ -65,7 +76,7 @@ export function QuadroInicial({ minhas, todas, rotuloTodas }: { minhas: Activity
         </Link>
       </div>
       {/* key: troca de aba recomeça o quadro com a lista certa */}
-      <ActivitiesKanban key={aba} activities={lista} colunas={["aberta", "em_andamento", "concluida"]} />
+      <ActivitiesKanban key={aba} etiquetas={etiquetas} activities={lista} colunas={["aberta", "em_andamento", "concluida"]} />
     </section>
   );
 }

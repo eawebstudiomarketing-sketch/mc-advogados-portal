@@ -110,7 +110,7 @@ export function CompromissoForm({
             <input type="checkbox" name="lembrar_cliente" checked={lembrar} onChange={(e) => setLembrar(e.target.checked)} className="mt-0.5 h-4 w-4 accent-[var(--navy)]" />
             <span>
               <span className="inline-flex items-center gap-1 font-medium text-foreground">
-                <MessageCircle className="h-4 w-4 text-[#1f7a43]" aria-hidden /> Lembrar o cliente pelo WhatsApp 24h e 1h antes
+                <MessageCircle className="h-4 w-4 text-zap-ink" aria-hidden /> Lembrar o cliente pelo WhatsApp 24h e 1h antes
               </span>
               <span className="block text-xs text-muted">
                 {!lembretesAtivos

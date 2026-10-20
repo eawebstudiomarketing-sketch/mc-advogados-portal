@@ -34,7 +34,7 @@ export default async function ClientDocumentsPage() {
               {pendentes ? `${pendentes} pendente(s)` : "Tudo enviado"}
             </span>
           </div>
-          <div className="mt-3 h-1.5 overflow-hidden rounded-full bg-[#eceef2]">
+          <div className="mt-3 h-1.5 overflow-hidden rounded-full bg-track">
             <div className="h-full rounded-full bg-gold transition-[width] duration-500" style={{ width: `${Math.round(((pedidos.length - pendentes) / pedidos.length) * 100)}%` }} />
           </div>
           <ul className="mt-3 divide-y divide-border">

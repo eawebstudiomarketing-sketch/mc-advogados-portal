@@ -25,7 +25,18 @@ export function LoteDistribuicao({ total }: { total: number }) {
 
   const todas = disponiveis > 0 && marcadas === disponiveis;
   return (
-    <form id="distribuicao-lote" action={mudarStatusDistribuicaoAction} className="mb-3 flex min-h-9 flex-wrap items-center gap-2">
+    <form
+      id="distribuicao-lote"
+      action={mudarStatusDistribuicaoAction}
+      onSubmit={() => {
+        // some na hora; a lista se acerta quando o servidor terminar
+        document.querySelectorAll<HTMLInputElement>(SELETOR).forEach((c) => {
+          if (c.checked) (c.closest("li") as HTMLElement | null)?.style.setProperty("display", "none");
+        });
+        setMarcadas(0);
+      }}
+      className="mb-3 flex min-h-9 flex-wrap items-center gap-2"
+    >
       <input type="hidden" name="status" value="descartada" />
       {disponiveis > 0 ? (
         <label className="flex cursor-pointer items-center gap-2 text-xs text-muted">

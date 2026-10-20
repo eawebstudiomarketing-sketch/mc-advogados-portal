@@ -6,12 +6,16 @@ import { ACTIVITY_TYPE_LABEL, ACTIVITY_TYPES } from "@/lib/activity-type";
 import type { Client } from "@/lib/data/clients";
 import type { Responsavel } from "@/lib/data/responsaveis";
 import { ResponsavelSelect } from "@/components/atividade/responsavel-select";
+import { EnvolvidosSelect } from "@/components/atividade/envolvidos-select";
+import { EtiquetasEditor } from "@/components/atividade/etiquetas";
+import type { Etiqueta } from "@/lib/data/etiquetas";
 import { VoltarInput } from "@/components/nav/back-button";
 import { CamposAgenda } from "@/components/atividade/campos-agenda";
 
 const initialState: CreateActivityState = { error: null };
 
 export function ActivityForm({
+  etiquetas = [],
   clients,
   responsaveis,
   meuResponsavel,
@@ -19,6 +23,7 @@ export function ActivityForm({
   inicial = {},
   areas,
 }: {
+  etiquetas?: Etiqueta[];
   areas?: string[];
   clients: Client[];
   responsaveis: Responsavel[];
@@ -86,6 +91,18 @@ export function ActivityForm({
           Responsável <span className="font-normal text-muted">· recebe os avisos de prazo por e-mail</span>
         </label>
         <ResponsavelSelect key={cliente} responsaveis={responsaveis} defaultValue={meuResponsavel} clientId={cliente} />
+      </div>
+
+      <div>
+        <p className="ui-label">
+          Envolvidos <span className="font-normal text-muted">· mesmos poderes do responsável (opcional)</span>
+        </p>
+        <EnvolvidosSelect responsaveis={responsaveis} />
+      </div>
+
+      <div>
+        <p className="ui-label">Etiquetas</p>
+        <EtiquetasEditor todas={etiquetas} />
       </div>
 
       <div>

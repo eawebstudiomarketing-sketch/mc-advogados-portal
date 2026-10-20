@@ -8,6 +8,8 @@ import { responsavelDoPerfil } from "@/lib/data/responsaveis";
 import { BarraFiltros } from "@/components/ui/barra-filtros";
 import { MeuDia } from "./meu-dia";
 import { QuemFiltro } from "./quem-filtro";
+import { PeriodoFiltro } from "@/components/ui/periodo-filtro";
+import { lerPeriodo } from "@/lib/periodo";
 
 // Agenda: prazos, audiências e tarefas (atividades com data) + compromissos
 // (reunião, ligação, evento) num calendário do mês, e "Meu dia" com a rotina
@@ -26,7 +28,7 @@ type Item = {
 };
 
 const COR: Record<string, string> = {
-  compromisso: "border-l-[#7c5cc4] bg-[#f1ecfb] text-[#4b2f8f]",
+  compromisso: "border-l-roxo bg-roxo-bg text-roxo-ink",
   audiencia: "border-l-gold bg-gold/15 text-navy",
   prazo: "border-l-status-danger bg-status-danger-bg text-status-danger",
   tarefa: "border-l-status-info bg-status-info-bg text-status-info",
@@ -42,7 +44,7 @@ const dataBR = (s: string) => s.split("-").reverse().join("/");
 const diaBahia = (isoTs: string) => new Intl.DateTimeFormat("en-CA", { timeZone: "America/Bahia" }).format(new Date(isoTs));
 const horaBahia = (isoTs: string) => new Date(isoTs).toLocaleTimeString("pt-BR", { timeZone: "America/Bahia", hour: "2-digit", minute: "2-digit" });
 
-type Params = { mes?: string; ver?: string; aba?: string; dia?: string; quem?: string; categoria?: string; cliente?: string };
+type Params = { mes?: string; ver?: string; aba?: string; dia?: string; quem?: string; categoria?: string; cliente?: string; periodo?: string; de?: string; ate?: string };
 
 export default async function AgendaPage({ searchParams }: { searchParams: Promise<Params> }) {
   const { profile } = await exigirPermissao("agenda");
@@ -52,42 +54,36 @@ export default async function AgendaPage({ searchParams }: { searchParams: Promi
 
   const [pessoas, eu] = await Promise.all([listPessoas(), responsavelDoPerfil(profile.id)]);
 
-  const abaAtiva = sp.aba === "mes" || (!sp.aba && sp.mes) ? "mes" : "dia";
+  // período: hoje (linha do tempo), esta semana / personalizado (lista por dia) ou este mês (calendário)
+  const periodo = lerPeriodo(
+    { ...sp, periodo: sp.periodo ?? (sp.aba === "mes" || sp.mes ? "mes" : undefined) },
+    hoje
+  );
+  const abaAtiva = periodo.chave === "hoje" ? "dia" : periodo.chave === "mes" ? "mes" : "lista";
   // de quem: o admin escolhe (minhas, todos ou uma pessoa); o advogado vê só a dele
   const quem = !ehAdmin
     ? "eu"
     : sp.quem === "todos" || sp.quem === "eu" || pessoas.some((p) => p.id === sp.quem)
       ? sp.quem!
-      : abaAtiva === "mes"
-        ? "todos"
-        : "eu";
+      : abaAtiva === "dia"
+        ? "eu"
+        : "todos";
   const filtroPessoa: string | null = quem === "todos" ? null : quem === "eu" ? (eu ?? "__ninguem__") : quem;
   const link = (mudar: Record<string, string | undefined>) => {
-    const q = new URLSearchParams(Object.entries({ ...sp, aba: abaAtiva, quem, ...mudar }).filter(([, v]) => v) as [string, string][]);
+    const q = new URLSearchParams(Object.entries({ ...sp, aba: undefined, periodo: periodo.chave, quem, ...mudar }).filter(([, v]) => v) as [string, string][]);
     return `/admin/agenda?${q}`;
   };
   const filtroQuem = ehAdmin ? (
     <QuemFiltro pessoas={pessoas.map((p) => ({ id: p.id, nome: p.nome, foto: p.foto }))} atual={quem} href={(q) => link({ quem: q })} />
   ) : null;
   const abas = (
-    <nav aria-label="Visão da agenda" className="mb-5 flex flex-wrap gap-1 border-b border-border">
-      {([
-        ["dia", "Dia"],
-        ["mes", "Mês"],
-      ] as const).map(([id, rotulo]) => {
-        const on = abaAtiva === id;
-        return (
-          <Link
-            key={id}
-            href={`/admin/agenda?aba=${id}${ehAdmin ? `&quem=${quem}` : ""}`}
-            aria-current={on ? "page" : undefined}
-            className={`-mb-px border-b-2 px-3 py-2 text-sm ${on ? "border-navy-3 font-medium text-foreground" : "border-transparent text-muted hover:text-foreground"}`}
-          >
-            {rotulo}
-          </Link>
-        );
-      })}
-    </nav>
+    <div className="mb-5">
+      <PeriodoFiltro
+        atual={periodo}
+        base="/admin/agenda"
+        manter={{ quem: ehAdmin ? quem : undefined, categoria: sp.categoria, cliente: sp.cliente, ver: sp.ver }}
+      />
+    </div>
   );
 
   const cabecalho = (
@@ -144,58 +140,143 @@ export default async function AgendaPage({ searchParams }: { searchParams: Promi
   const ate = dias[41] > fimLista ? dias[41] : fimLista;
   const mostrarConcluidas = sp.ver === "todas";
   const respFiltro = filtroPessoa;
+  const buscarItens = async (de: string, ate: string) => {
+    const supabase = await createClient();
+    let qa = supabase
+      .from("activities")
+      .select("id, title, deadline, hora, categoria, status, client_id, clients(name)")
+      .is("archived_at", null)
+      .not("deadline", "is", null)
+      .gte("deadline", de)
+      .lte("deadline", ate)
+      .order("deadline")
+      .order("hora", { nullsFirst: true });
+    if (!mostrarConcluidas) qa = qa.in("status", ["aberta", "em_andamento"]);
+    if (sp.cliente) qa = qa.eq("client_id", sp.cliente);
+    if (respFiltro) qa = qa.or(`responsavel_id.eq.${respFiltro},envolvidos.cs.{${respFiltro}}`);
+    let qc = supabase
+      .from("compromissos")
+      .select("id, titulo, inicio, client_id, clients(name)")
+      .gte("inicio", new Date(`${de}T00:00:00-03:00`).toISOString())
+      .lte("inicio", new Date(`${ate}T23:59:59-03:00`).toISOString())
+      .order("inicio");
+    if (sp.cliente) qc = qc.eq("client_id", sp.cliente);
+    if (respFiltro) qc = qc.contains("participantes", [respFiltro]);
 
-  const supabase = await createClient();
-  let qa = supabase
-    .from("activities")
-    .select("id, title, deadline, hora, categoria, status, client_id, clients(name)")
-    .is("archived_at", null)
-    .not("deadline", "is", null)
-    .gte("deadline", de)
-    .lte("deadline", ate)
-    .order("deadline")
-    .order("hora", { nullsFirst: true });
-  if (!mostrarConcluidas) qa = qa.in("status", ["aberta", "em_andamento"]);
-  if (sp.cliente) qa = qa.eq("client_id", sp.cliente);
-  if (respFiltro) qa = qa.eq("responsavel_id", respFiltro);
-  let qc = supabase
-    .from("compromissos")
-    .select("id, titulo, inicio, client_id, clients(name)")
-    .gte("inicio", new Date(`${de}T00:00:00-03:00`).toISOString())
-    .lte("inicio", new Date(`${ate}T23:59:59-03:00`).toISOString())
-    .order("inicio");
-  if (sp.cliente) qc = qc.eq("client_id", sp.cliente);
-  if (respFiltro) qc = qc.contains("participantes", [respFiltro]);
+    const [{ data: ativs }, { data: comps }, clientes] = await Promise.all([qa, qc, listClients()]);
+    const nomeCliente = (c: unknown) => (c as { name: string } | null)?.name ?? null;
+    let itens: Item[] = [
+      ...(comps ?? []).map((c) => ({
+        id: c.id,
+        href: `/admin/agenda/compromisso/${c.id}`,
+        titulo: c.titulo,
+        dia: diaBahia(c.inicio),
+        hora: horaBahia(c.inicio),
+        categoria: "compromisso",
+        concluida: false,
+        aberta: true,
+        cliente: nomeCliente(c.clients),
+      })),
+      ...(ativs ?? []).map((a) => ({
+        id: a.id,
+        href: `/admin/activities/${a.id}`,
+        titulo: a.title,
+        dia: a.deadline!,
+        hora: a.hora ? a.hora.slice(0, 5) : null,
+        categoria: a.categoria,
+        concluida: a.status === "concluida" || a.status === "cancelada",
+        aberta: a.status === "aberta" || a.status === "em_andamento",
+        cliente: nomeCliente(a.clients),
+      })),
+    ];
+    if (sp.categoria) itens = itens.filter((i) => i.categoria === sp.categoria);
+    itens.sort((a, b) => a.dia.localeCompare(b.dia) || (a.hora ?? "").localeCompare(b.hora ?? ""));
+    return { itens, clientes };
+  };
 
-  const [{ data: ativs }, { data: comps }, clientes] = await Promise.all([qa, qc, listClients()]);
-  const nomeCliente = (c: unknown) => (c as { name: string } | null)?.name ?? null;
-  let itens: Item[] = [
-    ...(comps ?? []).map((c) => ({
-      id: c.id,
-      href: `/admin/agenda/compromisso/${c.id}`,
-      titulo: c.titulo,
-      dia: diaBahia(c.inicio),
-      hora: horaBahia(c.inicio),
-      categoria: "compromisso",
-      concluida: false,
-      aberta: true,
-      cliente: nomeCliente(c.clients),
-    })),
-    ...(ativs ?? []).map((a) => ({
-      id: a.id,
-      href: `/admin/activities/${a.id}`,
-      titulo: a.title,
-      dia: a.deadline!,
-      hora: a.hora ? a.hora.slice(0, 5) : null,
-      categoria: a.categoria,
-      concluida: a.status === "concluida" || a.status === "cancelada",
-      aberta: a.status === "aberta" || a.status === "em_andamento",
-      cliente: nomeCliente(a.clients),
-    })),
-  ];
-  if (sp.categoria) itens = itens.filter((i) => i.categoria === sp.categoria);
-  itens.sort((a, b) => a.dia.localeCompare(b.dia) || (a.hora ?? "").localeCompare(b.hora ?? ""));
+  const filtrosTipoCliente = (clientes: { id: string; name: string }[]) => (
+    <BarraFiltros
+      filtros={[
+        {
+          tipo: "select",
+          nome: "categoria",
+          rotulo: "Tipo",
+          todos: "Tudo",
+          opcoes: Object.entries(ROTULO).map(([v, r]) => ({ valor: v, rotulo: r })),
+        },
+        { tipo: "select", nome: "cliente", rotulo: "Cliente", todos: "Todos os clientes", opcoes: clientes.map((c) => ({ valor: c.id, rotulo: c.name })) },
+      ]}
+    />
+  );
 
+  // ───────────── semana / personalizado: lista por dia ─────────────
+  if (abaAtiva === "lista") {
+    const { itens: doPeriodo, clientes } = await buscarItens(periodo.de, periodo.ate);
+    const grupos = new Map<string, Item[]>();
+    for (const it of doPeriodo) grupos.set(it.dia, [...(grupos.get(it.dia) ?? []), it]);
+    const diasComItens = [...grupos.keys()].sort();
+    return (
+      <div>
+        {cabecalho}
+        {abas}
+        {filtroQuem && <div className="mb-3">{filtroQuem}</div>}
+        {filtrosTipoCliente(clientes)}
+        <div className="mb-4 flex flex-wrap items-center justify-between gap-2">
+          <p className="eyebrow">
+            {periodo.rotulo} · {doPeriodo.length} {doPeriodo.length === 1 ? "item" : "itens"}
+          </p>
+          <Link href={link({ ver: mostrarConcluidas ? undefined : "todas" })} className="text-xs font-medium text-navy-3 hover:underline">
+            {mostrarConcluidas ? "Ocultar concluídas" : "Mostrar concluídas"}
+          </Link>
+        </div>
+        {diasComItens.length === 0 ? (
+          <div className="ui-card flex flex-col items-center gap-1 py-12 text-center">
+            <p className="font-display text-base font-bold text-foreground">Nada marcado neste período.</p>
+            <p className="text-xs text-muted">Troque o período ou os filtros acima.</p>
+          </div>
+        ) : (
+          <div className="space-y-4">
+            {diasComItens.map((d) => {
+              const semana = new Date(`${d}T12:00:00Z`).toLocaleDateString("pt-BR", { weekday: "long", day: "2-digit", month: "long", timeZone: "UTC" });
+              return (
+                <section key={d} className="ui-card overflow-hidden">
+                  <div className="flex items-center justify-between gap-2 border-b border-border px-4 py-2.5">
+                    <Link href={link({ periodo: "hoje", dia: d })} className="text-sm font-semibold text-foreground capitalize hover:underline">
+                      {d === hoje ? <span className="mr-1.5 rounded-full bg-navy px-2 py-0.5 text-[11px] text-white normal-case">Hoje</span> : null}
+                      {semana}
+                    </Link>
+                    <span className="eyebrow">{grupos.get(d)!.length}</span>
+                  </div>
+                  <ul className="divide-y divide-border">
+                    {grupos.get(d)!.map((it) => (
+                      <li key={`${it.categoria}-${it.id}`}>
+                        <Link href={it.href} className="flex items-center gap-3 px-4 py-2.5 transition-colors hover:bg-surface-2">
+                          <span className="numero-grande w-12 shrink-0 text-right text-sm text-foreground">{it.hora ?? "—"}</span>
+                          <span className={`h-8 w-1 shrink-0 rounded-full border-l-4 ${COR[it.categoria] ?? COR.tarefa}`} aria-hidden />
+                          <span className="min-w-0 flex-1">
+                            <span className={`block truncate text-sm font-medium text-foreground ${it.concluida ? "line-through opacity-60" : ""}`}>{it.titulo}</span>
+                            <span className="block truncate text-xs text-muted">
+                              {ROTULO[it.categoria] ?? "Tarefa"}
+                              {it.cliente ? ` · ${it.cliente}` : ""}
+                            </span>
+                          </span>
+                          {d < hoje && it.aberta && it.categoria !== "compromisso" && (
+                            <span className="shrink-0 rounded-full bg-status-danger-bg px-2 py-0.5 text-[11px] font-semibold text-status-danger">Atrasada</span>
+                          )}
+                        </Link>
+                      </li>
+                    ))}
+                  </ul>
+                </section>
+              );
+            })}
+          </div>
+        )}
+      </div>
+    );
+  }
+
+  const { itens, clientes } = await buscarItens(de, ate);
   const porDia = new Map<string, Item[]>();
   for (const it of itens) porDia.set(it.dia, [...(porDia.get(it.dia) ?? []), it]);
   const proximos = itens.filter((i) => i.dia >= hoje && i.dia <= fimLista && i.aberta);
@@ -203,7 +284,7 @@ export default async function AgendaPage({ searchParams }: { searchParams: Promi
   const mesAnterior = `${m === 1 ? ano - 1 : ano}-${pad(m === 1 ? 12 : m - 1)}`;
   const mesSeguinte = `${m === 12 ? ano + 1 : ano}-${pad(m === 12 ? 1 : m + 1)}`;
   const manter = (extra: Record<string, string>) => {
-    const q = new URLSearchParams({ aba: "mes" });
+    const q = new URLSearchParams({ periodo: "mes" });
     for (const k of ["ver", "categoria", "cliente"] as const) if (sp[k]) q.set(k, sp[k]!);
     if (ehAdmin) q.set("quem", quem);
     for (const [k, v] of Object.entries(extra)) if (v) q.set(k, v);
@@ -216,18 +297,7 @@ export default async function AgendaPage({ searchParams }: { searchParams: Promi
       {cabecalho}
       {abas}
       {filtroQuem && <div className="mb-3">{filtroQuem}</div>}
-      <BarraFiltros
-        filtros={[
-          {
-            tipo: "select",
-            nome: "categoria",
-            rotulo: "Tipo",
-            todos: "Tudo",
-            opcoes: Object.entries(ROTULO).map(([v, r]) => ({ valor: v, rotulo: r })),
-          },
-          { tipo: "select", nome: "cliente", rotulo: "Cliente", todos: "Todos os clientes", opcoes: clientes.map((c) => ({ valor: c.id, rotulo: c.name })) },
-        ]}
-      />
+      {filtrosTipoCliente(clientes)}
 
       <div className="grid grid-cols-1 gap-5 xl:grid-cols-[1fr_300px]">
         <section className="ui-card overflow-hidden">
@@ -280,7 +350,7 @@ export default async function AgendaPage({ searchParams }: { searchParams: Promi
                       <Plus className="h-3 w-3" aria-hidden />
                     </Link>
                     <Link
-                      href={`/admin/agenda?aba=dia&dia=${d}`}
+                      href={link({ periodo: "hoje", dia: d, mes: undefined })}
                       className={`text-[11px] ${
                         d === hoje ? "flex h-5 w-5 items-center justify-center rounded-full bg-navy font-semibold text-white" : doMes ? "text-foreground/70 hover:underline" : "text-muted/60"
                       }`}
@@ -305,7 +375,7 @@ export default async function AgendaPage({ searchParams }: { searchParams: Promi
                     ))}
                     {lista.length > 3 && (
                       <li className="px-1 text-[10px] text-muted">
-                        <Link href={`/admin/agenda?aba=dia&dia=${d}`} className="hover:underline">
+                        <Link href={link({ periodo: "hoje", dia: d, mes: undefined })} className="hover:underline">
                           +{lista.length - 3} mais
                         </Link>
                       </li>
@@ -336,7 +406,7 @@ export default async function AgendaPage({ searchParams }: { searchParams: Promi
                             : it.categoria === "audiencia"
                               ? "font-medium text-navy"
                               : it.categoria === "compromisso"
-                                ? "font-medium text-[#4b2f8f]"
+                                ? "font-medium text-roxo-ink"
                                 : ""
                         }
                       >

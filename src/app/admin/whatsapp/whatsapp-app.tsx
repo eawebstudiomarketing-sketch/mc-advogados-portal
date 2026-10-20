@@ -815,7 +815,7 @@ function Balao({
     <div className={`flex ${meu ? "justify-end" : "justify-start"}`}>
       <div
         className={`max-w-[85%] rounded-2xl px-3 py-1.5 text-sm shadow-sm sm:max-w-[70%] ${
-          meu ? "rounded-br-md bg-[#d9fdd3] text-[#111b21]" : "rounded-bl-md bg-surface text-foreground"
+          meu ? "rounded-br-md bg-bolha text-bolha-ink" : "rounded-bl-md bg-surface text-foreground"
         } ${m.apagada_em ? "ring-1 ring-status-danger/30" : ""}`}
       >
         {remetente && <p className="text-[11px] font-semibold text-gold-ink">{remetente}</p>}

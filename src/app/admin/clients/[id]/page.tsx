@@ -1,6 +1,9 @@
 import Link from "next/link";
+import { listProcesses } from "@/lib/data/processes";
+import { listEtiquetas } from "@/lib/data/etiquetas";
+import { PROCESS_AREA_LABEL } from "@/lib/process-area";
 import { notFound } from "next/navigation";
-import { ArrowRight, ClipboardList, Download, Eye, FileSignature, FileText, Hash, KeyRound, LayoutGrid, Lightbulb, ListChecks, Mail, NotebookPen, Pencil, Sparkles } from "lucide-react";
+import { ArrowRight, ClipboardList, Download, Eye, FileSignature, FileText, Hash, KeyRound, LayoutGrid, Lightbulb, ListChecks, Mail, NotebookPen, Pencil, Sparkles, Gavel } from "lucide-react";
 import { StatusBadge } from "@/components/ui/status-badge";
 import { DriveIcon } from "@/components/ui/drive-icon";
 import { StatCard } from "@/components/ui/stat-card";
@@ -44,6 +47,7 @@ const DOCS_PER_PAGE = 10;
 const ABAS = [
   { id: "geral", label: "Visão geral", icon: LayoutGrid },
   { id: "atividades", label: "Atividades", icon: ListChecks },
+  { id: "processos", label: "Processos", icon: Gavel },
   { id: "documentos", label: "Documentos", icon: FileText },
   { id: "atas", label: "ATAs", icon: NotebookPen },
   { id: "onboarding", label: "Onboarding", icon: ClipboardList },
@@ -55,8 +59,9 @@ type Aba = (typeof ABAS)[number]["id"];
 
 const dataBR = (iso: string) => new Date(iso.length === 10 ? iso + "T00:00:00" : iso).toLocaleDateString("pt-BR");
 
-// Ficha do cliente em abas (out/2026). Horas, financeiro e processos saíram
-// da ficha (os dados e os menus continuam); contratos ficam junto dos documentos.
+// Ficha do cliente em abas (out/2026). Horas e financeiro saíram da ficha (os
+// dados e os menus continuam); contratos ficam junto dos documentos; processos
+// voltaram como aba própria (pedido de 20/10).
 export default async function AdminClientDetailPage({
   params,
   searchParams,
@@ -83,6 +88,7 @@ export default async function AdminClientDetailPage({
     perm.relatorios ? listReports({ clientId: id }) : Promise.resolve([]),
     perm.ficha_handoff ? getHandoff(id) : Promise.resolve({ handoff: null, triagem: null, handoffUpdatedAt: null }),
   ]);
+  const [processos, etiquetas] = await Promise.all([perm.processos ? listProcesses({ clientId: id }) : Promise.resolve([]), listEtiquetas()]);
   const [equipe, designados] = isAdmin ? await Promise.all([listStaff(), listDesignados(id)]) : [[], []];
   if (!client) notFound();
   // responsável das demandas (aba Demandas): qualquer pessoa da equipe
@@ -92,6 +98,7 @@ export default async function AdminClientDetailPage({
   // abas que este advogado pode ver (admin: todas)
   const PERM_DA_ABA: Partial<Record<Aba, PermChave>> = {
     atividades: "atividades",
+    processos: "processos",
     documentos: "documentos",
     atas: "atas",
     onboarding: "onboarding",
@@ -107,6 +114,7 @@ export default async function AdminClientDetailPage({
   const pendentes = drafts.filter((d) => d.status === "rascunho").length;
   const contagem: Partial<Record<Aba, number>> = {
     atividades: activities.length,
+    processos: processos.length,
     documentos: docsPage.total + contracts.length,
     atas: atas.length,
     onboarding: onboardings.length,
@@ -222,7 +230,7 @@ export default async function AdminClientDetailPage({
               <StatCard label="Em andamento" value={String(contar("em_andamento"))} tone="info" href={hrefAba("atividades")} />
               <StatCard label="Concluídas" value={String(contar("concluida"))} tone="success" href={hrefAba("atividades")} />
             </div>
-            {isAdmin && <EquipeDoCliente clientId={client.id} equipe={equipe.filter((p) => p.role === "advogado").map((p) => ({ id: p.id, nome: p.full_name, ativo: p.ativo }))} designados={designados} />}
+            {isAdmin && <EquipeDoCliente clientId={client.id} equipe={equipe.filter((p) => p.role === "advogado" || (p.role === "admin" && !p.super_admin)).map((p) => ({ id: p.id, nome: p.full_name, ativo: p.ativo }))} designados={designados} />}
             {perm.whatsapp && <WhatsappCard clientId={client.id} grupos={client.whatsapp_grupos ?? []} numeros={client.whatsapp_numeros ?? []} />}
             {perm.ficha_handoff && (
               <HandoffCard
@@ -268,7 +276,42 @@ export default async function AdminClientDetailPage({
                 + Nova atividade
               </Link>
             </div>
-            <ActivitiesView activities={activities} podeExcluir={perm.excluir} />
+            <ActivitiesView etiquetas={etiquetas} activities={activities} podeExcluir={perm.excluir} />
+          </section>
+        )}
+
+        {aba === "processos" && (
+          <section>
+            <div className="mb-3 flex items-center justify-between">
+              <h2 className="section-title">Processos do cliente</h2>
+              <Link href={`/admin/processes/new?cliente=${client.id}`} className="ui-link">
+                + Novo processo
+              </Link>
+            </div>
+            {processos.length === 0 ? (
+              <div className="ui-card flex flex-col items-center gap-1 py-12 text-center">
+                <Gavel className="h-6 w-6 text-muted" aria-hidden />
+                <p className="font-display text-base font-bold text-foreground">Nenhum processo deste cliente.</p>
+                <p className="text-xs text-muted">Cadastre um em &ldquo;+ Novo processo&rdquo;; ele já vem ligado a {client.name}.</p>
+              </div>
+            ) : (
+              <ol className="ui-card divide-y divide-border overflow-hidden">
+                {processos.map((p) => (
+                  <li key={p.id}>
+                    <Link href={`/admin/processes/${p.id}`} className="flex flex-wrap items-center gap-x-4 gap-y-1 px-5 py-3.5 transition-colors hover:bg-surface-2">
+                      <span className="min-w-0 flex-1">
+                        <span className="block truncate font-mono text-sm font-medium text-navy">{p.numero_processo}</span>
+                        <span className="block truncate text-xs text-muted">
+                          {[PROCESS_AREA_LABEL[p.area], p.vara_tribunal, p.fase].filter(Boolean).join(" · ")}
+                        </span>
+                      </span>
+                      {p.profiles?.full_name && <span className="hidden text-xs text-foreground/70 sm:block">{p.profiles.full_name}</span>}
+                      <StatusBadge status={p.status} />
+                    </Link>
+                  </li>
+                ))}
+              </ol>
+            )}
           </section>
         )}
 

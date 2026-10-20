@@ -26,9 +26,9 @@ const C = {
   navy3: "#17344d",
   gold: "#c6a24f",
   gold2: "#e1cd93",
-  paper: "#f7f4ee",
-  ink: "#1b2732",
-  muted: "#66727d",
+  paper: "var(--ob-paper)",
+  ink: "var(--ob-ink)",
+  muted: "var(--ob-muted)",
 };
 
 const initialState: SaveOnboardingState = { error: null };
@@ -220,7 +220,7 @@ export function OnboardingForm({
               name="client_id"
               value={clientId}
               onChange={(e) => setClientId(e.target.value)}
-              className="mt-1.5 w-full max-w-sm rounded-xl border bg-white/95 px-3 py-2 text-sm focus:outline-none focus:ring-2"
+              className="mt-1.5 w-full max-w-sm rounded-xl border bg-[var(--ob-card)]/95 px-3 py-2 text-sm focus:outline-none focus:ring-2"
               style={{ borderColor: "rgba(255,255,255,.2)", color: C.ink }}
             >
               {clients.map((c) => (
@@ -247,15 +247,15 @@ export function OnboardingForm({
       {/* ---------- barra fixa de etapas ---------- */}
       <nav
         aria-label="Etapas do onboarding"
-        className="sticky top-0 z-20 rounded-2xl border bg-white/95 px-4 py-3 shadow-[0_10px_30px_rgba(9,24,39,.08)] backdrop-blur"
-        style={{ borderColor: "rgba(17,39,59,.10)" }}
+        className="sticky top-0 z-20 rounded-2xl border bg-[var(--ob-card)]/95 px-4 py-3 shadow-[0_10px_30px_rgba(9,24,39,.08)] backdrop-blur"
+        style={{ borderColor: "var(--ob-line-2)" }}
       >
         <div className="flex items-center gap-4">
-          <p className="text-sm font-semibold" style={{ color: C.navy }}>
+          <p className="text-sm font-semibold" style={{ color: "var(--ob-title)" }}>
             Etapas do Onboarding
           </p>
           <div className="ml-auto flex w-40 items-center gap-2 sm:w-56">
-            <div className="h-1.5 flex-1 overflow-hidden rounded-full" style={{ background: "#ece6da" }}>
+            <div className="h-1.5 flex-1 overflow-hidden rounded-full" style={{ background: "var(--ob-track)" }}>
               <div className="h-full rounded-full transition-[width] duration-500" style={{ width: `${pct}%`, background: C.gold }} />
             </div>
             <span className="w-9 text-right text-xs tabular-nums" style={{ color: C.muted }}>
@@ -275,15 +275,15 @@ export function OnboardingForm({
                 aria-current={ativa ? "step" : undefined}
                 className="flex items-center gap-2 rounded-xl border px-2.5 py-2 text-left text-[11px] leading-tight transition-colors"
                 style={{
-                  borderColor: ativa ? "rgba(198,162,79,.55)" : "rgba(17,39,59,.08)",
-                  background: ativa ? "#fff" : "#f3efe7",
+                  borderColor: ativa ? "rgba(198,162,79,.55)" : "var(--ob-line)",
+                  background: ativa ? "var(--ob-card)" : "var(--ob-tab)",
                   color: C.ink,
                   boxShadow: ativa ? "0 4px 14px rgba(9,24,39,.08)" : undefined,
                 }}
               >
                 <span
                   className="flex h-6 w-6 shrink-0 items-center justify-center rounded-lg text-[11px] font-semibold"
-                  style={{ background: completa ? C.gold : "#fff", color: completa ? "#fff" : C.navy }}
+                  style={{ background: completa ? C.gold : "var(--ob-card)", color: completa ? "#fff" : "var(--ob-title)" }}
                 >
                   {completa ? "✓" : s.number}
                 </span>
@@ -304,12 +304,12 @@ export function OnboardingForm({
             ref={(el) => {
               etapasRef.current[stage.id] = el;
             }}
-            className="overflow-hidden rounded-3xl border bg-white shadow-[0_20px_60px_rgba(9,24,39,.06)]"
-            style={{ borderColor: "rgba(17,39,59,.08)" }}
+            className="overflow-hidden rounded-3xl border bg-[var(--ob-card)] shadow-[0_20px_60px_rgba(9,24,39,.06)]"
+            style={{ borderColor: "var(--ob-line)" }}
           >
             <header
               className="flex items-center gap-4 border-b px-5 py-5 sm:px-7"
-              style={{ borderColor: "rgba(17,39,59,.08)", background: "linear-gradient(180deg,#fbf9f4,#fff)" }}
+              style={{ borderColor: "var(--ob-line)", background: "linear-gradient(180deg,var(--ob-grad),var(--ob-card))" }}
             >
               <span
                 className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl text-lg font-semibold text-white"
@@ -318,10 +318,10 @@ export function OnboardingForm({
                 {stage.number}
               </span>
               <div className="min-w-0">
-                <p className="text-[11px] font-semibold tracking-[0.22em]" style={{ color: "#9a7a34" }}>
+                <p className="text-[11px] font-semibold tracking-[0.22em]" style={{ color: "var(--ob-eyebrow)" }}>
                   ETAPA {stage.number} DE {etapas.length}
                 </p>
-                <h3 className="text-lg font-medium sm:text-xl" style={{ color: C.navy }}>
+                <h3 className="text-lg font-medium sm:text-xl" style={{ color: "var(--ob-title)" }}>
                   {stage.name}
                 </h3>
               </div>
@@ -329,8 +329,8 @@ export function OnboardingForm({
                 className="ml-auto shrink-0 rounded-full border px-3 py-1.5 text-xs font-semibold"
                 style={{
                   borderColor: "rgba(198,162,79,.35)",
-                  background: feitas === stage.questions.length ? C.gold : "#f6efdc",
-                  color: feitas === stage.questions.length ? "#fff" : "#7a5f22",
+                  background: feitas === stage.questions.length ? C.gold : "var(--ob-gold-soft)",
+                  color: feitas === stage.questions.length ? "#fff" : "var(--ob-gold-ink)",
                 }}
               >
                 {feitas}/{stage.questions.length} respondidas
@@ -338,13 +338,13 @@ export function OnboardingForm({
             </header>
 
             <div className="grid grid-cols-1 lg:grid-cols-[minmax(0,1fr)_260px]">
-              <div className="divide-y px-5 py-2 sm:px-7" style={{ borderColor: "rgba(17,39,59,.08)" }}>
+              <div className="divide-y px-5 py-2 sm:px-7" style={{ borderColor: "var(--ob-line)" }}>
                 {stage.questions.map((q, i) => (
                   <div key={q.id} className="py-4">
-                    <div className="flex items-start gap-3 text-sm font-medium" style={{ color: C.navy }}>
+                    <div className="flex items-start gap-3 text-sm font-medium" style={{ color: "var(--ob-title)" }}>
                       <span
                         className="mt-[-2px] shrink-0 rounded-lg border px-2 py-1 text-[11px] font-semibold"
-                        style={{ background: "#f6efdc", borderColor: "rgba(198,162,79,.3)", color: "#7a5f22" }}
+                        style={{ background: "var(--ob-gold-soft)", borderColor: "rgba(198,162,79,.3)", color: "var(--ob-gold-ink)" }}
                       >
                         {dois(i + 1)}
                       </span>
@@ -365,7 +365,7 @@ export function OnboardingForm({
                           }}
                           placeholder="Escreva a pergunta..."
                           className="flex-1 rounded-lg border px-2 py-1 text-sm font-medium focus:outline-none focus:ring-2"
-                          style={{ borderColor: "rgba(198,162,79,.5)", color: C.navy }}
+                          style={{ borderColor: "rgba(198,162,79,.5)", color: "var(--ob-title)" }}
                         />
                       ) : (
                         <label htmlFor={q.id} className="flex-1">
@@ -416,7 +416,7 @@ export function OnboardingForm({
                       onChange={(e) => setAnswers((a) => ({ ...a, [q.id]: e.target.value }))}
                       placeholder="Digite a resposta ou grave pelo microfone..."
                       className="mt-2.5 w-full rounded-2xl border px-4 py-3 pb-12 text-sm leading-relaxed focus:outline-none focus:ring-2"
-                      style={{ borderColor: "rgba(17,39,59,.12)", background: "#fdfcf9", color: C.ink }}
+                      style={{ borderColor: "var(--ob-line-2)", background: "var(--ob-card-2)", color: C.ink }}
                     />
                     <div className="absolute right-2.5 bottom-3">
                       <AudioAnswer
@@ -434,16 +434,16 @@ export function OnboardingForm({
                     type="button"
                     onClick={() => adicionarPergunta(stage.id)}
                     className="text-xs font-semibold hover:underline"
-                    style={{ color: "#9a7a34" }}
+                    style={{ color: "var(--ob-eyebrow)" }}
                   >
                     + Adicionar pergunta
                   </button>
                 </div>
               </div>
 
-              <aside className="border-t p-4 lg:border-l lg:border-t-0" style={{ borderColor: "rgba(17,39,59,.08)", background: "#f8f5ef" }}>
-                <div className="rounded-2xl border bg-white p-4 lg:sticky lg:top-40" style={{ borderColor: "rgba(17,39,59,.06)" }}>
-                  <p className="text-[11px] font-semibold tracking-[0.2em]" style={{ color: "#9a7a34" }}>
+              <aside className="border-t p-4 lg:border-l lg:border-t-0" style={{ borderColor: "var(--ob-line)", background: "var(--ob-aside)" }}>
+                <div className="rounded-2xl border bg-[var(--ob-card)] p-4 lg:sticky lg:top-40" style={{ borderColor: "var(--ob-line)" }}>
+                  <p className="text-[11px] font-semibold tracking-[0.2em]" style={{ color: "var(--ob-eyebrow)" }}>
                     AÇÕES A SEREM REALIZADAS
                   </p>
                   <ul className="mt-2">
@@ -451,7 +451,7 @@ export function OnboardingForm({
                       <li
                         key={i}
                         className="flex gap-2 border-b py-2.5 text-[13px] leading-snug last:border-0"
-                        style={{ borderColor: "rgba(17,39,59,.07)", color: C.muted }}
+                        style={{ borderColor: "var(--ob-line)", color: C.muted }}
                       >
                         <span className="mt-1.5 h-1.5 w-1.5 shrink-0 rounded-full" style={{ background: C.gold }} />
                         {acao}
@@ -471,8 +471,8 @@ export function OnboardingForm({
           { titulo: "Informações Essenciais", itens: ONBOARDING_INFO_ESSENCIAIS },
           { titulo: "Checklist de Conclusão do Onboarding", itens: ONBOARDING_CHECKLIST_CONCLUSAO },
         ].map((bloco) => (
-          <div key={bloco.titulo} className="rounded-3xl border bg-white p-6" style={{ borderColor: "rgba(17,39,59,.08)" }}>
-            <h3 className="text-base font-medium" style={{ color: C.navy }}>
+          <div key={bloco.titulo} className="rounded-3xl border bg-[var(--ob-card)] p-6" style={{ borderColor: "var(--ob-line)" }}>
+            <h3 className="text-base font-medium" style={{ color: "var(--ob-title)" }}>
               {bloco.titulo}
             </h3>
             <ul className="mt-3 space-y-2">
@@ -500,9 +500,9 @@ export function OnboardingForm({
         </p>
       </div>
 
-      <div className="flex flex-wrap items-center justify-between gap-4 rounded-3xl border bg-white p-6" style={{ borderColor: "rgba(17,39,59,.08)" }}>
+      <div className="flex flex-wrap items-center justify-between gap-4 rounded-3xl border bg-[var(--ob-card)] p-6" style={{ borderColor: "var(--ob-line)" }}>
         <div className="text-xs leading-relaxed" style={{ color: C.muted }}>
-          <p className="mb-1 text-sm font-medium" style={{ color: C.navy }}>
+          <p className="mb-1 text-sm font-medium" style={{ color: "var(--ob-title)" }}>
             Contato
           </p>
           <p>{MC_LETTERHEAD.telefone} · {MC_LETTERHEAD.email}</p>
@@ -515,7 +515,7 @@ export function OnboardingForm({
             <span
               key={v.text}
               className="rounded-full border px-3 py-1.5 text-[10px] font-semibold tracking-wider"
-              style={{ borderColor: "rgba(198,162,79,.35)", color: "#7a5f22", background: "#fbf7ec" }}
+              style={{ borderColor: "rgba(198,162,79,.35)", color: "var(--ob-gold-ink)", background: "var(--ob-note)" }}
             >
               {v.text}
             </span>
@@ -539,8 +539,8 @@ export function OnboardingForm({
         <button
           type="button"
           onClick={handleLimpar}
-          className="rounded-xl border bg-white px-3 py-2 text-xs font-semibold sm:px-4 sm:py-2.5 sm:text-sm shadow-lg"
-          style={{ borderColor: "rgba(17,39,59,.12)", color: C.navy }}
+          className="rounded-xl border bg-[var(--ob-card)] px-3 py-2 text-xs font-semibold sm:px-4 sm:py-2.5 sm:text-sm shadow-lg"
+          style={{ borderColor: "var(--ob-line-2)", color: "var(--ob-title)" }}
         >
           <span className="sm:hidden">Limpar</span>
           <span className="hidden sm:inline">Limpar respostas</span>
@@ -549,7 +549,7 @@ export function OnboardingForm({
           type="submit"
           disabled={pending}
           className="rounded-xl px-4 py-2 text-xs font-semibold sm:px-5 sm:py-2.5 sm:text-sm shadow-lg disabled:opacity-60"
-          style={{ background: `linear-gradient(135deg, ${C.gold}, ${C.gold2})`, color: C.navy }}
+          style={{ background: `linear-gradient(135deg, ${C.gold}, ${C.gold2})`, color: "var(--ob-title)" }}
         >
           {pending ? "Salvando..." : "Salvar onboarding (gera PDF)"}
         </button>

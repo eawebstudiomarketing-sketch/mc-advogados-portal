@@ -1,5 +1,7 @@
 "use client";
 
+import { EtiquetasLinha } from "@/components/atividade/etiquetas";
+import type { Etiqueta } from "@/lib/data/etiquetas";
 import { Avatar } from "@/components/ui/avatar";
 import { useState } from "react";
 import type { DragEvent } from "react";
@@ -33,7 +35,9 @@ function PrazoCartao({ deadline, status }: { deadline: string; status: ActivityS
 export function ActivitiesKanban({
   activities,
   colunas = ACTIVITY_STATUSES,
+  etiquetas = [],
 }: {
+  etiquetas?: Etiqueta[];
   activities: Activity[];
   /** quais colunas mostrar (padrão: todos os status) */
   colunas?: readonly ActivityStatus[];
@@ -117,6 +121,11 @@ export function ActivitiesKanban({
                   {a.title}
                 </AtividadeLink>
                 <p className="mt-1 text-xs text-muted">{a.clients?.name}</p>
+                {(a.etiquetas ?? []).length > 0 && (
+                  <div className="mt-2">
+                    <EtiquetasLinha ids={a.etiquetas ?? []} todas={etiquetas} />
+                  </div>
+                )}
                 <div className="mt-3 flex items-center justify-between gap-2 text-xs text-muted">
                   {nomeResponsavel(a) ? (
                     <Avatar nome={nomeResponsavel(a)!} foto={a.responsaveis?.foto_url} tamanho={24} />

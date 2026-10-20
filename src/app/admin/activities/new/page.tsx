@@ -2,6 +2,7 @@ import { getEscritorioConfig } from "@/lib/data/escritorio";
 import Link from "next/link";
 import { listClients } from "@/lib/data/clients";
 import { listResponsaveis, responsavelDoPerfil } from "@/lib/data/responsaveis";
+import { listEtiquetas } from "@/lib/data/etiquetas";
 import { BackButton } from "@/components/nav/back-button";
 import { exigirPermissao } from "@/lib/dal";
 import { ActivityForm } from "./activity-form";
@@ -15,7 +16,7 @@ export default async function NewActivityPage({ searchParams }: { searchParams: 
     listResponsaveis(),
     searchParams,
   ]);
-  const meuResponsavel = await responsavelDoPerfil(profile.id);
+  const [meuResponsavel, etiquetas] = await Promise.all([responsavelDoPerfil(profile.id), listEtiquetas()]);
   // Publicação sem processo cadastrado: tenta achar o cliente pelas partes.
   let clienteInicial = clientId;
   if (!clienteInicial && preenchido.publicacao) {
@@ -39,7 +40,7 @@ export default async function NewActivityPage({ searchParams }: { searchParams: 
           antes de abrir uma atividade.
         </p>
       ) : (
-        <ActivityForm clients={clients} responsaveis={responsaveis} meuResponsavel={meuResponsavel} clienteInicial={clienteInicial} inicial={preenchido} areas={(await getEscritorioConfig()).areas} />
+        <ActivityForm etiquetas={etiquetas} clients={clients} responsaveis={responsaveis} meuResponsavel={meuResponsavel} clienteInicial={clienteInicial} inicial={preenchido} areas={(await getEscritorioConfig()).areas} />
       )}
     </div>
   );

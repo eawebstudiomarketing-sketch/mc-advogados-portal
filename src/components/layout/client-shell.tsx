@@ -6,6 +6,7 @@ import { usePathname } from "next/navigation";
 import { Suspense } from "react";
 import { NavTrail } from "@/components/nav/nav-trail";
 import { Avatar } from "@/components/ui/avatar";
+import { TemaBotao } from "@/components/ui/tema-botao";
 import { Home, Inbox, FolderOpen, LayoutGrid, Plus, type LucideIcon } from "lucide-react";
 
 // Portal do cliente: acompanhar o que o escritório está fazendo e fazer
@@ -70,6 +71,7 @@ export function ClientShell({
           </nav>
 
           <div className="ml-auto flex items-center gap-2 sm:ml-0">
+            <TemaBotao />
             {!naTelaDePedido && (
               <Link href="/dashboard/pedidos/novo" className="ui-btn hidden px-3.5 py-2 text-sm md:inline-flex">
                 <Plus className="h-4 w-4" aria-hidden /> Pedido

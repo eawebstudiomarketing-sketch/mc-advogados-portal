@@ -5,8 +5,12 @@
    sombras, títulos grandes e pesados (Inter Tight) com a 2ª linha em cinza,
    rótulos pequenos em fonte mono maiúscula, listas numeradas 01/02/03.
    Cores da MC só nos destaques: navy para ação principal e item ativo,
-   dourado para o que pede atenção. Tema claro fixo (uso no expediente). */
+   dourado para o que pede atenção. Tema claro por padrão e tema escuro
+   (data-theme="dark" no <html>, botão sol/lua; 20/10/2026). */
+@custom-variant dark (&:where([data-theme="dark"], [data-theme="dark"] *));
+
 :root {
+  color-scheme: light;
   --background: #fafaf8;
   --foreground: #0d1117;
   --surface: #ffffff;
@@ -38,6 +42,111 @@
   --shadow-md: 0 1px 2px rgba(15, 26, 42, 0.04), 0 6px 16px -6px rgba(15, 26, 42, 0.1);
   --shadow-lg: 0 2px 4px rgba(15, 26, 42, 0.04), 0 18px 40px -12px rgba(15, 26, 42, 0.22);
   --ease-out: cubic-bezier(0.16, 1, 0.3, 1);
+
+  /* tons de apoio (antes eram cores fixas nas telas) */
+  --hover: #f7f7f4;
+  --track: #eceef2;
+  --label: #2b3038;
+  --placeholder: #98a2b3;
+  --input-hover: #b9c0cc;
+  --btn2-hover-border: #bdbdb6;
+  --skeleton-2: #f6f7f9;
+  --roxo: #7c5cc4;
+  --roxo-bg: #f1ecfb;
+  --roxo-ink: #4b2f8f;
+  --zap-bg: #e7f6ec;
+  --zap-ink: #1f7a43;
+  --bolha: #d9fdd3;
+  --bolha-ink: #111b21;
+  --focus-ring: rgba(19, 50, 90, 0.14);
+  --tip-bg: var(--navy-2);
+
+  /* formulário de onboarding (paleta própria) */
+  --ob-paper: #f7f4ee;
+  --ob-ink: #1b2732;
+  --ob-muted: #66727d;
+  --ob-title: #091827;
+  --ob-card: #ffffff;
+  --ob-card-2: #fdfcf9;
+  --ob-line: rgba(17, 39, 59, 0.08);
+  --ob-line-2: rgba(17, 39, 59, 0.12);
+  --ob-gold-soft: #f6efdc;
+  --ob-gold-ink: #7a5f22;
+  --ob-eyebrow: #9a7a34;
+  --ob-track: #ece6da;
+  --ob-tab: #f3efe7;
+  --ob-aside: #f8f5ef;
+  --ob-grad: #fbf9f4;
+  --ob-note: #fbf7ec;
+}
+
+/* ───────────── tema escuro ───────────── */
+:root[data-theme="dark"] {
+  color-scheme: dark;
+  --background: #0a0c0f;
+  --foreground: #e9ebee;
+  --surface: #121519;
+  --surface-2: #181c21;
+  --border: #23282f;
+  --border-strong: #323840;
+  --muted: #8d949e;
+
+  /* navy fica mais claro para funcionar como botão e como texto/link no escuro */
+  --navy: #1f4f8a;
+  --navy-2: #0f1f35;
+  --navy-3: #6c9bd8;
+  --gold: #d1ad5c;
+  --gold-2: #e6d3a0;
+  --gold-soft: #2a2416;
+  --gold-ink: #e6cf8f;
+  --gold-foreground: #171f2e;
+
+  --status-success: #4ade80;
+  --status-success-bg: #10291a;
+  --status-pending: #f5a54a;
+  --status-pending-bg: #2d1f0c;
+  --status-danger: #f87171;
+  --status-danger-bg: #2e1313;
+  --status-info: #7aa7ff;
+  --status-info-bg: #12203a;
+
+  --shadow-sm: 0 1px 1px rgba(0, 0, 0, 0.4);
+  --shadow-md: 0 1px 2px rgba(0, 0, 0, 0.4), 0 6px 16px -6px rgba(0, 0, 0, 0.6);
+  --shadow-lg: 0 2px 4px rgba(0, 0, 0, 0.4), 0 18px 40px -12px rgba(0, 0, 0, 0.75);
+
+  --hover: #171b20;
+  --track: #22272e;
+  --label: #c9ced5;
+  --placeholder: #5f6772;
+  --input-hover: #454c56;
+  --btn2-hover-border: #454c56;
+  --skeleton-2: #1d2228;
+  --roxo: #a48be6;
+  --roxo-bg: #221a38;
+  --roxo-ink: #c9b8f5;
+  --zap-bg: #102619;
+  --zap-ink: #5fd38d;
+  --bolha: #134d37;
+  --bolha-ink: #e9edef;
+  --focus-ring: rgba(108, 155, 216, 0.28);
+  --tip-bg: #2a3240;
+
+  --ob-paper: #0a0c0f;
+  --ob-ink: #dfe3e8;
+  --ob-muted: #8d949e;
+  --ob-title: #eef0f3;
+  --ob-card: #121519;
+  --ob-card-2: #171a1f;
+  --ob-line: rgba(255, 255, 255, 0.08);
+  --ob-line-2: rgba(255, 255, 255, 0.12);
+  --ob-gold-soft: #2a2416;
+  --ob-gold-ink: #e6cf8f;
+  --ob-eyebrow: #d1ad5c;
+  --ob-track: #23282f;
+  --ob-tab: #181c21;
+  --ob-aside: #15181d;
+  --ob-grad: #15181d;
+  --ob-note: #221d12;
 }
 
 @theme inline {
@@ -67,6 +176,15 @@
   --color-status-danger-bg: var(--status-danger-bg);
   --color-status-info: var(--status-info);
   --color-status-info-bg: var(--status-info-bg);
+  --color-hover: var(--hover);
+  --color-track: var(--track);
+  --color-roxo: var(--roxo);
+  --color-roxo-bg: var(--roxo-bg);
+  --color-roxo-ink: var(--roxo-ink);
+  --color-zap-bg: var(--zap-bg);
+  --color-zap-ink: var(--zap-ink);
+  --color-bolha: var(--bolha);
+  --color-bolha-ink: var(--bolha-ink);
 
   --shadow-sm: var(--shadow-sm);
   --shadow-md: var(--shadow-md);
@@ -207,7 +325,7 @@ select {
   padding: 0.875rem 0.25rem;
   transition: background-color 120ms var(--ease-out);
   &:hover {
-    background: #f7f7f4;
+    background: var(--hover);
   }
 }
 
@@ -217,7 +335,7 @@ select {
   margin-bottom: 0.375rem;
   font-size: 0.8125rem;
   font-weight: 600;
-  color: #2b3038;
+  color: var(--label);
 }
 
 /* campo de formulário */
@@ -235,15 +353,15 @@ select {
     border-color 150ms var(--ease-out),
     box-shadow 150ms var(--ease-out);
   &::placeholder {
-    color: #98a2b3;
+    color: var(--placeholder);
   }
   &:hover {
-    border-color: #b9c0cc;
+    border-color: var(--input-hover);
   }
   &:focus {
     outline: none;
     border-color: var(--navy-3);
-    box-shadow: 0 0 0 3px rgba(19, 50, 90, 0.14);
+    box-shadow: 0 0 0 3px var(--focus-ring);
   }
   &:disabled {
     background: var(--surface-2);
@@ -297,7 +415,7 @@ select {
     border-color 150ms var(--ease-out);
   &:hover {
     background: var(--surface-2);
-    border-color: #bdbdb6;
+    border-color: var(--btn2-hover-border);
   }
   &:disabled {
     opacity: 0.5;
@@ -347,14 +465,14 @@ select {
     transition: background-color 120ms var(--ease-out);
   }
   & tbody tr:hover {
-    background: #f7f7f4;
+    background: var(--hover);
   }
 }
 
 /* esqueleto de carregamento */
 @utility skeleton {
   border-radius: 8px;
-  background: linear-gradient(90deg, #eceef2 0%, #f6f7f9 50%, #eceef2 100%);
+  background: linear-gradient(90deg, var(--track) 0%, var(--skeleton-2) 50%, var(--track) 100%);
   background-size: 200% 100%;
   animation: var(--animate-shimmer);
 }
@@ -373,7 +491,7 @@ select {
     background-color 150ms var(--ease-out),
     color 150ms var(--ease-out);
   &:hover {
-    background: #eceef2;
+    background: var(--track);
     color: var(--foreground);
   }
   & svg {
@@ -404,7 +522,7 @@ select {
   white-space: nowrap;
   pointer-events: none;
   border-radius: 7px;
-  background: var(--navy-2);
+  background: var(--tip-bg);
   padding: 4px 8px;
   font-size: 11px;
   font-weight: 500;
@@ -422,4 +540,35 @@ select {
   transform: translate(-50%, 0);
   transition-delay: 250ms;
 }
+}
+
+/* troca de tema: transição curta só durante a troca (classe posta pelo botão) */
+html.trocando-tema,
+html.trocando-tema * {
+  transition: background-color 200ms var(--ease-out), border-color 200ms var(--ease-out), color 200ms var(--ease-out) !important;
+}
+
+/* no escuro, imagens claras demais (logo em fundo branco etc.) ficam um pouco mais suaves */
+[data-theme="dark"] img:not([data-sem-escurecer]) {
+  filter: brightness(0.92);
+}
+
+/* navy como TEXTO some no fundo escuro: vira o azul claro (como botão continua navy) */
+[data-theme="dark"] :is(.text-navy, .text-navy-2) {
+  color: var(--navy-3);
+}
+[data-theme="dark"] :is(.hover\:text-navy:hover, .group:hover .group-hover\:text-navy) {
+  color: #9dbfe8;
+}
+
+/* selo de etiqueta: a cor vem do cadastro (--et); fundo bem claro, texto escuro do mesmo tom */
+.etiqueta {
+  background: color-mix(in srgb, var(--et) 13%, transparent);
+  color: color-mix(in srgb, var(--et) 78%, #000);
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--et) 22%, transparent);
+}
+[data-theme="dark"] .etiqueta {
+  background: color-mix(in srgb, var(--et) 22%, transparent);
+  color: color-mix(in srgb, var(--et) 55%, #fff);
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--et) 35%, transparent);
 }

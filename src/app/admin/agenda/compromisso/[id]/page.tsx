@@ -50,7 +50,7 @@ export default async function CompromissoPage({ params }: { params: Promise<{ id
       {visiveis.length > 0 && (
         <section className="ui-card mb-5 max-w-2xl p-4">
           <h2 className="section-title flex items-center gap-2">
-            <MessageCircle className="h-4 w-4 text-[#1f7a43]" aria-hidden /> Lembretes para o cliente
+            <MessageCircle className="h-4 w-4 text-zap-ink" aria-hidden /> Lembretes para o cliente
           </h2>
           <ul className="mt-2 space-y-1 text-sm">
             {visiveis.map((e) => {

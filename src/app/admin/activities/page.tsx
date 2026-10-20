@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { Plus, Archive, ArrowLeft } from "lucide-react";
+import { Plus, Archive, ArrowLeft, Tag } from "lucide-react";
 import { listActivities } from "@/lib/data/activities";
 import { ActivitiesView } from "./activities-view";
 import { exigirPermissao } from "@/lib/dal";
@@ -8,6 +8,7 @@ import { listPessoas, getEscritorioConfig } from "@/lib/data/escritorio";
 import { grupoDoPrazo, hojeBahia } from "@/lib/data/painel";
 import { ACTIVITY_TYPE_LABEL } from "@/lib/activity-type";
 import { ACTIVITY_STATUS_LABEL } from "@/lib/activity-status";
+import { listEtiquetas } from "@/lib/data/etiquetas";
 
 const COR_STATUS: Record<string, string> = {
   aberta: "bg-status-pending",
@@ -16,21 +17,22 @@ const COR_STATUS: Record<string, string> = {
   cancelada: "bg-border-strong",
 };
 
-type Filtros = { arquivadas?: string; busca?: string; status?: string; cliente?: string; responsavel?: string; tipo?: string; area?: string; prazo?: string; categoria?: string };
+type Filtros = { etiqueta?: string; arquivadas?: string; busca?: string; status?: string; cliente?: string; responsavel?: string; tipo?: string; area?: string; prazo?: string; categoria?: string };
 
 export default async function AdminActivitiesPage({ searchParams }: { searchParams: Promise<Filtros> }) {
   const { permissoes } = await exigirPermissao("atividades");
   const f = await searchParams;
   const arquivadas = f.arquivadas === "1";
-  const [todas, pessoas, config] = await Promise.all([listActivities({ arquivadas }), listPessoas(), getEscritorioConfig()]);
+  const [todas, pessoas, config, etiquetas] = await Promise.all([listActivities({ arquivadas }), listPessoas(), getEscritorioConfig(), listEtiquetas()]);
   const hoje = hojeBahia();
   const termo = (f.busca ?? "").trim().toLowerCase();
   const activities = todas.filter(
     (a) =>
       (!termo || a.title.toLowerCase().includes(termo) || (a.description ?? "").toLowerCase().includes(termo) || (a.clients?.name ?? "").toLowerCase().includes(termo)) &&
       (!f.status || a.status === f.status) &&
+      (!f.etiqueta || (a.etiquetas ?? []).includes(f.etiqueta)) &&
       (!f.cliente || a.client_id === f.cliente) &&
-      (!f.responsavel || (f.responsavel === "nenhum" ? !a.responsavel_id : a.responsavel_id === f.responsavel)) &&
+      (!f.responsavel || (f.responsavel === "nenhum" ? !a.responsavel_id : a.responsavel_id === f.responsavel || (a.envolvidos ?? []).includes(f.responsavel))) &&
       (!f.tipo || a.type === f.tipo) &&
       (!f.area || a.area === f.area) &&
       (!f.categoria || a.categoria === f.categoria) &&
@@ -50,6 +52,9 @@ export default async function AdminActivitiesPage({ searchParams }: { searchPara
           </p>
         </div>
         <div className="flex flex-wrap items-center gap-2">
+        <Link href="/admin/activities/etiquetas" className="ui-btn-secondary">
+          <Tag className="h-4 w-4" aria-hidden /> Etiquetas
+        </Link>
         <Link href={arquivadas ? "/admin/activities" : "/admin/activities?arquivadas=1"} className="ui-btn-secondary">
           {arquivadas ? <ArrowLeft className="h-4 w-4" aria-hidden /> : <Archive className="h-4 w-4" aria-hidden />}
           {arquivadas ? "Voltar às ativas" : "Arquivadas"}
@@ -101,10 +106,11 @@ export default async function AdminActivitiesPage({ searchParams }: { searchPara
             ],
           },
           { tipo: "select", nome: "area", rotulo: "Área", todos: "Todas as áreas", opcoes: config.areas.map((a) => ({ valor: a, rotulo: a })) },
+          { tipo: "select", nome: "etiqueta", rotulo: "Etiqueta", todos: "Todas as etiquetas", opcoes: etiquetas.map((e) => ({ valor: e.id, rotulo: e.nome })) },
         ]}
       />
 
-      <ActivitiesView activities={activities} arquivadas={arquivadas} podeExcluir={permissoes.excluir} />
+      <ActivitiesView etiquetas={etiquetas} activities={activities} arquivadas={arquivadas} podeExcluir={permissoes.excluir} />
     </div>
   );
 }

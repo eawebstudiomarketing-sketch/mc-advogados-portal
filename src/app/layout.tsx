@@ -25,12 +25,19 @@ export const metadata: Metadata = {
   description: "Portal de clientes MC Advogados",
 };
 
+// Tema antes de pintar a tela (sem piscar branco): escolha salva ou o do sistema.
+const SCRIPT_TEMA = `try{var t=localStorage.getItem("tema");if(t==="escuro"||(t!=="claro"&&window.matchMedia("(prefers-color-scheme: dark)").matches))document.documentElement.dataset.theme="dark"}catch(e){}`;
+
 export default function RootLayout({ children }: LayoutProps<"/">) {
   return (
     <html
       lang="pt-BR"
       className={`${geistSans.variable} ${geistMono.variable} ${display.variable} h-full antialiased`}
+      suppressHydrationWarning
     >
+      <head>
+        <script dangerouslySetInnerHTML={{ __html: SCRIPT_TEMA }} />
+      </head>
       <body className="min-h-full flex flex-col">
         {children}
         <Toaster

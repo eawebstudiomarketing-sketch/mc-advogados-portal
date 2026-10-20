@@ -7,6 +7,7 @@ import { resolverPermissoes } from "@/lib/permissoes";
 import { removeStaffAction } from "./actions";
 import { ConfirmSubmitButton } from "@/components/ui/confirm-submit-button";
 import { MembroCard } from "./membro-card";
+import { DesignacoesProvider } from "./designacoes";
 import { PessoasZap } from "./pessoas-zap";
 import { ZapConfig } from "./zap-config";
 import { DemandasEquipe } from "./demandas-equipe";
@@ -106,6 +107,10 @@ export default async function AdminTeamPage({ searchParams }: { searchParams: Pr
         </p>
       )}
 
+      <DesignacoesProvider
+        inicial={Object.fromEntries(staff.map((t) => [t.id, designacoes.get(t.id) ?? []]))}
+        nomes={Object.fromEntries(staff.map((t) => [t.id, t.full_name]))}
+      >
       <h2 className="section-title mb-1">Administradores</h2>
       <p className="mb-3 text-xs text-muted">O admin máximo vê tudo e decide o que cada um vê, inclusive os outros admins.</p>
       <div className="mb-8 space-y-3">
@@ -187,6 +192,7 @@ export default async function AdminTeamPage({ searchParams }: { searchParams: Pr
           />
         ))}
       </div>
+      </DesignacoesProvider>
     </div>
   );
 }

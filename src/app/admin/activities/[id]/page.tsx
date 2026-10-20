@@ -14,6 +14,9 @@ import { ACTIVITY_TYPE_LABEL } from "@/lib/activity-type";
 import { formatDate } from "@/lib/mock-data";
 import { exigirPermissao } from "@/lib/dal";
 import { Comentarios } from "@/components/atividade/comentarios";
+import { EtiquetasEditor } from "@/components/atividade/etiquetas";
+import { listEtiquetas } from "@/lib/data/etiquetas";
+import { listResponsaveis } from "@/lib/data/responsaveis";
 
 export default async function ActivityDetailPage({ params }: { params: Promise<{ id: string }> }) {
   await exigirPermissao("atividades");
@@ -22,7 +25,8 @@ export default async function ActivityDetailPage({ params }: { params: Promise<{
   const activity = await getActivity(id);
   if (!activity) notFound();
 
-  const documents = await listDocuments({ activityId: id });
+  const [documents, etiquetas, responsaveis] = await Promise.all([listDocuments({ activityId: id }), listEtiquetas(), listResponsaveis()]);
+  const envolvidos = (activity.envolvidos ?? []).map((e) => responsaveis.find((r) => r.id === e)?.nome).filter(Boolean);
 
   return (
     <div>
@@ -61,6 +65,10 @@ export default async function ActivityDetailPage({ params }: { params: Promise<{
         </div>
       </div>
 
+      <div className="mb-4">
+        <EtiquetasEditor todas={etiquetas} defaultValue={activity.etiquetas ?? []} activityId={activity.id} />
+      </div>
+
       <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
         <div className="ui-card p-5">
           <h2 className="section-title">Detalhes</h2>
@@ -73,6 +81,12 @@ export default async function ActivityDetailPage({ params }: { params: Promise<{
                 {activity.categoria === "audiencia" ? " · Audiência" : activity.categoria === "prazo" ? " · Prazo processual" : ""}
               </dd>
             </div>
+            {envolvidos.length > 0 && (
+              <div className="flex justify-between gap-3">
+                <dt className="text-muted">Envolvidos</dt>
+                <dd className="text-right text-foreground">{envolvidos.join(", ")}</dd>
+              </div>
+            )}
             <div className="flex justify-between gap-3">
               <dt className="text-muted">Criada em</dt>
               <dd className="text-foreground">{new Date(activity.created_at).toLocaleDateString("pt-BR")}</dd>

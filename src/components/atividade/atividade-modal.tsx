@@ -30,6 +30,8 @@ import {
   type AtividadeDetalhe,
 } from "@/app/admin/activities/modal-actions";
 import { ResponsavelSelect } from "./responsavel-select";
+import { EnvolvidosSelect } from "./envolvidos-select";
+import { EtiquetasEditor } from "./etiquetas";
 import { Comentarios } from "./comentarios";
 
 // Mini tela da atividade: abre no meio da tela, por cima de qualquer lista ou
@@ -240,6 +242,16 @@ function AtividadeModal({ id, editarAoAbrir, onClose }: { id: string; editarAoAb
 
           {d && !editando && (
             <>
+              <div className="mb-5">
+                <p className="eyebrow mb-1.5">Etiquetas</p>
+                <EtiquetasEditor
+                  key={d.id}
+                  todas={d.etiquetasTodas}
+                  defaultValue={d.etiquetas}
+                  activityId={d.id}
+                  onMudou={(ids) => setD((x) => (x ? { ...x, etiquetas: ids } : x))}
+                />
+              </div>
               <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
                 <Campo icone={Tag} rotulo="Status">
                   <select
@@ -262,6 +274,11 @@ function AtividadeModal({ id, editarAoAbrir, onClose }: { id: string; editarAoAb
                 <Campo icone={UserRound} rotulo="Responsável">
                   {d.responsavel ?? <span className="text-muted">—</span>}
                 </Campo>
+                {d.envolvidos.length > 0 && (
+                  <Campo icone={UserRound} rotulo="Envolvidos">
+                    {d.envolvidos.map((id) => d.responsaveis.find((r) => r.id === id)?.nome).filter(Boolean).join(", ")}
+                  </Campo>
+                )}
                 <Campo icone={CalendarDays} rotulo="Criada em">
                   {new Date(d.created_at).toLocaleDateString("pt-BR")}
                 </Campo>
@@ -377,6 +394,10 @@ function AtividadeModal({ id, editarAoAbrir, onClose }: { id: string; editarAoAb
                   <label htmlFor="m-resp" className="ui-label">Responsável</label>
                   <ResponsavelSelect id="m-resp" responsaveis={d.responsaveis} defaultValue={d.responsavel_id} clientId={d.client_id} />
                 </div>
+              </div>
+              <div>
+                <p className="ui-label">Envolvidos</p>
+                <EnvolvidosSelect responsaveis={d.responsaveis} defaultValue={d.envolvidos} />
               </div>
               <div>
                 <label htmlFor="m-desc" className="ui-label">Descrição</label>

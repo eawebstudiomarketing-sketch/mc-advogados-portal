@@ -218,18 +218,6 @@ async function reaproveitarLoginSemPerfil(params: {
 
 const UUID = /^[0-9a-f-]{36}$/i;
 
-/** Perfil de advogado visível (nunca admin nem conta oculta). */
-async function advogadoValido(profileId: string) {
-  if (!UUID.test(profileId)) return null;
-  const { data } = await (await createClient())
-    .from("profiles")
-    .select("id, oculto")
-    .eq("id", profileId)
-    .eq("role", "advogado")
-    .maybeSingle();
-  return data && !data.oculto ? data : null;
-}
-
 /** Advogado ou admin comum visível (o admin máximo não tem o que limitar). */
 async function membroValido(profileId: string) {
   if (!UUID.test(profileId)) return null;
@@ -253,6 +241,9 @@ export async function setClientesDoAdvogadoAction(profileId: string, clientIds: 
   const { error: e1 } = await supabase.from("equipe_clientes").delete().eq("profile_id", profileId);
   if (e1) return { ok: false, error: "Não foi possível salvar. Tente novamente." };
   if (ids.length) {
+    // cliente é de uma pessoa só: sai de quem mais estava com ele
+    const { error: e0 } = await supabase.from("equipe_clientes").delete().in("client_id", ids).neq("profile_id", profileId);
+    if (e0) return { ok: false, error: "Não foi possível salvar. Tente novamente." };
     const { error: e2 } = await supabase.from("equipe_clientes").insert(ids.map((client_id) => ({ profile_id: profileId, client_id })));
     if (e2) return { ok: false, error: "Não foi possível salvar. Tente novamente." };
   }
@@ -264,19 +255,14 @@ export async function setClientesDoAdvogadoAction(profileId: string, clientIds: 
 export async function setAdvogadosDoClienteAction(clientId: string, profileIds: string[]): Promise<TeamResult> {
   await exigirSuperAdmin();
   if (!UUID.test(clientId)) return { ok: false, error: "Cliente inválido." };
-  const validos: string[] = [];
-  for (const id of new Set(profileIds)) if (await advogadoValido(id)) validos.push(id);
+  // cliente é de uma pessoa só (pedido de 20/10): vale a primeira escolhida
+  const escolhido = profileIds.find((id) => UUID.test(id));
+  if (escolhido && !(await membroValido(escolhido))) return { ok: false, error: "Pessoa inválida." };
   const supabase = await createClient();
-  // a ficha só mexe nos advogados; designações de admins comuns ficam como estão
-  const { data: advs } = await supabase.from("profiles").select("id").eq("role", "advogado");
-  const { error: e1 } = await supabase
-    .from("equipe_clientes")
-    .delete()
-    .eq("client_id", clientId)
-    .in("profile_id", (advs ?? []).map((a) => a.id));
+  const { error: e1 } = await supabase.from("equipe_clientes").delete().eq("client_id", clientId);
   if (e1) return { ok: false, error: "Não foi possível salvar. Tente novamente." };
-  if (validos.length) {
-    const { error: e2 } = await supabase.from("equipe_clientes").insert(validos.map((profile_id) => ({ profile_id, client_id: clientId })));
+  if (escolhido) {
+    const { error: e2 } = await supabase.from("equipe_clientes").insert({ profile_id: escolhido, client_id: clientId });
     if (e2) return { ok: false, error: "Não foi possível salvar. Tente novamente." };
   }
   revalidatePath(`/admin/clients/${clientId}`);
@@ -295,6 +281,20 @@ export async function savePermissoesAction(profileId: string, valores: Record<st
     .from("equipe_permissoes")
     .upsert({ profile_id: profileId, permissoes: limpas, updated_at: new Date().toISOString() });
   if (error) return { ok: false, error: "Não foi possível salvar. Tente novamente." };
+  revalidatePath("/admin/team");
+  return { ok: true };
+}
+
+/** Troca o papel (Administrador ↔ Advogado) de alguém da equipe (só o admin máximo). */
+export async function setPapelAction(profileId: string, papel: "admin" | "advogado"): Promise<TeamResult> {
+  const eu = await exigirSuperAdmin();
+  if (papel !== "admin" && papel !== "advogado") return { ok: false, error: "Papel inválido." };
+  if (profileId === eu.id) return { ok: false, error: "Você não pode trocar o seu próprio papel." };
+  const membro = await membroValido(profileId);
+  if (!membro) return { ok: false, error: "Pessoa inválida." };
+  if (membro.role === papel) return { ok: true };
+  const { error } = await (await createClient()).from("profiles").update({ role: papel }).eq("id", profileId);
+  if (error) return { ok: false, error: "Não foi possível trocar o papel. Tente novamente." };
   revalidatePath("/admin/team");
   return { ok: true };
 }

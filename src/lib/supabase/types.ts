@@ -731,6 +731,12 @@ export type Database = {
         }
         Relationships: []
       }
+      etiquetas: {
+        Row: { id: string; nome: string; cor: string; created_at: string }
+        Insert: { id?: string; nome: string; cor?: string; created_at?: string }
+        Update: { id?: string; nome?: string; cor?: string; created_at?: string }
+        Relationships: []
+      }
       activities: {
         Row: {
           area: string | null
@@ -742,6 +748,8 @@ export type Database = {
           id: string
           responsible_id: string
           responsavel_id: string | null
+          envolvidos: string[]
+          etiquetas: string[]
           status: Database["public"]["Enums"]["activity_status"]
           title: string
           type: Database["public"]["Enums"]["activity_type"]
@@ -760,6 +768,8 @@ export type Database = {
           id?: string
           responsible_id: string
           responsavel_id?: string | null
+          envolvidos?: string[]
+          etiquetas?: string[]
           status?: Database["public"]["Enums"]["activity_status"]
           title: string
           type: Database["public"]["Enums"]["activity_type"]
@@ -778,6 +788,8 @@ export type Database = {
           id?: string
           responsible_id?: string
           responsavel_id?: string | null
+          envolvidos?: string[]
+          etiquetas?: string[]
           status?: Database["public"]["Enums"]["activity_status"]
           title?: string
           type?: Database["public"]["Enums"]["activity_type"]

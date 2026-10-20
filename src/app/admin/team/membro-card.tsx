@@ -4,7 +4,8 @@ import { useMemo, useState, useTransition } from "react";
 import { ChevronDown, Search, ShieldCheck, Users } from "lucide-react";
 import { toast } from "sonner";
 import { PERMISSOES, type Permissoes } from "@/lib/permissoes";
-import { savePermissoesAction, setAtivoAction, setClientesDoAdvogadoAction } from "./actions";
+import { useDesignacoes } from "./designacoes";
+import { savePermissoesAction, setAtivoAction, setClientesDoAdvogadoAction, setPapelAction } from "./actions";
 
 const GRUPOS = [...new Set(PERMISSOES.map((p) => p.grupo))];
 
@@ -42,7 +43,16 @@ export function MembroCard({
   permissoes: Permissoes;
 }) {
   const [aberto, setAberto] = useState<"clientes" | "permissoes" | null>(null);
-  const [sel, setSel] = useState(new Set(designados));
+  const [selLocal, setSelLocal] = useState(new Set(designados));
+  // cliente é de uma pessoa só: o que outro cartão pegou sai daqui na hora
+  const ctx = useDesignacoes();
+  const deOutro = (cid: string) => !!ctx && ctx.dono.has(cid) && ctx.dono.get(cid) !== membro.id;
+  const sel = new Set([...selLocal].filter((c) => !deOutro(c)));
+  const setSel = (v: Set<string> | ((s: Set<string>) => Set<string>)) => {
+    const novo = typeof v === "function" ? v(sel) : v;
+    setSelLocal(novo);
+    ctx?.definir(membro.id, [...novo]);
+  };
   const [perm, setPerm] = useState(permissoes);
   const [ativo, setAtivo] = useState(membro.ativo);
   const [busca, setBusca] = useState("");
@@ -52,8 +62,10 @@ export function MembroCard({
   const permMudou = PERMISSOES.some((p) => perm[p.chave] !== permissoes[p.chave]);
   const filtrados = useMemo(() => {
     const t = busca.trim().toLowerCase();
-    return t ? clientes.filter((c) => c.name.toLowerCase().includes(t)) : clientes;
-  }, [busca, clientes]);
+    const livres = clientes.filter((c) => !deOutro(c.id));
+    return t ? livres.filter((c) => c.name.toLowerCase().includes(t)) : livres;
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- deOutro depende de ctx.dono
+  }, [busca, clientes, ctx?.dono]);
   const bloqueadas = PERMISSOES.filter((p) => !perm[p.chave]).length;
 
   function salvarClientes() {
@@ -67,6 +79,18 @@ export function MembroCard({
     start(async () => {
       const r = await savePermissoesAction(membro.id, perm);
       if (r.ok) toast.success(`Permissões de ${membro.nome} salvas.`);
+      else toast.error(r.error);
+    });
+  }
+  function trocarPapel(novo: "admin" | "advogado") {
+    const aviso =
+      novo === "advogado"
+        ? `Trocar ${membro.nome} para Advogado(a)? Ela/ele passa a ver só os clientes marcados em "Clientes" (a não ser que "Ver todos os clientes" esteja ligado) e as opções de Gestão ficam como estão salvas.`
+        : `Trocar ${membro.nome} para Administrador(a)? Passa a ver tudo o que não estiver desligado em "O que pode ver e fazer".`;
+    if (!confirm(aviso)) return;
+    start(async () => {
+      const r = await setPapelAction(membro.id, novo);
+      if (r.ok) toast.success(novo === "admin" ? "Agora é Administrador(a)." : "Agora é Advogado(a).");
       else toast.error(r.error);
     });
   }
@@ -97,6 +121,18 @@ export function MembroCard({
             {bloqueadas ? ` · ${bloqueadas} ${bloqueadas === 1 ? "bloqueio" : "bloqueios"}` : ""}
           </p>
         </div>
+        {podeEditar && (
+          <select
+            value={papel}
+            onChange={(e) => trocarPapel(e.target.value as "admin" | "advogado")}
+            disabled={pending}
+            aria-label={`Papel de ${membro.nome}`}
+            className="rounded-full border border-border bg-surface px-2.5 py-1 text-xs font-medium text-foreground focus:border-navy-3 focus:outline-none"
+          >
+            <option value="admin">Administrador(a)</option>
+            <option value="advogado">Advogado(a)</option>
+          </select>
+        )}
         {podeEditar && (
           <label className="flex items-center gap-2 text-xs text-muted">
             Acesso
@@ -170,7 +206,7 @@ export function MembroCard({
             ))}
           </div>
           <div className="mt-3 flex items-center justify-between gap-3">
-            <p className="text-xs text-muted">Ele(a) só enxerga os clientes marcados, com as atividades, documentos e processos deles.</p>
+            <p className="text-xs text-muted">Ele(a) só enxerga os clientes marcados. Cada cliente fica com uma pessoa só: os que já são de outra pessoa não aparecem aqui.</p>
             <button type="button" onClick={salvarClientes} disabled={!clientesMudaram || pending} className="ui-btn px-4 py-2 text-sm">
               {pending ? "Salvando..." : "Salvar clientes"}
             </button>

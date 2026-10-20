@@ -26,6 +26,22 @@ function lerAgenda(formData: FormData): { categoria?: string; hora?: string | nu
   return out;
 }
 
+// Etiquetas escolhidas no formulário. undefined = o campo não veio.
+function lerEtiquetas(formData: FormData): string[] | undefined {
+  if (!formData.get("etiquetas_presente")) return undefined;
+  return [...new Set(formData.getAll("etiquetas").filter((v): v is string => typeof v === "string" && /^[0-9a-f-]{36}$/i.test(v)))];
+}
+
+// Envolvidos (além do responsável): ids da tabela responsaveis que existem.
+// undefined = o campo não veio no formulário (não mexe).
+async function lerEnvolvidos(supabase: Db, formData: FormData): Promise<string[] | undefined> {
+  if (!formData.get("envolvidos_presente")) return undefined;
+  const ids = [...new Set(formData.getAll("envolvidos").filter((v): v is string => typeof v === "string" && /^[0-9a-f-]{36}$/i.test(v)))];
+  if (!ids.length) return [];
+  const { data } = await supabase.from("responsaveis").select("id").in("id", ids);
+  return (data ?? []).map((r) => r.id);
+}
+
 // Responsável escolhido (tabela responsaveis: equipe com login ou só nome+Gmail).
 // Quando a pessoa tem login, o responsible_id (dono/autor no banco) acompanha.
 async function lerResponsavel(
@@ -65,7 +81,11 @@ export async function createActivityAction(
   const supabase = await createClient();
   const responsavel = await lerResponsavel(supabase, formData.get("responsavel_id"));
   if (responsavel === null) return { error: "Responsável inválido." };
+  const envolvidos = await lerEnvolvidos(supabase, formData);
+  const etiquetas = lerEtiquetas(formData);
   const { data: criada, error } = await supabase.from("activities").insert({
+    ...(etiquetas ? { etiquetas } : {}),
+    ...(envolvidos ? { envolvidos: envolvidos.filter((e) => e !== responsavel?.responsavel_id) } : {}),
     client_id: clientId,
     responsible_id: responsavel?.responsible_id ?? profile.id,
     ...(responsavel ? { responsavel_id: responsavel.responsavel_id } : {}),
@@ -139,11 +159,14 @@ async function salvarAtividade(formData: FormData): Promise<string | null> {
   const supabase = await createClient();
   const responsavel = await lerResponsavel(supabase, formData.get("responsavel_id"));
   if (responsavel === null) return "Responsável inválido.";
+  const envolvidos = await lerEnvolvidos(supabase, formData);
   const status = formData.get("status");
   const { error } = await supabase
     .from("activities")
     .update({
       ...(responsavel ?? {}),
+      ...(envolvidos ? { envolvidos: envolvidos.filter((e) => e !== responsavel?.responsavel_id) } : {}),
+      ...(lerEtiquetas(formData) ? { etiquetas: lerEtiquetas(formData) } : {}),
       ...(typeof status === "string" && ACTIVITY_STATUSES.includes(status as never)
         ? { status: status as Database["public"]["Enums"]["activity_status"] }
         : {}),

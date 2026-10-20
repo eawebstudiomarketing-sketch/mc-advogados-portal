@@ -7,11 +7,15 @@ import { ACTIVITY_TYPE_LABEL, ACTIVITY_TYPES } from "@/lib/activity-type";
 import type { Activity } from "@/lib/data/activities";
 import type { Responsavel } from "@/lib/data/responsaveis";
 import { ResponsavelSelect } from "@/components/atividade/responsavel-select";
+import { EnvolvidosSelect } from "@/components/atividade/envolvidos-select";
+import { EtiquetasEditor } from "@/components/atividade/etiquetas";
+import type { Etiqueta } from "@/lib/data/etiquetas";
 import { VoltarInput } from "@/components/nav/back-button";
 
 const initialState: UpdateActivityState = { error: null };
 
-export function EditActivityForm({ activity, responsaveis, areas }: { activity: Activity; responsaveis: Responsavel[]; areas?: string[] }) {
+export function EditActivityForm({ etiquetas = [], activity, responsaveis, areas }: {
+  etiquetas?: Etiqueta[]; activity: Activity; responsaveis: Responsavel[]; areas?: string[] }) {
   const [state, formAction, pending] = useActionState(updateActivityAction, initialState);
 
   return (
@@ -38,6 +42,18 @@ export function EditActivityForm({ activity, responsaveis, areas }: { activity: 
           Responsável <span className="font-normal text-muted">· recebe os avisos de prazo por e-mail</span>
         </label>
         <ResponsavelSelect responsaveis={responsaveis} defaultValue={activity.responsavel_id} clientId={activity.client_id} />
+      </div>
+
+      <div>
+        <p className="ui-label">
+          Envolvidos <span className="font-normal text-muted">· mesmos poderes do responsável</span>
+        </p>
+        <EnvolvidosSelect responsaveis={responsaveis} defaultValue={activity.envolvidos ?? []} />
+      </div>
+
+      <div>
+        <p className="ui-label">Etiquetas</p>
+        <EtiquetasEditor todas={etiquetas} defaultValue={activity.etiquetas ?? []} />
       </div>
 
       <div>

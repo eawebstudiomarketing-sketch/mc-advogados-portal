@@ -6,9 +6,9 @@ import { exigirPermissao } from "@/lib/dal";
 import { getPublicacao } from "@/lib/data/publicacoes";
 import { sugerirClientePelasPartes } from "@/lib/publicacoes/cliente-sugerido";
 
-export default async function NewProcessPage({ searchParams }: { searchParams: Promise<{ numero?: string; publicacao?: string }> }) {
+export default async function NewProcessPage({ searchParams }: { searchParams: Promise<{ numero?: string; publicacao?: string; cliente?: string }> }) {
   await exigirPermissao("processos");
-  const [clients, { numero, publicacao }] = await Promise.all([listClients(), searchParams]);
+  const [clients, { numero, publicacao, cliente }] = await Promise.all([listClients(), searchParams]);
   // Vindo de uma publicação do DJEN: vara, área e cliente (pelas partes) já sugeridos.
   const pub = publicacao ? await getPublicacao(publicacao) : null;
   const partes = ((pub?.partes as { nome: string }[] | null) ?? []).map((p) => p.nome);
@@ -18,7 +18,7 @@ export default async function NewProcessPage({ searchParams }: { searchParams: P
 
   return (
     <div>
-      <BackButton fallback="/admin/processes" />
+      <BackButton fallback={cliente ? `/admin/clients/${cliente}?aba=processos` : "/admin/processes"} />
 
       <h1 className="mt-3 mb-6 page-title">Novo processo</h1>
 
@@ -45,7 +45,7 @@ export default async function NewProcessPage({ searchParams }: { searchParams: P
           <ProcessForm
             clients={clients}
             numeroInicial={numero ?? pub?.numero_mascara ?? undefined}
-            clienteInicial={clienteSugerido?.id}
+            clienteInicial={clienteSugerido?.id ?? (clients.some((c) => c.id === cliente) ? cliente : undefined)}
             varaInicial={vara}
             areaInicial={area}
             exigirCliente={!!pub}

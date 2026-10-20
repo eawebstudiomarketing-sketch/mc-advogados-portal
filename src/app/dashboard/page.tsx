@@ -163,7 +163,7 @@ export default async function DashboardPage() {
           <Link
             key={c.rotulo}
             href={c.href}
-            className={`px-1 py-5 transition-colors hover:bg-[#f7f7f4] md:px-6 ${i > 0 ? "md:border-l md:border-border" : ""} ${i % 2 ? "border-l border-border pl-4 md:border-l" : ""} ${i > 1 ? "border-t border-border md:border-t-0" : ""}`}
+            className={`px-1 py-5 transition-colors hover:bg-hover md:px-6 ${i > 0 ? "md:border-l md:border-border" : ""} ${i % 2 ? "border-l border-border pl-4 md:border-l" : ""} ${i > 1 ? "border-t border-border md:border-t-0" : ""}`}
           >
             <p className="numero-grande text-4xl text-foreground">{c.n}</p>
             <p className="eyebrow mt-1">{c.rotulo}</p>

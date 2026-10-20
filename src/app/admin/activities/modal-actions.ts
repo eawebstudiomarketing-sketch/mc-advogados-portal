@@ -5,6 +5,7 @@ import { createClient } from "@/lib/supabase/server";
 import { exigirPermissao, getPermissoes, requireRole } from "@/lib/dal";
 import { getActivity } from "@/lib/data/activities";
 import { nomeResponsavel } from "@/lib/responsavel-nome";
+import { listEtiquetas, type Etiqueta } from "@/lib/data/etiquetas";
 import { listDocuments } from "@/lib/data/documents";
 import { listResponsaveis, type Responsavel } from "@/lib/data/responsaveis";
 import type { Database } from "@/lib/supabase/types";
@@ -24,6 +25,9 @@ export type AtividadeDetalhe = {
   cliente: string | null;
   responsavel_id: string | null;
   responsavel: string | null;
+  envolvidos: string[];
+  etiquetas: string[];
+  etiquetasTodas: Etiqueta[];
   documentos: { id: string; title: string; created_at: string; downloadUrl: string | null; drive_file_id: string | null }[];
   /** Documentos do cliente que ainda não estão nesta atividade (para anexar). */
   docsDoCliente: { id: string; title: string }[];
@@ -38,7 +42,8 @@ export async function getActivityDetailAction(id: string): Promise<{ ok: true; d
 
   const supabase = await createClient();
   const perms = await getPermissoes();
-  const [documentos, responsaveis, { data: docsCliente }] = await Promise.all([
+  const [etiquetasTodas, documentos, responsaveis, { data: docsCliente }] = await Promise.all([
+    listEtiquetas(),
     listDocuments({ activityId: id }),
     listResponsaveis(),
     supabase
@@ -65,6 +70,9 @@ export async function getActivityDetailAction(id: string): Promise<{ ok: true; d
       cliente: a.clients?.name ?? null,
       responsavel_id: a.responsavel_id,
       responsavel: nomeResponsavel(a),
+      envolvidos: a.envolvidos ?? [],
+      etiquetas: a.etiquetas ?? [],
+      etiquetasTodas,
       documentos: documentos.map((d) => ({
         id: d.id,
         title: d.title,

@@ -1,4 +1,7 @@
 import Link from "next/link";
+import { PeriodoFiltro } from "@/components/ui/periodo-filtro";
+import { lerPeriodo } from "@/lib/periodo";
+import { listEtiquetas } from "@/lib/data/etiquetas";
 import { AlertTriangle, ArrowRight, Trophy, Sun, CalendarPlus } from "lucide-react";
 import { listActivities, type Activity } from "@/lib/data/activities";
 import { listFinancialRecords } from "@/lib/data/financial";
@@ -26,12 +29,20 @@ const horaBahia = (iso: string) => new Date(iso).toLocaleTimeString("pt-BR", { t
 // Visão geral: o dia do escritório numa tela só. Números da pessoa, agenda de
 // hoje, ranking da equipe, clientes com mais pendências, pipeline dos
 // clientes e o quadro das atividades.
-export default async function AdminOverviewPage({ searchParams }: { searchParams: Promise<{ periodo?: string }> }) {
+export default async function AdminOverviewPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ periodo?: string; agenda?: string; ade?: string; aate?: string }>;
+}) {
   const { profile, permissoes } = await exigirPermissao("visao_geral");
   const isAdmin = profile.role === "admin";
   const verEquipe = permissoes.ver_equipe;
-  const periodo = (await searchParams).periodo === "30" ? 30 : 7;
+  const sp = await searchParams;
+  const periodo = sp.periodo === "30" ? 30 : 7;
   const hoje = hojeBahia();
+  // agenda do painel: hoje, esta semana, este mês ou personalizado
+  const agendaPeriodo = lerPeriodo({ periodo: sp.agenda, de: sp.ade, ate: sp.aate }, hoje);
+  const etiquetasP = listEtiquetas();
 
   const supabase = await createClient();
   const [activities, financeiro, meuResponsavel, pessoas, pendentesDistribuicao, publicacoesPendentes, { data: compsHoje }] = await Promise.all([
@@ -44,15 +55,16 @@ export default async function AdminOverviewPage({ searchParams }: { searchParams
     supabase
       .from("compromissos")
       .select("id, titulo, tipo, inicio, participantes, clients(name)")
-      .gte("inicio", new Date(`${hoje}T00:00:00-03:00`).toISOString())
-      .lt("inicio", new Date(`${somaDias(hoje, 1)}T00:00:00-03:00`).toISOString())
+      .gte("inicio", new Date(`${agendaPeriodo.de}T00:00:00-03:00`).toISOString())
+      .lt("inicio", new Date(`${somaDias(agendaPeriodo.ate, 1)}T00:00:00-03:00`).toISOString())
       .order("inicio"),
   ]);
 
   const corte = Date.parse(hoje) - CONCLUIDAS_DIAS * 86_400_000;
   const noQuadro = activities.filter((a) => emAberto(a) || (a.status === "concluida" && Date.parse(a.updated_at) >= corte));
   const ehMinha = (a: Activity) =>
-    (meuResponsavel ? a.responsavel_id === meuResponsavel : false) || (!a.responsavel_id && a.responsible_id === profile.id);
+    (meuResponsavel ? a.responsavel_id === meuResponsavel || (a.envolvidos ?? []).includes(meuResponsavel) : false) ||
+    (!a.responsavel_id && a.responsible_id === profile.id);
   const minhas = noQuadro.filter(ehMinha);
   const abertasMinhas = minhas.filter(emAberto);
   const atrasadas = abertasMinhas.filter((a) => a.deadline && a.deadline < hoje);
@@ -62,11 +74,14 @@ export default async function AdminOverviewPage({ searchParams }: { searchParams
 
   // agenda de hoje: do escritório (quem vê a equipe) ou só a da pessoa
   const pessoaPorId = new Map(pessoas.map((p) => [p.id, p]));
-  const ativsHoje = activities.filter((a) => emAberto(a) && a.deadline === hoje && (verEquipe || ehMinha(a)));
+  const ativsHoje = activities.filter(
+    (a) => emAberto(a) && !!a.deadline && a.deadline >= agendaPeriodo.de && a.deadline <= agendaPeriodo.ate && (verEquipe || ehMinha(a))
+  );
   const comps = (compsHoje ?? []).filter((c) => verEquipe || (meuResponsavel && c.participantes.includes(meuResponsavel)));
   const agendaHoje = [
     ...comps.map((c) => ({
       chave: `c-${c.id}`,
+      dia: new Intl.DateTimeFormat("en-CA", { timeZone: "America/Bahia" }).format(new Date(c.inicio)),
       href: `/admin/agenda/compromisso/${c.id}`,
       hora: horaBahia(c.inicio),
       rotulo: ROTULO_TIPO[c.tipo] ?? "Compromisso",
@@ -77,15 +92,20 @@ export default async function AdminOverviewPage({ searchParams }: { searchParams
     })),
     ...ativsHoje.map((a) => ({
       chave: `a-${a.id}`,
+      dia: a.deadline!,
       href: `/admin/activities/${a.id}`,
       hora: a.hora ? a.hora.slice(0, 5) : "",
       rotulo: ROTULO_CAT[a.categoria] ?? "Tarefa",
       titulo: a.title,
       cliente: a.clients?.name ?? null,
-      pessoas: a.responsavel_id ? [a.responsavel_id] : [],
+      pessoas: [...(a.responsavel_id ? [a.responsavel_id] : []), ...(a.envolvidos ?? [])],
       cor: a.categoria === "prazo" ? "bg-status-danger" : a.categoria === "audiencia" ? "bg-gold" : "bg-status-info",
     })),
-  ].sort((x, y) => (x.hora || "99").localeCompare(y.hora || "99"));
+  ].sort((x, y) => x.dia.localeCompare(y.dia) || (x.hora || "99").localeCompare(y.hora || "99"));
+  const etiquetas = await etiquetasP;
+  const agendaSoHoje = agendaHoje.filter((i) => i.dia === hoje);
+  const variosDias = agendaPeriodo.de !== agendaPeriodo.ate;
+  const linkAgenda = `/admin/agenda?periodo=${agendaPeriodo.chave}${agendaPeriodo.chave === "personalizado" ? `&de=${agendaPeriodo.de}&ate=${agendaPeriodo.ate}` : ""}`;
 
   const primeiroNome = profile.full_name.replace(/^(Dr\.?|Dra\.?)\s+/i, "").split(" ")[0] ?? "";
   const dataCurta = new Date()
@@ -100,7 +120,7 @@ export default async function AdminOverviewPage({ searchParams }: { searchParams
   if (deHoje.length) resumo.push(<>Hoje vence{deHoje.length > 1 ? "m" : ""} <strong className="font-semibold text-foreground">{plural(deHoje.length, "1 atividade sua", "# atividades suas")}</strong>.</>);
   else resumo.push(<>Nada seu vence hoje.</>);
   if (atrasadas.length) resumo.push(<><strong className="font-semibold text-status-danger">{plural(atrasadas.length, "1 está atrasada", "# estão atrasadas")}</strong>.</>);
-  if (agendaHoje.length) resumo.push(<>A agenda {verEquipe ? "do escritório " : ""}tem <strong className="font-semibold text-foreground">{plural(agendaHoje.length, "1 item", "# itens")}</strong> hoje.</>);
+  if (agendaSoHoje.length) resumo.push(<>A agenda {verEquipe ? "do escritório " : ""}tem <strong className="font-semibold text-foreground">{plural(agendaSoHoje.length, "1 item", "# itens")}</strong> hoje.</>);
   if (pendentesDistribuicao) resumo.push(<>Chegaram <strong className="font-semibold text-foreground">{plural(pendentesDistribuicao, "1 pedido", "# pedidos")}</strong> para distribuir.</>);
   if (publicacoesPendentes) resumo.push(<>Há <strong className="font-semibold text-foreground">{plural(publicacoesPendentes, "1 publicação", "# publicações")}</strong> não tratada{publicacoesPendentes > 1 ? "s" : ""}.</>);
 
@@ -233,7 +253,7 @@ export default async function AdminOverviewPage({ searchParams }: { searchParams
           <Link
             key={c.rotulo}
             href={c.href}
-            className={`px-1 py-5 transition-colors hover:bg-[#f7f7f4] md:px-6 ${i > 0 ? "md:border-l md:border-border" : ""} ${i % 2 ? "border-l border-border md:border-l" : ""} ${i > 1 ? "border-t border-border md:border-t-0" : ""}`}
+            className={`px-1 py-5 transition-colors hover:bg-hover md:px-6 ${i > 0 ? "md:border-l md:border-border" : ""} ${i % 2 ? "border-l border-border md:border-l" : ""} ${i > 1 ? "border-t border-border md:border-t-0" : ""}`}
           >
             <p className={`numero-grande text-4xl ${c.cor}`}>{c.n}</p>
             <p className="eyebrow mt-1">{c.rotulo}</p>
@@ -253,32 +273,48 @@ export default async function AdminOverviewPage({ searchParams }: { searchParams
       )}
 
       <div className="grid grid-cols-1 gap-5 xl:grid-cols-[1.3fr_1fr]">
-        {/* agenda de hoje: linha do tempo */}
-        <section className="ui-card p-5">
+        {/* agenda do período escolhido: linha do tempo */}
+        <section id="agenda" className="ui-card scroll-mt-20 p-5">
           <div className="mb-2 flex items-center justify-between gap-2">
             <div>
-              <p className="eyebrow">Hoje</p>
+              <p className="eyebrow">{agendaPeriodo.rotulo}</p>
               <h2 className="section-title !text-lg">Agenda {verEquipe ? "do escritório" : ""}</h2>
             </div>
             <div className="flex items-center gap-1">
               <Link href="/admin/agenda/compromisso/novo" className="icon-btn" aria-label="Novo compromisso" data-tip="Novo compromisso">
                 <CalendarPlus aria-hidden />
               </Link>
-              <Link href="/admin/agenda" className="icon-btn" aria-label="Abrir agenda" data-tip="Abrir agenda">
+              <Link href={linkAgenda} className="icon-btn" aria-label="Abrir agenda" data-tip="Abrir agenda">
                 <ArrowRight aria-hidden />
               </Link>
             </div>
           </div>
+          <div className="mb-3">
+            <PeriodoFiltro
+              atual={agendaPeriodo}
+              base="/admin"
+              ancora="agenda"
+              nomes={{ periodo: "agenda", de: "ade", ate: "aate" }}
+              manter={{ periodo: sp.periodo }}
+            />
+          </div>
           {agendaHoje.length === 0 ? (
             <div className="flex flex-col items-center gap-1 py-10 text-center">
               <Sun className="h-6 w-6 text-gold" aria-hidden />
-              <p className="font-display text-base font-bold text-foreground">Dia livre.</p>
-              <p className="text-xs text-muted">Nada marcado para hoje.</p>
+              <p className="font-display text-base font-bold text-foreground">{variosDias ? "Período livre." : "Dia livre."}</p>
+              <p className="text-xs text-muted">{variosDias ? "Nada marcado neste período." : "Nada marcado para hoje."}</p>
             </div>
           ) : (
             <ol className="-mx-2">
-              {agendaHoje.slice(0, 7).map((i) => (
+              {agendaHoje.slice(0, variosDias ? 10 : 7).map((i, n, lista) => (
                 <li key={i.chave}>
+                  {variosDias && (n === 0 || lista[n - 1].dia !== i.dia) && (
+                    <p className={`eyebrow px-2 pb-1 ${n ? "pt-3" : ""} ${i.dia === hoje ? "!text-navy" : ""}`}>
+                      {i.dia === hoje
+                        ? "Hoje"
+                        : new Date(`${i.dia}T12:00:00Z`).toLocaleDateString("pt-BR", { weekday: "short", day: "2-digit", month: "2-digit", timeZone: "UTC" }).replace(".", "")}
+                    </p>
+                  )}
                   <Link href={i.href} className="flex items-center gap-3.5 rounded-2xl px-2 py-2.5 transition-colors hover:bg-surface-2">
                     <span className="numero-grande w-12 shrink-0 text-right text-base text-foreground">{i.hora || "—"}</span>
                     <span className={`h-9 w-1 shrink-0 rounded-full ${i.cor}`} aria-hidden />
@@ -295,10 +331,10 @@ export default async function AdminOverviewPage({ searchParams }: { searchParams
                   </Link>
                 </li>
               ))}
-              {agendaHoje.length > 7 && (
+              {agendaHoje.length > (variosDias ? 10 : 7) && (
                 <li className="px-2 pt-1">
-                  <Link href="/admin/agenda" className="eyebrow hover:!text-foreground">
-                    + {agendaHoje.length - 7} na agenda ›
+                  <Link href={linkAgenda} className="eyebrow hover:!text-foreground">
+                    + {agendaHoje.length - (variosDias ? 10 : 7)} na agenda ›
                   </Link>
                 </li>
               )}
@@ -317,7 +353,9 @@ export default async function AdminOverviewPage({ searchParams }: { searchParams
               {[7, 30].map((p) => (
                 <Link
                   key={p}
-                  href={p === 7 ? "/admin" : "/admin?periodo=30"}
+                  href={`/admin?${new URLSearchParams(
+                    Object.entries({ periodo: p === 30 ? "30" : undefined, agenda: sp.agenda, ade: sp.ade, aate: sp.aate }).filter((e): e is [string, string] => !!e[1])
+                  )}`}
                   scroll={false}
                   className={`rounded-full px-2.5 py-1 font-semibold ${periodo === p ? "bg-navy text-white" : "text-muted hover:text-foreground"}`}
                 >
@@ -428,7 +466,7 @@ export default async function AdminOverviewPage({ searchParams }: { searchParams
       )}
 
       <div className="mt-10">
-        <QuadroInicial minhas={minhas} todas={noQuadro} rotuloTodas={permissoes.todos_clientes ? "Todas do escritório" : "Dos meus clientes"} />
+        <QuadroInicial etiquetas={etiquetas} minhas={minhas} todas={noQuadro} rotuloTodas={permissoes.todos_clientes ? "Todas do escritório" : "Dos meus clientes"} />
         <p className="mt-2 text-xs text-muted">
           Concluídas dos últimos {CONCLUIDAS_DIAS} dias. Arraste o cartão para mudar o status; clique para abrir.{" "}
           <Link href="/admin/activities" className="ui-link">

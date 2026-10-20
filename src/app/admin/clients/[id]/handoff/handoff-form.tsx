@@ -108,7 +108,7 @@ export function HandoffForm({ clientId, inicial }: { clientId: string; inicial: 
         return (
           <div key={f.id} className="sm:col-span-2">
             <p className="ui-label">{f.label}</p>
-            <div role="radiogroup" aria-label={f.label} className="inline-flex flex-wrap gap-0.5 rounded-xl bg-[#eceef2] p-1">
+            <div role="radiogroup" aria-label={f.label} className="inline-flex flex-wrap gap-0.5 rounded-xl bg-track p-1">
               {opcoes.map((o) => {
                 const on = valor === o;
                 return (
@@ -190,7 +190,7 @@ export function HandoffForm({ clientId, inicial }: { clientId: string; inicial: 
                 >
                   <span
                     className={`flex h-5 w-5 shrink-0 items-center justify-center rounded-md text-[10px] font-semibold tabular-nums ${
-                      feita ? "bg-navy text-gold-2" : "bg-[#eceef2] text-muted"
+                      feita ? "bg-navy text-gold-2" : "bg-track text-muted"
                     }`}
                   >
                     {feita ? <Check className="h-3 w-3" aria-hidden /> : s.numero}

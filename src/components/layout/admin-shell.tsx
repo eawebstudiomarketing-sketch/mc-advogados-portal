@@ -37,6 +37,7 @@ import {
 import { logout } from "@/app/logout/actions";
 import { CommandPalette, type PaletteItem } from "./command-palette";
 import { PERM_DA_TELA, type Permissoes } from "@/lib/permissoes";
+import { TemaBotao } from "@/components/ui/tema-botao";
 import { NavTrail } from "@/components/nav/nav-trail";
 import { AtividadeModalProvider } from "@/components/atividade/atividade-modal";
 import { Assistente } from "@/components/assistente/assistente";
@@ -244,7 +245,7 @@ export function AdminShell({
           aria-current={on ? "page" : undefined}
           aria-label={item.label}
           className={`relative flex h-10 items-center gap-3 rounded-xl px-[11px] text-sm whitespace-nowrap transition-colors duration-150 ${
-            on ? "bg-navy text-white" : "text-foreground/60 hover:bg-[#f1f1ef] hover:text-foreground"
+            on ? "bg-navy text-white" : "text-foreground/60 hover:bg-hover hover:text-foreground"
           }`}
         >
           <Icone className={`h-[18px] w-[18px] shrink-0 ${on ? "text-gold-2" : ""}`} aria-hidden />
@@ -298,7 +299,7 @@ export function AdminShell({
                 type="button"
                 onClick={() => alternarGrupo(g.id)}
                 aria-expanded={aberto}
-                className={`relative flex h-10 w-full items-center gap-3 rounded-xl px-[11px] text-left text-sm whitespace-nowrap transition-colors hover:bg-[#f1f1ef] ${
+                className={`relative flex h-10 w-full items-center gap-3 rounded-xl px-[11px] text-left text-sm whitespace-nowrap transition-colors hover:bg-hover ${
                   temAtivo && !aberto ? "text-foreground" : "text-foreground/70"
                 }`}
               >
@@ -322,7 +323,7 @@ export function AdminShell({
       <div className="border-t border-border px-[10px] py-3">
         <Link
           href="/account"
-          className="flex h-11 items-center gap-3 rounded-xl px-[6px] whitespace-nowrap hover:bg-[#f1f1ef]"
+          className="flex h-11 items-center gap-3 rounded-xl px-[6px] whitespace-nowrap hover:bg-hover"
           aria-label="Minha conta"
         >
           <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-navy text-[11px] font-semibold text-gold-2">{iniciais(userName) || "MC"}</span>
@@ -333,7 +334,7 @@ export function AdminShell({
         </Link>
         {modo === "sempre" && (
           <form action={logout} className="mt-1">
-            <button type="submit" className="flex h-10 w-full items-center gap-3 rounded-xl px-[11px] text-sm font-medium text-foreground/60 hover:bg-[#f1f1ef] hover:text-foreground">
+            <button type="submit" className="flex h-10 w-full items-center gap-3 rounded-xl px-[11px] text-sm font-medium text-foreground/60 hover:bg-hover hover:text-foreground">
               <LogOut className="h-[18px] w-[18px]" aria-hidden /> Sair
             </button>
           </form>
@@ -370,13 +371,14 @@ export function AdminShell({
           <button
             type="button"
             onClick={() => setBusca(true)}
-            className="flex h-9 min-w-0 flex-1 items-center gap-2.5 rounded-full border border-border bg-[#f6f6f4] px-3.5 text-left text-[13px] text-muted transition-colors hover:border-border-strong hover:text-foreground sm:max-w-md"
+            className="flex h-9 min-w-0 flex-1 items-center gap-2.5 rounded-full border border-border bg-surface-2 px-3.5 text-left text-[13px] text-muted transition-colors hover:border-border-strong hover:text-foreground sm:max-w-md"
           >
             <Search className="h-4 w-4 shrink-0" aria-hidden />
             <span className="flex-1 truncate"><span className="sm:hidden">Buscar</span><span className="hidden sm:inline">Buscar cliente, atividade, processo…</span></span>
             <kbd className="hidden rounded-md border border-border bg-surface px-1.5 font-mono text-[10px] text-muted sm:inline">Ctrl K</kbd>
           </button>
           <div className="ml-auto flex shrink-0 items-center gap-0.5 sm:gap-1">
+            <TemaBotao />
             {publicacoesPendentes > 0 && (
               <Link
                 href="/admin/publicacoes"
