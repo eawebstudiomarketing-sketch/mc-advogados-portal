@@ -1,6 +1,7 @@
 "use client";
 
 import { memo, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import {
   ArrowDown,
   ArrowLeft,
@@ -56,6 +57,7 @@ const reacoesDe = (m: Msg): Reacoes => (m.reacoes && typeof m.reacoes === "objec
 export function Conversa({
   chat,
   nomes,
+  fotos,
   ligado,
   conversas,
   onVoltar,
@@ -64,6 +66,8 @@ export function Conversa({
 }: {
   chat: WaChat;
   nomes: Map<string, string>;
+  /** foto de perfil de cada número (conversas 1:1 que já existem) */
+  fotos: Map<string, string | null>;
   ligado: boolean;
   conversas: WaChat[];
   onVoltar: () => void;
@@ -503,7 +507,7 @@ export function Conversa({
                     <span className="rounded-lg bg-surface px-3 py-1 text-[11px] font-medium text-muted shadow-sm">{dia}</span>
                   </div>
                 )}
-                <Balao m={m} grupo={chat.is_group} nomes={nomes} seguida={seguida} destaque={destaque === m.id} acoes={acoes} onCarregou={aoCarregarMidia} />
+                <Balao m={m} grupo={chat.is_group} nomes={nomes} fotos={fotos} seguida={seguida} destaque={destaque === m.id} acoes={acoes} onCarregou={aoCarregarMidia} />
               </div>
             );
           })}
@@ -564,23 +568,56 @@ export function Conversa({
 
 /* ───────── menu simples ───────── */
 
-export function Menu({ children, onFechar, className = "" }: { children: React.ReactNode; onFechar: () => void; className?: string }) {
+/**
+ * Menu suspenso. Com `ancora` (retângulo do botão que abriu), abre FLUTUANDO
+ * por cima de tudo (portal no body): dentro da lista virtual ou de caixas com
+ * rolagem ele ficava por baixo das outras linhas / cortado.
+ */
+export function Menu({
+  children,
+  onFechar,
+  className = "",
+  ancora,
+}: {
+  children: React.ReactNode;
+  onFechar: () => void;
+  className?: string;
+  ancora?: DOMRect | null;
+}) {
   const ref = useRef<HTMLDivElement>(null);
+  const [pos, setPos] = useState<{ top: number; left: number } | null>(null);
   useEffect(() => {
     const fora = (e: MouseEvent) => !ref.current?.contains(e.target as Node) && onFechar();
     const esc = (e: KeyboardEvent) => e.key === "Escape" && onFechar();
-    setTimeout(() => document.addEventListener("mousedown", fora), 0);
+    const t = setTimeout(() => document.addEventListener("mousedown", fora), 0);
     document.addEventListener("keydown", esc);
+    if (ancora) window.addEventListener("scroll", onFechar, true);
     return () => {
+      clearTimeout(t);
       document.removeEventListener("mousedown", fora);
       document.removeEventListener("keydown", esc);
+      window.removeEventListener("scroll", onFechar, true);
     };
-  }, [onFechar]);
-  return (
-    <div ref={ref} role="menu" className={`absolute z-30 min-w-52 rounded-xl border border-border bg-surface py-1 shadow-lg ${className}`}>
+  }, [onFechar, ancora]);
+  useLayoutEffect(() => {
+    if (!ancora || !ref.current) return;
+    const { width, height } = ref.current.getBoundingClientRect();
+    const left = Math.max(8, Math.min(ancora.right - width, window.innerWidth - width - 8));
+    const embaixo = ancora.bottom + 4;
+    const top = embaixo + height > window.innerHeight - 8 ? Math.max(8, ancora.top - height - 4) : embaixo;
+    setPos({ top, left });
+  }, [ancora]);
+  const caixa = (
+    <div
+      ref={ref}
+      role="menu"
+      style={ancora ? { position: "fixed", top: pos?.top ?? -9999, left: pos?.left ?? -9999 } : undefined}
+      className={`${ancora ? "z-[60]" : "absolute z-30"} min-w-52 rounded-xl border border-border bg-surface py-1 shadow-lg ${ancora ? "" : className}`}
+    >
       {children}
     </div>
   );
+  return ancora ? createPortal(caixa, document.body) : caixa;
 }
 
 export function ItemMenu({ children, onClick, perigo = false }: { children: React.ReactNode; onClick: () => void; perigo?: boolean }) {
@@ -609,10 +646,19 @@ type Acoes = {
   citar: (waId: string) => void;
 };
 
+// cores dos nomes no grupo (como no WhatsApp: cada pessoa uma cor)
+const CORES_NOME = ["#e542a3", "#1f7aec", "#d3396d", "#02a698", "#ff8f2c", "#7f66ff", "#35b84b", "#c0732f", "#5e47de", "#dd4c3b"];
+const corDoNome = (jid: string) => {
+  let h = 0;
+  for (const c of jid) h = (h * 31 + c.charCodeAt(0)) >>> 0;
+  return CORES_NOME[h % CORES_NOME.length];
+};
+
 const Balao = memo(function Balao({
   m,
   grupo,
   nomes,
+  fotos,
   seguida,
   destaque,
   acoes,
@@ -621,6 +667,7 @@ const Balao = memo(function Balao({
   m: Msg;
   grupo: boolean;
   nomes: Map<string, string>;
+  fotos: Map<string, string | null>;
   seguida: boolean;
   destaque: boolean;
   acoes: Acoes;
@@ -628,10 +675,16 @@ const Balao = memo(function Balao({
 }) {
   const meu = m.from_me;
   const hora = new Date(m.wa_timestamp).toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" });
-  const remetente = grupo && !meu && !seguida && m.sender_jid ? nomes.get(m.sender_jid) || telefone(m.sender_jid) : null;
+  // nome de quem mandou no grupo: agenda → "~nome do perfil" → telefone
+  const sender = m.sender_jid && !m.sender_jid.endsWith("@g.us") ? m.sender_jid : null;
+  const remetente =
+    grupo && !meu && !seguida
+      ? (sender && nomes.get(sender)) || (m.sender_nome ? `~${m.sender_nome}` : sender ? telefone(sender) : null)
+      : null;
+  const mostraFoto = grupo && !meu;
   const [verOriginal, setVerOriginal] = useState(false);
-  const [menu, setMenu] = useState(false);
-  const [emojis, setEmojis] = useState(false);
+  const [menu, setMenu] = useState<DOMRect | null>(null);
+  const [emojis, setEmojis] = useState<DOMRect | null>(null);
   const [agora] = useState(() => Date.now());
   const idade = agora - Date.parse(m.wa_timestamp);
   const podeEditar = meu && m.tipo === "texto" && !!m.wa_id && !m.apagada_em && idade < EDITAR_ATE_MS;
@@ -641,15 +694,27 @@ const Balao = memo(function Balao({
   const autorCitada = m.resposta_de === "eu" ? "Você" : m.resposta_de ? nomes.get(m.resposta_de) || telefone(m.resposta_de) : null;
 
   return (
-    <div className={`group/msg flex ${meu ? "justify-end" : "justify-start"} ${seguida ? "mt-0.5" : "mt-2"}`}>
+    <div className={`group/msg flex items-start gap-2 ${meu ? "justify-end" : "justify-start"} ${seguida ? "mt-0.5" : "mt-2"}`}>
+      {mostraFoto &&
+        (seguida ? (
+          <span className="w-8 shrink-0" aria-hidden />
+        ) : (
+          <span className="mt-0.5 shrink-0" title={remetente ?? undefined}>
+            <AvatarWa nome={(sender && nomes.get(sender)) || m.sender_nome || "?"} grupo={false} foto={sender ? fotos.get(sender) : null} tamanho="h-8 w-8" />
+          </span>
+        ))}
       <div className={`relative max-w-[85%] sm:max-w-[65%] ${reacoes.length ? "mb-3" : ""}`}>
         <div
           onDoubleClick={() => !m._temp && acoes.responder(m)}
-          className={`rounded-2xl px-2.5 py-1.5 text-[14px] leading-snug shadow-sm transition-shadow ${meu ? "rounded-tr-md bg-bolha text-bolha-ink" : "rounded-tl-md bg-surface text-foreground"} ${
+          className={`rounded-2xl px-2.5 py-1.5 text-[14px] leading-snug shadow-sm transition-shadow ${meu ? "rounded-tr-md bg-bolha text-bolha-ink" : "wa-entrada rounded-tl-md"} ${
             m.apagada_em ? "ring-1 ring-status-danger/30" : ""
           } ${destaque ? "ring-2 ring-gold" : ""}`}
         >
-          {remetente && <p className="mb-0.5 text-[12px] font-semibold text-gold-ink">{remetente}</p>}
+          {remetente && (
+            <p className="mb-0.5 truncate text-[12.5px] font-semibold" style={{ color: sender ? corDoNome(sender) : undefined }}>
+              {remetente}
+            </p>
+          )}
           {m.encaminhada && (
             <p className="mb-0.5 flex items-center gap-1 text-[11px] italic opacity-70">
               <Forward className="h-3 w-3" aria-hidden /> Encaminhada
@@ -712,22 +777,23 @@ const Balao = memo(function Balao({
         {/* ações: aparecem ao passar o mouse */}
         {!m._temp && (
           <div className={`absolute top-1 ${meu ? "-left-16" : "-right-16"} flex items-center gap-0.5 opacity-0 transition-opacity group-hover/msg:opacity-100 ${menu || emojis ? "opacity-100" : ""}`}>
-            <button type="button" onClick={() => setEmojis((v) => !v)} className="flex h-7 w-7 items-center justify-center rounded-full bg-surface text-muted shadow-sm ring-1 ring-border hover:text-foreground" aria-label="Reagir">
+            <button type="button" onClick={(e) => setEmojis((v) => (v ? null : e.currentTarget.getBoundingClientRect()))} className="flex h-7 w-7 items-center justify-center rounded-full bg-surface text-muted shadow-sm ring-1 ring-border hover:text-foreground" aria-label="Reagir">
               <Smile className="h-3.5 w-3.5" aria-hidden />
             </button>
-            <button type="button" onClick={() => setMenu((v) => !v)} className="flex h-7 w-7 items-center justify-center rounded-full bg-surface text-muted shadow-sm ring-1 ring-border hover:text-foreground" aria-label="Opções da mensagem">
+            <button type="button" onClick={(e) => setMenu((v) => (v ? null : e.currentTarget.getBoundingClientRect()))} className="flex h-7 w-7 items-center justify-center rounded-full bg-surface text-muted shadow-sm ring-1 ring-border hover:text-foreground" aria-label="Opções da mensagem">
               <ChevronDown className="h-3.5 w-3.5" aria-hidden />
             </button>
           </div>
         )}
         {emojis && (
-          <Menu onFechar={() => setEmojis(false)} className={`top-9 ${meu ? "right-0" : "left-0"} !min-w-0 !flex gap-1 !rounded-full !px-2 !py-1`}>
+          <Menu onFechar={() => setEmojis(null)} ancora={emojis}>
+            <div className="flex gap-1 px-2">
             {EMOJIS_RAPIDOS.map((e) => (
               <button
                 key={e}
                 type="button"
                 onClick={() => {
-                  setEmojis(false);
+                  setEmojis(null);
                   acoes.reagir(m, e);
                 }}
                 className={`rounded-full p-1 text-lg transition-transform hover:scale-125 ${reacoesDe(m).eu === e ? "bg-surface-2" : ""}`}
@@ -736,33 +802,34 @@ const Balao = memo(function Balao({
                 {e}
               </button>
             ))}
+            </div>
           </Menu>
         )}
         {menu && (
-          <Menu onFechar={() => setMenu(false)} className={`top-9 ${meu ? "right-0" : "left-0"}`}>
-            <ItemMenu onClick={() => (setMenu(false), acoes.responder(m))}>
+          <Menu onFechar={() => setMenu(null)} ancora={menu}>
+            <ItemMenu onClick={() => (setMenu(null), acoes.responder(m))}>
               <CornerUpLeft className="h-4 w-4 text-muted" aria-hidden /> Responder
             </ItemMenu>
             {m.texto && (
-              <ItemMenu onClick={() => (setMenu(false), acoes.copiar(m))}>
+              <ItemMenu onClick={() => (setMenu(null), acoes.copiar(m))}>
                 <Copy className="h-4 w-4 text-muted" aria-hidden /> Copiar
               </ItemMenu>
             )}
-            <ItemMenu onClick={() => (setMenu(false), acoes.encaminhar(m))}>
+            <ItemMenu onClick={() => (setMenu(null), acoes.encaminhar(m))}>
               <Forward className="h-4 w-4 text-muted" aria-hidden /> Encaminhar
             </ItemMenu>
             {(m.media_download_url || m.media_url) && (
-              <ItemMenu onClick={() => (setMenu(false), window.open(m.media_download_url ?? m.media_url!, "_blank"))}>
+              <ItemMenu onClick={() => (setMenu(null), window.open(m.media_download_url ?? m.media_url!, "_blank"))}>
                 <Download className="h-4 w-4 text-muted" aria-hidden /> Baixar
               </ItemMenu>
             )}
             {podeEditar && (
-              <ItemMenu onClick={() => (setMenu(false), acoes.editar(m))}>
+              <ItemMenu onClick={() => (setMenu(null), acoes.editar(m))}>
                 <Pencil className="h-4 w-4 text-muted" aria-hidden /> Editar
               </ItemMenu>
             )}
             {podeApagar && (
-              <ItemMenu perigo onClick={() => (setMenu(false), acoes.apagar(m))}>
+              <ItemMenu perigo onClick={() => (setMenu(null), acoes.apagar(m))}>
                 <Trash2 className="h-4 w-4" aria-hidden /> Apagar para todos
               </ItemMenu>
             )}

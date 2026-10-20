@@ -58,6 +58,10 @@
   --zap-ink: #1f7a43;
   --bolha: #d9fdd3;
   --bolha-ink: #111b21;
+  /* conversa do WhatsApp: fundo bege e balão recebido branco (cores do próprio WhatsApp) */
+  --wa-fundo: #efeae2;
+  --wa-entrada: #ffffff;
+  --wa-entrada-ink: #111b21;
   --focus-ring: rgba(19, 50, 90, 0.14);
   --tip-bg: var(--navy-2);
   --btn-hover: var(--navy-3);
@@ -130,8 +134,11 @@
   --roxo-ink: #c9bff0;
   --zap-bg: #12201a;
   --zap-ink: #79cf9c;
-  --bolha: #1d3a2e;
-  --bolha-ink: #e6e7e9;
+  --bolha: #005c4b;
+  --bolha-ink: #e9edef;
+  --wa-fundo: #0b141a;
+  --wa-entrada: #202c33;
+  --wa-entrada-ink: #e9edef;
   --focus-ring: rgba(255, 255, 255, 0.12);
   --tip-bg: #2a2d33;
 
@@ -583,5 +590,9 @@ html.trocando-tema * {
 
 /* fundo da conversa do WhatsApp: um tom abaixo dos balões */
 .wa-fundo {
-  background-color: color-mix(in srgb, var(--surface-2) 70%, var(--background));
+  background-color: var(--wa-fundo);
+}
+.wa-entrada {
+  background-color: var(--wa-entrada);
+  color: var(--wa-entrada-ink);
 }

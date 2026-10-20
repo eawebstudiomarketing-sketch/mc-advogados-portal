@@ -40,6 +40,12 @@ export async function listarConversasAction(op: { offset?: number; busca?: strin
   return listarConversas(db, { limite: PAGINA_CONVERSAS, offset: op.offset ?? 0, busca: op.busca, arquivadas: !!op.arquivadas });
 }
 
+/** Status do Agente agora (botão Atualizar). */
+export async function statusAgenteAction() {
+  await exigirPermissao("whatsapp");
+  return statusAgente(await createClient());
+}
+
 export async function listarContatosAction(): Promise<WaContato[]> {
   await exigirPermissao("whatsapp");
   return listarContatos(await createClient());

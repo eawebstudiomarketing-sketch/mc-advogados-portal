@@ -369,7 +369,7 @@ function Participantes({
   onAbrirConversa: (jid: string, nome: string | null) => void;
 }) {
   const [busca, setBusca] = useState("");
-  const [menu, setMenu] = useState<string | null>(null);
+  const [menu, setMenu] = useState<{ jid: string; rect: DOMRect } | null>(null);
   const [adicionando, setAdicionando] = useState(false);
   const nomeDe = (p: Participante) => (p.eu ? "Você" : p.nome || nomes.get(p.jid) || telefone(p.jid));
   const termo = busca.trim().toLowerCase();
@@ -420,12 +420,12 @@ function Participantes({
               </span>
             )}
             {!p.eu && (
-              <button type="button" onClick={() => setMenu(menu === p.jid ? null : p.jid)} className="icon-btn shrink-0" aria-label={`Opções de ${nomeDe(p)}`}>
+              <button type="button" onClick={(e) => setMenu(menu?.jid === p.jid ? null : { jid: p.jid, rect: e.currentTarget.getBoundingClientRect() })} className="icon-btn shrink-0" aria-label={`Opções de ${nomeDe(p)}`}>
                 <MoreVertical aria-hidden />
               </button>
             )}
-            {menu === p.jid && (
-              <Menu onFechar={() => setMenu(null)} className="top-10 right-0">
+            {menu?.jid === p.jid && (
+              <Menu onFechar={() => setMenu(null)} ancora={menu.rect}>
                 <ItemMenu onClick={() => (setMenu(null), onAbrirConversa(p.jid, p.nome))}>Conversar com {nomeDe(p).split(" ")[0]}</ItemMenu>
                 {grupo.sou_admin && (
                   <>

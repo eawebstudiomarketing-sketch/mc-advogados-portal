@@ -360,6 +360,7 @@ export type Database = {
           resposta_de: string | null
           reacoes: Json
           encaminhada: boolean
+          sender_nome: string | null
           wa_timestamp: string
           created_at: string
         }
@@ -384,6 +385,7 @@ export type Database = {
           resposta_de?: string | null
           reacoes?: Json
           encaminhada?: boolean
+          sender_nome?: string | null
           wa_timestamp?: string
           created_at?: string
         }
@@ -408,6 +410,7 @@ export type Database = {
           resposta_de?: string | null
           reacoes?: Json
           encaminhada?: boolean
+          sender_nome?: string | null
           wa_timestamp?: string
           created_at?: string
         }

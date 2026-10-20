@@ -2,11 +2,11 @@
 
 import { memo, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useVirtualizer } from "@tanstack/react-virtual";
-import { BellOff, ChevronDown, Loader2, MessageCircle, Pin, Search, SquarePen, Users } from "lucide-react";
+import { BellOff, ChevronDown, Loader2, MessageCircle, Pin, RefreshCw, Search, SquarePen, Users } from "lucide-react";
 import { toast } from "sonner";
 import { createClient } from "@/lib/supabase/client";
 import type { WaAgente, WaChat, WaContato } from "@/lib/whatsapp";
-import { abrirContatoAction, linkFotoAction, listarContatosAction, listarConversasAction } from "./actions";
+import { abrirContatoAction, linkFotoAction, listarContatosAction, listarConversasAction, statusAgenteAction } from "./actions";
 import { executarOrdem } from "./ordem";
 import { BarraAgente } from "./agente-barra";
 import { AvatarWa } from "./comum";
@@ -36,6 +36,31 @@ export function WhatsappApp({ agenteInicial, conversasIniciais, clientes }: { ag
   const [doServidor, setDoServidor] = useState<WaChat[]>([]);
   const [filtro, setFiltro] = useState<Filtro>("todas");
   const [novoGrupo, setNovoGrupo] = useState(false);
+  const [versao, setVersao] = useState(0); // muda ao clicar em Atualizar: a conversa aberta recarrega
+  const [atualizando, setAtualizando] = useState(false);
+
+  /** Atualizar tudo na hora (lista, conversa aberta, status do número), sem recarregar a página. */
+  async function atualizarTudo() {
+    setAtualizando(true);
+    try {
+      const [pagina, ag, ctts] = await Promise.all([listarConversasAction({ offset: 0 }), statusAgenteAction(), listarContatosAction()]);
+      setConversas((cs) => {
+        const porJid = new Map(cs.map((c) => [c.chat_jid, c]));
+        for (const c of pagina) porJid.set(c.chat_jid, c);
+        return ordenar([...porJid.values()].filter((c) => !c.arquivado));
+      });
+      if (ag) setAgente(ag);
+      setContatos(ctts);
+      setArquivadas(null);
+      setDoServidor([]);
+      setVersao((v) => v + 1);
+      toast.success("WhatsApp atualizado.");
+    } catch {
+      toast.error("Não foi possível atualizar agora.");
+    } finally {
+      setAtualizando(false);
+    }
+  }
   const conversasRef = useRef(conversas);
   useEffect(() => {
     conversasRef.current = conversas;
@@ -62,6 +87,9 @@ export function WhatsappApp({ agenteInicial, conversasIniciais, clientes }: { ag
     for (const c of conversas) if (c.nome && !c.is_group) m.set(c.chat_jid, c.nome);
     return m;
   }, [contatos, conversas]);
+
+  // foto de cada número (nas mensagens de grupo, ao lado do nome)
+  const fotos = useMemo(() => new Map(conversas.filter((c) => !c.is_group).map((c) => [c.chat_jid, c.foto_url])), [conversas]);
 
   /* ───── tempo real: Agente e lista de conversas (em lote, pra não travar) ───── */
   useEffect(() => {
@@ -226,6 +254,9 @@ export function WhatsappApp({ agenteInicial, conversasIniciais, clientes }: { ag
                   aria-label="Buscar"
                 />
               </label>
+              <button type="button" onClick={() => void atualizarTudo()} disabled={atualizando} className="icon-btn h-9 w-9" aria-label="Atualizar" data-tip="Atualizar">
+                <RefreshCw className={atualizando ? "animate-spin" : ""} aria-hidden />
+              </button>
               <button type="button" onClick={() => setNovoGrupo(true)} disabled={!ligado} className="icon-btn h-9 w-9" aria-label="Novo grupo" data-tip="Novo grupo">
                 <SquarePen aria-hidden />
               </button>
@@ -288,9 +319,10 @@ export function WhatsappApp({ agenteInicial, conversasIniciais, clientes }: { ag
             <>
               <div className="flex min-w-0 flex-1 flex-col">
                 <Conversa
-                  key={chat.chat_jid}
+                  key={`${chat.chat_jid}-${versao}`}
                   chat={chat}
                   nomes={nomes}
+                  fotos={fotos}
                   ligado={ligado}
                   conversas={conversas}
                   onVoltar={() => setAberta(null)}
@@ -392,14 +424,14 @@ const LinhaConversa = memo(function LinhaConversa({
   onAbrir: (jid: string) => void;
   onAjustar: (jid: string, acao: "fixar" | "arquivar" | "silenciar" | "lida", valor: boolean) => void;
 }) {
-  const [menu, setMenu] = useState(false);
+  const [menu, setMenu] = useState<DOMRect | null>(null);
   const nome = c.nome || telefone(c.chat_jid);
   return (
     <div
       className={`group relative flex h-full items-center gap-3 px-3 transition-colors hover:bg-surface-2 ${ativa ? "bg-surface-2" : ""}`}
       onContextMenu={(e) => {
         e.preventDefault();
-        setMenu(true);
+        setMenu(new DOMRect(e.clientX, e.clientY, 0, 0));
       }}
     >
       <button type="button" onClick={() => onAbrir(c.chat_jid)} className="absolute inset-0" aria-label={`Abrir conversa com ${nome}`} />
@@ -428,18 +460,18 @@ const LinhaConversa = memo(function LinhaConversa({
       </span>
       <button
         type="button"
-        onClick={() => setMenu((v) => !v)}
+        onClick={(e) => setMenu((v) => (v ? null : e.currentTarget.getBoundingClientRect()))}
         className="relative z-10 -mr-1 hidden h-7 w-7 shrink-0 items-center justify-center rounded-full text-muted group-hover:flex hover:bg-surface hover:text-foreground"
         aria-label="Opções da conversa"
       >
         <ChevronDown className="h-4 w-4" aria-hidden />
       </button>
       {menu && (
-        <Menu onFechar={() => setMenu(false)} className="top-12 right-2">
-          <ItemMenu onClick={() => (setMenu(false), onAjustar(c.chat_jid, "fixar", !c.fixado))}>{c.fixado ? "Desafixar" : "Fixar conversa"}</ItemMenu>
-          <ItemMenu onClick={() => (setMenu(false), onAjustar(c.chat_jid, "lida", c.nao_lidas > 0))}>{c.nao_lidas > 0 ? "Marcar como lida" : "Marcar como não lida"}</ItemMenu>
-          <ItemMenu onClick={() => (setMenu(false), onAjustar(c.chat_jid, "silenciar", !c.silenciado))}>{c.silenciado ? "Reativar notificações" : "Silenciar (8 h)"}</ItemMenu>
-          <ItemMenu onClick={() => (setMenu(false), onAjustar(c.chat_jid, "arquivar", !c.arquivado))}>{c.arquivado ? "Desarquivar" : "Arquivar conversa"}</ItemMenu>
+        <Menu onFechar={() => setMenu(null)} ancora={menu}>
+          <ItemMenu onClick={() => (setMenu(null), onAjustar(c.chat_jid, "fixar", !c.fixado))}>{c.fixado ? "Desafixar" : "Fixar conversa"}</ItemMenu>
+          <ItemMenu onClick={() => (setMenu(null), onAjustar(c.chat_jid, "lida", c.nao_lidas > 0))}>{c.nao_lidas > 0 ? "Marcar como lida" : "Marcar como não lida"}</ItemMenu>
+          <ItemMenu onClick={() => (setMenu(null), onAjustar(c.chat_jid, "silenciar", !c.silenciado))}>{c.silenciado ? "Reativar notificações" : "Silenciar (8 h)"}</ItemMenu>
+          <ItemMenu onClick={() => (setMenu(null), onAjustar(c.chat_jid, "arquivar", !c.arquivado))}>{c.arquivado ? "Desarquivar" : "Arquivar conversa"}</ItemMenu>
         </Menu>
       )}
     </div>
