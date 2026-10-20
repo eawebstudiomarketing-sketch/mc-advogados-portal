@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { ArrowRight } from "lucide-react";
+import { RolagemLateral } from "@/components/ui/rolagem-lateral";
 import { ETAPAS, type CartaoPipeline, type EtapaId } from "@/lib/data/pipeline";
 
 // Quadro do pipeline do cliente (colunas = etapas da operação). Cada cartão
@@ -50,7 +51,8 @@ export function PipelineBoard({ cartoes, compacto = false }: { cartoes: CartaoPi
   }
 
   return (
-    <div className="-mx-1 flex gap-3 overflow-x-auto px-1 pb-2">
+    <RolagemLateral className="-mx-1 px-1 pb-2">
+      <div className="flex w-max gap-3">
       {ETAPAS.map((e) => {
         const lista = cartoes.filter((c) => c.etapa === e.id);
         return (
@@ -84,6 +86,7 @@ export function PipelineBoard({ cartoes, compacto = false }: { cartoes: CartaoPi
           </section>
         );
       })}
-    </div>
+      </div>
+    </RolagemLateral>
   );
 }

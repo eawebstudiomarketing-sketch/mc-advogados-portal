@@ -169,9 +169,12 @@ ${dados.resposta}` : dados.resposta));
 
       <div>
         <label htmlFor="prazo" className="eyebrow block">
-          04 · Tem data limite? <span className="normal-case tracking-normal">(opcional)</span>
+          04 · Tem data e horário limite? <span className="normal-case tracking-normal">(opcional)</span>
         </label>
-        <input id="prazo" name="prazo" type="date" className="ui-input mt-2 max-w-[14rem]" />
+        <div className="mt-2 flex flex-wrap gap-2">
+          <input id="prazo" name="prazo" type="date" className="ui-input max-w-[14rem]" />
+          <input name="hora" type="time" aria-label="Horário (opcional)" className="ui-input max-w-[9rem]" />
+        </div>
       </div>
 
       <div>

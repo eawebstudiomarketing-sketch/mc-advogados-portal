@@ -580,3 +580,8 @@ html.trocando-tema * {
   color: color-mix(in srgb, var(--et) 55%, #fff);
   box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--et) 35%, transparent);
 }
+
+/* fundo da conversa do WhatsApp: um tom abaixo dos balões */
+.wa-fundo {
+  background-color: color-mix(in srgb, var(--surface-2) 70%, var(--background));
+}

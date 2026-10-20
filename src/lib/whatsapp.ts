@@ -50,18 +50,19 @@ export async function statusAgente(db: Db): Promise<WaAgente | null> {
 
 export async function listarConversas(
   db: Db,
-  { busca, soNaoLidas, limite = 60 }: { busca?: string; soNaoLidas?: boolean; limite?: number } = {}
+  { busca, soNaoLidas, limite = 60, offset = 0, arquivadas = false }: { busca?: string; soNaoLidas?: boolean; limite?: number; offset?: number; arquivadas?: boolean } = {}
 ): Promise<WaChat[]> {
   // o Supabase entrega no máximo 1000 linhas por vez: busca em páginas
   const out: WaChat[] = [];
-  for (let de = 0; de < limite; de += 1000) {
+  for (let de = offset; de < offset + limite; de += 1000) {
     let q = db
       .from("wa_chats")
       .select("*")
-      .eq("arquivado", false)
+      .eq("arquivado", arquivadas)
+      .order("fixado", { ascending: false })
       .order("ultima_msg_em", { ascending: false, nullsFirst: false })
       .order("chat_jid")
-      .range(de, Math.min(de + 1000, limite) - 1);
+      .range(de, Math.min(de + 1000, offset + limite) - 1);
     if (soNaoLidas) q = q.gt("nao_lidas", 0);
     const termo = busca?.replace(/[%_,()]/g, " ").trim();
     if (termo) {
@@ -104,14 +105,21 @@ export function comFotos<T extends { foto_url: string | null }>(chats: T[]): (T 
 export async function lerConversa(
   db: Db,
   chatJid: string,
-  { limite = 60, antesDe, desde }: { limite?: number; antesDe?: string; desde?: string } = {}
+  { limite = 60, antesDe, desde, depoisDe }: { limite?: number; antesDe?: string; desde?: string; depoisDe?: string } = {}
 ): Promise<WaMensagem[]> {
-  let q = db.from("wa_messages").select("*").eq("chat_jid", chatJid).order("wa_timestamp", { ascending: false }).limit(limite);
+  // "depoisDe": mensagens mais novas que um ponto (depois de pular pra uma mensagem antiga)
+  let q = db
+    .from("wa_messages")
+    .select("*")
+    .eq("chat_jid", chatJid)
+    .order("wa_timestamp", { ascending: !!depoisDe })
+    .limit(limite);
   if (antesDe) q = q.lt("wa_timestamp", antesDe);
   if (desde) q = q.gte("wa_timestamp", desde);
+  if (depoisDe) q = q.gt("wa_timestamp", depoisDe);
   const { data, error } = await q;
   if (error) throw new Error(error.message);
-  const msgs = (data ?? []).reverse();
+  const msgs = depoisDe ? (data ?? []) : (data ?? []).reverse();
   return comLinksDeMidia(msgs);
 }
 

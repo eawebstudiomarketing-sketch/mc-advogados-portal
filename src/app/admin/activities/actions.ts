@@ -21,7 +21,7 @@ function lerAgenda(formData: FormData): { categoria?: string; hora?: string | nu
   if (typeof categoria === "string" && CATEGORIAS.includes(categoria)) out.categoria = categoria;
   if (formData.has("hora")) {
     const hora = String(formData.get("hora") ?? "");
-    out.hora = /^\d{2}:\d{2}$/.test(hora) && out.categoria === "audiencia" ? hora : null;
+    out.hora = /^\d{2}:\d{2}$/.test(hora) ? hora : null; // horário em qualquer atividade (pedido de 20/10)
   }
   return out;
 }

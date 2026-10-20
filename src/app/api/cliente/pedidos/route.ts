@@ -25,6 +25,8 @@ export async function POST(request: Request) {
   const urgente = form.get("urgencia") === "urgente";
   const prazoTxt = String(form.get("prazo") ?? "").trim();
   const prazo = /^\d{4}-\d{2}-\d{2}$/.test(prazoTxt) ? prazoTxt : null;
+  const horaTxt = String(form.get("hora") ?? "").trim();
+  const hora = prazo && /^\d{2}:\d{2}$/.test(horaTxt) ? horaTxt : null;
   const arquivo = form.get("arquivo");
   const audio = form.get("audio");
 
@@ -87,6 +89,7 @@ export async function POST(request: Request) {
       description: descricaoFinal,
       type: "consultoria", // a equipe reclassifica ao distribuir
       deadline: prazo,
+      hora,
     })
     .select("id")
     .single();

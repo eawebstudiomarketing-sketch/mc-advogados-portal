@@ -22,6 +22,8 @@ export async function distribuirAction(_prev: DistribuirState, formData: FormDat
   const area = texto(formData.get("area")) || null;
   const tipo = texto(formData.get("tipo"));
   const prazo = texto(formData.get("prazo")) || null;
+  const horaTxt = texto(formData.get("hora"));
+  const hora = prazo && /^\d{2}:\d{2}$/.test(horaTxt) ? horaTxt : null;
   const responsavelId = texto(formData.get("responsavel_id"));
 
   if (!titulo) return { error: "Informe o título." };
@@ -44,6 +46,7 @@ export async function distribuirAction(_prev: DistribuirState, formData: FormDat
     area,
     type: tipo as Database["public"]["Enums"]["activity_type"],
     deadline: prazo,
+    ...(hora ? { hora } : {}),
     responsavel_id: resp.id,
   };
 

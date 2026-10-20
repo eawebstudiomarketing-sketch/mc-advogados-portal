@@ -269,7 +269,7 @@ function AtividadeModal({ id, editarAoAbrir, onClose }: { id: string; editarAoAb
                   </select>
                 </Campo>
                 <Campo icone={CalendarDays} rotulo="Prazo">
-                  {d.deadline ? formatDate(d.deadline) : <span className="text-muted">Sem prazo</span>}
+                  {d.deadline ? `${formatDate(d.deadline)}${d.hora ? ` às ${d.hora.slice(0, 5)}` : ""}` : <span className="text-muted">Sem prazo</span>}
                 </Campo>
                 <Campo icone={UserRound} rotulo="Responsável">
                   {d.responsavel ?? <span className="text-muted">—</span>}
@@ -387,8 +387,11 @@ function AtividadeModal({ id, editarAoAbrir, onClose }: { id: string; editarAoAb
                   </select>
                 </div>
                 <div>
-                  <label htmlFor="m-deadline" className="ui-label">Prazo</label>
-                  <input id="m-deadline" name="deadline" type="date" defaultValue={d.deadline ?? ""} className="ui-input" />
+                  <label htmlFor="m-deadline" className="ui-label">Prazo e horário</label>
+                  <div className="flex gap-2">
+                    <input id="m-deadline" name="deadline" type="date" defaultValue={d.deadline ?? ""} className="ui-input" />
+                    <input name="hora" type="time" defaultValue={d.hora?.slice(0, 5) ?? ""} aria-label="Horário" className="ui-input max-w-32" />
+                  </div>
                 </div>
                 <div>
                   <label htmlFor="m-resp" className="ui-label">Responsável</label>

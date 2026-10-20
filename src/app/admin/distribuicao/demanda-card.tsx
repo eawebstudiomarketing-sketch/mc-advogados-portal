@@ -206,6 +206,7 @@ export function DemandaCard({
             ))}
           </select>
           <input type="date" name="prazo" defaultValue={d.prazo ?? ""} className={campo} aria-label="Prazo" />
+          <input type="time" name="hora" className={`${campo} w-28`} aria-label="Horário (opcional)" title="Horário (opcional)" />
           <div className="ml-auto flex items-center gap-2">
             {state.error && <p className="text-xs text-status-danger">{state.error}</p>}
             <button type="button" onClick={() => mudarStatus("descartada")} disabled={pending} className="ui-btn-secondary" aria-label="Descartar">

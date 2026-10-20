@@ -8,7 +8,7 @@ export const CATEGORIAS = [
   { valor: "audiencia", rotulo: "Audiência" },
 ] as const;
 
-// Categoria da atividade na Agenda + hora (a hora só aparece para audiência)
+// Categoria da atividade na Agenda + horário (opcional, em qualquer categoria)
 // + área de atuação (quando a lista de áreas do escritório vem junto).
 export function CamposAgenda({
   categoria = "tarefa",
@@ -52,16 +52,12 @@ export function CamposAgenda({
           ))}
         </select>
       </div>
-      {cat === "audiencia" ? (
-        <div>
-          <label htmlFor="hora" className="ui-label">
-            Horário
-          </label>
-          <input id="hora" name="hora" type="time" defaultValue={hora?.slice(0, 5) ?? ""} className="ui-input" />
-        </div>
-      ) : (
-        <input type="hidden" name="hora" value="" />
-      )}
+      <div>
+        <label htmlFor="hora" className="ui-label">
+          Horário <span className="font-normal text-muted">{cat === "audiencia" ? "da audiência" : "(opcional)"}</span>
+        </label>
+        <input id="hora" name="hora" type="time" defaultValue={hora?.slice(0, 5) ?? ""} className="ui-input" />
+      </div>
     </div>
   );
 }

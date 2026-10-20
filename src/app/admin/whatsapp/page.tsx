@@ -1,30 +1,25 @@
 import { exigirPermissao } from "@/lib/dal";
 import { createClient } from "@/lib/supabase/server";
-import { listarContatos, listarConversas, statusAgente } from "@/lib/whatsapp";
+import { listarConversas, statusAgente } from "@/lib/whatsapp";
 import { WhatsappApp } from "./whatsapp-app";
 
 export const metadata = { title: "WhatsApp" };
 
+// WhatsApp em tela cheia: carrega só as 300 conversas mais recentes (o resto
+// vem rolando ou pela busca) e a agenda depois que a tela aparece.
 export default async function WhatsappPage() {
   await exigirPermissao("whatsapp");
   const db = await createClient();
-  const [agente, conversas, contatos, clientes] = await Promise.all([
+  const [agente, conversas, clientes] = await Promise.all([
     statusAgente(db),
-    listarConversas(db, { limite: 5000 }),
-    listarContatos(db),
+    listarConversas(db, { limite: 300 }),
     db.from("clients").select("id, name").eq("active", true).order("name"),
   ]);
 
   return (
-    <div>
-      <div className="mb-4">
-        <p className="eyebrow mb-2">Comercial · WhatsApp do escritório</p>
-        <h1 className="page-title">WhatsApp</h1>
-        <p className="text-sm text-muted">
-          WhatsApp do escritório ao vivo, com backup permanente: o que for apagado no celular continua aqui. Para mandar a IA agir, use o assistente (Ctrl+J).
-        </p>
-      </div>
-      <WhatsappApp agenteInicial={agente} conversasIniciais={conversas} contatos={contatos} clientes={clientes.data ?? []} />
+    <div className="-mt-2">
+      <h1 className="sr-only">WhatsApp</h1>
+      <WhatsappApp agenteInicial={agente} conversasIniciais={conversas} clientes={clientes.data ?? []} />
     </div>
   );
 }

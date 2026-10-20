@@ -290,6 +290,8 @@ export type Database = {
           lead_id: string | null
           responsavel: string | null
           nao_lidas: number
+          fixado: boolean
+          silenciado: boolean
           arquivado: boolean
           ultima_msg_em: string | null
           ultima_msg_preview: string | null
@@ -307,6 +309,8 @@ export type Database = {
           lead_id?: string | null
           responsavel?: string | null
           nao_lidas?: number
+          fixado?: boolean
+          silenciado?: boolean
           arquivado?: boolean
           ultima_msg_em?: string | null
           ultima_msg_preview?: string | null
@@ -324,6 +328,8 @@ export type Database = {
           lead_id?: string | null
           responsavel?: string | null
           nao_lidas?: number
+          fixado?: boolean
+          silenciado?: boolean
           arquivado?: boolean
           ultima_msg_em?: string | null
           ultima_msg_preview?: string | null
@@ -349,6 +355,11 @@ export type Database = {
           erro: string | null
           job_id: string | null
           raw: Json | null
+          resposta_a: string | null
+          resposta_texto: string | null
+          resposta_de: string | null
+          reacoes: Json
+          encaminhada: boolean
           wa_timestamp: string
           created_at: string
         }
@@ -368,6 +379,11 @@ export type Database = {
           erro?: string | null
           job_id?: string | null
           raw?: Json | null
+          resposta_a?: string | null
+          resposta_texto?: string | null
+          resposta_de?: string | null
+          reacoes?: Json
+          encaminhada?: boolean
           wa_timestamp?: string
           created_at?: string
         }
@@ -387,6 +403,11 @@ export type Database = {
           erro?: string | null
           job_id?: string | null
           raw?: Json | null
+          resposta_a?: string | null
+          resposta_texto?: string | null
+          resposta_de?: string | null
+          reacoes?: Json
+          encaminhada?: boolean
           wa_timestamp?: string
           created_at?: string
         }
