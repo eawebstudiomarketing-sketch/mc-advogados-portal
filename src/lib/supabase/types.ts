@@ -288,6 +288,7 @@ export type Database = {
           foto_url: string | null
           client_id: string | null
           lead_id: string | null
+          ler_demandas: boolean | null
           responsavel: string | null
           nao_lidas: number
           fixado: boolean
@@ -307,6 +308,7 @@ export type Database = {
           foto_url?: string | null
           client_id?: string | null
           lead_id?: string | null
+          ler_demandas?: boolean | null
           responsavel?: string | null
           nao_lidas?: number
           fixado?: boolean
@@ -326,6 +328,7 @@ export type Database = {
           foto_url?: string | null
           client_id?: string | null
           lead_id?: string | null
+          ler_demandas?: boolean | null
           responsavel?: string | null
           nao_lidas?: number
           fixado?: boolean

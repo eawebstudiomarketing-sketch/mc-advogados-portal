@@ -7,8 +7,9 @@ import { ACTIVITY_TYPES } from "@/lib/activity-type";
 import { criarAvisos } from "@/lib/avisos";
 import { transcreverAudioDoZap } from "@/lib/whatsapp-audio";
 
-// Lê as mensagens novas das conversas do WhatsApp ligadas a clientes (e de
-// todo grupo com "ASSESSORIA JURÍDICA" no nome, mesmo sem cliente vinculado) e
+// Lê as mensagens novas das conversas do WhatsApp ligadas a clientes, de todo
+// grupo com "ASSESSORIA JURÍDICA" no nome e das conversas ligadas a dedo
+// (wa_chats.ler_demandas = true, mesmo sem cliente; false desliga) e
 // pede à IA só os PEDIDOS de trabalho. Cada pedido vira um cartão na Distribuição,
 // com área e responsável sugeridos. Nada é criado como atividade sozinho.
 
@@ -86,15 +87,16 @@ export async function lerConversasDoZap(): Promise<ResultadoLeitura> {
   const [config, pessoas] = await Promise.all([getEscritorioConfig(), listPessoas()]);
   const { data: chats } = await db
     .from("wa_chats")
-    .select("chat_jid, nome, is_group, client_id, demandas_lidas_ate, ultima_msg_em, clients(name)")
-    // "jur*dica" pega com e sem acento
-    .or("client_id.not.is.null,and(is_group.eq.true,nome.ilike.*assessoria*jur*dica*)")
+    .select("chat_jid, nome, is_group, client_id, demandas_lidas_ate, ultima_msg_em, ler_demandas, clients(name)")
+    // "jur*dica" pega com e sem acento; ler_demandas=true: escolhida a dedo (mesmo sem cliente)
+    .or("client_id.not.is.null,and(is_group.eq.true,nome.ilike.*assessoria*jur*dica*),ler_demandas.is.true")
     .eq("arquivado", false);
 
   const hojeISO = new Intl.DateTimeFormat("en-CA", { timeZone: "America/Bahia" }).format(new Date());
   const r: ResultadoLeitura = { conversas: 0, mensagens: 0, sugestoes: 0 };
 
   for (const chat of chats ?? []) {
+    if (chat.ler_demandas === false) continue; // desligada a pedido
     const desde = chat.demandas_lidas_ate ?? new Date(Date.now() - PRIMEIRA_JANELA_H * 3_600_000).toISOString();
     if (chat.ultima_msg_em && chat.ultima_msg_em <= desde) continue;
 

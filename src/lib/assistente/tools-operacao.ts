@@ -119,7 +119,7 @@ export function toolsOperacao(db: () => Db): ToolDef[] {
       soAdmin: true,
       label: "Leu o WhatsApp dos clientes",
       description:
-        "Lê agora as mensagens novas dos grupos/contatos de clientes vinculados e coloca os pedidos encontrados na Distribuição (o sistema já faz isso sozinho ao chegar mensagem; use quando pedirem para conferir na hora).",
+        "Lê agora as mensagens novas dos grupos/contatos lidos pela Distribuição (clientes vinculados, grupos de Assessoria Jurídica e os ligados com whatsapp_ler_para_distribuicao) e coloca os pedidos encontrados na Distribuição (o sistema já faz isso sozinho ao chegar mensagem; use quando pedirem para conferir na hora).",
       parameters: obj({}),
       run: async () => {
         const r = await lerConversasDoZap();

@@ -560,4 +560,50 @@ export const TOOLS_WHATSAPP: ToolDef[] = [
       return ordem("grupo", { jid: g.para, acao: a.encerrar ? "encerrar" : "sair" }, g.para, ctx.profileId, 30_000);
     },
   },
+  // ───────── leitura 24h para a Distribuição ─────────
+  {
+    name: "whatsapp_ler_para_distribuicao",
+    soAdmin: true,
+    kind: "write",
+    label: "Mudou a leitura 24h do WhatsApp",
+    description:
+      "Liga (ler=true) ou desliga (ler=false) a leitura 24h de um grupo ou contato para gerar demandas na Distribuição — vale mesmo para conversa SEM cliente vinculado. Use quando pedirem 'quero que a leitura/geração de demandas fique nesse grupo/contato'.",
+    parameters: obj({ alvo: ALVO, ler: { type: "boolean" } }, ["alvo", "ler"]),
+    run: async (a) => {
+      const { para, chat } = await destinoUnico(a.alvo);
+      if (!chat) throw new Error("Essa conversa ainda não existe no WhatsApp do escritório (precisa ter pelo menos uma mensagem).");
+      const automatico = !!chat.client_id || (chat.is_group && /assessoria\s+juridica/.test((chat.nome ?? "").normalize("NFD").replace(/[̀-ͯ]/g, "").toLowerCase()));
+      const ler = a.ler !== false;
+      const valor = ler === automatico ? null : ler; // igual ao padrão: volta para automático
+      const { error } = await db().from("wa_chats").update({ ler_demandas: valor }).eq("chat_jid", para);
+      if (error) throw error;
+      return { conversa: nomeChat(chat, para), lendo: ler, observacao: ler ? "Mensagens novas viram sugestões na Distribuição (a partir das últimas 24h)." : "Não gera mais demandas." };
+    },
+  },
+  {
+    name: "whatsapp_conversas_lidas",
+    soAdmin: true,
+    kind: "read",
+    label: "Viu quais conversas a Distribuição lê",
+    description: "Lista os grupos e contatos que a leitura 24h da Distribuição está lendo (e os desligados a pedido), com o motivo.",
+    parameters: obj({}),
+    run: async () => {
+      const { data, error } = await db()
+        .from("wa_chats")
+        .select("chat_jid, nome, is_group, client_id, ler_demandas, clients(name)")
+        .or("client_id.not.is.null,and(is_group.eq.true,nome.ilike.*assessoria*jur*dica*),ler_demandas.not.is.null")
+        .eq("arquivado", false)
+        .limit(300);
+      if (error) throw error;
+      const lendo: string[] = [];
+      const desligadas: string[] = [];
+      for (const c of data ?? []) {
+        const cli = (c.clients as unknown as { name: string } | null)?.name;
+        const nome = `${nomeChat(c, c.chat_jid)}${c.is_group ? " [grupo]" : ""}`;
+        if (c.ler_demandas === false) desligadas.push(nome);
+        else lendo.push(`${nome} — ${c.ler_demandas ? "ligada a dedo" : cli ? `cliente ${cli}` : "grupo de Assessoria Jurídica"}`);
+      }
+      return { lendo, desligadas };
+    },
+  },
 ];

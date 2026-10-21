@@ -222,6 +222,14 @@ export async function vincularClienteAction(chatJid: string, clientId: string | 
   await db.from("wa_chats").update({ client_id: clientId }).eq("chat_jid", chatJid);
 }
 
+/** Ler esta conversa para a Distribuição: true = sempre, false = nunca, null = automático. */
+export async function setLerDemandasAction(chatJid: string, valor: boolean | null): Promise<{ ok: boolean; erro?: string }> {
+  await exigirPermissao("whatsapp");
+  const db = await createClient();
+  const { error } = await db.from("wa_chats").update({ ler_demandas: valor }).eq("chat_jid", chatJid);
+  return error ? { ok: false, erro: error.message } : { ok: true };
+}
+
 /**
  * Sair do WhatsApp: o Agente faz logout (some de "Aparelhos conectados" no
  * celular) e apaga a sessão. "Trocar" já gera o QR; "desconectar" fica parado

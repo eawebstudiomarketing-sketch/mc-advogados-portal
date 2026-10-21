@@ -5,7 +5,7 @@ import Link from "next/link";
 import { Copy, Crown, Download, FileText, Link2, Loader2, LogOut, MoreVertical, Pencil, Power, RefreshCw, Search, UserPlus, X } from "lucide-react";
 import { toast } from "sonner";
 import type { WaChat, WaContato, WaMensagem } from "@/lib/whatsapp";
-import { midiasDaConversaAction, vincularClienteAction } from "./actions";
+import { midiasDaConversaAction, setLerDemandasAction, vincularClienteAction } from "./actions";
 import { executarOrdem } from "./ordem";
 import { AvatarWa } from "./comum";
 import { ItemMenu, Menu } from "./conversa";
@@ -171,6 +171,8 @@ export function PerfilPainel({
             <p className="mt-1.5 text-xs text-muted">A Distribuição lê as mensagens de conversas ligadas a um cliente.</p>
           </Secao>
         )}
+
+        <LeituraDistribuicao key={jid} jid={jid} chat={chat} />
 
         {/* mídias e documentos */}
         <Secao titulo={`Mídias e documentos${midias.length ? ` · ${midias.length}` : ""}`}>
@@ -597,5 +599,33 @@ function SairEncerrar({ jid, grupo, onFeito }: { jid: string; grupo: InfoGrupo; 
         </button>
       )}
     </section>
+  );
+}
+
+/** Liga/desliga a leitura 24h desta conversa para a Distribuição (mesmo sem cliente). */
+function LeituraDistribuicao({ jid, chat }: { jid: string; chat: WaChat }) {
+  const automatico = !!chat.client_id || (chat.is_group && /assessoria\s+juridica/.test((chat.nome ?? "").normalize("NFD").replace(/[̀-ͯ]/g, "").toLowerCase()));
+  const [valor, setValor] = useState<boolean | null>(chat.ler_demandas ?? null);
+  const [ocupado, setOcupado] = useState(false);
+  const ligado = valor ?? automatico;
+  async function mudar(v: boolean) {
+    setOcupado(true);
+    // voltar ao padrão automático quando coincide com ele
+    const novo = v === automatico ? null : v;
+    const r = await setLerDemandasAction(jid, novo);
+    setOcupado(false);
+    if (!r.ok) return void toast.error(r.erro ?? "Não deu certo.");
+    setValor(novo);
+    toast.success(v ? "A Distribuição vai ler esta conversa." : "A Distribuição não lê mais esta conversa.");
+  }
+  return (
+    <Secao titulo="Distribuição">
+      <Alternar rotulo="Ler mensagens e gerar demandas (24h)" on={ligado} ocupado={ocupado} onChange={(v) => void mudar(v)} />
+      <p className="mt-1 text-xs text-muted">
+        {ligado
+          ? "A IA lê as mensagens novas e coloca os pedidos na Distribuição, mesmo sem cliente vinculado."
+          : "Esta conversa não gera demandas."}
+      </p>
+    </Secao>
   );
 }
