@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { GoogleGenAI, ApiError, type Content, type Part } from "@google/genai";
-import { exigirPermissao } from "@/lib/dal";
+import { ehSuperAdmin, exigirPermissao } from "@/lib/dal";
 import { tudoLiberado } from "@/lib/permissoes";
 import { PREFIXO_ANEXOS, TOOLS, TOOL_MAP, executar, podeUsar, type Ctx } from "@/lib/assistente/tools";
 import { MODELOS } from "@/lib/ia-modelos";
@@ -15,10 +15,10 @@ const MAX_RODADAS = 8;
 const MAX_CONTEUDOS = 24; // menos histórico = menos tokens por chamada
 const RECENTES_INTEIROS = 6; // resultados de ferramenta mais antigos que isso vão resumidos
 
-type Pendente = { tipo: "exclusao" | "envio"; itens: { name: string; label: string; resumo: string; args: Record<string, unknown> }[] };
+type Pendente = { tipo: "exclusao" | "envio" | "alteracao"; itens: { name: string; label: string; resumo: string; args: Record<string, unknown> }[] };
 type Evento = { tool: string; label: string; ok: boolean; erro?: string };
 
-function sistema(nome: string, pathname: string, papel: string): string {
+function sistema(nome: string, pathname: string, papel: string, superAdmin: boolean): string {
   const hoje = new Intl.DateTimeFormat("pt-BR", { timeZone: "America/Bahia", weekday: "long", day: "2-digit", month: "2-digit", year: "numeric" }).format(new Date());
   const iso = new Intl.DateTimeFormat("en-CA", { timeZone: "America/Bahia" }).format(new Date());
   const ficha = pathname.match(/^\/admin\/clients\/([0-9a-f-]{36})/i)?.[1];
@@ -36,8 +36,12 @@ Regras:
 - Anexos da conversa aparecem como [Anexo: nome (anexo=...)]: leia com ler_anexo; só guarde no cliente (salvar_anexo) se pedirem.
 - DISTRIBUIÇÃO (/admin/distribuicao) é a caixa de entrada do escritório: pedidos do WhatsApp dos clientes, do portal do cliente e das publicações, cada um já com área e responsável sugeridos. Quando pedirem para "subir", "mandar" ou "pegar" demandas (do zap ou de qualquer lugar) para a Distribuição, use enviar_para_distribuicao (um por pedido) — NÃO crie atividade nesse caso. Para ver o que está lá: listar_distribuicao. Para virar atividade: distribuir_demanda. O sistema já lê sozinho as mensagens novas dos grupos vinculados; ler_whatsapp_para_distribuicao força a leitura na hora.
 - AGENDA: reunião/ligação/evento = criar_compromisso (não é atividade; lembra o cliente pelo WhatsApp 24h e 1h antes se a ficha tiver grupo/número). O dia de alguém: agenda_do_dia. Próximos compromissos: listar_compromissos.
+- ATIVIDADES aceitam hora (HH:MM), categoria (tarefa/prazo/audiencia), envolvidos (nomes da equipe além do responsável) e etiquetas (nomes; etiquetar_atividade põe/tira depois). Etiquetas: listar_etiquetas, criar_etiqueta, editar_etiqueta, excluir_etiqueta.
+- ROTINAS (/admin/rotinas): cada pessoa tem itens diários com horário; quem marca ganha pontos no ranking. "Minha rotina"/"o que falta hoje": rotina_do_dia; marcar feito: marcar_rotina. Quem cumpriu/não cumpriu: relatorio_rotina.${superAdmin ? " Você (admin máximo) também cria/edita/tira itens (criar_item_rotina, editar_item_rotina, excluir_item_rotina; ache o item_id com listar_rotinas) e copia rotina entre pessoas (copiar_rotina)." : ""}
+- PROCESSOS: criar_processo e atualizar_processo (fase/status/vara). Mensagem interna da equipe (não é WhatsApp): mensagem_para_equipe.${superAdmin ? `
+- EQUIPE (só você, admin máximo): listar_equipe; definir_permissoes (liga/desliga o que cada um vê); definir_clientes_da_pessoa (cada cliente fica com uma pessoa só); trocar_papel e ativar_desativar_pessoa (o portal pede confirmação).` : ""}
 - gerar_demandas é só para as demandas proativas do onboarding/ficha do cliente (ficam na aba Demandas da ficha). Envio de e-mail ao cliente e onboarding: indique a tela e ofereça abrir.${papel === "administrador" ? `
-- WhatsApp do escritório (ferramentas whatsapp_*): envios pedem confirmação no portal, então chame direto com o texto final já redigido (curto, cordial, sem markdown). Para "o cliente X", o destino padrão é a conversa vinculada; se não houver, procure com whatsapp_conversas. Pedidos de clientes encontrados no zap vão para a Distribuição (enviar_para_distribuicao), não direto para atividade. Triagem: whatsapp_triagem e devolva a lista agrupada (🔴 urgente, 🟡 cliente com demanda, 🟢 possível cliente novo, ⚪ pode esperar) com resposta sugerida; só envie se pedirem. Relatório do mês pelo zap: gerar_relatorio (se ainda não existir) e depois whatsapp_enviar_relatorio.` : ""}`;
+- WhatsApp do escritório (ferramentas whatsapp_*): envios pedem confirmação no portal, então chame direto com o texto final já redigido (curto, cordial, sem markdown). Para "o cliente X", o destino padrão é a conversa vinculada; se não houver, procure com whatsapp_conversas. Pedidos de clientes encontrados no zap vão para a Distribuição (enviar_para_distribuicao), não direto para atividade. Triagem: whatsapp_triagem e devolva a lista agrupada (🔴 urgente, 🟡 cliente com demanda, 🟢 possível cliente novo, ⚪ pode esperar) com resposta sugerida; só envie se pedirem. Relatório do mês pelo zap: gerar_relatorio (se ainda não existir) e depois whatsapp_enviar_relatorio (vai para o grupo "Assessoria Jurídica" do cliente se existir). Também dá para, como no app: reagir, editar, apagar para todos e encaminhar mensagens (pegue o wa_id em whatsapp_ler_conversa), fixar/arquivar/silenciar/marcar como lida uma conversa, ver o perfil de um contato, ver/gerenciar grupos (participantes, nome, descrição, admins) e criar grupo.` : ""}`;
 }
 
 // cada pessoa só enxerga as ferramentas que pode usar (permissões do advogado)
@@ -76,6 +80,7 @@ function limitarHistorico(h: Content[]): Content[] {
 
 export async function POST(request: Request) {
   const { profile, permissoes } = await exigirPermissao("assistente");
+  const superAdmin = ehSuperAdmin(profile);
   // admin máximo ou admin sem nenhuma restrição: acesso pleno; com restrição, segue as permissões
   const role = profile.role === "admin" && tudoLiberado(permissoes) ? "admin" : "advogado";
   const apiKey = process.env.GEMINI_API_KEY;
@@ -90,7 +95,7 @@ export async function POST(request: Request) {
   } | null;
   if (!body) return NextResponse.json({ error: "Pedido inválido." }, { status: 400 });
 
-  const ctx: Ctx = { profileId: profile.id, role, permissoes };
+  const ctx: Ctx = { profileId: profile.id, role, permissoes, superAdmin };
   const eventos: Evento[] = [];
   let navegar: string | null = null;
   let history: Content[] = Array.isArray(body.history) ? body.history : [];
@@ -104,6 +109,7 @@ export async function POST(request: Request) {
       if (!t) resposta = { ok: false, erro: `Ferramenta desconhecida: ${fc.name}` };
       else if (t.kind === "delete" && !aprovado) resposta = { ok: false, cancelado: true, erro: "A pessoa NÃO confirmou a exclusão. Nada foi apagado." };
       else if (t.kind === "confirm" && !aprovado) resposta = { ok: false, cancelado: true, erro: "A pessoa NÃO confirmou o envio. Nada foi enviado." };
+      else if (t.kind === "atencao" && !aprovado) resposta = { ok: false, cancelado: true, erro: "A pessoa NÃO confirmou a alteração. Nada mudou." };
       else {
         resposta = await executar(t, (fc.args ?? {}) as Record<string, unknown>, ctx);
         const r = resposta.resultado as { navegar_para?: string } | undefined;
@@ -134,7 +140,7 @@ export async function POST(request: Request) {
 
   const ai = new GoogleGenAI({ apiKey });
   const config = {
-    systemInstruction: sistema(profile.full_name.split(" ")[0] ?? "", String(body.pathname ?? "/admin"), role === "admin" ? "administrador" : "advogado"),
+    systemInstruction: sistema(profile.full_name.split(" ")[0] ?? "", String(body.pathname ?? "/admin"), role === "admin" ? "administrador" : "advogado", superAdmin),
     tools: [{ functionDeclarations: declaracoesPara(ctx) }],
   };
 
@@ -155,11 +161,11 @@ export async function POST(request: Request) {
       // exclusão ou envio no lote: para tudo e pede confirmação na tela
       const confirmar = chamadas.filter((c) => {
         const k = TOOL_MAP.get(c.name ?? "")?.kind;
-        return k === "delete" || k === "confirm";
+        return k === "delete" || k === "confirm" || k === "atencao";
       });
       if (confirmar.length) {
         const pendente: Pendente = {
-          tipo: confirmar.some((c) => TOOL_MAP.get(c.name!)!.kind === "delete") ? "exclusao" : "envio",
+          tipo: confirmar.some((c) => TOOL_MAP.get(c.name!)!.kind === "delete") ? "exclusao" : confirmar.some((c) => TOOL_MAP.get(c.name!)!.kind === "confirm") ? "envio" : "alteracao",
           itens: await Promise.all(
             confirmar.map(async (c) => {
               const t = TOOL_MAP.get(c.name!)!;

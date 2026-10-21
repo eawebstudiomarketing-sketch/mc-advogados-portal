@@ -16,6 +16,7 @@ import { GoogleGenAI } from "@google/genai";
 import { MODELOS } from "@/lib/ia-modelos";
 import { TOOLS_WHATSAPP } from "./tools-whatsapp";
 import { toolsOperacao } from "./tools-operacao";
+import { envolvidosPorNome, etiquetasPorNome, toolsSistema } from "./tools-sistema";
 
 // Ferramentas do assistente do portal (balão de chat com Gemini). Mesma
 // lógica das ferramentas do servidor MCP (src/lib/mcp/tools.ts), adaptada
@@ -25,9 +26,10 @@ import { toolsOperacao } from "./tools-operacao";
 //  - "delete": NUNCA roda direto; o portal mostra um cartão "Confirmar?" e
 //    só executa quando a pessoa clica (ver app/api/assistente).
 //  - "confirm": idem, para envios no WhatsApp (cartão "Confirma o envio?").
+//  - "atencao": idem, para mudanças sensíveis (papel/acesso de alguém).
 
-export type Kind = "read" | "write" | "delete" | "confirm";
-export type Ctx = { profileId: string; role: "admin" | "advogado"; permissoes: Permissoes };
+export type Kind = "read" | "write" | "delete" | "confirm" | "atencao";
+export type Ctx = { profileId: string; role: "admin" | "advogado"; permissoes: Permissoes; superAdmin?: boolean };
 export type ToolDef = {
   name: string;
   kind: Kind;
@@ -35,6 +37,8 @@ export type ToolDef = {
   perm?: PermChave[];
   /** só o admin vê/usa (ex.: WhatsApp do escritório) */
   soAdmin?: boolean;
+  /** só o admin máximo (rotinas dos outros, equipe, permissões) */
+  soSuper?: boolean;
   label: string; // como aparece na conversa ("Buscou clientes")
   description: string;
   parameters: Record<string, unknown>;
@@ -294,6 +298,10 @@ export const TOOLS: ToolDef[] = [
         description: { type: "string" },
         deadline: DATA,
         status: { type: "string", enum: STATUS },
+        hora: { type: "string", description: "Horário HH:MM (opcional)" },
+        categoria: { type: "string", enum: ["tarefa", "prazo", "audiencia"] },
+        envolvidos: { type: "array", items: { type: "string" }, description: "Nomes de outras pessoas da equipe envolvidas" },
+        etiquetas: { type: "array", items: { type: "string" }, description: "Nomes das etiquetas (cria as que não existem)" },
         responsavel: RESPONSAVEL,
       },
       ["client_id", "title", "type"]
@@ -311,6 +319,7 @@ export const TOOLS: ToolDef[] = [
           status: (a.status ? String(a.status) : "aberta") as never,
           responsible_id: ctx.profileId,
           ...(a.responsavel ? { responsavel_id: await responsavelPorNome(a.responsavel) } : {}),
+          ...(await camposExtras(a)),
         })
         .select("id, title, deadline, status")
         .single();
@@ -331,6 +340,10 @@ export const TOOLS: ToolDef[] = [
         description: { type: "string" },
         deadline: DATA,
         status: { type: "string", enum: STATUS },
+        hora: { type: "string", description: "Horário HH:MM (opcional)" },
+        categoria: { type: "string", enum: ["tarefa", "prazo", "audiencia"] },
+        envolvidos: { type: "array", items: { type: "string" }, description: "Nomes de outras pessoas da equipe envolvidas" },
+        etiquetas: { type: "array", items: { type: "string" }, description: "Nomes das etiquetas (cria as que não existem)" },
         responsavel: RESPONSAVEL,
       },
       ["activity_id"]
@@ -341,6 +354,7 @@ export const TOOLS: ToolDef[] = [
       for (const k of ["title", "type", "description", "status"]) if (a[k] !== undefined) patch[k] = a[k];
       if (a.responsavel) patch.responsavel_id = await responsavelPorNome(a.responsavel);
       if (a.deadline !== undefined) patch.deadline = a.deadline ? String(a.deadline) : null;
+      Object.assign(patch, await camposExtras(a));
       if (!Object.keys(patch).length) throw new Error("Nada para alterar.");
       const { data, error } = await db().from("activities").update(patch as never).eq("id", String(a.activity_id)).select("id, title, status, deadline").single();
       if (error) throw error;
@@ -798,12 +812,28 @@ export const TOOLS: ToolDef[] = [
   // ───────── WhatsApp do escritório (só admin; envios com confirmação) ─────────
   ...TOOLS_WHATSAPP,
   ...toolsOperacao(db),
+  ...toolsSistema(db),
 ];
+
+/** hora, categoria, envolvidos e etiquetas (criar/atualizar atividade). */
+async function camposExtras(a: Record<string, unknown>) {
+  const out: Record<string, unknown> = {};
+  if (a.hora !== undefined) {
+    const h = String(a.hora ?? "").trim();
+    if (h && !/^\d{2}:\d{2}$/.test(h)) throw new Error("Horário inválido (use HH:MM).");
+    out.hora = h || null;
+  }
+  if (a.categoria && ["tarefa", "prazo", "audiencia"].includes(String(a.categoria))) out.categoria = String(a.categoria);
+  if (a.envolvidos !== undefined) out.envolvidos = await envolvidosPorNome(a.envolvidos);
+  if (a.etiquetas !== undefined) out.etiquetas = await etiquetasPorNome(a.etiquetas, true);
+  return out;
+}
 
 export const TOOL_MAP = new Map(TOOLS.map((t) => [t.name, t]));
 
 /** A pessoa pode usar a ferramenta? (admin: todas; advogado: conforme as permissões) */
 export function podeUsar(t: ToolDef, ctx: Ctx): boolean {
+  if (t.soSuper && !ctx.superAdmin) return false;
   if (ctx.role === "admin") return true;
   // ferramentas "só admin" são as do WhatsApp do escritório
   return (!t.soAdmin || ctx.permissoes.whatsapp) && (t.perm ?? []).every((c) => ctx.permissoes[c]);

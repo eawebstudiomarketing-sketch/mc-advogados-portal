@@ -18,7 +18,7 @@ type Part = {
   functionResponse?: { name?: string; response?: { ok?: boolean; erro?: string; cancelado?: boolean } };
 };
 type Content = { role?: string; parts?: Part[] };
-type Pendente = { tipo?: "exclusao" | "envio"; itens: { name: string; label: string; resumo: string }[] };
+type Pendente = { tipo?: "exclusao" | "envio" | "alteracao"; itens: { name: string; label: string; resumo: string }[] };
 type Anexo = { caminho: string; nome: string; enviando?: boolean };
 
 const RE_ANEXO = /\[Anexo: (.+?) \(anexo=[^)]+\)\]/g;
@@ -437,8 +437,28 @@ export function Assistente({
                   </button>
                 </div>
               </div>
+            ) : pendente.tipo === "alteracao" ? (
+              <div className="animate-enter rounded-2xl border border-status-pending/30 bg-status-pending-bg p-3.5">
+                <p className="flex items-center gap-1.5 text-[13px] font-semibold text-status-pending">
+                  <AlertTriangle className="h-4 w-4" aria-hidden /> Confirma a alteração?
+                </p>
+                <ul className="mt-2 space-y-1">
+                  {pendente.itens.map((i, k) => (
+                    <li key={k} className="text-[13px] text-foreground">
+                      {i.resumo}
+                    </li>
+                  ))}
+                </ul>
+                <div className="mt-3 flex justify-end gap-2">
+                  <button type="button" onClick={() => void chamar({ confirmacao: { aprovado: false } }, history)} className="ui-btn-secondary px-3 py-1.5 text-xs">
+                    Cancelar
+                  </button>
+                  <button type="button" onClick={() => void chamar({ confirmacao: { aprovado: true } }, history)} className="ui-btn px-3 py-1.5 text-xs">
+                    <Check className="h-3.5 w-3.5" aria-hidden /> Confirmar
+                  </button>
+                </div>
+              </div>
             ) : (
-
               <div className="animate-enter rounded-2xl border border-status-danger/30 bg-status-danger-bg p-3.5">
                 <p className="flex items-center gap-1.5 text-[13px] font-semibold text-status-danger">
                   <AlertTriangle className="h-4 w-4" aria-hidden /> Confirma a exclusão?
