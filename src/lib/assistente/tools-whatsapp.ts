@@ -599,7 +599,7 @@ export const TOOLS_WHATSAPP: ToolDef[] = [
       const desligadas: string[] = [];
       for (const c of data ?? []) {
         const cli = (c.clients as unknown as { name: string } | null)?.name;
-        const nome = `${nomeChat(c, c.chat_jid)}${c.is_group ? " [grupo]" : ""}`;
+        const nome = nomeChat(c, c.chat_jid);
         if (c.ler_demandas === false) desligadas.push(nome);
         else lendo.push(`${nome} — ${c.ler_demandas ? "ligada a dedo" : cli ? `cliente ${cli}` : "grupo de Assessoria Jurídica"}`);
       }
