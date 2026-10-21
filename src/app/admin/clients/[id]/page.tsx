@@ -481,6 +481,7 @@ export default async function AdminClientDetailPage({
 
         {aba === "relatorios" && (
           <ReportsTab
+            podeZap={perm.whatsapp}
             clientId={client.id}
             relatorios={relatorios.map((r) => ({
               id: r.id,

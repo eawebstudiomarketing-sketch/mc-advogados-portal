@@ -1,5 +1,6 @@
 "use client";
 
+import { EnviarRelatorioZap } from "@/components/relatorio/enviar-zap";
 import { useActionState } from "react";
 import { BarChart3, Download, FileBarChart2 } from "lucide-react";
 import { generateReportAction, type GenerateReportState } from "@/app/admin/reports/actions";
@@ -20,7 +21,7 @@ export type RelatorioItem = {
 const initialState: GenerateReportState = { error: null };
 
 // Aba Relatórios da ficha do cliente: gerar o relatório do mês e ver/baixar/enviar os já gerados.
-export function ReportsTab({ clientId, relatorios }: { clientId: string; relatorios: RelatorioItem[] }) {
+export function ReportsTab({ clientId, relatorios, podeZap = false }: { clientId: string; relatorios: RelatorioItem[]; podeZap?: boolean }) {
   const [state, formAction, pending] = useActionState(generateReportAction, initialState);
   const agora = new Date();
   const anos = [agora.getFullYear(), agora.getFullYear() - 1, agora.getFullYear() - 2];
@@ -99,6 +100,7 @@ export function ReportsTab({ clientId, relatorios }: { clientId: string; relator
                       <Download aria-hidden />
                     </a>
                   )}
+                  {podeZap && <EnviarRelatorioZap reportId={r.id} />}
                   <SendReportButton reportId={r.id} alreadySent={!!r.sent_at} />
                 </div>
               </li>

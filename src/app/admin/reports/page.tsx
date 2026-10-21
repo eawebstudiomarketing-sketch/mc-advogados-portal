@@ -3,6 +3,7 @@ import Link from "next/link";
 import { Download, Plus } from "lucide-react";
 import { listReports } from "@/lib/data/reports";
 import { exigirPermissao } from "@/lib/dal";
+import { EnviarRelatorioZap } from "@/components/relatorio/enviar-zap";
 import { SendReportButton } from "./send-report-button";
 
 const MESES = ["", "Janeiro", "Fevereiro", "Março", "Abril", "Maio", "Junho", "Julho", "Agosto", "Setembro", "Outubro", "Novembro", "Dezembro"];
@@ -10,7 +11,7 @@ const MESES = ["", "Janeiro", "Fevereiro", "Março", "Abril", "Maio", "Junho", "
 type F = { cliente?: string; ano?: string; enviado?: string };
 
 export default async function AdminReportsPage({ searchParams }: { searchParams: Promise<F> }) {
-  await exigirPermissao("relatorios");
+  const { permissoes } = await exigirPermissao("relatorios");
   const f = await searchParams;
   const todos = await listReports();
   const reports = todos.filter(
@@ -77,6 +78,7 @@ export default async function AdminReportsPage({ searchParams }: { searchParams:
                     {r.downloadUrl && (
                       <a href={r.downloadUrl} target="_blank" rel="noreferrer" className="icon-btn" aria-label="Baixar PDF" data-tip="Baixar PDF"><Download aria-hidden /></a>
                     )}
+                    {permissoes.whatsapp && <EnviarRelatorioZap reportId={r.id} />}
                     <SendReportButton reportId={r.id} alreadySent={!!r.sent_at} />
                   </div>
                 </td>
