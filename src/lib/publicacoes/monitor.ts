@@ -91,7 +91,40 @@ export async function executarMonitor(origem: "cron" | "manual"): Promise<Result
       ? await db.from("publicacoes").select("comunicacao_id").in("comunicacao_id", ids)
       : { data: [] as { comunicacao_id: number }[] };
     const existentes = new Set((ja ?? []).map((j) => j.comunicacao_id));
-    const novas = [...porId.values()].filter(({ c }) => !existentes.has(c.id));
+    let novas = [...porId.values()].filter(({ c }) => !existentes.has(c.id));
+
+    // a mesma intimação já veio pelo Astrea (sem o id do DJEN): completa aquela linha em vez de duplicar
+    if (novas.length) {
+      const { data: doAstrea } = await db
+        .from("publicacoes")
+        .select("id, numero_processo, data_disponibilizacao")
+        .is("comunicacao_id", null)
+        .not("astrea_id", "is", null)
+        .in("numero_processo", [...new Set(novas.map(({ c }) => c.numero_processo))]);
+      const livres = [...(doAstrea ?? [])];
+      const restantes: typeof novas = [];
+      for (const n of novas) {
+        const i = livres.findIndex((a) => a.numero_processo === n.c.numero_processo && a.data_disponibilizacao === n.c.data_disponibilizacao);
+        if (i < 0) {
+          restantes.push(n);
+          continue;
+        }
+        const [a] = livres.splice(i, 1);
+        await db
+          .from("publicacoes")
+          .update({
+            comunicacao_id: n.c.id,
+            tipo_documento: n.c.tipoDocumento,
+            advogados: (n.c.destinatarioadvogados ?? []).map((x) => ({
+              nome: x.advogado?.nome ?? "",
+              oab: x.advogado?.numero_oab ? `${x.advogado.numero_oab}/${x.advogado.uf_oab ?? ""}` : "",
+            })),
+            uf: ufDaPublicacao(n.c.numero_processo, n.c.nomeOrgao),
+          })
+          .eq("id", a.id);
+      }
+      novas = restantes;
+    }
 
     if (novas.length) {
       const numeros = [...new Set(novas.map(({ c }) => c.numero_processo))];

@@ -23,8 +23,10 @@ export default async function AdminProcessesPage({ searchParams }: { searchParam
         (digitos.length >= 4 && (p.numero_digitos ?? "").includes(digitos)) ||
         (p.vara_tribunal ?? "").toLowerCase().includes(termo) ||
         (p.fase ?? "").toLowerCase().includes(termo) ||
-        (p.clients?.name ?? "").toLowerCase().includes(termo)) &&
-      (!f.cliente || p.client_id === f.cliente) &&
+        (p.clients?.name ?? "").toLowerCase().includes(termo) ||
+        (p.titulo ?? "").toLowerCase().includes(termo) ||
+        (p.cliente_nome ?? "").toLowerCase().includes(termo)) &&
+      (!f.cliente || (f.cliente === "sem" ? !p.client_id : p.client_id === f.cliente)) &&
       (!f.area || p.area === f.area) &&
       (!f.status || p.status === f.status)
   );
@@ -50,8 +52,11 @@ export default async function AdminProcessesPage({ searchParams }: { searchParam
 
       <BarraFiltros
         filtros={[
-          { tipo: "busca", nome: "busca", rotulo: "Buscar por número, vara, fase ou cliente" },
-          { tipo: "select", nome: "cliente", rotulo: "Cliente", todos: "Todos os clientes", opcoes: [...new Map(todos.map((x) => [x.client_id, x.clients?.name ?? "Cliente"])).entries()].sort((a, b) => a[1].localeCompare(b[1])).map(([valor, rotulo]) => ({ valor, rotulo })) },
+          { tipo: "busca", nome: "busca", rotulo: "Buscar por número, partes, vara ou cliente" },
+          { tipo: "select", nome: "cliente", rotulo: "Cliente", todos: "Todos os clientes", opcoes: [
+            ...[...new Map(todos.filter((x) => x.client_id).map((x) => [x.client_id!, x.clients?.name ?? "Cliente"])).entries()].sort((a, b) => a[1].localeCompare(b[1])).map(([valor, rotulo]) => ({ valor, rotulo })),
+            ...(todos.some((x) => !x.client_id) ? [{ valor: "sem", rotulo: "Sem ficha de cliente" }] : []),
+          ] },
           { tipo: "select", nome: "area", rotulo: "Área", todos: "Todas as áreas", opcoes: Object.entries(PROCESS_AREA_LABEL).map(([valor, rotulo]) => ({ valor, rotulo })) },
           { tipo: "select", nome: "status", rotulo: "Situação", todos: "Todas as situações", opcoes: statuses.map((s) => ({ valor: s, rotulo: s.replace(/_/g, " ") })) },
         ]}
@@ -65,7 +70,7 @@ export default async function AdminProcessesPage({ searchParams }: { searchParam
               <th className="px-5 py-2.5 font-medium">Cliente</th>
               <th className="px-5 py-2.5 font-medium">Vara / Tribunal</th>
               <th className="px-5 py-2.5 font-medium">Área</th>
-              <th className="px-5 py-2.5 font-medium">Fase</th>
+              <th className="px-5 py-2.5 font-medium">Último andamento</th>
               <th className="px-5 py-2.5 font-medium">Responsável</th>
               <th className="px-5 py-2.5 font-medium">Status</th>
               <th className="px-5 py-2.5 font-medium"></th>
@@ -85,12 +90,13 @@ export default async function AdminProcessesPage({ searchParams }: { searchParam
                   <Link href={`/admin/processes/${p.id}`} className="text-navy hover:underline">
                     {p.numero_processo}
                   </Link>
+                  {p.titulo && <p className="max-w-xs truncate text-xs font-normal text-muted" title={p.titulo}>{p.titulo}</p>}
                 </td>
-                <td className="px-5 py-3 text-foreground/70">{p.clients?.name}</td>
+                <td className="px-5 py-3 text-foreground/70">{p.clients?.name ?? (p.cliente_nome ? <span title="Sem ficha no portal">{p.cliente_nome} <span className="text-xs text-muted">(sem ficha)</span></span> : "—")}</td>
                 <td className="px-5 py-3 text-foreground/70">{p.vara_tribunal ?? "—"}</td>
                 <td className="px-5 py-3 text-foreground/70">{PROCESS_AREA_LABEL[p.area]}</td>
-                <td className="px-5 py-3 text-foreground/70">{p.fase ?? "—"}</td>
-                <td className="px-5 py-3 text-foreground/70">{p.profiles?.full_name ?? "—"}</td>
+                <td className="px-5 py-3 whitespace-nowrap text-foreground/70">{p.ultimo_andamento_em ? new Date(p.ultimo_andamento_em).toLocaleDateString("pt-BR", { timeZone: "America/Bahia" }) : "—"}</td>
+                <td className="px-5 py-3 text-foreground/70">{p.profiles?.full_name ?? p.responsavel_nome ?? "—"}</td>
                 <td className="px-5 py-3">
                   <StatusBadge status={p.status} />
                 </td>

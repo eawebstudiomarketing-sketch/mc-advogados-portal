@@ -12,6 +12,7 @@ export async function listProcesses(filter?: { clientId?: string }): Promise<Pro
   let query = supabase
     .from("processes")
     .select("*, clients(name), profiles(full_name)")
+    .order("ultimo_andamento_em", { ascending: false, nullsFirst: false })
     .order("created_at", { ascending: false });
   if (filter?.clientId) query = query.eq("client_id", filter.clientId);
   const { data, error } = await query;

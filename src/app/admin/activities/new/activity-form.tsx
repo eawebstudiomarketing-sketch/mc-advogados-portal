@@ -30,7 +30,7 @@ export function ActivityForm({
   meuResponsavel: string | null;
   clienteInicial?: string;
   /** Vindo de uma publicação do DJEN: título, prazo e descrição já sugeridos. */
-  inicial?: { titulo?: string; descricao?: string; prazo?: string; tipo?: string; publicacao?: string; categoria?: string; hora?: string; sugestao?: string };
+  inicial?: { titulo?: string; descricao?: string; prazo?: string; tipo?: string; publicacao?: string; andamentos?: string; categoria?: string; hora?: string; sugestao?: string };
 }) {
   const [state, formAction, pending] = useActionState(createActivityAction, initialState);
   // Vindo de publicação sem processo cadastrado: obriga escolher o cliente
@@ -42,6 +42,12 @@ export function ActivityForm({
       <VoltarInput />
       {inicial.publicacao && <input type="hidden" name="publicacao_id" value={inicial.publicacao} />}
       {inicial.sugestao && <input type="hidden" name="sugestao" value={inicial.sugestao} />}
+      {inicial.andamentos && <input type="hidden" name="andamentos_processo" value={inicial.andamentos} />}
+      {inicial.andamentos && (
+        <p className="rounded-lg bg-gold/10 px-3 py-2 text-xs text-navy">
+          Criando a partir de andamentos do processo. Ao salvar, os andamentos não tratados dele ficam como tratados.
+        </p>
+      )}
       {inicial.publicacao && (
         <p className="rounded-lg bg-gold/10 px-3 py-2 text-xs text-navy">
           Criando a partir de uma publicação (diário oficial ou INPI). Confira a data sugerida: ao salvar, a publicação fica como tratada.

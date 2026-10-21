@@ -117,3 +117,17 @@ export async function deleteProcessAction(formData: FormData): Promise<void> {
   revalidatePath("/admin/processes");
   redirect("/admin/processes");
 }
+
+/** Liga um processo (vindo do Astrea sem ficha) a um cliente do portal. */
+export async function vincularClienteProcessoAction(formData: FormData): Promise<void> {
+  await exigirPermissao("processos");
+  const id = String(formData.get("id") ?? "");
+  const clientId = String(formData.get("client_id") ?? "");
+  if (!id) return;
+  const supabase = await createClient();
+  await supabase.from("processes").update({ client_id: clientId || null }).eq("id", id);
+  await supabase.from("publicacoes").update({ client_id: clientId || null }).eq("process_id", id);
+  revalidatePath(`/admin/processes/${id}`);
+  revalidatePath("/admin/processes");
+  revalidatePath("/admin/andamentos");
+}

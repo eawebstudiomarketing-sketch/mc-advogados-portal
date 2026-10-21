@@ -14,6 +14,80 @@ export type Database = {
   }
   public: {
     Tables: {
+      andamentos: {
+        Row: {
+          id: string
+          process_id: string
+          data: string
+          descricao: string
+          tipo: string
+          importante: boolean
+          fonte: string
+          externo_id: string | null
+          situacao: "novo" | "tratado" | "descartado" | "historico"
+          tratado_por: string | null
+          tratado_em: string | null
+          activity_id: string | null
+          descricao_html: string | null
+          responsavel_nome: string | null
+          etiquetas: Json
+          bruto: Json | null
+          created_at: string
+        }
+        Insert: {
+          id?: string
+          process_id: string
+          data: string
+          descricao: string
+          tipo?: string
+          importante?: boolean
+          fonte?: string
+          externo_id?: string | null
+          situacao?: "novo" | "tratado" | "descartado" | "historico"
+          tratado_por?: string | null
+          tratado_em?: string | null
+          activity_id?: string | null
+          descricao_html?: string | null
+          responsavel_nome?: string | null
+          etiquetas?: Json
+          bruto?: Json | null
+          created_at?: string
+        }
+        Update: {
+          id?: string
+          process_id?: string
+          data?: string
+          descricao?: string
+          tipo?: string
+          importante?: boolean
+          fonte?: string
+          externo_id?: string | null
+          situacao?: "novo" | "tratado" | "descartado" | "historico"
+          tratado_por?: string | null
+          tratado_em?: string | null
+          activity_id?: string | null
+          descricao_html?: string | null
+          responsavel_nome?: string | null
+          etiquetas?: Json
+          bruto?: Json | null
+          created_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "andamentos_process_id_fkey"
+            columns: ["process_id"]
+            isOneToOne: false
+            referencedRelation: "processes"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      andamentos_sync: {
+        Row: { id: string; iniciado_em: string; origem: string; processos: number; novos: number; erro: string | null }
+        Insert: { id?: string; iniciado_em?: string; origem?: string; processos?: number; novos?: number; erro?: string | null }
+        Update: { id?: string; iniciado_em?: string; origem?: string; processos?: number; novos?: number; erro?: string | null }
+        Relationships: []
+      }
       activity_comments: {
         Row: { id: string; activity_id: string; autor_id: string; texto: string; mencoes: string[]; editado_em: string | null; created_at: string }
         Insert: { id?: string; activity_id: string; autor_id: string; texto: string; mencoes?: string[]; editado_em?: string | null; created_at?: string }
@@ -554,7 +628,16 @@ export type Database = {
       publicacoes: {
         Row: {
           id: string
-          comunicacao_id: number
+          fonte: string
+          astrea_id: string | null
+          diario: string | null
+          nome_pesquisado: string | null
+          responsavel_nome: string | null
+          titulo_processo: string | null
+          data_publicacao: string | null
+          texto_html: string | null
+          bruto: Json | null
+          comunicacao_id: number | null
           numero_processo: string
           numero_mascara: string | null
           tribunal: string | null
@@ -583,7 +666,16 @@ export type Database = {
         }
         Insert: {
           id?: string
-          comunicacao_id: number
+          fonte?: string
+          astrea_id?: string | null
+          diario?: string | null
+          nome_pesquisado?: string | null
+          responsavel_nome?: string | null
+          titulo_processo?: string | null
+          data_publicacao?: string | null
+          texto_html?: string | null
+          bruto?: Json | null
+          comunicacao_id?: number | null
           numero_processo: string
           numero_mascara?: string | null
           tribunal?: string | null
@@ -612,7 +704,16 @@ export type Database = {
         }
         Update: {
           id?: string
-          comunicacao_id?: number
+          fonte?: string
+          astrea_id?: string | null
+          diario?: string | null
+          nome_pesquisado?: string | null
+          responsavel_nome?: string | null
+          titulo_processo?: string | null
+          data_publicacao?: string | null
+          texto_html?: string | null
+          bruto?: Json | null
+          comunicacao_id?: number | null
           numero_processo?: string
           numero_mascara?: string | null
           tribunal?: string | null
@@ -1537,8 +1638,19 @@ export type Database = {
       processes: {
         Row: {
           area: Database["public"]["Enums"]["process_area"]
-          client_id: string
+          client_id: string | null
           created_at: string
+          astrea_id: string | null
+          titulo: string | null
+          cliente_nome: string | null
+          classe: string | null
+          partes: Json
+          valor_causa: number | null
+          distribuido_em: string | null
+          instancia: number | null
+          responsavel_nome: string | null
+          ultimo_andamento_em: string | null
+          fonte: string
           fase: string | null
           id: string
           numero_processo: string
@@ -1550,8 +1662,19 @@ export type Database = {
         }
         Insert: {
           area: Database["public"]["Enums"]["process_area"]
-          client_id: string
+          client_id?: string | null
           created_at?: string
+          astrea_id?: string | null
+          titulo?: string | null
+          cliente_nome?: string | null
+          classe?: string | null
+          partes?: Json
+          valor_causa?: number | null
+          distribuido_em?: string | null
+          instancia?: number | null
+          responsavel_nome?: string | null
+          ultimo_andamento_em?: string | null
+          fonte?: string
           fase?: string | null
           id?: string
           numero_processo: string
@@ -1562,8 +1685,19 @@ export type Database = {
         }
         Update: {
           area?: Database["public"]["Enums"]["process_area"]
-          client_id?: string
+          client_id?: string | null
           created_at?: string
+          astrea_id?: string | null
+          titulo?: string | null
+          cliente_nome?: string | null
+          classe?: string | null
+          partes?: Json
+          valor_causa?: number | null
+          distribuido_em?: string | null
+          instancia?: number | null
+          responsavel_nome?: string | null
+          ultimo_andamento_em?: string | null
+          fonte?: string
           fase?: string | null
           id?: string
           numero_processo?: string

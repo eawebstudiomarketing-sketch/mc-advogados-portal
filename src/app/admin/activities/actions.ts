@@ -117,6 +117,17 @@ export async function createActivityAction(
     revalidatePath("/admin/publicacoes");
   }
 
+  // Veio dos andamentos de um processo: os não tratados dele passam a tratados.
+  const andamentosProcesso = formData.get("andamentos_processo");
+  if (typeof andamentosProcesso === "string" && /^[0-9a-f-]{36}$/i.test(andamentosProcesso) && criada) {
+    await supabase
+      .from("andamentos")
+      .update({ situacao: "tratado", activity_id: criada.id, tratado_por: profile.id, tratado_em: new Date().toISOString() })
+      .eq("process_id", andamentosProcesso)
+      .eq("situacao", "novo");
+    revalidatePath("/admin/andamentos");
+  }
+
   revalidatePath("/admin/activities");
   redirect(destinoDeVolta(formData, "/admin/activities"));
 }

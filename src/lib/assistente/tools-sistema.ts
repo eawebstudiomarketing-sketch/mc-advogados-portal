@@ -537,6 +537,117 @@ export function toolsSistema(db: () => Db): ToolDef[] {
       },
     },
 
+    // ───────── ANDAMENTOS ─────────
+    {
+      name: "listar_andamentos",
+      kind: "read",
+      perm: ["processos"],
+      label: "Consultou os andamentos",
+      description: "Andamentos dos processos agrupados por processo. situacao: novo (não tratados, padrão) | tratado | descartado. Filtre por número do processo, parte ou cliente em busca.",
+      parameters: obj({ situacao: { type: "string", enum: ["novo", "tratado", "descartado"] }, busca: { type: "string" }, so_importantes: { type: "boolean" } }),
+      run: async (a) => {
+        let q = db()
+          .from("andamentos")
+          .select("data, descricao, tipo, importante, situacao, processes!inner(id, numero_processo, titulo, cliente_nome, clients(name))")
+          .eq("situacao", String(a.situacao ?? "novo") as "novo")
+          .order("data", { ascending: false })
+          .limit(300);
+        if (a.so_importantes) q = q.eq("importante", true);
+        const { data } = await q;
+        const termo = limpa(a.busca).toLowerCase();
+        const grupos = new Map<string, { processo: string; titulo: string | null; cliente: string | null; link_no_portal: string; andamentos: string[]; importantes: number }>();
+        for (const x of data ?? []) {
+          const p = x.processes as unknown as { id: string; numero_processo: string; titulo: string | null; cliente_nome: string | null; clients: { name: string } | null };
+          if (termo && !`${p.numero_processo} ${p.titulo} ${p.cliente_nome} ${p.clients?.name} ${x.descricao}`.toLowerCase().includes(termo)) continue;
+          const g = grupos.get(p.id) ?? { processo: p.numero_processo, titulo: p.titulo, cliente: p.clients?.name ?? p.cliente_nome, link_no_portal: `/admin/processes/${p.id}#andamentos`, andamentos: [], importantes: 0 };
+          g.andamentos.push(`${x.data.slice(0, 10).split("-").reverse().join("/")}${x.importante ? " [importante]" : ""}: ${x.descricao.slice(0, 300)}`);
+          if (x.importante) g.importantes++;
+          grupos.set(p.id, g);
+        }
+        return { processos: grupos.size, grupos: [...grupos.values()].slice(0, 40), tela: "/admin/andamentos" };
+      },
+    },
+    {
+      name: "andamentos_do_processo",
+      kind: "read",
+      perm: ["processos"],
+      label: "Leu os andamentos do processo",
+      description: "Histórico de andamentos de UM processo (pelo número, parte ou cliente) com a capa (partes, juízo, classe).",
+      parameters: obj({ processo: { type: "string" }, so_importantes: { type: "boolean" }, limite: { type: "integer" } }, ["processo"]),
+      run: async (a) => {
+        const p = await processoPorTermo(db, a.processo);
+        let q = db()
+          .from("andamentos")
+          .select("data, descricao, tipo, importante, situacao")
+          .eq("process_id", p.id)
+          .neq("tipo", "tarefa")
+          .order("data", { ascending: false })
+          .limit(Math.min(Number(a.limite) || 40, 200));
+        if (a.so_importantes) q = q.eq("importante", true);
+        const { data } = await q;
+        return {
+          processo: p.numero_processo,
+          titulo: p.titulo,
+          juizo: p.vara_tribunal,
+          classe: p.classe,
+          partes: p.partes,
+          andamentos: (data ?? []).map(
+            (x) => `${x.data.slice(0, 10).split("-").reverse().join("/")}${x.importante ? " [importante]" : ""}${x.situacao === "novo" ? " [não tratado]" : ""}: ${x.descricao.slice(0, 400)}`
+          ),
+          link_no_portal: `/admin/processes/${p.id}#andamentos`,
+        };
+      },
+    },
+    {
+      name: "marcar_andamentos",
+      kind: "write",
+      perm: ["processos"],
+      label: "Marcou andamentos",
+      description: "Marca como tratados (ou descartados) os andamentos NÃO tratados de um processo (pelo número/parte), ou de todos se todos=true.",
+      parameters: obj({ processo: { type: "string" }, todos: { type: "boolean" }, situacao: { type: "string", enum: ["tratado", "descartado"] } }, ["situacao"]),
+      run: async (a, ctx) => {
+        let q = db()
+          .from("andamentos")
+          .update({ situacao: String(a.situacao) as "tratado" | "descartado", tratado_por: ctx.profileId, tratado_em: new Date().toISOString() }, { count: "exact" })
+          .eq("situacao", "novo");
+        if (!a.todos) {
+          if (!a.processo) throw new Error("Diga de qual processo (ou todos=true).");
+          q = q.eq("process_id", (await processoPorTermo(db, a.processo)).id);
+        }
+        const { count, error } = await q;
+        if (error) throw error;
+        return { marcados: count ?? 0, situacao: a.situacao };
+      },
+    },
+    {
+      name: "ler_andamentos_agora",
+      kind: "write",
+      perm: ["processos"],
+      label: "Leu os andamentos agora",
+      description: "Busca agora os andamentos novos dos processos (o sistema já faz sozinho de hora em hora, 07h–22h).",
+      parameters: obj({}),
+      run: async () => {
+        const { sincronizarAstrea } = await import("@/lib/andamentos/sync");
+        const r = await sincronizarAstrea({ origem: "assistente" });
+        if (r.erro) throw new Error(r.erro);
+        return { ...r, tela: "/admin/andamentos" };
+      },
+    },
+    {
+      name: "vincular_cliente_processo",
+      kind: "write",
+      perm: ["processos"],
+      label: "Ligou processo a cliente",
+      description: "Liga um processo (pelo número/parte) a um cliente do portal — útil para os processos vindos do Astrea sem ficha.",
+      parameters: obj({ processo: { type: "string" }, cliente: { type: "string" } }, ["processo", "cliente"]),
+      run: async (a) => {
+        const [p, c] = await Promise.all([processoPorTermo(db, a.processo), clientePorNome(a.cliente)]);
+        await adm().from("processes").update({ client_id: c.id }).eq("id", p.id);
+        await adm().from("publicacoes").update({ client_id: c.id }).eq("process_id", p.id);
+        return { processo: p.numero_processo, cliente: c.name };
+      },
+    },
+
     // ───────── MENSAGENS INTERNAS ─────────
     {
       name: "mensagem_para_equipe",
@@ -566,4 +677,19 @@ async function perfilDaPessoa(alvo: unknown) {
   if (!data) throw new Error("Perfil não encontrado.");
   if (data.super_admin) throw new Error("Não dá para mexer no admin máximo.");
   return data;
+}
+
+/** Processo pelo número (com ou sem máscara), parte/título ou cliente. */
+async function processoPorTermo(db: () => Db, termo: unknown) {
+  const t = limpa(termo);
+  if (!t) throw new Error("Diga qual processo (número, parte ou cliente).");
+  const dig = t.replace(/\D/g, "");
+  const cols = "id, numero_processo, titulo, vara_tribunal, classe, partes";
+  const { data } =
+    dig.length >= 7
+      ? await db().from("processes").select(cols).like("numero_digitos", `%${dig}%`).limit(5)
+      : await db().from("processes").select(cols).or(`titulo.ilike.%${t}%,cliente_nome.ilike.%${t}%,numero_processo.ilike.%${t}%`).limit(5);
+  if (!data?.length) throw new Error(`Não achei processo para "${t}".`);
+  if (data.length > 1) throw new Error(`Mais de um processo para "${t}": ${data.map((p) => `${p.numero_processo} (${p.titulo ?? ""})`).join("; ")}. Diga qual.`);
+  return data[0];
 }
