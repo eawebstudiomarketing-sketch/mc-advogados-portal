@@ -134,7 +134,7 @@ export function CompromissoForm({
             </label>
           ))}
         </div>
-        <p className="mt-1 text-xs text-muted">Aparece na agenda e na rotina das 7h de cada participante.</p>
+        <p className="mt-1 text-xs text-muted">Aparece na agenda e na rotina das 8h de cada participante.</p>
       </fieldset>
 
       <div>

@@ -13,7 +13,7 @@ export default async function WhatsappPage() {
   const [agente, conversas, clientes] = await Promise.all([
     statusAgente(db),
     listarConversas(db, { limite: 300 }),
-    db.from("clients").select("id, name").eq("active", true).order("name"),
+    db.from("clients").select("id, name, tipo_pessoa").eq("active", true).order("name"),
   ]);
 
   return (

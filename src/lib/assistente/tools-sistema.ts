@@ -270,7 +270,7 @@ export function toolsSistema(db: () => Db): ToolDef[] {
       description: "O que cada pessoa fez e não fez da rotina num dia (padrão hoje) + % de cumprimento em 7 e 30 dias. Use para 'quem fez a rotina hoje?', 'fulano está cumprindo?'.",
       parameters: obj({ dia: DATA, pessoa: { type: "string" } }),
       run: async (a, ctx) => {
-        if (!ctx.superAdmin && !ctx.permissoes.ver_equipe) throw new Error("Só quem vê a equipe consulta a rotina dos outros.");
+        if (!ctx.superAdmin && ctx.role !== "admin") throw new Error("Só o administrador consulta o que cada um fez da rotina.");
         const hoje = hojeBahia();
         const dia = a.dia ? String(a.dia) : hoje;
         const d = solto(adm());

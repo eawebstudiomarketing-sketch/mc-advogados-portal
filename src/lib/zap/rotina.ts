@@ -5,8 +5,8 @@ import { diaDaPessoa, textoDaRotina } from "@/lib/data/rotina";
 import { ehDiaDeExpediente } from "@/lib/publicacoes/sugestoes";
 import { enfileirarMensagem } from "@/lib/zap/fila";
 
-// Rotina das 7h: para cada pessoa com WhatsApp e "rotina no Zap" ligada, monta
-// a agenda do dia e deixa na fila para sair às 07:00 (Bahia). Só em dia de
+// Rotina das 8h: para cada pessoa com WhatsApp e "rotina no Zap" ligada, monta
+// a agenda do dia e deixa na fila para sair às 08:00 (Bahia). Só em dia de
 // expediente e uma vez por dia (tabela rotina_envios).
 
 const SITE = process.env.NEXT_PUBLIC_SITE_URL ?? "https://mcadvogados.app.br";
@@ -25,9 +25,9 @@ export async function enfileirarRotinas({ forcar = false, so }: { forcar?: boole
   const { data: feitas } = await db.from("rotina_envios").select("responsavel_id").eq("dia", dia);
   const jaFoi = new Set((feitas ?? []).map((f) => f.responsavel_id));
 
-  // sai às 07:00; se já passou (rodou atrasado), sai na hora
-  const seteHoras = new Date(`${dia}T07:00:00-03:00`);
-  const quando = seteHoras.getTime() > Date.now() ? seteHoras : null;
+  // sai às 08:00; se já passou (rodou atrasado), sai na hora
+  const oitoHoras = new Date(`${dia}T08:00:00-03:00`);
+  const quando = oitoHoras.getTime() > Date.now() ? oitoHoras : null;
 
   for (const p of pessoas) {
     if (jaFoi.has(p.id) && !forcar) {

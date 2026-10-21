@@ -1,5 +1,5 @@
 # WhatsApp do portal (horários da Bahia, UTC-3):
-#  - 06h45 seg–sex: monta a rotina do dia de cada pessoa (sai às 07h00 pelo Agente);
+#  - 07h45 seg–sex: monta a rotina do dia de cada pessoa (sai às 08h00 pelo Agente);
 #  - de hora em hora, 07h30–21h30: lê os grupos/contatos de clientes e sugere
 #    demandas na Distribuição.
 # O Vercel Cron (vercel.json) fica de reserva caso o GitHub pause o agendamento.
@@ -7,7 +7,7 @@ name: WhatsApp (rotina e Distribuição)
 
 on:
   schedule:
-    - cron: "45 9 * * 1-5"
+    - cron: "45 10 * * 1-5"
     - cron: "30 10-23,0 * * *"
   workflow_dispatch:
     inputs:
@@ -18,7 +18,7 @@ on:
 
 jobs:
   rotina:
-    if: github.event.schedule == '45 9 * * 1-5' || github.event.inputs.tarefa == 'rotina'
+    if: github.event.schedule == '45 10 * * 1-5' || github.event.inputs.tarefa == 'rotina'
     runs-on: ubuntu-latest
     timeout-minutes: 5
     steps:

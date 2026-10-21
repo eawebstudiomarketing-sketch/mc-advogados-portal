@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { PeriodoFiltro } from "@/components/ui/periodo-filtro";
 import { lerPeriodo } from "@/lib/periodo";
-import { pontosDeRotina, rotinaDoDia } from "@/lib/data/rotina-diaria";
+import { pontosDeRotina, rotinaDoDia, rotinaOutrosDias } from "@/lib/data/rotina-diaria";
 import { MinhaRotina } from "@/components/rotina/minha-rotina";
 import { listEtiquetas } from "@/lib/data/etiquetas";
 import { AlertTriangle, ArrowRight, Trophy, Sun, CalendarPlus } from "lucide-react";
@@ -150,9 +150,10 @@ export default async function AdminOverviewPage({
       : []),
   ].slice(0, 7);
 
-  const [pontosRotina, minhaRotina] = await Promise.all([
+  const [pontosRotina, minhaRotina, rotinaOutros] = await Promise.all([
     pontosDeRotina(somaDias(hoje, -periodo + 1)),
     meuResponsavel ? rotinaDoDia(meuResponsavel, hoje) : Promise.resolve([]),
+    meuResponsavel ? rotinaOutrosDias(meuResponsavel, hoje) : Promise.resolve([]),
   ]);
   const linhasRanking = verEquipe
     ? ranking(activities, pessoas, periodo, pontosRotina)
@@ -224,9 +225,13 @@ export default async function AdminOverviewPage({
         </Link>
       </section>
 
-      {minhaRotina.length > 0 && (
+      {(minhaRotina.length > 0 || rotinaOutros.length > 0) && (
         <div className="mb-10">
-          <MinhaRotina itens={minhaRotina.map((i) => ({ id: i.id, titulo: i.titulo, feito: i.feito, feitoEm: i.feitoEm, hora_inicio: i.hora_inicio, hora_fim: i.hora_fim, observacao: i.observacao, situacao: i.situacao }))} podeMarcar />
+          <MinhaRotina
+            itens={minhaRotina.map((i) => ({ id: i.id, titulo: i.titulo, feito: i.feito, feitoEm: i.feitoEm, hora_inicio: i.hora_inicio, hora_fim: i.hora_fim, observacao: i.observacao, situacao: i.situacao }))}
+            outrosDias={rotinaOutros.map((i) => ({ id: i.id, titulo: i.titulo, dias: i.dias, hora_inicio: i.hora_inicio, hora_fim: i.hora_fim }))}
+            podeMarcar
+          />
         </div>
       )}
 

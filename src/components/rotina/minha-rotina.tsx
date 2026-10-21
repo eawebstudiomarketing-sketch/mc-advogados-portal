@@ -18,6 +18,12 @@ export type ItemRotinaTela = {
   situacao?: "feito" | "agora" | "atrasado" | "depois" | "sem_hora";
 };
 
+/** Item da rotina que não cai hoje (só para mostrar a semana). */
+export type ItemOutroDia = { id: string; titulo: string; dias: number[]; hora_inicio?: string | null; hora_fim?: string | null };
+
+const DIA_CURTO = ["Dom", "Seg", "Ter", "Qua", "Qui", "Sex", "Sáb"];
+const nomeDosDias = (dias: number[]) => (dias.length === 7 ? "Todo dia" : [...dias].sort().map((d) => DIA_CURTO[d]).join(", "));
+
 const ETIQUETA: Record<string, { texto: string; cor: string } | undefined> = {
   agora: { texto: "Agora", cor: "bg-status-info-bg text-status-info" },
   atrasado: { texto: "Atrasado", cor: "bg-status-danger-bg text-status-danger" },
@@ -33,8 +39,10 @@ export function MinhaRotina({
   titulo = "Minha rotina de hoje",
   compacto = false,
   linkTela = true,
+  outrosDias = [],
 }: {
   itens: ItemRotinaTela[];
+  outrosDias?: ItemOutroDia[];
   podeMarcar: boolean;
   titulo?: string;
   compacto?: boolean;
@@ -64,7 +72,7 @@ export function MinhaRotina({
     });
   }
 
-  if (!itens.length) return null;
+  if (!itens.length && !outrosDias.length) return null;
   return (
     <section className={compacto ? "" : "ui-card p-5"}>
       <div className="flex items-end justify-between gap-3">
@@ -74,13 +82,19 @@ export function MinhaRotina({
           </p>
           <h2 className="section-title !text-lg">{titulo}</h2>
         </div>
-        <span className={`numero-grande text-2xl ${feitos === itens.length ? "text-status-success" : "text-foreground"}`}>
-          {feitos}/{itens.length}
-        </span>
+        {itens.length > 0 && (
+          <span className={`numero-grande text-2xl ${feitos === itens.length ? "text-status-success" : "text-foreground"}`}>
+            {feitos}/{itens.length}
+          </span>
+        )}
       </div>
-      <div className="mt-3 h-1.5 overflow-hidden rounded-full bg-track">
-        <div className="h-full rounded-full bg-status-success transition-[width] duration-300" style={{ width: `${pct}%` }} />
-      </div>
+      {itens.length > 0 ? (
+        <div className="mt-3 h-1.5 overflow-hidden rounded-full bg-track">
+          <div className="h-full rounded-full bg-status-success transition-[width] duration-300" style={{ width: `${pct}%` }} />
+        </div>
+      ) : (
+        <p className="mt-2 text-sm text-muted">Nada da sua rotina para hoje.</p>
+      )}
       <ul className="mt-3 space-y-0.5">
         {itens.map((i) => {
           const ini = hora(i.hora_inicio);
@@ -123,6 +137,20 @@ export function MinhaRotina({
           );
         })}
       </ul>
+      {outrosDias.length > 0 && (
+        <div className="mt-3 border-t border-border pt-3">
+          <p className="eyebrow mb-1">Nos outros dias</p>
+          <ul className="space-y-0.5">
+            {outrosDias.map((i) => (
+              <li key={i.id} className="flex items-baseline gap-3 px-2 py-1 text-sm">
+                <span className="w-12 shrink-0 text-right text-xs tabular-nums text-muted">{hora(i.hora_inicio) ?? "—"}</span>
+                <span className="min-w-0 flex-1 text-foreground/75">{i.titulo}</span>
+                <span className="shrink-0 text-[11px] text-muted">{nomeDosDias(i.dias)}</span>
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
       {linkTela && (
         <Link href="/admin/rotinas" className="eyebrow mt-3 inline-block hover:!text-foreground">
           Abrir rotinas ›

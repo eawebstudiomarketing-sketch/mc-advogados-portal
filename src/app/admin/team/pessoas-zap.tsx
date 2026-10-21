@@ -7,7 +7,7 @@ import type { Pessoa } from "@/lib/data/escritorio";
 import { salvarAreasEscritorioAction, salvarPessoaAction } from "./actions";
 import { FotoPerfil } from "@/components/ui/foto-perfil";
 
-// Pessoas da equipe (com e sem login): WhatsApp de cada um (rotina das 7h e
+// Pessoas da equipe (com e sem login): WhatsApp de cada um (rotina das 8h e
 // lembretes), áreas de atuação (sugestão de responsável na Distribuição).
 
 const PAPEL: Record<string, string> = { admin: "Administrador", advogado: "Advogado(a)" };
@@ -60,9 +60,9 @@ function LinhaPessoa({ pessoa, areas }: { pessoa: Pessoa; areas: string[] }) {
             className="ui-input w-48 py-1.5 text-sm"
           />
         </label>
-        <label className="flex items-center gap-2 text-xs text-muted" title="Recebe a agenda do dia no WhatsApp às 7h (dias úteis)">
+        <label className="flex items-center gap-2 text-xs text-muted" title="Recebe a agenda do dia no WhatsApp às 8h (dias úteis)">
           <input type="checkbox" checked={rotina} onChange={(e) => setRotina(e.target.checked)} className="h-4 w-4 accent-[var(--navy)]" />
-          Rotina das 7h no Zap
+          Rotina das 8h no Zap
         </label>
         <button type="button" onClick={salvar} disabled={!mudou || pending} className="ui-btn px-3 py-1.5 text-xs">
           {pending ? "Salvando..." : "Salvar"}

@@ -86,6 +86,12 @@ export async function rotinaDoDia(responsavelId: string, dia: string, db?: Db): 
     });
 }
 
+/** Itens da pessoa que não caem neste dia da semana (para mostrar a semana no cartão). */
+export async function rotinaOutrosDias(responsavelId: string, dia: string, db?: Db): Promise<ItemRotina[]> {
+  const semana = diaDaSemana(dia);
+  return (await listarItensRotina([responsavelId], db)).filter((i) => !i.dias.includes(semana));
+}
+
 /** Itens de rotina feitos por pessoa desde um dia (pontos do ranking). */
 export async function pontosDeRotina(desde: string, db?: Db): Promise<Map<string, number>> {
   const { data } = await (await banco(db)).from("rotina_feitos").select("responsavel_id").gte("dia", desde);

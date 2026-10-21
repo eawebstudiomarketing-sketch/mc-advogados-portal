@@ -289,6 +289,7 @@ export type Database = {
           client_id: string | null
           lead_id: string | null
           ler_demandas: boolean | null
+          tipo_pessoa: string | null
           responsavel: string | null
           nao_lidas: number
           fixado: boolean
@@ -309,6 +310,7 @@ export type Database = {
           client_id?: string | null
           lead_id?: string | null
           ler_demandas?: boolean | null
+          tipo_pessoa?: string | null
           responsavel?: string | null
           nao_lidas?: number
           fixado?: boolean
@@ -329,6 +331,7 @@ export type Database = {
           client_id?: string | null
           lead_id?: string | null
           ler_demandas?: boolean | null
+          tipo_pessoa?: string | null
           responsavel?: string | null
           nao_lidas?: number
           fixado?: boolean

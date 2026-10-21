@@ -38,7 +38,7 @@ export function ZapConfig({ config }: { config: EscritorioConfig }) {
       <div className="mt-3 space-y-2">
         <label className="flex items-center gap-2 text-sm">
           <input type="checkbox" checked={c.rotina_ativa} onChange={(e) => setC({ ...c, rotina_ativa: e.target.checked })} className="h-4 w-4 accent-[var(--navy)]" />
-          Rotina do dia para cada pessoa às 7h (segunda a sexta)
+          Rotina do dia para cada pessoa às 8h (segunda a sexta)
         </label>
         <label className="flex items-center gap-2 text-sm">
           <input type="checkbox" checked={c.lembretes_ativos} onChange={(e) => setC({ ...c, lembretes_ativos: e.target.checked })} className="h-4 w-4 accent-[var(--navy)]" />

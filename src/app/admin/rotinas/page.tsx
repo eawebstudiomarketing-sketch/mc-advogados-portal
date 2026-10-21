@@ -1,31 +1,32 @@
 import Link from "next/link";
-import { ehSuperAdmin, getPermissoes, requireRole } from "@/lib/dal";
+import { ehSuperAdmin, requireRole } from "@/lib/dal";
 import { listPessoas } from "@/lib/data/escritorio";
 import { responsavelDoPerfil } from "@/lib/data/responsaveis";
-import { cumprimento, listarItensRotina, progressoDoDia, relatorioDoDia, rotinaDoDia, type LinhaRelatorio } from "@/lib/data/rotina-diaria";
+import { cumprimento, listarItensRotina, progressoDoDia, relatorioDoDia, rotinaDoDia, rotinaOutrosDias, type LinhaRelatorio } from "@/lib/data/rotina-diaria";
 import { hojeBahia, somaDias } from "@/lib/periodo";
 import { Avatar } from "@/components/ui/avatar";
 import { MinhaRotina } from "@/components/rotina/minha-rotina";
 import { EditorRotina } from "./editor";
 
-// Rotinas: a rotina de hoje de quem está logado e, para o admin máximo, o
-// editor da rotina de cada pessoa (horários, dias, observação) e o
-// cumprimento de cada um (hoje, 7 e 30 dias, no horário).
+// Rotinas: a rotina de quem está logado (marca a de hoje, vê a da semana);
+// para o admin, o cumprimento e o que cada um fez; para o admin máximo, o
+// editor da rotina de cada pessoa (horários, dias, observação).
 
 const pct = (a: number, b: number) => (b ? Math.round((a / b) * 100) : null);
 
 export default async function RotinasPage({ searchParams }: { searchParams: Promise<{ pessoa?: string; dia?: string }> }) {
   const profile = await requireRole(["admin", "advogado"]);
   const souSuper = ehSuperAdmin(profile);
-  const permissoes = (await getPermissoes())!;
-  const verEquipe = souSuper || permissoes.ver_equipe;
+  // cumprimento e "o que cada um fez" são só do admin (advogado vê só a dele)
+  const verEquipe = souSuper || profile.role === "admin";
   const hoje = hojeBahia();
   const sp = await searchParams;
   const diaRelatorio = /^\d{4}-\d{2}-\d{2}$/.test(sp.dia ?? "") && sp.dia! <= hoje ? sp.dia! : hoje;
 
   const [pessoas, eu] = await Promise.all([listPessoas(), responsavelDoPerfil(profile.id)]);
-  const [minha, itens, progresso, c7, c30, relatorio] = await Promise.all([
+  const [minha, minhaOutros, itens, progresso, c7, c30, relatorio] = await Promise.all([
     eu ? rotinaDoDia(eu, hoje) : Promise.resolve([]),
+    eu ? rotinaOutrosDias(eu, hoje) : Promise.resolve([]),
     souSuper ? listarItensRotina() : Promise.resolve([]),
     verEquipe ? progressoDoDia(hoje) : Promise.resolve(new Map()),
     verEquipe ? cumprimento(somaDias(hoje, -6), hoje) : Promise.resolve(new Map()),
@@ -33,6 +34,7 @@ export default async function RotinasPage({ searchParams }: { searchParams: Prom
     verEquipe ? relatorioDoDia(diaRelatorio) : Promise.resolve(new Map<string, LinhaRelatorio[]>()),
   ]);
   const horaDe = (iso: string) => new Date(iso).toLocaleTimeString("pt-BR", { timeZone: "America/Bahia", hour: "2-digit", minute: "2-digit" });
+  const temMinha = minha.length > 0 || minhaOutros.length > 0;
   const comRotina = new Set(itens.map((i) => i.responsavel_id));
   const selecionada = pessoas.find((p) => p.id === sp.pessoa) ?? pessoas.find((p) => p.id === eu) ?? pessoas[0];
 
@@ -41,10 +43,10 @@ export default async function RotinasPage({ searchParams }: { searchParams: Prom
       <div className="mb-8">
         <p className="eyebrow mb-2">Operacional · Rotinas</p>
         <h1 className="page-title">Rotinas</h1>
-        <p className="mt-1 text-sm text-muted">O que cada pessoa faz todo dia, com horário. Cada item feito vale 1 ponto no ranking e a rotina vai na mensagem das 7h.</p>
+        <p className="mt-1 text-sm text-muted">O que cada pessoa faz todo dia, com horário. Cada item feito vale 1 ponto no ranking e a rotina vai na mensagem das 8h.</p>
       </div>
 
-      <div className={`grid grid-cols-1 gap-6 ${minha.length ? "xl:grid-cols-[1fr_420px]" : ""}`}>
+      <div className={`grid grid-cols-1 gap-6 ${temMinha && verEquipe ? "xl:grid-cols-[1fr_420px]" : ""}`}>
         <div className="min-w-0 space-y-8">
           {/* cumprimento da equipe */}
           {verEquipe && (
@@ -180,15 +182,16 @@ export default async function RotinasPage({ searchParams }: { searchParams: Prom
             </section>
           )}
 
-          {!verEquipe && !minha.length && <p className="ui-card p-6 text-sm text-muted">Você ainda não tem rotina definida. Quem define é o administrador.</p>}
+          {!verEquipe && !temMinha && <p className="ui-card p-6 text-sm text-muted">Você ainda não tem rotina definida. Quem define é o administrador.</p>}
         </div>
 
-        {minha.length > 0 && (
-          <aside className="xl:sticky xl:top-20 xl:self-start">
+        {temMinha && (
+          <aside className={verEquipe ? "xl:sticky xl:top-20 xl:self-start" : "max-w-2xl"}>
             <MinhaRotina
               linkTela={false}
               podeMarcar
               itens={minha.map((i) => ({ id: i.id, titulo: i.titulo, feito: i.feito, feitoEm: i.feitoEm, hora_inicio: i.hora_inicio, hora_fim: i.hora_fim, observacao: i.observacao, situacao: i.situacao }))}
+              outrosDias={minhaOutros.map((i) => ({ id: i.id, titulo: i.titulo, dias: i.dias, hora_inicio: i.hora_inicio, hora_fim: i.hora_fim }))}
             />
           </aside>
         )}

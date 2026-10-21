@@ -5,7 +5,7 @@ import { rotinaDoDia } from "@/lib/data/rotina-diaria";
 
 // O dia de uma pessoa: compromissos em que ela participa, atividades dela que
 // vencem no dia e as atrasadas. Usado na tela "Meu dia" (Agenda) e na
-// mensagem das 7h pelo WhatsApp. Lê com a chave de serviço: quem chama decide
+// mensagem das 8h pelo WhatsApp. Lê com a chave de serviço: quem chama decide
 // quem pode ver o dia de quem.
 
 export type CompromissoDoDia = { id: string; titulo: string; tipo: string; hora: string; fim: string | null; local: string | null; cliente: string | null; participantes: string[] };
@@ -87,7 +87,7 @@ const ROTULO_CAT: Record<string, string> = { prazo: "Prazo", audiencia: "Audiên
 const ROTULO_TIPO: Record<string, string> = { reuniao: "Reunião", ligacao: "Ligação", evento: "Evento", outro: "Compromisso" };
 const dataCurta = (iso: string) => iso.split("-").reverse().slice(0, 2).join("/");
 
-/** Texto da mensagem das 7h (WhatsApp: *negrito*, _itálico_). */
+/** Texto da mensagem das 8h (WhatsApp: *negrito*, _itálico_). */
 export function textoDaRotina(nome: string, dia: string, d: DiaDaPessoa, url: string): string {
   const primeiro = nome.replace(/^(Dr\.?|Dra\.?)\s+/i, "").split(" ")[0];
   const semana = new Date(`${dia}T12:00:00Z`).toLocaleDateString("pt-BR", { weekday: "long", day: "2-digit", month: "2-digit", timeZone: "UTC" });

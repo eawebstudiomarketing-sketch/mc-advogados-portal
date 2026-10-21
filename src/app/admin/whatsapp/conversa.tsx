@@ -130,15 +130,17 @@ export function Conversa({
         // só precisa ir ao servidor quando tem mídia (link assinado)
         const m: Msg = bruta.media_path ? await prepararMensagemAction(bruta) : { ...bruta, raw: undefined, media_pendente: !!bruta.raw && !bruta.media_erro };
         setMensagens((ms) => {
+          // o WhatsApp às vezes devolve a enviada antes do Agente gravar o job_id:
+          // aí ela chega como INSERT sem job e o job vem num UPDATE depois
+          const semTempDoJob = (xs: Msg[]) => (m.job_id ? xs.filter((x) => !(x._temp && x.job_id === m.job_id)) : xs);
           const i = ms.findIndex((x) => x.id === m.id);
           if (i >= 0) {
             const copia = [...ms];
             copia[i] = { ...copia[i], ...m };
-            return copia;
+            return semTempDoJob(copia);
           }
           if (temNovasRef.current) return ms; // olhando mensagens antigas: não empurra
-          const semTemp = m.job_id ? ms.filter((x) => !(x._temp && x.job_id === m.job_id)) : ms;
-          return [...semTemp, m].sort((a, b) => a.wa_timestamp.localeCompare(b.wa_timestamp));
+          return [...semTempDoJob(ms), m].sort((a, b) => a.wa_timestamp.localeCompare(b.wa_timestamp));
         });
         if (!m.from_me && p.eventType === "INSERT") void marcarLidoAction(jid);
       })
@@ -363,7 +365,7 @@ export function Conversa({
     for (const [i, f] of arquivos.entries()) {
       const tipo = ptt ? "audio" : f.type.startsWith("image/") ? "imagem" : f.type.startsWith("video/") ? "video" : f.type.startsWith("audio/") ? "audio" : "documento";
       const local = URL.createObjectURL(f);
-      const temp = temporaria({ tipo, texto: i === 0 ? legenda || null : null, media_nome: f.name, media_url: tipo === "documento" ? null : local, _arquivo: f.name });
+      const temp = temporaria({ tipo, texto: i === 0 ? legenda || null : null, media_nome: f.name, media_mime: f.type || null, media_url: local, _arquivo: f.name });
       posRef.current.perto = true;
       setMensagens((ms) => [...ms, temp]);
       try {
@@ -548,7 +550,7 @@ export function Conversa({
         onArquivos={(fs, legenda, ptt) => void enviarArquivos(fs, legenda, ptt)}
       />
 
-      {ampliada && <Ampliada m={ampliada} onFechar={() => setAmpliada(null)} />}
+      {ampliada && (ampliada.tipo === "documento" ? <VerDocumento m={ampliada} onFechar={() => setAmpliada(null)} /> : <Ampliada m={ampliada} onFechar={() => setAmpliada(null)} />)}
       {encaminhando && (
         <Encaminhar
           m={encaminhando}
@@ -891,11 +893,18 @@ function Midia({ m, onAmpliar, onCarregou }: { m: Msg; onAmpliar: (m: Msg) => vo
   if (m.tipo === "audio") return <audio controls src={url} onLoadedMetadata={onCarregou} className="mb-1 h-10 w-72 max-w-full" preload="none" />;
   if (m.tipo === "video") return <video controls src={url} onLoadedMetadata={onCarregou} className="mb-1 max-h-80 max-w-full rounded-xl" preload="metadata" />;
   return (
-    <a href={m.media_download_url ?? url} target="_blank" rel="noreferrer" className="mb-1 flex items-center gap-2.5 rounded-xl bg-black/5 px-3 py-2.5 hover:bg-black/10">
-      <FileText className="h-6 w-6 shrink-0 opacity-70" aria-hidden />
-      <span className="min-w-0 flex-1 truncate text-[13px]">{m.media_nome ?? "Documento"}</span>
-      <Download className="h-4 w-4 shrink-0 opacity-60" aria-hidden />
-    </a>
+    <span className="mb-1 flex items-center gap-1 rounded-xl bg-black/5">
+      <button type="button" onClick={() => onAmpliar(m)} className="flex min-w-0 flex-1 items-center gap-2.5 rounded-xl px-3 py-2.5 text-left hover:bg-black/5" title="Abrir documento">
+        <FileText className="h-6 w-6 shrink-0 opacity-70" aria-hidden />
+        <span className="min-w-0 flex-1 leading-tight">
+          <span className="block truncate text-[13px]">{m.media_nome ?? "Documento"}</span>
+          <span className="block text-[11px] opacity-60">{m._temp ? "enviando… · " : ""}Clique para abrir</span>
+        </span>
+      </button>
+      <a href={m.media_download_url ?? url} download={m.media_nome ?? true} target="_blank" rel="noreferrer" className="mr-1 rounded-lg p-2 opacity-60 hover:bg-black/10 hover:opacity-100" aria-label="Baixar documento">
+        <Download className="h-4 w-4" aria-hidden />
+      </a>
+    </span>
   );
 }
 
@@ -1137,6 +1146,122 @@ function Encaminhar({ m, conversas, onFechar, onEnviar }: { m: Msg; conversas: W
           </button>
         </div>
       </div>
+    </div>
+  );
+}
+
+/* ───────── documento aberto na tela ───────── */
+
+const extensao = (nome?: string | null) => (nome?.match(/\.([a-z0-9]+)$/i)?.[1] ?? "").toLowerCase();
+const escaparHtml = (t: string) => t.replace(/[&<>]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;" })[c]!);
+const PAGINA_DOC = (corpo: string) =>
+  `<!doctype html><html><head><meta charset="utf-8"><style>body{font-family:Calibri,Arial,sans-serif;font-size:15px;line-height:1.55;color:#1f2328;background:#fff;max-width:820px;margin:0 auto;padding:40px 48px}table{border-collapse:collapse}td,th{border:1px solid #ccc;padding:4px 8px}img{max-width:100%}pre{white-space:pre-wrap;font-family:ui-monospace,Consolas,monospace;font-size:13px}</style></head><body>${corpo}</body></html>`;
+
+type Visao = { tipo: "pdf" | "imagem" | "html" | "nao_abre" | "carregando" | "erro"; html?: string; erro?: string };
+
+/** Abre o documento dentro do portal: PDF, Word (.docx), texto/HTML e imagem; o resto oferece baixar. */
+function VerDocumento({ m, onFechar }: { m: Msg; onFechar: () => void }) {
+  const url = m.media_url;
+  const ext = extensao(m.media_nome);
+  const mime = (m.media_mime ?? "").toLowerCase();
+  const [visao, setVisao] = useState<Visao>({ tipo: "carregando" });
+
+  useEffect(() => {
+    const tecla = (e: KeyboardEvent) => e.key === "Escape" && onFechar();
+    window.addEventListener("keydown", tecla);
+    return () => window.removeEventListener("keydown", tecla);
+  }, [onFechar]);
+
+  useEffect(() => {
+    if (!url) return;
+    let vivo = true;
+    const pronto = (v: Visao) => vivo && setVisao(v);
+    (async () => {
+      try {
+        if (ext === "pdf" || mime.includes("pdf")) return pronto({ tipo: "pdf" });
+        if (mime.startsWith("image/") || ["jpg", "jpeg", "png", "webp", "gif"].includes(ext)) return pronto({ tipo: "imagem" });
+        if (ext === "docx" || mime.includes("wordprocessingml")) {
+          const r = await fetch(url);
+          if (!r.ok) throw new Error(`O arquivo não abriu (${r.status}).`);
+          const mammoth = await import("mammoth");
+          const { value } = await mammoth.convertToHtml({ arrayBuffer: await r.arrayBuffer() });
+          return pronto({ tipo: "html", html: PAGINA_DOC(value || "<p><em>Documento sem texto.</em></p>") });
+        }
+        if (["txt", "csv", "json", "xml", "md", "log", "html", "htm"].includes(ext) || mime.startsWith("text/")) {
+          const r = await fetch(url);
+          if (!r.ok) throw new Error(`O arquivo não abriu (${r.status}).`);
+          const texto = await r.text();
+          // HTML aparece como página (sem scripts: iframe com sandbox); o resto como texto
+          return pronto({ tipo: "html", html: ext === "html" || ext === "htm" || mime.includes("html") ? texto : PAGINA_DOC(`<pre>${escaparHtml(texto)}</pre>`) });
+        }
+        pronto({ tipo: "nao_abre" });
+      } catch (e) {
+        pronto({ tipo: "erro", erro: e instanceof Error ? e.message : "Não foi possível abrir." });
+      }
+    })();
+    return () => {
+      vivo = false;
+    };
+  }, [url, ext, mime]);
+
+  const baixar = m.media_download_url ?? url;
+  return createPortal(
+    <div className="fixed inset-0 z-50 flex flex-col bg-black/85" role="dialog" aria-modal="true" aria-label={`Documento ${m.media_nome ?? ""}`} onClick={onFechar}>
+      <div className="flex items-center gap-2 px-3 py-2.5 text-white" onClick={(e) => e.stopPropagation()}>
+        <FileText className="h-5 w-5 shrink-0 opacity-80" aria-hidden />
+        <p className="min-w-0 flex-1 truncate text-sm font-medium">{m.media_nome ?? "Documento"}</p>
+        {url && (
+          <a href={url} target="_blank" rel="noreferrer" className="rounded-full bg-white/10 px-3 py-2 text-xs hover:bg-white/20">
+            Abrir em outra aba
+          </a>
+        )}
+        {baixar && (
+          <a href={baixar} download={m.media_nome ?? true} target="_blank" rel="noreferrer" className="flex h-9 w-9 items-center justify-center rounded-full bg-white/10 hover:bg-white/20" aria-label="Baixar">
+            <Download className="h-4 w-4" aria-hidden />
+          </a>
+        )}
+        <button type="button" onClick={onFechar} className="flex h-9 w-9 items-center justify-center rounded-full bg-white/10 hover:bg-white/20" aria-label="Fechar">
+          <X className="h-5 w-5" aria-hidden />
+        </button>
+      </div>
+      <div className="flex min-h-0 flex-1 items-center justify-center px-3 pb-3" onClick={(e) => e.stopPropagation()}>
+        {!url ? (
+          <Aviso texto={m.media_pendente ? "O arquivo ainda está sendo baixado do WhatsApp. Tente de novo em instantes." : "Este arquivo não está mais disponível no WhatsApp."} />
+        ) : visao.tipo === "carregando" ? (
+          <Loader2 className="h-8 w-8 animate-spin text-white/80" aria-label="Abrindo" />
+        ) : visao.tipo === "pdf" ? (
+          <iframe src={url} title={m.media_nome ?? "PDF"} className="h-full w-full max-w-5xl rounded-lg bg-white" />
+        ) : visao.tipo === "imagem" ? (
+          // eslint-disable-next-line @next/next/no-img-element
+          <img src={url} alt={m.media_nome ?? "Imagem"} className="max-h-full max-w-full object-contain" />
+        ) : visao.tipo === "html" ? (
+          <iframe srcDoc={visao.html} sandbox="" title={m.media_nome ?? "Documento"} className="h-full w-full max-w-5xl rounded-lg bg-white" />
+        ) : (
+          <Aviso
+            texto={
+              visao.tipo === "erro"
+                ? (visao.erro ?? "Não foi possível abrir.")
+                : `Arquivos ${ext ? `.${ext} ` : ""}não abrem dentro do navegador. Baixe para abrir no computador.`
+            }
+            baixar={baixar}
+          />
+        )}
+      </div>
+    </div>,
+    document.body
+  );
+}
+
+function Aviso({ texto, baixar }: { texto: string; baixar?: string | null }) {
+  return (
+    <div className="max-w-sm rounded-2xl bg-surface p-6 text-center text-sm text-foreground">
+      <FileText className="mx-auto mb-3 h-10 w-10 text-muted" aria-hidden />
+      <p>{texto}</p>
+      {baixar && (
+        <a href={baixar} target="_blank" rel="noreferrer" className="ui-btn mt-4 inline-flex">
+          <Download className="h-4 w-4" aria-hidden /> Baixar
+        </a>
+      )}
     </div>
   );
 }

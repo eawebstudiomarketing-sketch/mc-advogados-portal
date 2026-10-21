@@ -2,6 +2,7 @@ import "server-only";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { MESES } from "@/lib/relatorio-datas";
 import { criarOrdem, resolverDestino, statusAgente, telefoneDoJid, type WaChat, type WaMensagem } from "@/lib/whatsapp";
+import { tipoPessoaDaConversa } from "@/lib/whatsapp-pessoa";
 import type { ToolDef } from "./tools";
 
 // Ferramentas do WhatsApp para o assistente (só admin). Lêem o espelho que o
@@ -147,15 +148,23 @@ export const TOOLS_WHATSAPP: ToolDef[] = [
     kind: "read",
     label: "Consultou conversas do WhatsApp",
     description:
-      "Lista conversas do WhatsApp do escritório (chat_jid, nome, não lidas, última mensagem, cliente vinculado). Filtros: busca (nome/telefone), so_nao_lidas, sem_resposta (a última mensagem é do contato, ninguém respondeu).",
-    parameters: obj({ busca: { type: "string" }, so_nao_lidas: { type: "boolean" }, sem_resposta: { type: "boolean" }, limite: { type: "integer" } }),
+      "Lista conversas do WhatsApp do escritório (chat_jid, nome, não lidas, última mensagem, cliente vinculado, PF/PJ). Filtros: busca (nome/telefone), so_nao_lidas, sem_resposta (a última mensagem é do contato, ninguém respondeu), tipo_pessoa (PF = pessoa física, PJ = empresa).",
+    parameters: obj({
+      busca: { type: "string" },
+      so_nao_lidas: { type: "boolean" },
+      sem_resposta: { type: "boolean" },
+      tipo_pessoa: { type: "string", enum: ["PF", "PJ"] },
+      limite: { type: "integer" },
+    }),
     run: async (a) => {
+      const limite = Math.min(Number(a.limite) || 30, 60);
+      const tipo = a.tipo_pessoa === "PF" || a.tipo_pessoa === "PJ" ? a.tipo_pessoa : null;
       let q = db()
         .from("wa_chats")
-        .select("chat_jid, nome, is_group, nao_lidas, ultima_msg_em, ultima_msg_preview, client_id, clients(name)")
+        .select("chat_jid, nome, is_group, nao_lidas, ultima_msg_em, ultima_msg_preview, client_id, tipo_pessoa, clients(name, tipo_pessoa)")
         .eq("arquivado", false)
         .order("ultima_msg_em", { ascending: false, nullsFirst: false })
-        .limit(Math.min(Number(a.limite) || 30, 60));
+        .limit(tipo ? 1000 : limite); // PF/PJ é calculado: busca mais e filtra depois
       if (a.so_nao_lidas) q = q.gt("nao_lidas", 0);
       const termo = String(a.busca ?? "").replace(/[%_,()]/g, " ").trim();
       if (termo) {
@@ -164,7 +173,9 @@ export const TOOLS_WHATSAPP: ToolDef[] = [
       }
       const { data, error } = await q;
       if (error) throw error;
-      let lista = data ?? [];
+      const tipoDoCliente = (c: (typeof data)[number]) => (c.clients as unknown as { tipo_pessoa: string } | null)?.tipo_pessoa;
+      let lista = (data ?? []).map((c) => ({ ...c, pessoa: tipoPessoaDaConversa(c, () => tipoDoCliente(c)) }));
+      if (tipo) lista = lista.filter((c) => c.pessoa === tipo).slice(0, limite);
       if (a.sem_resposta && lista.length) {
         const ultimas = await Promise.all(
           lista.map((c) => db().from("wa_messages").select("from_me").eq("chat_jid", c.chat_jid).order("wa_timestamp", { ascending: false }).limit(1).maybeSingle())
@@ -180,7 +191,25 @@ export const TOOLS_WHATSAPP: ToolDef[] = [
         ultima: c.ultima_msg_em ? hora(c.ultima_msg_em) : null,
         previa: c.ultima_msg_preview,
         cliente: (c.clients as unknown as { name: string } | null)?.name ?? null,
+        pf_pj: c.pessoa,
       }));
+    },
+  },
+  {
+    name: "whatsapp_marcar_pf_pj",
+    soAdmin: true,
+    kind: "write",
+    label: "Marcou conversa como PF/PJ",
+    description:
+      "Marca uma conversa do WhatsApp como PF (pessoa física) ou PJ (empresa) para o filtro PF/PJ da tela; tipo 'automatico' volta à regra (cliente vinculado, grupo de Assessoria Jurídica/nome de empresa = PJ, contato = PF).",
+    parameters: obj({ alvo: ALVO, tipo: { type: "string", enum: ["PF", "PJ", "automatico"] } }, ["alvo", "tipo"]),
+    run: async (a) => {
+      const { para, chat } = await destinoUnico(a.alvo);
+      if (!chat) throw new Error("Essa conversa ainda não existe no WhatsApp do escritório.");
+      const tipo = a.tipo === "PF" || a.tipo === "PJ" ? a.tipo : null;
+      const { error } = await db().from("wa_chats").update({ tipo_pessoa: tipo }).eq("chat_jid", para);
+      if (error) throw error;
+      return { conversa: nomeChat(chat, para), tipo: tipo ?? "automático" };
     },
   },
   {

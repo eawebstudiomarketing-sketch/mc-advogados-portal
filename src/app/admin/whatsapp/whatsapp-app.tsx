@@ -6,7 +6,8 @@ import { BellOff, ChevronDown, Loader2, MessageCircle, Pin, RefreshCw, Search, S
 import { toast } from "sonner";
 import { createClient } from "@/lib/supabase/client";
 import type { WaAgente, WaChat, WaContato } from "@/lib/whatsapp";
-import { abrirContatoAction, linkFotoAction, listarContatosAction, listarConversasAction, statusAgenteAction } from "./actions";
+import { abrirContatoAction, linkFotoAction, listarContatosAction, listarConversasAction, listarTodasConversasAction, setTipoPessoaAction, statusAgenteAction } from "./actions";
+import { tipoPessoaDaConversa, type TipoPessoa } from "@/lib/whatsapp-pessoa";
 import { executarOrdem } from "./ordem";
 import { BarraAgente } from "./agente-barra";
 import { AvatarWa } from "./comum";
@@ -18,8 +19,8 @@ import { ligadoAgora, ordenar, quando, telefone } from "./util";
 // permanente (apagar no celular não apaga aqui). Toda ação vira uma ordem em
 // wa_jobs e o Agente MC (servidor 24h) executa no WhatsApp.
 
-type Cliente = { id: string; name: string };
-type Filtro = "todas" | "naoLidas" | "grupos" | "contatos" | "arquivadas";
+type Cliente = { id: string; name: string; tipo_pessoa?: string | null };
+type Filtro = "todas" | "naoLidas" | "grupos" | "pf" | "pj" | "contatos" | "arquivadas";
 const PAGINA = 300;
 
 export function WhatsappApp({ agenteInicial, conversasIniciais, clientes }: { agenteInicial: WaAgente | null; conversasIniciais: WaChat[]; clientes: Cliente[] }) {
@@ -145,6 +146,33 @@ export function WhatsappApp({ agenteInicial, conversasIniciais, clientes }: { ag
     if (filtro === "arquivadas" && arquivadas === null) void listarConversasAction({ arquivadas: true }).then(setArquivadas);
   }, [filtro, arquivadas]);
 
+  const tipoDoCliente = useMemo(() => {
+    const m = new Map(clientes.map((c) => [c.id, c.tipo_pessoa ?? null]));
+    return (id: string) => m.get(id);
+  }, [clientes]);
+  const tipoDe = useCallback((c: WaChat) => tipoPessoaDaConversa(c, tipoDoCliente), [tipoDoCliente]);
+
+  // PF/PJ olha todas as conversas: carrega as que faltam uma vez só
+  const carregandoTodas = (filtro === "pf" || filtro === "pj") && !fimDaLista;
+  useEffect(() => {
+    if (!carregandoTodas) return;
+    void listarTodasConversasAction().then((todas) => {
+      setConversas((cs) => {
+        const porJid = new Map(todas.map((c) => [c.chat_jid, c]));
+        for (const c of cs) porJid.set(c.chat_jid, c); // o que já está na tela vale (tempo real)
+        return ordenar([...porJid.values()]);
+      });
+      setFimDaLista(true);
+    });
+  }, [carregandoTodas]);
+
+  const marcarTipo = useCallback(async (jid: string, tipo: TipoPessoa | null) => {
+    setConversas((cs) => cs.map((c) => (c.chat_jid === jid ? { ...c, tipo_pessoa: tipo } : c)));
+    const r = await setTipoPessoaAction(jid, tipo);
+    if (!r.ok) toast.error(r.erro ?? "Não foi possível salvar.");
+    else toast.success(tipo ? `Marcada como ${tipo}.` : "Volta a ser automático.");
+  }, []);
+
   const lista = useMemo(() => {
     if (filtro === "contatos") return [];
     const base = filtro === "arquivadas" ? (arquivadas ?? []) : conversas;
@@ -153,14 +181,26 @@ export function WhatsappApp({ agenteInicial, conversasIniciais, clientes }: { ag
       (c) =>
         (filtro !== "naoLidas" || c.nao_lidas > 0) &&
         (filtro !== "grupos" || c.is_group) &&
+        (filtro !== "pf" || tipoDe(c) === "PF") &&
+        (filtro !== "pj" || tipoDe(c) === "PJ") &&
         (!termo || (c.nome ?? "").toLowerCase().includes(termo) || (dig.length >= 4 && c.chat_jid.includes(dig)))
     );
     if (termo.length >= 2 && filtro !== "arquivadas") {
       const ja = new Set(l.map((c) => c.chat_jid));
-      l = [...l, ...doServidor.filter((c) => !ja.has(c.chat_jid) && (filtro !== "grupos" || c.is_group) && (filtro !== "naoLidas" || c.nao_lidas > 0))];
+      l = [
+        ...l,
+        ...doServidor.filter(
+          (c) =>
+            !ja.has(c.chat_jid) &&
+            (filtro !== "grupos" || c.is_group) &&
+            (filtro !== "naoLidas" || c.nao_lidas > 0) &&
+            (filtro !== "pf" || tipoDe(c) === "PF") &&
+            (filtro !== "pj" || tipoDe(c) === "PJ")
+        ),
+      ];
     }
     return l;
-  }, [conversas, arquivadas, filtro, termo, doServidor]);
+  }, [conversas, arquivadas, filtro, termo, doServidor, tipoDe]);
 
   const contatosFiltrados = useMemo(() => {
     if (filtro !== "contatos") return [];
@@ -233,6 +273,8 @@ export function WhatsappApp({ agenteInicial, conversasIniciais, clientes }: { ag
     { id: "todas", rotulo: "Todas" },
     { id: "naoLidas", rotulo: `Não lidas${totalNaoLidas ? ` ${totalNaoLidas}` : ""}` },
     { id: "grupos", rotulo: "Grupos" },
+    { id: "pf", rotulo: "PF" },
+    { id: "pj", rotulo: "PJ" },
     { id: "contatos", rotulo: "Contatos" },
     { id: "arquivadas", rotulo: "Arquivadas" },
   ];
@@ -296,12 +338,21 @@ export function WhatsappApp({ agenteInicial, conversasIniciais, clientes }: { ag
           ) : (
             <ListaVirtual
               itens={lista}
-              vazio={filtro === "arquivadas" && arquivadas === null ? "Carregando…" : conversas.length === 0 ? "Nenhuma conversa ainda. Conecte o número para trazer as conversas do celular." : "Nada encontrado."}
+              vazio={(filtro === "arquivadas" && arquivadas === null) || carregandoTodas ? "Carregando…" : conversas.length === 0 ? "Nenhuma conversa ainda. Conecte o número para trazer as conversas do celular." : "Nada encontrado."}
               chave={(c) => c.chat_jid}
               noFim={() => void carregarMais()}
               rodape={!fimDaLista && !termo && filtro === "todas"}
               render={(c) => (
-                <LinhaConversa c={c} ativa={aberta === c.chat_jid} cliente={c.client_id ? (clientes.find((x) => x.id === c.client_id)?.name ?? null) : null} onAbrir={abrir} onAjustar={ajustar} />
+                <LinhaConversa
+                  c={c}
+                  ativa={aberta === c.chat_jid}
+                  cliente={c.client_id ? (clientes.find((x) => x.id === c.client_id)?.name ?? null) : null}
+                  tipo={tipoDe(c)}
+                  mostrarTipo={filtro !== "pf" && filtro !== "pj"}
+                  onAbrir={abrir}
+                  onAjustar={ajustar}
+                  onTipo={marcarTipo}
+                />
               )}
             />
           )}
@@ -415,14 +466,20 @@ const LinhaConversa = memo(function LinhaConversa({
   c,
   ativa,
   cliente,
+  tipo,
+  mostrarTipo,
   onAbrir,
   onAjustar,
+  onTipo,
 }: {
   c: WaChat;
   ativa: boolean;
   cliente: string | null;
+  tipo: TipoPessoa | null;
+  mostrarTipo: boolean;
   onAbrir: (jid: string) => void;
   onAjustar: (jid: string, acao: "fixar" | "arquivar" | "silenciar" | "lida", valor: boolean) => void;
+  onTipo: (jid: string, tipo: TipoPessoa | null) => void;
 }) {
   const [menu, setMenu] = useState<DOMRect | null>(null);
   const nome = c.nome || telefone(c.chat_jid);
@@ -446,6 +503,7 @@ const LinhaConversa = memo(function LinhaConversa({
         <span className="mt-0.5 flex items-center gap-1.5">
           {c.is_group && <Users className="h-3 w-3 shrink-0 text-muted" aria-hidden />}
           <span className="truncate text-[13px] text-muted">
+            {mostrarTipo && tipo === "PJ" && <span className="mr-1 rounded bg-surface-2 px-1 py-px text-[10px] font-semibold text-foreground/70">PJ</span>}
             {cliente && <span className="mr-1 rounded bg-gold-soft px-1 py-px text-[10px] font-medium text-gold-ink">{cliente}</span>}
             {c.ultima_msg_preview ?? ""}
           </span>
@@ -472,6 +530,14 @@ const LinhaConversa = memo(function LinhaConversa({
           <ItemMenu onClick={() => (setMenu(null), onAjustar(c.chat_jid, "lida", c.nao_lidas > 0))}>{c.nao_lidas > 0 ? "Marcar como lida" : "Marcar como não lida"}</ItemMenu>
           <ItemMenu onClick={() => (setMenu(null), onAjustar(c.chat_jid, "silenciar", !c.silenciado))}>{c.silenciado ? "Reativar notificações" : "Silenciar (8 h)"}</ItemMenu>
           <ItemMenu onClick={() => (setMenu(null), onAjustar(c.chat_jid, "arquivar", !c.arquivado))}>{c.arquivado ? "Desarquivar" : "Arquivar conversa"}</ItemMenu>
+          <div className="my-1 border-t border-border" />
+          <p className="px-3 pt-1 pb-0.5 text-[11px] text-muted">
+            É {tipo ?? "—"}
+            {c.tipo_pessoa ? " (marcado)" : " (automático)"}
+          </p>
+          {tipo !== "PF" && <ItemMenu onClick={() => (setMenu(null), onTipo(c.chat_jid, "PF"))}>Marcar como PF (pessoa física)</ItemMenu>}
+          {tipo !== "PJ" && <ItemMenu onClick={() => (setMenu(null), onTipo(c.chat_jid, "PJ"))}>Marcar como PJ (empresa)</ItemMenu>}
+          {c.tipo_pessoa && <ItemMenu onClick={() => (setMenu(null), onTipo(c.chat_jid, null))}>Voltar ao automático</ItemMenu>}
         </Menu>
       )}
     </div>

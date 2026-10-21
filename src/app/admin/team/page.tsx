@@ -53,7 +53,7 @@ export default async function AdminTeamPage({ searchParams }: { searchParams: Pr
       <div>
         <p className="eyebrow mb-2">Gestão · Equipe</p>
         <h1 className="page-title mb-1">Equipe</h1>
-        <p className="mb-5 text-sm text-muted">WhatsApp de cada pessoa (rotina das 7h) e as áreas que cada um atende.</p>
+        <p className="mb-5 text-sm text-muted">WhatsApp de cada pessoa (rotina das 8h) e as áreas que cada um atende.</p>
         {abas}
         <Link href="/admin/rotinas" className="mb-8 flex items-center justify-between gap-3 rounded-2xl border border-border bg-surface px-5 py-4 hover:border-border-strong">
           <span>

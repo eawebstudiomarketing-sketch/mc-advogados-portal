@@ -230,6 +230,21 @@ export async function setLerDemandasAction(chatJid: string, valor: boolean | nul
   return error ? { ok: false, erro: error.message } : { ok: true };
 }
 
+/** PF/PJ da conversa marcado a mão (null = automático). Só no portal, não mexe no WhatsApp. */
+export async function setTipoPessoaAction(chatJid: string, tipo: "PF" | "PJ" | null): Promise<{ ok: boolean; erro?: string }> {
+  await exigirPermissao("whatsapp");
+  if (tipo !== null && tipo !== "PF" && tipo !== "PJ") return { ok: false, erro: "Tipo inválido." };
+  const db = await createClient();
+  const { error } = await db.from("wa_chats").update({ tipo_pessoa: tipo }).eq("chat_jid", chatJid);
+  return error ? { ok: false, erro: "Não foi possível salvar." } : { ok: true };
+}
+
+/** Todas as conversas (não arquivadas) de uma vez, para os filtros PF/PJ. */
+export async function listarTodasConversasAction(): Promise<WaChat[]> {
+  await exigirPermissao("whatsapp");
+  return listarConversas(await createClient(), { limite: 10_000 });
+}
+
 /**
  * Sair do WhatsApp: o Agente faz logout (some de "Aparelhos conectados" no
  * celular) e apaga a sessão. "Trocar" já gera o QR; "desconectar" fica parado

@@ -1,8 +1,8 @@
 import { NextResponse } from "next/server";
 import { enfileirarRotinas } from "@/lib/zap/rotina";
 
-// Rotina do dia no WhatsApp: às 06h45 da Bahia (seg–sex) monta a agenda de
-// cada pessoa e deixa na fila do Agente para sair às 07h00. GitHub Actions
+// Rotina do dia no WhatsApp: às 07h45 da Bahia (seg–sex) monta a agenda de
+// cada pessoa e deixa na fila do Agente para sair às 08h00. GitHub Actions
 // (.github/workflows/zap.yml) + Vercel Cron de reserva; não manda duas vezes.
 export const dynamic = "force-dynamic";
 export const maxDuration = 60;

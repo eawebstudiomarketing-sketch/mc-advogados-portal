@@ -129,11 +129,18 @@ export async function lerConversa(
  * Também tira o `raw` (pesado) e marca o que ainda está na fila de download.
  */
 export async function comLinksDeMidia(msgs: WaMensagem[]): Promise<WaMensagem[]> {
-  const doSupabase = msgs.map((m) => m.media_path).filter((p): p is string => !!p && !p.startsWith(PREFIXO_VPS));
+  const doSupabase = [...new Set(msgs.map((m) => m.media_path).filter((p): p is string => !!p && !p.startsWith(PREFIXO_VPS)))];
   const url = new Map<string, string>();
   if (doSupabase.length) {
-    const { data } = await createAdminClient().storage.from(BUCKET_WHATSAPP).createSignedUrls(doSupabase, 3600);
+    const storage = createAdminClient().storage;
+    const { data } = await storage.from(BUCKET_WHATSAPP).createSignedUrls(doSupabase, 3600);
     for (const d of data ?? []) if (d.path && d.signedUrl) url.set(d.path, d.signedUrl);
+    // relatório enviado pelo portal fica no bucket "documents" (não copia pro whatsapp)
+    const faltam = doSupabase.filter((p) => !url.has(p));
+    if (faltam.length) {
+      const { data: docs } = await storage.from("documents").createSignedUrls(faltam, 3600);
+      for (const d of docs ?? []) if (d.path && d.signedUrl) url.set(d.path, d.signedUrl);
+    }
   }
   return msgs.map(({ raw, ...m }) => {
     const pendente = !m.media_path && !!raw && !m.media_erro;
@@ -142,7 +149,10 @@ export async function comLinksDeMidia(msgs: WaMensagem[]): Promise<WaMensagem[]>
       const nome = m.media_nome || m.media_path.split("/").pop() || "arquivo";
       return { ...m, media_url: linkVps(m.media_path), media_download_url: linkVps(m.media_path, { baixarComo: nome }) };
     }
-    return { ...m, media_url: url.get(m.media_path) ?? null };
+    const link = url.get(m.media_path) ?? null;
+    // ?download= faz o Storage mandar como anexo, com o nome original
+    const baixar = link && m.media_nome ? `${link}&download=${encodeURIComponent(m.media_nome)}` : link;
+    return { ...m, media_url: link, media_download_url: baixar };
   });
 }
 
