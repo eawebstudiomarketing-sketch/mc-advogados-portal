@@ -9,7 +9,7 @@ import { ActivityForm } from "./activity-form";
 import { getPublicacao } from "@/lib/data/publicacoes";
 import { sugerirClientePelasPartes } from "@/lib/publicacoes/cliente-sugerido";
 
-export default async function NewActivityPage({ searchParams }: { searchParams: Promise<{ clientId?: string; titulo?: string; descricao?: string; prazo?: string; tipo?: string; publicacao?: string; andamentos?: string; categoria?: string; hora?: string; sugestao?: string }> }) {
+export default async function NewActivityPage({ searchParams }: { searchParams: Promise<{ clientId?: string; titulo?: string; descricao?: string; prazo?: string; tipo?: string; publicacao?: string; andamentos?: string; andamento?: string; categoria?: string; hora?: string; sugestao?: string }> }) {
   const [profile, clients, responsaveis, { clientId, ...preenchido }] = await Promise.all([
     exigirPermissao("atividades").then((r) => r.profile),
     listClients(),

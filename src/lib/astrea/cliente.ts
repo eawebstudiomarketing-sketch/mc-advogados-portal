@@ -171,7 +171,7 @@ export async function listarPublicacoes(s: SessaoAstrea, status: StatusPublicaca
   return out;
 }
 
-export type AlertaAstrea = { id: string; type: string; arriveDate: string; contents: string; subDescriptions?: { text: string }[] };
+export type AlertaAstrea = { id: string; objectId?: string; type: string; arriveDate: string; contents: string; subDescriptions?: { text: string }[] };
 
 /** Alertas pendentes do Astrea (ex.: NEW_HISTORY = "Andamento recebido" ainda não tratado). */
 export async function listarAlertas(s: SessaoAstrea, maxPaginas = 10): Promise<AlertaAstrea[]> {

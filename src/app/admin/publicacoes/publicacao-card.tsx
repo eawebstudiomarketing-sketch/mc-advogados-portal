@@ -196,6 +196,9 @@ export function PublicacaoCard({
       )}
 
       <div className="mt-4 flex flex-wrap items-center gap-2 border-t border-border pt-3">
+        <Link href={`/admin/alertas/publicacao/${p.id}`} className="ui-btn-secondary px-3 py-1.5 text-xs uppercase">
+          Acessar publicação
+        </Link>
         {status === "nao_tratada" ? (
           <>
             <Link href={hrefTratar(p)} className="ui-btn px-3 py-1.5 text-xs">

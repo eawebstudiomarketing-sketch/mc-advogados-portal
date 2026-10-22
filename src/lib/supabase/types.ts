@@ -16,6 +16,9 @@ export type Database = {
     Tables: {
       andamentos: {
         Row: {
+          acao: string | null
+          acao_em: string | null
+          acao_por: string | null
           id: string
           process_id: string
           data: string
@@ -35,6 +38,9 @@ export type Database = {
           created_at: string
         }
         Insert: {
+          acao?: string | null
+          acao_em?: string | null
+          acao_por?: string | null
           id?: string
           process_id: string
           data: string
@@ -54,6 +60,9 @@ export type Database = {
           created_at?: string
         }
         Update: {
+          acao?: string | null
+          acao_em?: string | null
+          acao_por?: string | null
           id?: string
           process_id?: string
           data?: string
@@ -627,6 +636,9 @@ export type Database = {
       }
       publicacoes: {
         Row: {
+          alerta_descartado_em: string | null
+          etiquetas: Json
+          sugestao_incorreta: boolean
           id: string
           fonte: string
           astrea_id: string | null
@@ -665,6 +677,9 @@ export type Database = {
           sugestao_aceita: string | null
         }
         Insert: {
+          alerta_descartado_em?: string | null
+          etiquetas?: Json
+          sugestao_incorreta?: boolean
           id?: string
           fonte?: string
           astrea_id?: string | null
@@ -703,6 +718,9 @@ export type Database = {
           sugestao_aceita?: string | null
         }
         Update: {
+          alerta_descartado_em?: string | null
+          etiquetas?: Json
+          sugestao_incorreta?: boolean
           id?: string
           fonte?: string
           astrea_id?: string | null
@@ -860,6 +878,12 @@ export type Database = {
           sent_to?: string
           tipo?: string
         }
+        Relationships: []
+      }
+      alerta_comentarios: {
+        Row: { id: string; andamento_id: string | null; publicacao_id: string | null; autor_id: string | null; autor_nome: string | null; texto: string; created_at: string }
+        Insert: { id?: string; andamento_id?: string | null; publicacao_id?: string | null; autor_id?: string | null; autor_nome?: string | null; texto: string; created_at?: string }
+        Update: { id?: string; andamento_id?: string | null; publicacao_id?: string | null; autor_id?: string | null; autor_nome?: string | null; texto?: string; created_at?: string }
         Relationships: []
       }
       etiquetas: {

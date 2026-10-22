@@ -236,31 +236,45 @@ async function avisar(db: Db, avisos: { processId: string; titulo: string; n: nu
   const para = (admins ?? []).map((a) => a.id);
   const linhas =
     avisos.length > 4
-      ? [{ titulo: `${avisos.reduce((t, a) => t + a.n, 0)} andamento(s) novo(s) em ${avisos.length} processos`, corpo: `${avisos.reduce((t, a) => t + a.imp, 0)} importante(s).`, url: "/admin/andamentos" }]
+      ? [{ titulo: `${avisos.reduce((t, a) => t + a.n, 0)} andamento(s) novo(s) em ${avisos.length} processos`, corpo: `${avisos.reduce((t, a) => t + a.imp, 0)} importante(s).`, url: "/admin/alertas?aba=andamentos" }]
       : avisos.map((a) => ({
           titulo: `Andamento recebido · ${a.titulo.slice(0, 80)}`,
           corpo: `${a.n} andamento(s) – ${a.imp} importante(s)${a.baixado ? " · possível arquivamento" : ""}`,
-          url: `/admin/andamentos?p=${a.processId}`,
+          url: `/admin/alertas/andamentos/${a.processId}`,
         }));
   await criarAvisos(para.flatMap((profile_id) => linhas.map((l) => ({ profile_id, tipo: "andamento", ...l })))).catch(() => undefined);
 }
 
-/** Cada alerta "Andamento recebido" do Astrea diz o processo e quantos andamentos: os mais novos dele viram "novo". */
-async function marcarPendentesDoAstrea(db: Db, s: SessaoAstrea, porAstrea: Map<string, ProcessoPortal>): Promise<number> {
-  const alertas = (await listarAlertas(s)).filter((a) => a.type === "NEW_HISTORY");
+/**
+ * Alertas pendentes no Astrea → mesmo estado e mesma hora de chegada aqui:
+ *  - "Andamento recebido" diz o processo e quantos andamentos: os mais novos dele viram "novo";
+ *  - "Publicação recebida" dá a hora em que a publicação chegou.
+ */
+export async function marcarPendentesDoAstrea(db: Db, s: SessaoAstrea, porAstrea?: Map<string, ProcessoPortal>): Promise<number> {
+  const alertas = await listarAlertas(s);
   let total = 0;
   for (const a of alertas) {
+    if (a.type === "NEW_CLIPPING") {
+      await db.from("publicacoes").update({ created_at: a.arriveDate }).eq("astrea_id", String(a.objectId ?? ""));
+      continue;
+    }
+    if (a.type !== "NEW_HISTORY") continue;
     let c: { caseId?: number; importantCount?: number; othersCount?: number } = {};
     try {
       c = JSON.parse(a.contents || "{}");
     } catch {}
-    const p = c.caseId ? porAstrea.get(String(c.caseId)) : undefined;
+    if (!c.caseId) continue;
+    let p = porAstrea?.get(String(c.caseId));
+    if (!p) {
+      const { data } = await db.from("processes").select("id, numero_digitos, astrea_id, client_id, titulo").eq("astrea_id", String(c.caseId)).maybeSingle();
+      p = (data as ProcessoPortal | null) ?? undefined;
+    }
     const n = (c.importantCount ?? 0) + (c.othersCount ?? 0);
     if (!p || !n) continue;
     const { data } = await db.from("andamentos").select("id").eq("process_id", p.id).eq("tipo", "andamento").order("data", { ascending: false }).limit(n);
     const ids = (data ?? []).map((x) => x.id);
     if (!ids.length) continue;
-    await db.from("andamentos").update({ situacao: "novo" }).in("id", ids).eq("situacao", "historico");
+    await db.from("andamentos").update({ situacao: "novo", created_at: a.arriveDate }).in("id", ids).in("situacao", ["historico", "novo"]);
     total += ids.length;
   }
   return total;

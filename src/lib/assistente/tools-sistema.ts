@@ -564,7 +564,7 @@ export function toolsSistema(db: () => Db): ToolDef[] {
           if (x.importante) g.importantes++;
           grupos.set(p.id, g);
         }
-        return { processos: grupos.size, grupos: [...grupos.values()].slice(0, 40), tela: "/admin/andamentos" };
+        return { processos: grupos.size, grupos: [...grupos.values()].slice(0, 40), tela: "/admin/alertas?aba=andamentos" };
       },
     },
     {
@@ -630,7 +630,7 @@ export function toolsSistema(db: () => Db): ToolDef[] {
         const { sincronizarAstrea } = await import("@/lib/andamentos/sync");
         const r = await sincronizarAstrea({ origem: "assistente" });
         if (r.erro) throw new Error(r.erro);
-        return { ...r, tela: "/admin/andamentos" };
+        return { ...r, tela: "/admin/alertas?aba=andamentos" };
       },
     },
     {
@@ -645,6 +645,125 @@ export function toolsSistema(db: () => Db): ToolDef[] {
         await adm().from("processes").update({ client_id: c.id }).eq("id", p.id);
         await adm().from("publicacoes").update({ client_id: c.id }).eq("process_id", p.id);
         return { processo: p.numero_processo, cliente: c.name };
+      },
+    },
+
+    // ───────── ALERTAS (abas Publicações e Andamentos, como no Astrea) ─────────
+    {
+      name: "listar_alertas_publicacoes",
+      kind: "read",
+      perm: ["publicacoes"],
+      label: "Consultou os alertas de publicações",
+      description: "Alertas da aba Publicações (publicação recebida e ainda não tratada): diário, processo, nome pesquisado e começo do texto.",
+      parameters: obj({ busca: { type: "string" } }),
+      run: async (a) => {
+        const { data } = await db()
+          .from("publicacoes")
+          .select("id, numero_mascara, numero_processo, diario, tribunal, nome_pesquisado, termo, data_disponibilizacao, texto, titulo_processo")
+          .eq("status", "nao_tratada")
+          .is("alerta_descartado_em", null)
+          .order("created_at", { ascending: false })
+          .limit(60);
+        const termo = limpa(a.busca).toLowerCase();
+        const lista = (data ?? []).filter((p) => !termo || `${p.numero_mascara} ${p.numero_processo} ${p.titulo_processo} ${p.texto}`.toLowerCase().includes(termo));
+        return {
+          total: lista.length,
+          alertas: lista.slice(0, 30).map((p) => ({
+            processo: p.numero_mascara ?? p.numero_processo,
+            diario: p.diario ?? p.tribunal,
+            divulgado: p.data_disponibilizacao.split("-").reverse().join("/"),
+            nome_pesquisado: p.nome_pesquisado ?? p.termo,
+            partes: p.titulo_processo,
+            texto: (p.texto ?? "").replace(/\s+/g, " ").slice(0, 300),
+            link_no_portal: `/admin/alertas/publicacao/${p.id}`,
+          })),
+          tela: "/admin/alertas",
+        };
+      },
+    },
+    {
+      name: "tratar_publicacao",
+      kind: "write",
+      perm: ["publicacoes"],
+      label: "Tratou publicação",
+      description:
+        "Na publicação de um processo (número; se houver mais de uma, a mais recente não tratada): concluir (fica tratada), descartar (publicação descartada), descartar_alerta (some dos alertas, continua não tratada) ou reabrir.",
+      parameters: obj({ processo: { type: "string" }, acao: { type: "string", enum: ["concluir", "descartar", "descartar_alerta", "reabrir"] } }, ["processo", "acao"]),
+      run: async (a, ctx) => {
+        const dig = limpa(a.processo).replace(/\D/g, "");
+        if (dig.length < 6) throw new Error("Diga o número do processo da publicação.");
+        const { data } = await db()
+          .from("publicacoes")
+          .select("id, numero_mascara, status")
+          .like("numero_processo", `%${dig}%`)
+          .order("status", { ascending: false })
+          .order("data_disponibilizacao", { ascending: false })
+          .limit(5);
+        const pub = (data ?? []).find((p) => (a.acao === "reabrir" ? p.status !== "nao_tratada" : p.status === "nao_tratada")) ?? data?.[0];
+        if (!pub) throw new Error("Não achei publicação desse processo.");
+        const agora = new Date().toISOString();
+        const campos =
+          a.acao === "descartar_alerta"
+            ? { alerta_descartado_em: agora }
+            : a.acao === "reabrir"
+              ? { status: "nao_tratada", tratada_por: null, tratada_em: null, alerta_descartado_em: null }
+              : { status: a.acao === "concluir" ? "tratada" : "descartada", tratada_por: ctx.profileId, tratada_em: agora };
+        const { error } = await db().from("publicacoes").update(campos).eq("id", pub.id);
+        if (error) throw error;
+        return { processo: pub.numero_mascara, feito: a.acao };
+      },
+    },
+    {
+      name: "adicionar_historico_manual",
+      kind: "write",
+      perm: ["processos"],
+      label: "Adicionou histórico manual",
+      description: "Registra um histórico manual no processo (aparece no histórico de andamentos, como no Astrea).",
+      parameters: obj({ processo: { type: "string" }, texto: { type: "string" }, data: { type: "string", description: "AAAA-MM-DD (opcional, padrão hoje)" } }, ["processo", "texto"]),
+      run: async (a, ctx) => {
+        const p = await processoPorTermo(db, a.processo);
+        const { data: eu } = await adm().from("profiles").select("full_name").eq("id", ctx.profileId).maybeSingle();
+        const dia = limpa(a.data);
+        const { error } = await db().from("andamentos").insert({
+          process_id: p.id,
+          data: /^\d{4}-\d{2}-\d{2}$/.test(dia) ? new Date(`${dia}T12:00:00-03:00`).toISOString() : new Date().toISOString(),
+          descricao: String(a.texto ?? "").trim().slice(0, 8000),
+          tipo: "nota",
+          fonte: "manual",
+          situacao: "historico",
+          responsavel_nome: eu?.full_name ?? null,
+        });
+        if (error) throw error;
+        return { processo: p.numero_processo, link_no_portal: `/admin/processes/${p.id}#andamentos` };
+      },
+    },
+    {
+      name: "comentar_andamento",
+      kind: "write",
+      perm: ["processos"],
+      label: "Comentou andamento",
+      description: "Comenta um andamento não tratado do processo (o mais recente, ou o que contém 'trecho').",
+      parameters: obj({ processo: { type: "string" }, texto: { type: "string" }, trecho: { type: "string" } }, ["processo", "texto"]),
+      run: async (a, ctx) => {
+        const and = await andamentoDoAlerta(db, a.processo, a.trecho);
+        const { data: eu } = await adm().from("profiles").select("full_name").eq("id", ctx.profileId).maybeSingle();
+        const { error } = await adm().from("alerta_comentarios").insert({ andamento_id: and.id, autor_id: ctx.profileId, autor_nome: eu?.full_name ?? null, texto: String(a.texto ?? "").trim().slice(0, 4000) });
+        if (error) throw error;
+        await adm().from("andamentos").update({ acao: "Comentário adicionado", acao_em: new Date().toISOString(), acao_por: ctx.profileId }).eq("id", and.id);
+        return { andamento: and.descricao.slice(0, 120) };
+      },
+    },
+    {
+      name: "marcar_andamento_importante",
+      kind: "write",
+      perm: ["processos"],
+      label: "Marcou andamento como importante",
+      description: "Marca (ou desmarca, importante=false) como importante um andamento não tratado do processo (o mais recente, ou o que contém 'trecho').",
+      parameters: obj({ processo: { type: "string" }, trecho: { type: "string" }, importante: { type: "boolean" } }, ["processo"]),
+      run: async (a) => {
+        const and = await andamentoDoAlerta(db, a.processo, a.trecho);
+        await db().from("andamentos").update({ importante: a.importante !== false }).eq("id", and.id);
+        return { andamento: and.descricao.slice(0, 120), importante: a.importante !== false };
       },
     },
 
@@ -680,6 +799,16 @@ async function perfilDaPessoa(alvo: unknown) {
 }
 
 /** Processo pelo número (com ou sem máscara), parte/título ou cliente. */
+/** Andamento não tratado do processo: o mais recente, ou o que contém o trecho. */
+async function andamentoDoAlerta(db: () => Db, processo: unknown, trecho: unknown) {
+  const p = await processoPorTermo(db, processo);
+  const { data } = await db().from("andamentos").select("id, descricao").eq("process_id", p.id).eq("situacao", "novo").order("data", { ascending: false }).limit(50);
+  const t = limpa(trecho).toLowerCase();
+  const and = (data ?? []).find((x) => !t || x.descricao.toLowerCase().includes(t));
+  if (!and) throw new Error("Não achei andamento não tratado nesse processo" + (t ? " com esse trecho." : "."));
+  return and;
+}
+
 async function processoPorTermo(db: () => Db, termo: unknown) {
   const t = limpa(termo);
   if (!t) throw new Error("Diga qual processo (número, parte ou cliente).");

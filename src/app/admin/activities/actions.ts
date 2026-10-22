@@ -117,6 +117,16 @@ export async function createActivityAction(
     revalidatePath("/admin/publicacoes");
   }
 
+  // Veio do "Tratar andamento ▾" de um andamento: ele fica como tratado (o alerta segue até "Concluir").
+  const andamentoId = formData.get("andamento_id");
+  if (typeof andamentoId === "string" && /^[0-9a-f-]{36}$/i.test(andamentoId) && criada) {
+    await supabase
+      .from("andamentos")
+      .update({ acao: "Tarefa adicionada", acao_em: new Date().toISOString(), acao_por: profile.id, activity_id: criada.id })
+      .eq("id", andamentoId);
+    revalidatePath("/admin/alertas", "layout");
+  }
+
   // Veio dos andamentos de um processo: os não tratados dele passam a tratados.
   const andamentosProcesso = formData.get("andamentos_processo");
   if (typeof andamentosProcesso === "string" && /^[0-9a-f-]{36}$/i.test(andamentosProcesso) && criada) {
@@ -125,7 +135,7 @@ export async function createActivityAction(
       .update({ situacao: "tratado", activity_id: criada.id, tratado_por: profile.id, tratado_em: new Date().toISOString() })
       .eq("process_id", andamentosProcesso)
       .eq("situacao", "novo");
-    revalidatePath("/admin/andamentos");
+    revalidatePath("/admin/alertas", "layout");
   }
 
   revalidatePath("/admin/activities");

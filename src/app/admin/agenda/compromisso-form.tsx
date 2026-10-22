@@ -16,6 +16,10 @@ export type CompromissoInicial = {
   clientId?: string | null;
   participantes?: string[];
   lembrarCliente?: boolean;
+  /** veio do alerta: marca o andamento/publicação e volta para a tela de tratar */
+  andamento?: string;
+  publicacao?: string;
+  voltar?: string;
 };
 
 const TIPOS = [
@@ -47,6 +51,8 @@ export function CompromissoForm({
   return (
     <form action={action} className="ui-card max-w-2xl space-y-5 p-6">
       {inicial.id && <input type="hidden" name="id" value={inicial.id} />}
+      {inicial.andamento && <input type="hidden" name="andamento_id" value={inicial.andamento} />}
+      {inicial.voltar && <input type="hidden" name="return_to" value={inicial.voltar} />}
 
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-[1fr_180px]">
         <div>

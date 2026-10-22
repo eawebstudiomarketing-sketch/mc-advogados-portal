@@ -129,5 +129,5 @@ export async function vincularClienteProcessoAction(formData: FormData): Promise
   await supabase.from("publicacoes").update({ client_id: clientId || null }).eq("process_id", id);
   revalidatePath(`/admin/processes/${id}`);
   revalidatePath("/admin/processes");
-  revalidatePath("/admin/andamentos");
+  revalidatePath("/admin/alertas", "layout");
 }

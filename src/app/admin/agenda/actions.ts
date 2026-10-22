@@ -1,6 +1,7 @@
 "use server";
 
 import { redirect } from "next/navigation";
+import { destinoDeVolta } from "@/lib/voltar";
 import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
 import { exigirPermissao } from "@/lib/dal";
@@ -75,9 +76,16 @@ export async function salvarCompromissoAction(_prev: CompromissoState, formData:
     ).catch(() => undefined);
   }
 
+  // veio do "Tratar andamento ▾": o andamento fica como tratado
+  const andamentoId = texto(formData.get("andamento_id"));
+  if (/^[0-9a-f-]{36}$/i.test(andamentoId)) {
+    await supabase.from("andamentos").update({ acao: "Evento adicionado", acao_em: new Date().toISOString(), acao_por: profile.id }).eq("id", andamentoId);
+    revalidatePath("/admin/alertas", "layout");
+  }
+
   revalidatePath("/admin/agenda");
   revalidatePath("/admin");
-  redirect(`/admin/agenda?mes=${dia.slice(0, 7)}&salvo=${salvoId}`);
+  redirect(destinoDeVolta(formData, `/admin/agenda?mes=${dia.slice(0, 7)}&salvo=${salvoId}`));
 }
 
 export async function excluirCompromissoAction(formData: FormData): Promise<void> {
