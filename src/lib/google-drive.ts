@@ -207,10 +207,11 @@ export async function ensureClientFolder(
 
 export async function uploadBytes(
   token: string,
-  args: { name: string; mimeType: string; bytes: Uint8Array; parentId: string }
+  /** converterPara: tipo nativo do Google (ex.: Google Docs) — o Drive converte na hora */
+  args: { name: string; mimeType: string; bytes: Uint8Array; parentId: string; converterPara?: string }
 ): Promise<string> {
   const boundary = `mc-${crypto.randomUUID()}`;
-  const metadata = JSON.stringify({ name: args.name, parents: [args.parentId] });
+  const metadata = JSON.stringify({ name: args.name, parents: [args.parentId], ...(args.converterPara ? { mimeType: args.converterPara } : {}) });
   const head = `--${boundary}\r\nContent-Type: application/json; charset=UTF-8\r\n\r\n${metadata}\r\n--${boundary}\r\nContent-Type: ${
     args.mimeType || "application/octet-stream"
   }\r\n\r\n`;
@@ -223,6 +224,15 @@ export async function uploadBytes(
     body,
   });
   return ((await res.json()) as { id: string }).id;
+}
+
+/** Dá acesso de edição a uma pessoa (sem mandar e-mail do Google). */
+export async function compartilharComEmail(token: string, fileId: string, email: string): Promise<void> {
+  await driveFetch(token, `${DRIVE_API}/files/${fileId}/permissions?sendNotificationEmail=false`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ role: "writer", type: "user", emailAddress: email }),
+  });
 }
 
 export async function uploadFile(token: string, file: File, parentId: string): Promise<string> {
