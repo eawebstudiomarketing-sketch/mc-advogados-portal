@@ -2,10 +2,13 @@ import "server-only";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { duracaoLegivel, MODO_ROTULO, type ModoTranscricao } from "@/lib/transcricao-formato";
+import { executarTranscricao, importarDoWhatsapp } from "@/lib/transcricao";
+import { audioDoWhatsapp, listarAudiosDoWhatsapp, tituloDoAudio } from "@/lib/transcricao-whatsapp";
 import type { Ctx, ToolDef } from "./tools";
 
 // Transcrições (aba Transcrição): o assistente lista e lê as do usuário
-// (admin: as de todos), para responder, resumir ou usar em outra tarefa.
+// (admin: as de todos), para responder, resumir ou usar em outra tarefa, e
+// transcreve áudios do WhatsApp do escritório (quem tem acesso ao zap).
 
 const db = () => createAdminClient() as unknown as SupabaseClient;
 const obj = (properties: Record<string, unknown>, required: string[] = []) => ({ type: "object", properties, required });
@@ -68,7 +71,76 @@ export const TOOLS_TRANSCRICAO: ToolDef[] = [
         duracao: t.duracao_seg ? duracaoLegivel(t.duracao_seg) : null,
         resumo: parte === "texto" ? undefined : corta(t.resumo),
         transcricao: parte === "resumo" ? undefined : corta(t.texto),
-        link: "/admin/transcricao",
+        link: `/admin/transcricao?t=${t.id}`,
+      };
+    },
+  },
+  {
+    name: "listar_audios_whatsapp",
+    kind: "read",
+    perm: ["whatsapp"],
+    label: "Procurou áudios no WhatsApp",
+    description: "Lista os áudios (e vídeos) do WhatsApp do escritório, mais recentes primeiro, para escolher qual transcrever. Filtro opcional pela conversa (nome do contato/grupo ou telefone).",
+    parameters: obj({ conversa: { type: "string" }, limite: { type: "integer" } }),
+    run: async (a) => {
+      const itens = await listarAudiosDoWhatsapp(createAdminClient(), { busca: String(a.conversa ?? "").trim() || undefined, limite: Math.min(Number(a.limite) || 10, 30) });
+      return itens.map((i) => ({ mensagem_id: i.id, conversa: i.conversa, de: i.de, quando: dataBr(i.quando), tipo: i.tipo === "video" ? "vídeo" : "áudio" }));
+    },
+  },
+  {
+    name: "transcrever_audio_whatsapp",
+    kind: "write",
+    perm: ["whatsapp"],
+    label: "Transcreveu um áudio do WhatsApp",
+    description:
+      "Transcreve um áudio (ou vídeo) do WhatsApp do escritório e guarda na aba Transcrição de quem pediu. Passe mensagem_id (de listar_audios_whatsapp) ou só a conversa: aí pega o áudio mais recente dela. modo: fiel (palavra por palavra), resumo (com IA) ou ambos (padrão). Devolve o texto e o link para abrir.",
+    parameters: obj({
+      mensagem_id: { type: "string" },
+      conversa: { type: "string", description: "Nome do contato/grupo ou telefone (usa o áudio mais recente)" },
+      modo: { type: "string", enum: ["ambos", "fiel", "resumo"] },
+      separar_falantes: { type: "boolean" },
+      titulo: { type: "string" },
+    }),
+    run: async (a, ctx) => {
+      const adm = createAdminClient();
+      let msgId = String(a.mensagem_id ?? "").trim();
+      if (!msgId) {
+        const conversa = String(a.conversa ?? "").trim();
+        if (!conversa) throw new Error("Diga de qual conversa é o áudio (ou o mensagem_id).");
+        const [ultimo] = await listarAudiosDoWhatsapp(adm, { busca: conversa, limite: 1 });
+        if (!ultimo) throw new Error(`Não achei áudio na conversa "${conversa}".`);
+        msgId = ultimo.id;
+      }
+      const achado = await audioDoWhatsapp(adm, msgId);
+      if (!achado) throw new Error("Não achei esse áudio no WhatsApp (ou ele ainda está sendo baixado).");
+      const { audio } = achado;
+      const modo = (["ambos", "fiel", "resumo"].includes(String(a.modo)) ? a.modo : "ambos") as ModoTranscricao;
+      const opcoes = { falantes: a.separar_falantes !== false, tempo: false };
+      const titulo = String(a.titulo ?? "").trim().slice(0, 140) || tituloDoAudio(audio);
+      const { data: novo, error } = await db()
+        .from("transcricoes")
+        .insert({ profile_id: ctx.profileId, titulo, arquivo_nome: audio.nome || `${tituloDoAudio(audio)} (WhatsApp)`, modo, opcoes })
+        .select("id")
+        .single();
+      if (error || !novo) throw new Error("Não foi possível começar a transcrição.");
+      let duracao: number;
+      try {
+        duracao = await importarDoWhatsapp(novo.id, { path: achado.media_path, mime: achado.media_mime });
+      } catch (e) {
+        await db().from("transcricoes").delete().eq("id", novo.id);
+        throw e;
+      }
+      const r = await executarTranscricao(novo.id, { modo, opcoes, duracao, nome: titulo });
+      const corta = (s: string | null) => (s && s.length > 30_000 ? `${s.slice(0, 30_000)}\n[… texto cortado: abra na aba Transcrição para ver tudo]` : s);
+      return {
+        titulo,
+        conversa: audio.conversa,
+        de: audio.de,
+        quando: dataBr(audio.quando),
+        duracao: duracao ? duracaoLegivel(duracao) : null,
+        resumo: corta(r.resumo),
+        transcricao: corta(r.texto),
+        link: `/admin/transcricao?t=${novo.id}`,
       };
     },
   },

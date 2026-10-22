@@ -2,8 +2,7 @@ import { NextResponse } from "next/server";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { requireRole } from "@/lib/dal";
 import { createClient } from "@/lib/supabase/server";
-import { createAdminClient } from "@/lib/supabase/admin";
-import { apagarAudio, transcrever } from "@/lib/transcricao";
+import { executarTranscricao } from "@/lib/transcricao";
 import type { ModoTranscricao, OpcoesTranscricao } from "@/lib/transcricao-formato";
 
 // Depois que o navegador mandou o arquivo pro servidor de mídia: transcreve
@@ -27,18 +26,10 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
   if (t.status === "pronta") return NextResponse.json({ error: "Essa transcrição já está pronta." }, { status: 409 });
 
   const duracao = Math.max(0, Math.round(Number(corpo.duracao) || t.duracao_seg || 0));
-  const adm = createAdminClient() as unknown as SupabaseClient;
-  await adm.from("transcricoes").update({ status: "processando", erro: null, duracao_seg: duracao || null }).eq("id", id);
   try {
-    const r = await transcrever(id, { modo: t.modo as ModoTranscricao, opcoes: (t.opcoes ?? {}) as OpcoesTranscricao, duracao, nome: t.arquivo_nome ?? t.titulo });
-    await adm.from("transcricoes").update({ status: "pronta", texto: r.texto, resumo: r.resumo, updated_at: new Date().toISOString() }).eq("id", id);
-    await apagarAudio(id);
+    const r = await executarTranscricao(id, { modo: t.modo as ModoTranscricao, opcoes: (t.opcoes ?? {}) as OpcoesTranscricao, duracao, nome: t.arquivo_nome ?? t.titulo });
     return NextResponse.json({ ok: true, texto: r.texto, resumo: r.resumo, trechos: r.trechos });
   } catch (e) {
-    const erro = e instanceof Error ? e.message : "Falha ao transcrever.";
-    console.error("transcrição:", id, erro);
-    // o áudio fica no servidor para "Tentar de novo"
-    await adm.from("transcricoes").update({ status: "erro", erro }).eq("id", id);
-    return NextResponse.json({ error: erro }, { status: 502 });
+    return NextResponse.json({ error: e instanceof Error ? e.message : "Falha ao transcrever." }, { status: 502 });
   }
 }

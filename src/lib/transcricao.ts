@@ -1,7 +1,10 @@
 import "server-only";
 import { createHmac } from "node:crypto";
 import { ApiError, GoogleGenAI, ThinkingLevel, type File as ArquivoGemini } from "@google/genai";
+import type { SupabaseClient } from "@supabase/supabase-js";
 import { MODELOS } from "@/lib/ia-modelos";
+import { createAdminClient } from "@/lib/supabase/admin";
+import { BUCKET_WHATSAPP, linkVps } from "@/lib/whatsapp";
 import type { ModoTranscricao, OpcoesTranscricao } from "@/lib/transcricao-formato";
 
 // Transcrição de áudio (aba Transcrição, 22/10/2026). O navegador manda o
@@ -41,6 +44,34 @@ async function baixarAudio(id: string): Promise<Blob> {
   if (r.status === 404) throw new Error("O áudio não chegou ao servidor. Envie o arquivo de novo.");
   if (!r.ok) throw new Error(`O servidor de mídia respondeu ${r.status}.`);
   return new Blob([await r.arrayBuffer()], { type: "audio/ogg" });
+}
+
+/**
+ * Copia um áudio/vídeo do WhatsApp (disco do VPS ou Storage) para a
+ * transcrição `id`, pelo mesmo envio do navegador (o VPS converte e mede).
+ * Vai em fluxo, sem carregar o arquivo inteiro na memória. Devolve a duração.
+ */
+export async function importarDoWhatsapp(id: string, midia: { path: string; mime: string | null }): Promise<number> {
+  let link: string | null;
+  if (midia.path.startsWith("vps:")) link = linkVps(midia.path, { segundos: 600 });
+  else {
+    const storage = createAdminClient().storage;
+    let r = await storage.from(BUCKET_WHATSAPP).createSignedUrl(midia.path, 600);
+    if (!r.data) r = await storage.from("documents").createSignedUrl(midia.path, 600);
+    link = r.data?.signedUrl ?? null;
+  }
+  if (!link) throw new Error("O servidor de mídia (WA_MIDIA_URL) não está configurado.");
+  const origem = await fetch(link, { cache: "no-store" });
+  if (!origem.ok || !origem.body) throw new Error("Esse áudio não está mais disponível no servidor.");
+  const r = await fetch(linkDeEnvio(id), {
+    method: "PUT",
+    headers: { "Content-Type": midia.mime?.split(";")[0] || "application/octet-stream" },
+    body: origem.body,
+    duplex: "half",
+  } as RequestInit & { duplex: "half" });
+  const j = (await r.json().catch(() => null)) as { ok?: boolean; duracao?: number; erro?: string } | null;
+  if (!r.ok || !j?.ok) throw new Error(j?.erro ?? `O servidor de mídia respondeu ${r.status}.`);
+  return Math.round(j.duracao ?? 0);
 }
 
 /** Apaga o áudio do VPS (depois de transcrever ou ao excluir). */
@@ -207,6 +238,26 @@ async function resumir(ai: GoogleGenAI, de: { texto: string } | { ref: { fileDat
   const r = await gerarTexto(ai, SISTEMA_RESUMO, partes);
   if (!r) throw new Error("A IA não devolveu o resumo. Tente de novo.");
   return r.replace(/\*\*/g, "").replace(/^#+\s*/gm, "");
+}
+
+/**
+ * Roda a transcrição de ponta a ponta e grava o resultado: processando →
+ * pronta (apaga o áudio do VPS) ou erro (o áudio fica para "Tentar de novo").
+ */
+export async function executarTranscricao(id: string, dados: { modo: ModoTranscricao; opcoes: OpcoesTranscricao; duracao: number; nome: string }): Promise<ResultadoTranscricao> {
+  const adm = createAdminClient() as unknown as SupabaseClient;
+  await adm.from("transcricoes").update({ status: "processando", erro: null, duracao_seg: dados.duracao || null }).eq("id", id);
+  try {
+    const r = await transcrever(id, dados);
+    await adm.from("transcricoes").update({ status: "pronta", texto: r.texto, resumo: r.resumo, updated_at: new Date().toISOString() }).eq("id", id);
+    await apagarAudio(id);
+    return r;
+  } catch (e) {
+    const erro = e instanceof Error ? e.message : "Falha ao transcrever.";
+    console.error("transcrição:", id, erro);
+    await adm.from("transcricoes").update({ status: "erro", erro }).eq("id", id);
+    throw new Error(erro);
+  }
 }
 
 /** Resumo feito depois, a partir do texto já transcrito (botão "Gerar resumo"). */

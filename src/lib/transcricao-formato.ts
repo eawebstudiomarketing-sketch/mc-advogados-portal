@@ -33,6 +33,27 @@ export function duracaoLegivel(seg: number | null | undefined): string {
 export const dataLegivel = (iso: string) =>
   new Date(iso).toLocaleString("pt-BR", { timeZone: "America/Bahia", day: "2-digit", month: "2-digit", year: "numeric", hour: "2-digit", minute: "2-digit" });
 
+/** Áudio (ou vídeo) do WhatsApp do portal que pode virar transcrição. */
+export type AudioZap = {
+  id: string;
+  chat_jid: string;
+  conversa: string;
+  /** quem mandou ("Escritório" quando foi o próprio zap do escritório) */
+  de: string;
+  from_me: boolean;
+  tipo: "audio" | "video";
+  quando: string;
+  url: string | null;
+  nome: string | null;
+};
+
+/** "Áudio de Fulano — 22/10/2026 14:30" (grupo: "… · Nome do grupo"). */
+export function tituloDoAudio(a: Pick<AudioZap, "de" | "conversa" | "from_me" | "tipo" | "quando">): string {
+  const oque = a.tipo === "video" ? "Vídeo" : "Áudio";
+  const quem = a.from_me ? `${oque} enviado para ${a.conversa}` : a.de === a.conversa ? `${oque} de ${a.de}` : `${oque} de ${a.de} · ${a.conversa}`;
+  return `${quem} — ${dataLegivel(a.quando).replace(",", "")}`.slice(0, 140);
+}
+
 /** Linha do resumo que é título de seção ("PONTOS PRINCIPAIS"). */
 export const ehTituloDeSecao = (linha: string) => {
   const t = linha.trim();

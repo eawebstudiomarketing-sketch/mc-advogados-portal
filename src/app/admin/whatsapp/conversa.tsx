@@ -5,6 +5,7 @@ import { createPortal } from "react-dom";
 import {
   ArrowDown,
   ArrowLeft,
+  AudioLines,
   Ban,
   Bot,
   Check,
@@ -823,6 +824,12 @@ const Balao = memo(function Balao({
             {(m.media_download_url || m.media_url) && (
               <ItemMenu onClick={() => (setMenu(null), window.open(m.media_download_url ?? m.media_url!, "_blank"))}>
                 <Download className="h-4 w-4 text-muted" aria-hidden /> Baixar
+              </ItemMenu>
+            )}
+            {m.media_url && (m.tipo === "audio" || m.tipo === "video" || /^(audio|video)\//.test(m.media_mime ?? "")) && (
+              // abre em outra aba: a conversa continua aberta aqui
+              <ItemMenu onClick={() => (setMenu(null), window.open(`/admin/transcricao?wa=${m.id}`, "_blank"))}>
+                <AudioLines className="h-4 w-4 text-muted" aria-hidden /> Enviar para transcrição
               </ItemMenu>
             )}
             {podeEditar && (

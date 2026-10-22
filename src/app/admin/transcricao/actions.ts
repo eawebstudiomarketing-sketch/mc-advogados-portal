@@ -1,9 +1,10 @@
 "use server";
 
 import type { SupabaseClient } from "@supabase/supabase-js";
-import { requireRole } from "@/lib/dal";
+import { requireRole, temPermissao } from "@/lib/dal";
 import { createClient } from "@/lib/supabase/server";
-import { apagarAudio, linkDeEnvio, resumirTexto } from "@/lib/transcricao";
+import { apagarAudio, importarDoWhatsapp, linkDeEnvio, resumirTexto } from "@/lib/transcricao";
+import { audioDoWhatsapp, listarAudiosDoWhatsapp, tituloDoAudio, type AudioZap } from "@/lib/transcricao-whatsapp";
 import { blocosDoDocumento, nomeDeArquivo, type ModoTranscricao, type OpcoesTranscricao, type ParteExport } from "@/lib/transcricao-formato";
 import { docxDeBlocos, MIME_DOCX } from "@/lib/docx-simples";
 import { compartilharComEmail, ensureSubfolder, getDriveSession, uploadBytes } from "@/lib/google-drive";
@@ -54,6 +55,16 @@ export async function criarTranscricaoAction(dados: {
   opcoes: OpcoesTranscricao;
 }): Promise<{ ok: true; id: string; envio: string } | { ok: false; erro: string }> {
   const profile = await requireRole(["admin", "advogado"]);
+  const id = await novoRegistro(profile.id, dados);
+  if (!id) return { ok: false, erro: "Não foi possível começar a transcrição." };
+  try {
+    return { ok: true, id, envio: linkDeEnvio(id) };
+  } catch (e) {
+    return { ok: false, erro: e instanceof Error ? e.message : "Servidor de mídia indisponível." };
+  }
+}
+
+async function novoRegistro(profileId: string, dados: { titulo: string; arquivoNome: string; modo: ModoTranscricao; opcoes: OpcoesTranscricao }): Promise<string | null> {
   const modo: ModoTranscricao = ["fiel", "resumo", "ambos"].includes(dados.modo) ? dados.modo : "ambos";
   const opcoes: OpcoesTranscricao = {
     falantes: !!dados.opcoes.falantes,
@@ -63,14 +74,44 @@ export async function criarTranscricaoAction(dados: {
   const titulo = dados.titulo.trim().slice(0, 140) || dados.arquivoNome.replace(/\.[^.]+$/, "").slice(0, 140) || "Transcrição";
   const { data, error } = await (await db())
     .from("transcricoes")
-    .insert({ profile_id: profile.id, titulo, arquivo_nome: dados.arquivoNome.slice(0, 200), modo, opcoes })
+    .insert({ profile_id: profileId, titulo, arquivo_nome: dados.arquivoNome.slice(0, 200), modo, opcoes })
     .select("id")
     .single();
-  if (error || !data) return { ok: false, erro: "Não foi possível começar a transcrição." };
+  return error || !data ? null : data.id;
+}
+
+/* ───────── direto do WhatsApp do portal ───────── */
+
+/** Áudios e vídeos do zap para escolher (mais recentes primeiro). */
+export async function listarAudiosDoWhatsappAction(op: { busca?: string; antesDe?: string } = {}): Promise<AudioZap[]> {
+  if (!(await temPermissao("whatsapp"))) return [];
+  return listarAudiosDoWhatsapp(await createClient(), { busca: op.busca, antesDe: op.antesDe });
+}
+
+/** Cria a transcrição e já copia o áudio do zap para o servidor; depois o navegador chama /processar. */
+export async function criarTranscricaoDoWhatsappAction(dados: {
+  msgId: string;
+  titulo: string;
+  modo: ModoTranscricao;
+  opcoes: OpcoesTranscricao;
+}): Promise<{ ok: true; id: string; duracao: number } | { ok: false; erro: string }> {
+  const profile = await requireRole(["admin", "advogado"]);
+  if (!(await temPermissao("whatsapp"))) return { ok: false, erro: "Você não tem acesso ao WhatsApp do escritório." };
+  const achado = await audioDoWhatsapp(await createClient(), dados.msgId);
+  if (!achado) return { ok: false, erro: "Não achei esse áudio no WhatsApp (ou ele ainda está sendo baixado)." };
+  const { audio } = achado;
+  const id = await novoRegistro(profile.id, {
+    titulo: dados.titulo.trim() || tituloDoAudio(audio),
+    arquivoNome: audio.nome || `${tituloDoAudio(audio)} (WhatsApp)`,
+    modo: dados.modo,
+    opcoes: dados.opcoes,
+  });
+  if (!id) return { ok: false, erro: "Não foi possível começar a transcrição." };
   try {
-    return { ok: true, id: data.id, envio: linkDeEnvio(data.id) };
+    return { ok: true, id, duracao: await importarDoWhatsapp(id, { path: achado.media_path, mime: achado.media_mime }) };
   } catch (e) {
-    return { ok: false, erro: e instanceof Error ? e.message : "Servidor de mídia indisponível." };
+    await (await db()).from("transcricoes").delete().eq("id", id);
+    return { ok: false, erro: e instanceof Error ? e.message : "Não foi possível puxar o áudio do WhatsApp." };
   }
 }
 

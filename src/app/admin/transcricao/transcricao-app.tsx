@@ -10,6 +10,7 @@ import {
   FileAudio,
   FileText,
   Loader2,
+  MessageCircle,
   Mic,
   Plus,
   RotateCcw,
@@ -25,8 +26,10 @@ import {
   abrirNoGoogleDocsAction,
   abrirTranscricaoAction,
   criarTranscricaoAction,
+  criarTranscricaoDoWhatsappAction,
   excluirTranscricaoAction,
   gerarResumoAction,
+  listarAudiosDoWhatsappAction,
   listarTranscricoesAction,
   salvarTranscricaoAction,
   type Transcricao,
@@ -38,6 +41,8 @@ import {
   duracaoLegivel,
   nomeDeArquivo,
   textoDoDocumento,
+  tituloDoAudio,
+  type AudioZap,
   type ModoTranscricao,
   type ParteExport,
 } from "@/lib/transcricao-formato";
@@ -47,7 +52,10 @@ const LIMITE = 1024 ** 3;
 const tamanho = (b: number) => (b < 1024 ** 2 ? `${Math.max(1, Math.round(b / 1024))} KB` : b < 1024 ** 3 ? `${(b / 1024 ** 2).toFixed(1)} MB` : `${(b / 1024 ** 3).toFixed(2)} GB`);
 const mmss = (s: number) => `${Math.floor(s / 60)}:${String(Math.floor(s % 60)).padStart(2, "0")}`;
 
-type Andamento = { etapa: "envio" | "preparo" | "ia"; pct: number; inicio: number; duracao?: number };
+type Andamento = { etapa: "envio" | "preparo" | "ia"; pct: number; inicio: number; duracao?: number; doZap?: boolean };
+/** de onde vem o áudio: arquivo/gravação ou uma mensagem do WhatsApp do portal */
+type Fonte = { arquivo: File } | { zap: AudioZap };
+type DadosNova = { titulo: string; modo: ModoTranscricao; falantes: boolean; tempo: boolean; instrucao: string };
 
 /** PUT do arquivo direto pro servidor de mídia, com progresso. */
 function enviarArquivo(url: string, arquivo: File, onPct: (p: number) => void, onEnviado: () => void): Promise<{ ok: boolean; duracao?: number; erro?: string }> {
@@ -69,9 +77,23 @@ function enviarArquivo(url: string, arquivo: File, onPct: (p: number) => void, o
   });
 }
 
-export function TranscricaoApp({ inicial, meuId, souAdmin }: { inicial: TranscricaoItem[]; meuId: string; souAdmin: boolean }) {
+export function TranscricaoApp({
+  inicial,
+  meuId,
+  souAdmin,
+  podeWhatsapp,
+  zapInicial,
+  abertaInicial,
+}: {
+  inicial: TranscricaoItem[];
+  meuId: string;
+  souAdmin: boolean;
+  podeWhatsapp: boolean;
+  zapInicial: AudioZap | null;
+  abertaInicial: Transcricao | null;
+}) {
   const [lista, setLista] = useState(inicial);
-  const [aberta, setAberta] = useState<Transcricao | null>(null);
+  const [aberta, setAberta] = useState<Transcricao | null>(abertaInicial);
   const [carregando, setCarregando] = useState<string | null>(null);
   const [andamento, setAndamento] = useState<Andamento | null>(null);
   const [busca, setBusca] = useState("");
@@ -119,7 +141,24 @@ export function TranscricaoApp({ inicial, meuId, souAdmin }: { inicial: Transcri
     }
   }
 
-  async function comecar(arquivo: File, dados: { titulo: string; modo: ModoTranscricao; falantes: boolean; tempo: boolean; instrucao: string }) {
+  async function comecar(fonte: Fonte, dados: DadosNova) {
+    if ("zap" in fonte) {
+      setAberta(null);
+      setAndamento({ etapa: "envio", pct: 0, inicio: Date.now(), doZap: true });
+      const z = await criarTranscricaoDoWhatsappAction({
+        msgId: fonte.zap.id,
+        titulo: dados.titulo,
+        modo: dados.modo,
+        opcoes: { falantes: dados.falantes, tempo: dados.tempo, instrucao: dados.instrucao },
+      });
+      if (!z.ok) {
+        setAndamento(null);
+        return void toast.error(z.erro);
+      }
+      void recarregarLista();
+      return processar(z.id, z.duracao);
+    }
+    const arquivo = fonte.arquivo;
     const c = await criarTranscricaoAction({ titulo: dados.titulo, arquivoNome: arquivo.name, modo: dados.modo, opcoes: { falantes: dados.falantes, tempo: dados.tempo, instrucao: dados.instrucao } });
     if (!c.ok) return void toast.error(c.erro);
     setAberta(null);
@@ -168,7 +207,7 @@ export function TranscricaoApp({ inicial, meuId, souAdmin }: { inicial: Transcri
             onTentarDeNovo={() => void processar(aberta.id, aberta.duracao_seg ?? undefined)}
           />
         ) : (
-          <NovaTranscricao onComecar={comecar} />
+          <NovaTranscricao onComecar={comecar} podeWhatsapp={podeWhatsapp} zapInicial={zapInicial} />
         )}
       </div>
 
@@ -234,10 +273,12 @@ export function TranscricaoApp({ inicial, meuId, souAdmin }: { inicial: Transcri
 
 /* ───────── nova transcrição ───────── */
 
-function NovaTranscricao({ onComecar }: { onComecar: (arquivo: File, dados: { titulo: string; modo: ModoTranscricao; falantes: boolean; tempo: boolean; instrucao: string }) => Promise<void> }) {
+function NovaTranscricao({ onComecar, podeWhatsapp, zapInicial }: { onComecar: (fonte: Fonte, dados: DadosNova) => Promise<void>; podeWhatsapp: boolean; zapInicial: AudioZap | null }) {
   const [arquivo, setArquivo] = useState<File | null>(null);
+  const [zap, setZap] = useState<AudioZap | null>(zapInicial);
+  const [escolhendoZap, setEscolhendoZap] = useState(false);
   const [previa, setPrevia] = useState<string | null>(null);
-  const [titulo, setTitulo] = useState("");
+  const [titulo, setTitulo] = useState(zapInicial ? tituloDoAudio(zapInicial) : "");
   const [modo, setModo] = useState<ModoTranscricao>("ambos");
   const [falantes, setFalantes] = useState(true);
   const [tempo, setTempo] = useState(false);
@@ -254,16 +295,25 @@ function NovaTranscricao({ onComecar }: { onComecar: (arquivo: File, dados: { ti
     if (!pareceMidia) return void toast.error("Escolha um arquivo de áudio ou vídeo.");
     if (f.size > LIMITE) return void toast.error("O arquivo passa de 1 GB.");
     if (previa) URL.revokeObjectURL(previa);
+    setZap(null);
     setArquivo(f);
     setPrevia(URL.createObjectURL(f));
     setTitulo((t) => t || f.name.replace(/\.[^.]+$/, ""));
   }
 
+  function escolherDoZap(a: AudioZap) {
+    setEscolhendoZap(false);
+    setArquivo(null);
+    setZap(a);
+    setTitulo(tituloDoAudio(a));
+  }
+
   async function transcrever() {
-    if (!arquivo) return;
+    const fonte: Fonte | null = zap ? { zap } : arquivo ? { arquivo } : null;
+    if (!fonte) return;
     setEnviando(true);
     try {
-      await onComecar(arquivo, { titulo, modo, falantes, tempo, instrucao });
+      await onComecar(fonte, { titulo, modo, falantes, tempo, instrucao });
     } finally {
       setEnviando(false);
     }
@@ -280,8 +330,41 @@ function NovaTranscricao({ onComecar }: { onComecar: (arquivo: File, dados: { ti
       <h2 className="section-title">Nova transcrição</h2>
       <p className="mt-1 text-sm text-muted">Áudio ou vídeo de qualquer formato, até 1 GB (dá para uma reunião de 3 horas). O áudio é apagado depois; fica só o texto.</p>
 
-      {!arquivo ? (
-        <div className="mt-5 grid gap-3 sm:grid-cols-[1fr_auto]">
+      {zap ? (
+        <div className="mt-5 rounded-2xl border border-border bg-surface-2/50 p-4">
+          <div className="flex items-center gap-3">
+            <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-[#25d366] text-white">
+              <MessageCircle className="h-5 w-5" aria-hidden />
+            </span>
+            <span className="min-w-0 flex-1">
+              <span className="block truncate text-sm font-medium text-foreground">
+                {zap.tipo === "video" ? "Vídeo" : "Áudio"} de {zap.de}
+                {zap.de !== zap.conversa ? ` · ${zap.conversa}` : ""}
+              </span>
+              <span className="block text-xs text-muted">Do WhatsApp · {dataLegivel(zap.quando)}</span>
+            </span>
+            {podeWhatsapp && (
+              <button type="button" onClick={() => setEscolhendoZap(true)} className="ui-btn-secondary hidden px-2.5 py-1.5 text-xs sm:inline-flex">
+                Outro áudio
+              </button>
+            )}
+            <button
+              type="button"
+              onClick={() => {
+                setZap(null);
+                setTitulo("");
+              }}
+              className="icon-btn h-8 w-8"
+              aria-label="Tirar áudio"
+              data-tip="Tirar áudio"
+            >
+              <X aria-hidden />
+            </button>
+          </div>
+          {zap.url && <audio controls src={zap.url} className="mt-3 h-10 w-full" preload="metadata" />}
+        </div>
+      ) : !arquivo ? (
+        <div className={`mt-5 grid gap-3 ${podeWhatsapp ? "sm:grid-cols-[1fr_auto_auto]" : "sm:grid-cols-[1fr_auto]"}`}>
           <button
             type="button"
             onClick={() => inputRef.current?.click()}
@@ -304,6 +387,15 @@ function NovaTranscricao({ onComecar }: { onComecar: (arquivo: File, dados: { ti
             <span className="mt-0.5 text-xs text-muted">MP3, M4A, OGG (WhatsApp), WAV, MP4, MOV…</span>
           </button>
           <Gravador onGravado={escolher} />
+          {podeWhatsapp && (
+            <button type="button" onClick={() => setEscolhendoZap(true)} className="flex min-h-36 flex-col items-center justify-center rounded-2xl border border-border px-6 py-6 text-center hover:border-navy hover:bg-surface-2/60 sm:w-44">
+              <span className="flex h-11 w-11 items-center justify-center rounded-full bg-[#25d366] text-white">
+                <MessageCircle className="h-5 w-5" aria-hidden />
+              </span>
+              <span className="mt-2 text-sm font-medium text-foreground">Do WhatsApp</span>
+              <span className="text-xs text-muted">um áudio do zap</span>
+            </button>
+          )}
           <input ref={inputRef} type="file" accept={ACEITA} className="hidden" onChange={(e) => escolher(e.target.files?.[0])} />
         </div>
       ) : (
@@ -390,12 +482,129 @@ function NovaTranscricao({ onComecar }: { onComecar: (arquivo: File, dados: { ti
       )}
 
       <div className="mt-6 flex flex-wrap items-center gap-3">
-        <button type="button" onClick={() => void transcrever()} disabled={!arquivo || enviando} className="ui-btn">
+        <button type="button" onClick={() => void transcrever()} disabled={(!arquivo && !zap) || enviando} className="ui-btn">
           {enviando ? <Loader2 className="h-4 w-4 animate-spin" aria-hidden /> : <AudioLines className="h-4 w-4" aria-hidden />} Transcrever
         </button>
-        {!arquivo && <span className="text-xs text-muted">Escolha um arquivo ou grave um áudio.</span>}
+        {!arquivo && !zap && <span className="text-xs text-muted">{podeWhatsapp ? "Escolha um arquivo, grave ou puxe um áudio do WhatsApp." : "Escolha um arquivo ou grave um áudio."}</span>}
       </div>
+      {escolhendoZap && <EscolherDoZap onEscolher={escolherDoZap} onFechar={() => setEscolhendoZap(false)} />}
     </section>
+  );
+}
+
+/** Lista dos áudios do WhatsApp do portal (mais recentes primeiro), com busca por conversa. */
+function EscolherDoZap({ onEscolher, onFechar }: { onEscolher: (a: AudioZap) => void; onFechar: () => void }) {
+  const [busca, setBusca] = useState("");
+  const [itens, setItens] = useState<AudioZap[] | null>(null);
+  const [mais, setMais] = useState(false);
+  const [carregandoMais, setCarregandoMais] = useState(false);
+  const [buscando, setBuscando] = useState(false);
+  const pedido = useRef(0);
+
+  useEffect(() => {
+    const n = ++pedido.current;
+    const t = setTimeout(
+      async () => {
+        const r = await listarAudiosDoWhatsappAction({ busca: busca.trim() || undefined });
+        if (n !== pedido.current) return;
+        setItens(r);
+        setMais(r.length >= 30);
+        setBuscando(false);
+      },
+      busca ? 350 : 0
+    );
+    return () => clearTimeout(t);
+  }, [busca]);
+
+  useEffect(() => {
+    const esc = (e: KeyboardEvent) => e.key === "Escape" && onFechar();
+    window.addEventListener("keydown", esc);
+    return () => window.removeEventListener("keydown", esc);
+  }, [onFechar]);
+
+  async function carregarMais() {
+    if (!itens?.length) return;
+    setCarregandoMais(true);
+    try {
+      const r = await listarAudiosDoWhatsappAction({ busca: busca.trim() || undefined, antesDe: itens[itens.length - 1].quando });
+      setItens((x) => [...(x ?? []), ...r]);
+      setMais(r.length >= 30);
+    } finally {
+      setCarregandoMais(false);
+    }
+  }
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4" role="dialog" aria-modal="true" aria-label="Escolher áudio do WhatsApp" onClick={onFechar}>
+      <div className="ui-card flex max-h-[85vh] w-full max-w-xl flex-col overflow-hidden p-0" onClick={(e) => e.stopPropagation()}>
+        <div className="flex items-center gap-3 border-b border-border px-5 py-4">
+          <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-[#25d366] text-white">
+            <MessageCircle className="h-4.5 w-4.5" aria-hidden />
+          </span>
+          <div className="min-w-0 flex-1">
+            <h3 className="text-base font-semibold text-foreground">Áudio do WhatsApp</h3>
+            <p className="text-xs text-muted">Escolha o áudio (ou vídeo) que vai ser transcrito.</p>
+          </div>
+          <button type="button" onClick={onFechar} className="icon-btn h-8 w-8" aria-label="Fechar">
+            <X aria-hidden />
+          </button>
+        </div>
+        <label className="relative block border-b border-border px-4 py-3">
+          <Search className="pointer-events-none absolute top-1/2 left-7 h-3.5 w-3.5 -translate-y-1/2 text-muted" aria-hidden />
+          <input
+            autoFocus
+            value={busca}
+            onChange={(e) => {
+              setBusca(e.target.value);
+              setBuscando(true);
+            }}
+            placeholder="Buscar conversa (nome ou telefone)"
+            className="ui-input !py-2 pr-9 pl-8 text-sm"
+            aria-label="Buscar conversa"
+          />
+          {buscando && <Loader2 className="absolute top-1/2 right-7 h-3.5 w-3.5 -translate-y-1/2 animate-spin text-muted" aria-label="Buscando" />}
+        </label>
+        <div className="min-h-40 flex-1 overflow-y-auto">
+          {itens === null ? (
+            <p className="flex items-center justify-center gap-2 py-12 text-sm text-muted">
+              <Loader2 className="h-4 w-4 animate-spin" aria-hidden /> Carregando áudios…
+            </p>
+          ) : itens.length === 0 ? (
+            <p className="px-4 py-12 text-center text-sm text-muted">{busca.trim() ? "Nenhum áudio nessa conversa." : "Nenhum áudio no WhatsApp ainda."}</p>
+          ) : (
+            <ul className="divide-y divide-border">
+              {itens.map((a) => (
+                <li key={a.id} className="px-4 py-3">
+                  <div className="flex items-start gap-3">
+                    <span className="mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-surface-2 text-foreground/70 ring-1 ring-border">
+                      {a.tipo === "video" ? <FileAudio className="h-4 w-4" aria-hidden /> : <Mic className="h-4 w-4" aria-hidden />}
+                    </span>
+                    <span className="min-w-0 flex-1">
+                      <span className="block truncate text-sm font-medium text-foreground">{a.conversa}</span>
+                      <span className="block truncate text-xs text-muted">
+                        {a.from_me ? "Enviado pelo escritório" : a.de !== a.conversa ? `De ${a.de}` : "Recebido"} · {dataLegivel(a.quando)}
+                        {a.tipo === "video" ? " · vídeo" : ""}
+                      </span>
+                    </span>
+                    <button type="button" onClick={() => onEscolher(a)} className="ui-btn shrink-0 px-3 py-1.5 text-xs">
+                      Escolher
+                    </button>
+                  </div>
+                  {a.url && <audio controls src={a.url} className="mt-2 h-9 w-full" preload="none" />}
+                </li>
+              ))}
+            </ul>
+          )}
+          {mais && (
+            <div className="border-t border-border p-3 text-center">
+              <button type="button" onClick={() => void carregarMais()} disabled={carregandoMais} className="ui-btn-secondary px-3 py-1.5 text-xs">
+                {carregandoMais && <Loader2 className="h-3.5 w-3.5 animate-spin" aria-hidden />} Ver mais antigos
+              </button>
+            </div>
+          )}
+        </div>
+      </div>
+    </div>
   );
 }
 
@@ -480,7 +689,10 @@ function Progresso({ a }: { a: Andamento }) {
     return () => clearInterval(t);
   }, [a.inicio]);
   const etapas: { id: Andamento["etapa"]; texto: string }[] = [
-    { id: "envio", texto: a.etapa === "envio" ? `Enviando o arquivo… ${a.pct}%` : "Arquivo enviado" },
+    {
+      id: "envio",
+      texto: a.doZap ? (a.etapa === "envio" ? "Puxando o áudio do WhatsApp…" : "Áudio puxado do WhatsApp") : a.etapa === "envio" ? `Enviando o arquivo… ${a.pct}%` : "Arquivo enviado",
+    },
     { id: "preparo", texto: "Preparando o áudio" },
     { id: "ia", texto: "Transcrevendo com IA" },
   ];
@@ -514,7 +726,7 @@ function Progresso({ a }: { a: Andamento }) {
           );
         })}
       </ol>
-      {a.etapa === "envio" && (
+      {a.etapa === "envio" && !a.doZap && (
         <div className="mx-5 mb-5 h-1.5 overflow-hidden rounded-full bg-track">
           <div className="h-full rounded-full bg-navy transition-[width] duration-300" style={{ width: `${a.pct}%` }} />
         </div>
