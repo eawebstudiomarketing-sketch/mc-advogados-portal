@@ -6,6 +6,7 @@ import { getEscritorioConfig, listPessoas, sugerirResponsavel } from "@/lib/data
 import { ACTIVITY_TYPES } from "@/lib/activity-type";
 import { criarAvisos } from "@/lib/avisos";
 import { transcreverAudioDoZap } from "@/lib/whatsapp-audio";
+import { ligarGruposDeAssessoria } from "@/lib/zap/ligar-grupos";
 
 // Lê as mensagens novas das conversas do WhatsApp ligadas a clientes, de todo
 // grupo com "ASSESSORIA JURÍDICA" no nome e das conversas ligadas a dedo
@@ -84,6 +85,8 @@ export type ResultadoLeitura = { conversas: number; mensagens: number; sugestoes
 
 export async function lerConversasDoZap(): Promise<ResultadoLeitura> {
   const db = createAdminClient();
+  // grupo "Assessoria Jurídica - X" sem cliente: liga à ficha antes de ler (a demanda já nasce com cliente)
+  await ligarGruposDeAssessoria(db).catch(() => undefined);
   const [config, pessoas] = await Promise.all([getEscritorioConfig(), listPessoas()]);
   const { data: chats } = await db
     .from("wa_chats")
