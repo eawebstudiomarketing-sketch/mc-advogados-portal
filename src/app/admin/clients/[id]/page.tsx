@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { formatarDocumento, formatarTelefone } from "@/lib/formatar";
 import { listProcesses } from "@/lib/data/processes";
 import { listEtiquetas } from "@/lib/data/etiquetas";
 import { PROCESS_AREA_LABEL } from "@/lib/process-area";
@@ -33,7 +34,8 @@ import { Archive, ArchiveRestore } from "lucide-react";
 import { GerarDemandas } from "./gerar-demandas";
 import { ReportsTab } from "./reports-tab";
 import { listReports } from "@/lib/data/reports";
-import { BarChart3 } from "lucide-react";
+import { BarChart3, IdCard, Phone } from "lucide-react";
+import { CadastroPF } from "./cadastro-pf";
 import { DemandsSection } from "@/app/admin/onboarding/[id]/demands-section";
 import { listClientDemandDrafts } from "@/lib/data/onboarding-demand-drafts";
 import { BackButton } from "@/components/nav/back-button";
@@ -46,6 +48,7 @@ const DOCS_PER_PAGE = 10;
 
 const ABAS = [
   { id: "geral", label: "Visão geral", icon: LayoutGrid },
+  { id: "cadastro", label: "Cadastro", icon: IdCard },
   { id: "atividades", label: "Atividades", icon: ListChecks },
   { id: "processos", label: "Processos", icon: Gavel },
   { id: "documentos", label: "Documentos", icon: FileText },
@@ -106,7 +109,10 @@ export default async function AdminClientDetailPage({
     relatorios: "relatorios",
     acesso: "acesso_portal",
   };
-  const abas = ABAS.filter((a) => !PERM_DA_ABA[a.id] || perm[PERM_DA_ABA[a.id]!]);
+  // pessoa física: aba Cadastro (como no Astrea); onboarding, demandas da IA e relatório mensal são de empresa
+  const pf = client.tipo_pessoa === "PF";
+  const SO_PJ: Aba[] = ["onboarding", "demandas", "relatorios"];
+  const abas = ABAS.filter((a) => (!PERM_DA_ABA[a.id] || perm[PERM_DA_ABA[a.id]!]) && (pf ? !SO_PJ.includes(a.id) : a.id !== "cadastro"));
   const pedida = abas.find((a) => a.id === abaParam)?.id;
   const aba: Aba = pedida ?? (docsParam && abas.some((a) => a.id === "documentos") ? "documentos" : "geral");
   const documents = docsPage.items;
@@ -144,12 +150,21 @@ export default async function AdminClientDetailPage({
             <p className="mt-1 flex flex-wrap items-center gap-x-4 gap-y-1 text-[13px] text-muted">
               <span className="inline-flex items-center gap-1.5">
                 <Hash className="h-3.5 w-3.5" aria-hidden />
-                {client.tipo_pessoa} · {client.documento}
+                {pf ? "Pessoa física" : "Empresa"}
+                {client.documento ? ` · ${pf ? "CPF" : "CNPJ"} ${formatarDocumento(client.documento)}` : ""}
               </span>
-              <span className="inline-flex items-center gap-1.5">
-                <Mail className="h-3.5 w-3.5" aria-hidden />
-                {client.email_contact}
-              </span>
+              {pf && client.telefones?.[0] && (
+                <span className="inline-flex items-center gap-1.5">
+                  <Phone className="h-3.5 w-3.5" aria-hidden />
+                  {formatarTelefone(client.telefones[0])}
+                </span>
+              )}
+              {client.email_contact && (
+                <span className="inline-flex items-center gap-1.5">
+                  <Mail className="h-3.5 w-3.5" aria-hidden />
+                  {client.email_contact}
+                </span>
+              )}
             </p>
           </div>
         </div>
@@ -174,7 +189,7 @@ export default async function AdminClientDetailPage({
             <Pencil aria-hidden />
           </Link>
           )}
-          {perm.onboarding && perm.gerar_ia && (
+          {!pf && perm.onboarding && perm.gerar_ia && (
           <Link
             href={`/admin/onboarding/new?clientId=${client.id}`}
             className="ui-btn"
@@ -238,6 +253,7 @@ export default async function AdminClientDetailPage({
                 handoff={ficha.handoff}
                 updatedAt={ficha.handoffUpdatedAt}
                 triagemAntiga={ficha.triagem}
+                tipo={client.tipo_pessoa}
               />
             )}
             <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
@@ -279,6 +295,8 @@ export default async function AdminClientDetailPage({
             <ActivitiesView etiquetas={etiquetas} activities={activities} podeExcluir={perm.excluir} />
           </section>
         )}
+
+        {aba === "cadastro" && <CadastroPF c={client} podeEditar={!!perm.editar_cliente} />}
 
         {aba === "processos" && (
           <section>

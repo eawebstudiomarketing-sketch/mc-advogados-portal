@@ -1003,6 +1003,28 @@ export type Database = {
       }
       clients: {
         Row: {
+          apelido: string | null
+          nascimento: string | null
+          estado_civil: string | null
+          rg: string | null
+          ctps: string | null
+          pis: string | null
+          titulo_eleitor: string | null
+          cnh: string | null
+          passaporte: string | null
+          reservista: string | null
+          profissao: string | null
+          nome_pai: string | null
+          nome_mae: string | null
+          naturalidade: string | null
+          nacionalidade: string | null
+          comentarios: string | null
+          telefones: string[]
+          endereco: Json | null
+          conta_bancaria: Json | null
+          falecido: boolean
+          data_obito: string | null
+          astrea_contato_id: string | null
           whatsapp_grupos: string[]
           whatsapp_numeros: string[]
           active: boolean
@@ -1010,8 +1032,8 @@ export type Database = {
           drive_import_folder_ids: string[]
           drive_last_sync_at: string | null
           created_at: string
-          documento: string
-          email_contact: string
+          documento: string | null
+          email_contact: string | null
           id: string
           name: string
           plan_start_date: string
@@ -1024,6 +1046,28 @@ export type Database = {
           archived_at: string | null
         }
         Insert: {
+          apelido?: string | null
+          nascimento?: string | null
+          estado_civil?: string | null
+          rg?: string | null
+          ctps?: string | null
+          pis?: string | null
+          titulo_eleitor?: string | null
+          cnh?: string | null
+          passaporte?: string | null
+          reservista?: string | null
+          profissao?: string | null
+          nome_pai?: string | null
+          nome_mae?: string | null
+          naturalidade?: string | null
+          nacionalidade?: string | null
+          comentarios?: string | null
+          telefones?: string[]
+          endereco?: Json | null
+          conta_bancaria?: Json | null
+          falecido?: boolean
+          data_obito?: string | null
+          astrea_contato_id?: string | null
           whatsapp_grupos?: string[]
           whatsapp_numeros?: string[]
           active?: boolean
@@ -1031,8 +1075,8 @@ export type Database = {
           drive_import_folder_ids?: string[]
           drive_last_sync_at?: string | null
           created_at?: string
-          documento: string
-          email_contact: string
+          documento?: string | null
+          email_contact?: string | null
           id?: string
           name: string
           plan_start_date?: string
@@ -1045,6 +1089,28 @@ export type Database = {
           archived_at?: string | null
         }
         Update: {
+          apelido?: string | null
+          nascimento?: string | null
+          estado_civil?: string | null
+          rg?: string | null
+          ctps?: string | null
+          pis?: string | null
+          titulo_eleitor?: string | null
+          cnh?: string | null
+          passaporte?: string | null
+          reservista?: string | null
+          profissao?: string | null
+          nome_pai?: string | null
+          nome_mae?: string | null
+          naturalidade?: string | null
+          nacionalidade?: string | null
+          comentarios?: string | null
+          telefones?: string[]
+          endereco?: Json | null
+          conta_bancaria?: Json | null
+          falecido?: boolean
+          data_obito?: string | null
+          astrea_contato_id?: string | null
           whatsapp_grupos?: string[]
           whatsapp_numeros?: string[]
           active?: boolean
@@ -1052,8 +1118,8 @@ export type Database = {
           drive_import_folder_ids?: string[]
           drive_last_sync_at?: string | null
           created_at?: string
-          documento?: string
-          email_contact?: string
+          documento?: string | null
+          email_contact?: string | null
           id?: string
           name?: string
           plan_start_date?: string

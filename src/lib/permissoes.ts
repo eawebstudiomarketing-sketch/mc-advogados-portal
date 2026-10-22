@@ -6,6 +6,7 @@
 export const PERMISSOES = [
   // clientes
   { chave: "todos_clientes", grupo: "Clientes", rotulo: "Ver todos os clientes (não só os designados)", padrao: false },
+  { chave: "clientes_pf", grupo: "Clientes", rotulo: "Clientes pessoa física (aba Pessoas)", padrao: true },
   // telas do menu
   { chave: "visao_geral", grupo: "Telas", rotulo: "Visão geral", padrao: true },
   { chave: "clientes", grupo: "Telas", rotulo: "Clientes (fichas)", padrao: true },

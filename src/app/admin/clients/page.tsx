@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { formatarDocumento, formatarTelefone } from "@/lib/formatar";
 import { Plus, Archive, ArrowLeft, List, Columns3 } from "lucide-react";
 import { BarraFiltros } from "@/components/ui/barra-filtros";
 import { PipelineBoard } from "@/components/cliente/pipeline-board";
@@ -6,6 +7,7 @@ import { pipelineDosClientes, ETAPAS } from "@/lib/data/pipeline";
 import { StatusBadge } from "@/components/ui/status-badge";
 import { listClients } from "@/lib/data/clients";
 import { exigirPermissao } from "@/lib/dal";
+import { createClient } from "@/lib/supabase/server";
 
 const COR_ETAPA: Record<string, string> = {
   ficha_incompleta: "bg-status-danger",
@@ -19,25 +21,40 @@ const COR_ETAPA: Record<string, string> = {
 export default async function AdminClientsPage({
   searchParams,
 }: {
-  searchParams: Promise<{ arquivados?: string; ver?: string; busca?: string; tipo?: string; status?: string; etapa?: string }>;
+  searchParams: Promise<{ arquivados?: string; ver?: string; busca?: string; tipo?: string; status?: string; etapa?: string; aba?: string }>;
 }) {
-  await exigirPermissao("clientes");
+  const { permissoes } = await exigirPermissao("clientes");
   const sp = await searchParams;
+  // duas abas: Empresas (PJ) e Pessoas (PF, com permissão própria)
+  const podePF = !!permissoes.clientes_pf;
+  const tipo: "PJ" | "PF" = sp.aba === "pf" && podePF ? "PF" : "PJ";
   const arquivados = sp.arquivados === "1";
-  const verPipeline = sp.ver === "pipeline" && !arquivados;
-  const [todos, pipeline] = await Promise.all([listClients({ arquivados }), arquivados ? Promise.resolve([]) : pipelineDosClientes()]);
+  const verPipeline = sp.ver === "pipeline" && !arquivados && tipo === "PJ";
+  const [daCarteira, pipeline] = await Promise.all([listClients({ arquivados }), arquivados || tipo === "PF" ? Promise.resolve([]) : pipelineDosClientes()]);
+  const qtd = { PJ: daCarteira.filter((c) => c.tipo_pessoa === "PJ").length, PF: daCarteira.filter((c) => c.tipo_pessoa === "PF").length };
+  const todos = daCarteira.filter((c) => c.tipo_pessoa === tipo);
+  const processosPorCliente = new Map<string, number>();
+  if (tipo === "PF" && todos.length) {
+    const { data } = await (await createClient()).from("processes").select("client_id").in("client_id", todos.map((c) => c.id));
+    for (const p of data ?? []) processosPorCliente.set(p.client_id!, (processosPorCliente.get(p.client_id!) ?? 0) + 1);
+  }
   const etapaDe = new Map(pipeline.map((c) => [c.id, c.etapa]));
   const termo = (sp.busca ?? "").trim().toLowerCase();
   const clients = todos.filter(
     (c) =>
-      (!termo || c.name.toLowerCase().includes(termo) || (c.documento ?? "").toLowerCase().includes(termo) || (c.email_contact ?? "").toLowerCase().includes(termo)) &&
-      (!sp.tipo || c.tipo_pessoa === sp.tipo) &&
+      (!termo ||
+        c.name.toLowerCase().includes(termo) ||
+        (c.apelido ?? "").toLowerCase().includes(termo) ||
+        (c.documento ?? "").toLowerCase().includes(termo) ||
+        (c.email_contact ?? "").toLowerCase().includes(termo) ||
+        (c.telefones ?? []).some((t) => t.replace(/\D/g, "").includes(termo.replace(/\D/g, "") || "-"))) &&
       (!sp.status || (sp.status === "ativo" ? c.active : !c.active)) &&
       (!sp.etapa || etapaDe.get(c.id) === sp.etapa)
   );
   const ids = new Set(clients.map((c) => c.id));
   const alternar = (ver: "lista" | "pipeline") => {
     const q = new URLSearchParams(Object.entries(sp).filter(([k, v]) => v && k !== "ver") as [string, string][]);
+    if (tipo === "PF") q.set("aba", "pf");
     if (ver === "pipeline") q.set("ver", "pipeline");
     return `/admin/clients${q.size ? `?${q}` : ""}`;
   };
@@ -54,7 +71,7 @@ export default async function AdminClientsPage({
           </p>
         </div>
         <div className="flex flex-wrap items-center gap-2">
-        {!arquivados && (
+        {!arquivados && tipo === "PJ" && (
           <div className="inline-flex items-center gap-0.5 rounded-full border border-border bg-surface p-1" role="tablist" aria-label="Como ver">
             {([
               ["lista", "Lista", List],
@@ -75,22 +92,38 @@ export default async function AdminClientsPage({
             })}
           </div>
         )}
-        <Link href={arquivados ? "/admin/clients" : "/admin/clients?arquivados=1"} className="ui-btn-secondary">
+        <Link href={`/admin/clients?${new URLSearchParams({ ...(tipo === "PF" ? { aba: "pf" } : {}), ...(arquivados ? {} : { arquivados: "1" }) })}`} className="ui-btn-secondary">
           {arquivados ? <ArrowLeft className="h-4 w-4" aria-hidden /> : <Archive className="h-4 w-4" aria-hidden />}
           {arquivados ? "Voltar aos ativos" : "Arquivados"}
         </Link>
-        <Link href="/admin/clients/new" className="ui-btn">
-          <Plus className="h-4 w-4" aria-hidden /> Novo cliente
+        <Link href={`/admin/clients/new${tipo === "PF" ? "?tipo=PF" : ""}`} className="ui-btn">
+          <Plus className="h-4 w-4" aria-hidden /> {tipo === "PF" ? "Nova pessoa" : "Nova empresa"}
         </Link>
         </div>
       </div>
 
+      <nav className="mb-5 flex gap-6 border-b border-border" aria-label="Tipo de cliente">
+        {([
+          ["PJ", "Empresas", ""],
+          ...(podePF ? ([["PF", "Pessoas", "pf"]] as const) : []),
+        ] as const).map(([t, rotulo, aba]) => (
+          <Link
+            key={t}
+            href={`/admin/clients?${new URLSearchParams({ ...(aba ? { aba } : {}), ...(arquivados ? { arquivados: "1" } : {}) })}`}
+            aria-current={tipo === t ? "page" : undefined}
+            className={`-mb-px inline-flex items-center gap-2 border-b-2 px-1 pb-3 text-[15px] transition-colors ${tipo === t ? "border-navy-3 font-medium text-foreground" : "border-transparent text-foreground/65 hover:text-foreground"}`}
+          >
+            {rotulo}
+            <span className={`rounded px-1.5 text-[11px] font-semibold ${qtd[t] ? "bg-navy-3 text-white" : "bg-surface-2 text-muted"}`}>{qtd[t]}</span>
+          </Link>
+        ))}
+      </nav>
+
       <BarraFiltros
         filtros={[
-          { tipo: "busca", nome: "busca", rotulo: "Buscar por nome, CPF/CNPJ ou e-mail" },
-          { tipo: "select", nome: "tipo", rotulo: "Tipo", todos: "PF e PJ", opcoes: [{ valor: "PJ", rotulo: "Pessoa jurídica" }, { valor: "PF", rotulo: "Pessoa física" }] },
+          { tipo: "busca", nome: "busca", rotulo: tipo === "PF" ? "Buscar por nome, apelido, CPF, telefone ou e-mail" : "Buscar por nome, CNPJ ou e-mail" },
           { tipo: "select", nome: "status", rotulo: "Situação", todos: "Ativos e inativos", opcoes: [{ valor: "ativo", rotulo: "Ativos" }, { valor: "inativo", rotulo: "Inativos" }] },
-          ...(arquivados ? [] : [{ tipo: "select" as const, nome: "etapa", rotulo: "Etapa", todos: "Todas as etapas", opcoes: ETAPAS.map((e) => ({ valor: e.id, rotulo: e.rotulo })) }]),
+          ...(arquivados || tipo === "PF" ? [] : [{ tipo: "select" as const, nome: "etapa", rotulo: "Etapa", todos: "Todas as etapas", opcoes: ETAPAS.map((e) => ({ valor: e.id, rotulo: e.rotulo })) }]),
         ]}
       />
 
@@ -103,8 +136,8 @@ export default async function AdminClientsPage({
             <tr>
               <th className="w-12 pl-5">Nº</th>
               <th className="px-5 py-2.5 font-medium">Cliente</th>
-              <th className="px-5 py-2.5 font-medium">Tipo</th>
-              <th className="px-5 py-2.5 font-medium">Etapa</th>
+              <th className="px-5 py-2.5 font-medium">{tipo === "PF" ? "Telefone" : "Tipo"}</th>
+              <th className="px-5 py-2.5 font-medium">{tipo === "PF" ? "Processos" : "Etapa"}</th>
               <th className="px-5 py-2.5 font-medium">Cadastrado em</th>
               <th className="px-5 py-2.5 font-medium">Status</th>
             </tr>
@@ -129,13 +162,15 @@ export default async function AdminClientsPage({
                     </span>
                     <span className="min-w-0">
                       <span className="block truncate font-medium text-foreground underline-offset-2 group-hover:underline">{c.name}</span>
-                      <span className="block text-xs text-muted">{c.documento}</span>
+                      <span className="block text-xs text-muted">{[c.apelido && c.apelido !== c.name ? c.apelido : null, formatarDocumento(c.documento)].filter(Boolean).join(" · ")}</span>
                     </span>
                   </Link>
                 </td>
-                <td className="px-5 py-3 text-foreground/70">{c.tipo_pessoa}</td>
+                <td className="px-5 py-3 text-foreground/70">{tipo === "PF" ? (formatarTelefone(c.telefones?.[0]) || "—") : c.tipo_pessoa}</td>
                 <td className="px-5 py-3 text-xs whitespace-nowrap text-foreground/75">
-                  {etapaDe.get(c.id) ? (
+                  {tipo === "PF" ? (
+                    processosPorCliente.get(c.id) ?? 0
+                  ) : etapaDe.get(c.id) ? (
                     <span className="inline-flex items-center gap-1.5">
                       <span className={`h-1.5 w-1.5 rounded-full ${COR_ETAPA[etapaDe.get(c.id)!]}`} aria-hidden />
                       {ETAPAS.find((e) => e.id === etapaDe.get(c.id))?.rotulo}

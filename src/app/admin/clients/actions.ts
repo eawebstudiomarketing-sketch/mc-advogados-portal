@@ -7,6 +7,13 @@ import { createAdminClient } from "@/lib/supabase/admin";
 import { exigirPermissao, getPermissoes, requireRole } from "@/lib/dal";
 import { destinoDeVolta } from "@/lib/voltar";
 import { lerCamposWhatsapp } from "@/components/cliente/campos-whatsapp";
+import { lerCamposPF } from "@/components/cliente/campos-pf";
+
+/** PF: os telefones do cadastro também ligam a conversa do WhatsApp (números do cliente). */
+function comZap(pf: ReturnType<typeof lerCamposPF>, numeros: string[]) {
+  const tel = pf.telefones.map((t) => t.replace(/[^\d+]/g, "")).filter((t) => t.replace(/\D/g, "").length >= 10);
+  return { ...pf, whatsapp_numeros: [...new Set([...numeros, ...tel])] };
+}
 
 export type CreateClientState = { error: string | null };
 
@@ -31,11 +38,15 @@ export async function createClientAction(
   if (tipoPessoa !== "PF" && tipoPessoa !== "PJ") {
     return { error: "Selecione o tipo de pessoa." };
   }
-  if (typeof documento !== "string" || !documento.trim()) {
-    return { error: "Informe o CPF/CNPJ." };
+  // PJ: CNPJ e e-mail obrigatórios; PF: opcionais (muitos chegam só com o nome)
+  if (tipoPessoa === "PJ" && (typeof documento !== "string" || !documento.trim())) {
+    return { error: "Informe o CNPJ." };
   }
-  if (typeof emailContact !== "string" || !emailContact.trim()) {
+  if (tipoPessoa === "PJ" && (typeof emailContact !== "string" || !emailContact.trim())) {
     return { error: "Informe o e-mail de contato." };
+  }
+  if (tipoPessoa === "PF" && !permissoes.clientes_pf) {
+    return { error: "Você não tem acesso a clientes pessoa física." };
   }
 
   // id gerado aqui e sem pedir a linha de volta: cliente criado por advogado
@@ -46,9 +57,10 @@ export async function createClientAction(
     id,
     name: name.trim(),
     tipo_pessoa: tipoPessoa,
-    documento: documento.trim(),
-    email_contact: emailContact.trim(),
+    documento: String(documento ?? "").trim() || null,
+    email_contact: String(emailContact ?? "").trim() || null,
     ...lerCamposWhatsapp(formData),
+    ...(tipoPessoa === "PF" ? comZap(lerCamposPF(formData), lerCamposWhatsapp(formData).whatsapp_numeros) : {}),
   });
 
   if (error) {
@@ -94,10 +106,11 @@ export async function updateClientAction(
   if (tipoPessoa !== "PF" && tipoPessoa !== "PJ") {
     return { error: "Selecione o tipo de pessoa." };
   }
-  if (typeof documento !== "string" || !documento.trim()) {
-    return { error: "Informe o CPF/CNPJ." };
+  // PJ: CNPJ e e-mail obrigatórios; PF: opcionais (muitos chegam só com o nome)
+  if (tipoPessoa === "PJ" && (typeof documento !== "string" || !documento.trim())) {
+    return { error: "Informe o CNPJ." };
   }
-  if (typeof emailContact !== "string" || !emailContact.trim()) {
+  if (tipoPessoa === "PJ" && (typeof emailContact !== "string" || !emailContact.trim())) {
     return { error: "Informe o e-mail de contato." };
   }
 
@@ -107,10 +120,11 @@ export async function updateClientAction(
     .update({
       name: name.trim(),
       tipo_pessoa: tipoPessoa,
-      documento: documento.trim(),
-      email_contact: emailContact.trim(),
+      documento: String(documento ?? "").trim() || null,
+      email_contact: String(emailContact ?? "").trim() || null,
       active,
       ...lerCamposWhatsapp(formData),
+      ...(tipoPessoa === "PF" ? comZap(lerCamposPF(formData), lerCamposWhatsapp(formData).whatsapp_numeros) : {}),
     })
     .eq("id", id);
 
@@ -204,14 +218,9 @@ export async function saveHandoffAction(_prev: SaveHandoffState, formData: FormD
     return { error: "Não foi possível ler a ficha. Tente de novo.", savedAt: null };
   }
 
-  const { HANDOFF_SECTIONS } = await import("@/lib/handoff-schema");
-  const permitidos = new Set<string>();
-  for (const s of HANDOFF_SECTIONS)
-    for (const f of s.fields) {
-      permitidos.add(f.id);
-      if (f.type === "multi" && f.outro) permitidos.add(`${f.id}_outro`);
-      if (f.type === "yesno" && f.detalhe) permitidos.add(f.detalhe.id);
-    }
+  const { idsHandoff } = await import("@/lib/handoff-schema");
+  const { data: cli } = await (await createClient()).from("clients").select("tipo_pessoa").eq("id", id).maybeSingle();
+  const permitidos = idsHandoff(cli?.tipo_pessoa ?? "PJ");
   const limpo: Record<string, string | string[]> = {};
   for (const [k, v] of Object.entries(bruto)) {
     if (!permitidos.has(k)) continue;

@@ -29,7 +29,7 @@ export type CasoAstrea = {
   active: boolean;
 };
 
-export type PessoaAstrea = { contactName: string; stakeholderRoleName: string; roleType: number };
+export type PessoaAstrea = { contactId?: number; contactName: string; stakeholderRoleName: string; roleType: number };
 export type PastaAstrea = {
   id: number;
   lawsuitNumber: string | null;

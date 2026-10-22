@@ -220,6 +220,135 @@ export const HANDOFF_SECTIONS: HandoffSection[] = [
   },
 ];
 
+/** Ficha de Handoff da PESSOA FÍSICA (comercial → jurídico): o caso, não a empresa. */
+export const HANDOFF_SECTIONS_PF: HandoffSection[] = [
+  {
+    id: "pf_identificacao",
+    numero: 1,
+    titulo: "Identificação do Cliente",
+    fields: [
+      { id: "pf_nome", label: "Nome completo", type: "text" },
+      { id: "pf_cpf", label: "CPF", type: "text", half: true },
+      { id: "pf_rg", label: "RG", type: "text", half: true },
+      { id: "pf_nascimento", label: "Data de nascimento", type: "date", half: true },
+      { id: "pf_estado_civil", label: "Estado civil", type: "single", options: ["Solteiro(a)", "Casado(a)", "União estável", "Divorciado(a)", "Separado(a)", "Viúvo(a)"] },
+      { id: "pf_profissao", label: "Profissão", type: "text", half: true },
+      { id: "pf_telefone", label: "Telefone / WhatsApp", type: "text", half: true },
+      { id: "pf_email", label: "E-mail", type: "text", half: true },
+      { id: "pf_endereco", label: "Endereço completo (rua, nº, bairro, cidade/UF, CEP)", type: "textarea", rows: 2 },
+    ],
+  },
+  {
+    id: "pf_contratacao",
+    numero: 2,
+    titulo: "Informações da Contratação",
+    fields: [
+      { id: "pf_data_fechamento", label: "Data do fechamento", type: "date", half: true },
+      { id: "pf_consultor", label: "Consultor comercial responsável", type: "text", half: true },
+      { id: "pf_honorarios_tipo", label: "Tipo de honorários", type: "single", options: ["Fixo", "Êxito", "Fixo + êxito"] },
+      { id: "pf_honorarios_valor", label: "Valor fixo", type: "money", half: true },
+      { id: "pf_honorarios_exito", label: "Percentual de êxito (%)", type: "text", half: true },
+      { id: "pf_forma_pagamento", label: "Forma de pagamento", type: "text", half: true },
+    ],
+  },
+  {
+    id: "pf_caso",
+    numero: 3,
+    titulo: "O Caso",
+    fields: [
+      {
+        id: "pf_area",
+        label: "Área",
+        type: "single",
+        options: ["Consumidor", "Cível", "Trabalhista", "Família", "Previdenciário", "Bancário", "Consórcio", "FIES", "Outra"],
+      },
+      { id: "pf_parte_contraria", label: "Parte contrária (empresa ou pessoa)", type: "text" },
+      { id: "pf_relato", label: "O que aconteceu (relato do cliente)", type: "textarea", rows: 5 },
+      { id: "pf_quando", label: "Quando aconteceu", type: "text", half: true },
+    ],
+  },
+  {
+    id: "pf_pedido",
+    numero: 4,
+    titulo: "O que o Cliente Quer",
+    fields: [
+      { id: "pf_pedido_principal", label: "Pedido principal (indenização, rescisão, revisão, restituição…)", type: "textarea", rows: 3 },
+      { id: "pf_resultado_esperado", label: "Resultado que ele espera", type: "textarea", rows: 2 },
+    ],
+  },
+  {
+    id: "pf_urgencia",
+    numero: 5,
+    titulo: "Urgência e Prazos",
+    fields: [
+      { id: "pf_prazo_correndo", label: "Tem prazo correndo?", type: "yesno", detalhe: { id: "pf_prazo_detalhe", label: "Qual prazo e até quando" } },
+      { id: "pf_audiencia", label: "Já tem audiência marcada?", type: "yesno", detalhe: { id: "pf_audiencia_detalhe", label: "Data, hora e local" } },
+      { id: "pf_prescricao", label: "Risco de prescrição?", type: "yesno", detalhe: { id: "pf_prescricao_detalhe", label: "Explique" } },
+    ],
+  },
+  {
+    id: "pf_provas",
+    numero: 6,
+    titulo: "Provas e Documentos",
+    descricao: "Marque o que o cliente já tem; o que faltar vira pedido de documento.",
+    fields: [
+      {
+        id: "pf_documentos_tem",
+        label: "O cliente já tem",
+        type: "multi",
+        outro: true,
+        options: ["RG e CPF", "Comprovante de residência", "Contrato", "Prints de conversas", "Comprovantes de pagamento", "Notas fiscais", "E-mails", "Laudos / atestados", "Fotos / vídeos", "Testemunhas"],
+      },
+      { id: "pf_documentos_faltam", label: "Documentos que faltam pedir", type: "textarea", rows: 2 },
+    ],
+  },
+  {
+    id: "pf_expectativas",
+    numero: 7,
+    titulo: "Expectativas Alinhadas",
+    fields: [{ id: "pf_expectativas", label: "O que foi dito sobre tempo, chances e custos (para ninguém prometer além disso)", type: "textarea", rows: 3 }],
+  },
+  {
+    id: "pf_perfil",
+    numero: 8,
+    titulo: "Perfil e Observações",
+    fields: [
+      { id: "pf_contato_preferido", label: "Como prefere ser contatado", type: "single", options: ["WhatsApp", "Ligação", "E-mail"] },
+      { id: "pf_horario", label: "Melhor horário", type: "text", half: true },
+      { id: "pf_observacoes", label: "Observações do comercial", type: "textarea", rows: 3 },
+    ],
+  },
+  {
+    id: "confirmacao",
+    numero: 9,
+    titulo: "Confirmação do Handoff",
+    fields: [
+      { id: "conf_consultor", label: "Consultor comercial", type: "text", half: true },
+      { id: "conf_data", label: "Data", type: "date", half: true },
+      { id: "conf_advogado", label: "Advogado responsável", type: "text", half: true },
+      { id: "conf_recebimento", label: "Data de recebimento", type: "date", half: true },
+      { id: "status", label: "Status da transição", type: "single", options: ["Recebido", "Em análise", "Caso iniciado"] },
+    ],
+  },
+];
+
+export type TipoPessoa = "PF" | "PJ";
+
+/** Seções da ficha conforme o tipo do cliente. */
+export const secoesHandoff = (tipo: TipoPessoa = "PJ") => (tipo === "PF" ? HANDOFF_SECTIONS_PF : HANDOFF_SECTIONS);
+
+/** Ids aceitos na ficha desse tipo (campos + "outro" + detalhe do sim/não). */
+export function idsHandoff(tipo: TipoPessoa = "PJ"): Set<string> {
+  const ok = new Set<string>();
+  for (const s of secoesHandoff(tipo))
+    for (const f of s.fields) {
+      ok.add(f.id);
+      if (f.type === "multi" && f.outro) ok.add(`${f.id}_outro`);
+      if (f.type === "yesno" && f.detalhe) ok.add(f.detalhe.id);
+    }
+  return ok;
+}
+
 export type HandoffAnswers = Record<string, string | string[]>;
 
 const vazio = (v: unknown) => v == null || (Array.isArray(v) ? v.length === 0 : String(v).trim() === "");
@@ -230,8 +359,8 @@ export function handoffPreenchido(h: unknown): boolean {
 }
 
 /** Quantos campos principais (fora do bloco de confirmação) estão preenchidos. */
-export function handoffProgresso(h: HandoffAnswers | null): { feitos: number; total: number } {
-  const campos = HANDOFF_SECTIONS.filter((s) => s.id !== "confirmacao").flatMap((s) => s.fields);
+export function handoffProgresso(h: HandoffAnswers | null, tipo: TipoPessoa = "PJ"): { feitos: number; total: number } {
+  const campos = secoesHandoff(tipo).filter((s) => s.id !== "confirmacao").flatMap((s) => s.fields);
   const feitos = campos.filter((f) => !vazio(h?.[f.id])).length;
   return { feitos, total: campos.length };
 }
@@ -239,9 +368,11 @@ export function handoffProgresso(h: HandoffAnswers | null): { feitos: number; to
 const dataBR = (iso: string) => (/^\d{4}-\d{2}-\d{2}$/.test(iso) ? iso.split("-").reverse().join("/") : iso);
 
 /** Texto legível da ficha (para a IA e para resumos). Só o que foi preenchido. */
-export function handoffParaTexto(h: HandoffAnswers | null, triagemAntiga?: string | null): string {
+export function handoffParaTexto(h: HandoffAnswers | null, triagemAntiga?: string | null, tipo?: TipoPessoa): string {
   const blocos: string[] = [];
-  for (const s of HANDOFF_SECTIONS) {
+  // sem tipo informado: descobre pela própria ficha (a PF usa campos pf_*)
+  const t = tipo ?? (Object.keys(h ?? {}).some((k) => k.startsWith("pf_")) ? "PF" : "PJ");
+  for (const s of secoesHandoff(t)) {
     const linhas: string[] = [];
     for (const f of s.fields) {
       const v = h?.[f.id];

@@ -122,11 +122,13 @@ export async function sincronizarAstrea(op: { completo?: boolean; arquivados?: b
     const s: SessaoAstrea = await entrarNoAstrea();
     const [{ data: procs }, { data: clientes }, { data: ultima }] = await Promise.all([
       db.from("processes").select("id, numero_digitos, astrea_id, client_id, titulo"),
-      db.from("clients").select("id, name"),
+      db.from("clients").select("id, name, astrea_contato_id"),
       db.from("andamentos_sync").select("iniciado_em").is("erro", null).gt("processos", 0).order("iniciado_em", { ascending: false }).limit(1).maybeSingle(),
     ]);
     const porAstrea = new Map((procs ?? []).filter((p) => p.astrea_id).map((p) => [p.astrea_id!, p as ProcessoPortal]));
     const porNumero = new Map((procs ?? []).filter((p) => p.numero_digitos).map((p) => [p.numero_digitos!, p as ProcessoPortal]));
+    // cliente já ligado ao contato do Astrea (importação dos PF): casa pelo id, sem depender do nome
+    const porContato = new Map((clientes ?? []).filter((c) => c.astrea_contato_id).map((c) => [c.astrea_contato_id!, c.id]));
     const chavesClientes = (clientes ?? []).map((c) => ({
       id: c.id,
       chaves: [c.name, ...(c.name.match(/\(([^)]+)\)/g) ?? []).map((x) => x.slice(1, -1)), c.name.replace(/\(.*?\)/g, "")].map(limpaNome).filter((x) => x.length >= 4),
@@ -155,7 +157,7 @@ export async function sincronizarAstrea(op: { completo?: boolean; arquivados?: b
           // processo já existia (cadastrado à mão): completa a capa sem mexer no cliente
           await db.from("processes").update(dados).eq("id", p.id);
           if (!p.client_id) {
-            const cid = casarCliente(dados.cliente_nome, chavesClientes);
+            const cid = (pasta?.customer && porContato.get(String(pasta.customer.contactId))) || casarCliente(dados.cliente_nome, chavesClientes);
             if (cid) await db.from("processes").update({ client_id: cid }).eq("id", p.id);
           }
         } else {
@@ -168,7 +170,7 @@ export async function sincronizarAstrea(op: { completo?: boolean; arquivados?: b
               vara_tribunal: c.court ?? pasta?.courtName ?? null,
               area: areaDe(c),
               status: c.active === false ? "arquivado" : "ativo",
-              client_id: casarCliente(dados.cliente_nome, chavesClientes),
+              client_id: (pasta?.customer && porContato.get(String(pasta.customer.contactId))) || casarCliente(dados.cliente_nome, chavesClientes),
             })
             .select("id, numero_digitos, astrea_id, client_id, titulo")
             .single();

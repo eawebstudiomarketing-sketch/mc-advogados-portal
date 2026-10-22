@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { ClipboardCheck, Pencil, AlertTriangle, ArrowRight } from "lucide-react";
-import { handoffProgresso, type HandoffAnswers } from "@/lib/handoff-schema";
+import { handoffProgresso, type HandoffAnswers, type TipoPessoa } from "@/lib/handoff-schema";
 
 const quando = (iso: string) =>
   new Date(iso).toLocaleString("pt-BR", { day: "2-digit", month: "2-digit", year: "numeric", hour: "2-digit", minute: "2-digit" });
@@ -27,14 +27,17 @@ export function HandoffCard({
   handoff,
   updatedAt,
   triagemAntiga,
+  tipo = "PJ",
 }: {
+  tipo?: TipoPessoa;
   clientId: string;
   handoff: HandoffAnswers | null;
   updatedAt: string | null;
   triagemAntiga: string | null;
 }) {
   const h = handoff ?? {};
-  const { feitos, total } = handoffProgresso(handoff);
+  const { feitos, total } = handoffProgresso(handoff, tipo);
+  const pf = tipo === "PF";
   const pct = Math.round((feitos / total) * 100);
   const lista = (id: string) => [...((h[id] as string[]) ?? []), ...(typeof h[`${id}_outro`] === "string" && h[`${id}_outro`] ? [h[`${id}_outro`] as string] : [])];
   const href = `/admin/clients/${clientId}/handoff`;
@@ -47,7 +50,7 @@ export function HandoffCard({
         </span>
         <div className="min-w-0 flex-1">
           <h2 className="section-title">Ficha de Handoff</h2>
-          <p className="text-[13px] text-muted">Ainda não preenchida. É a base que a IA lê para o onboarding e as demandas.</p>
+          <p className="text-[13px] text-muted">{pf ? "Ainda não preenchida. É o resumo do caso que o comercial passa para o jurídico." : "Ainda não preenchida. É a base que a IA lê para o onboarding e as demandas."}</p>
         </div>
         <Link href={href} className="ui-btn">
           Preencher ficha <ArrowRight className="h-4 w-4" aria-hidden />
@@ -81,7 +84,32 @@ export function HandoffCard({
         <div className="h-full rounded-full bg-gold transition-[width] duration-500" style={{ width: `${pct}%` }} />
       </div>
 
-      {h.urgente === "Sim" && (
+      {pf && [["pf_prazo_correndo", "pf_prazo_detalhe", "Prazo correndo"], ["pf_audiencia", "pf_audiencia_detalhe", "Audiência marcada"], ["pf_prescricao", "pf_prescricao_detalhe", "Risco de prescrição"]].map(([k, d, rot]) =>
+        h[k] === "Sim" ? (
+          <div key={k} className="mt-4 flex gap-2.5 rounded-xl bg-status-danger-bg px-3.5 py-2.5 text-[13px] text-status-danger">
+            <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" aria-hidden />
+            <p>
+              <span className="font-semibold">{rot}:</span> {String(h[d] ?? "informado na ficha")}
+            </p>
+          </div>
+        ) : null
+      )}
+
+      {pf && (
+        <div className="mt-4 space-y-3">
+          {[["pf_area", "Área"], ["pf_parte_contraria", "Parte contrária"], ["pf_relato", "O que aconteceu"], ["pf_pedido_principal", "Pedido principal"]].map(([k, rot]) =>
+            typeof h[k] === "string" && h[k] ? (
+              <div key={k}>
+                <p className="mb-0.5 text-xs font-medium text-muted">{rot}</p>
+                <p className="line-clamp-3 text-sm leading-relaxed text-foreground">{String(h[k])}</p>
+              </div>
+            ) : null
+          )}
+          <Chips titulo="Documentos que já tem" itens={lista("pf_documentos_tem")} />
+        </div>
+      )}
+
+      {!pf && h.urgente === "Sim" && (
         <div className="mt-4 flex gap-2.5 rounded-xl bg-status-danger-bg px-3.5 py-2.5 text-[13px] text-status-danger">
           <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" aria-hidden />
           <p>
@@ -91,12 +119,14 @@ export function HandoffCard({
         </div>
       )}
 
+      {!pf && (
       <div className="mt-4 grid grid-cols-1 gap-4 md:grid-cols-2">
         <Chips titulo="Dores identificadas" itens={lista("dores")} />
         <Chips titulo="Objetivos" itens={lista("objetivos")} />
       </div>
+      )}
 
-      {typeof h.motivo === "string" && h.motivo && (
+      {!pf && typeof h.motivo === "string" && h.motivo && (
         <div className="mt-4">
           <p className="mb-1 text-xs font-medium text-muted">Motivo da contratação</p>
           <p className="line-clamp-3 text-sm leading-relaxed text-foreground">{h.motivo}</p>

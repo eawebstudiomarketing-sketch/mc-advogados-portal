@@ -6,7 +6,7 @@ import { createClient } from "@/lib/supabase/server";
 import type { Database } from "@/lib/supabase/types";
 import type { PermChave, Permissoes } from "@/lib/permissoes";
 import { mcpDb } from "@/lib/mcp/oauth";
-import { HANDOFF_SECTIONS, handoffParaTexto, type HandoffAnswers } from "@/lib/handoff-schema";
+import { idsHandoff, secoesHandoff, handoffParaTexto, type HandoffAnswers } from "@/lib/handoff-schema";
 import { gerarRelatorioMensal, MESES } from "@/lib/relatorio";
 import { gerarDemandasDoCliente } from "@/lib/demandas";
 import { bytesToParts, documentToParts } from "@/lib/document-content";
@@ -90,6 +90,20 @@ const RESPONSAVEL = { type: "string", description: "Nome ou e-mail de quem fica 
 
 function obj(properties: Record<string, unknown>, required: string[] = []) {
   return { type: "object", properties, required };
+}
+
+/** Campos do cadastro PF enviados pelo assistente (só os informados). */
+function camposPF(a: Record<string, unknown>): Record<string, unknown> {
+  const out: Record<string, unknown> = {};
+  for (const k of ["apelido", "estado_civil", "profissao", "rg", "ctps", "pis", "titulo_eleitor", "cnh", "nome_pai", "nome_mae", "naturalidade", "nacionalidade", "comentarios"])
+    if (typeof a[k] === "string" && (a[k] as string).trim()) out[k] = (a[k] as string).trim();
+  if (typeof a.nascimento === "string" && /^\d{4}-\d{2}-\d{2}$/.test(a.nascimento)) out.nascimento = a.nascimento;
+  if (Array.isArray(a.telefones)) {
+    out.telefones = a.telefones.map(String).filter((t) => t.replace(/\D/g, "").length >= 8);
+    out.whatsapp_numeros = (out.telefones as string[]).map((t) => t.replace(/[^\d+]/g, ""));
+  }
+  if (a.endereco && typeof a.endereco === "object") out.endereco = a.endereco;
+  return out;
 }
 
 async function porId<T>(tabela: "clients" | "activities" | "documents", id: unknown, oque: string): Promise<T> {
@@ -385,19 +399,30 @@ export const TOOLS: ToolDef[] = [
     name: "criar_cliente",
     kind: "write",
     label: "Cadastrou cliente",
-    description: "Cadastra cliente (tipo_pessoa PF/PJ; documento = CPF/CNPJ só números). Depois sugira a Ficha de Handoff.",
+    description:
+      "Cadastra cliente. Empresa (PJ): documento (CNPJ) e email_contact obrigatórios. Pessoa física (PF, aba Pessoas): só o nome é obrigatório; CPF, e-mail, telefones e os dados do cadastro (como no Astrea) são opcionais. Depois sugira a Ficha de Handoff (a da PF é diferente: o caso).",
     parameters: obj(
-      { name: { type: "string" }, tipo_pessoa: { type: "string", enum: ["PF", "PJ"] }, documento: { type: "string" }, email_contact: { type: "string" } },
-      ["name", "tipo_pessoa", "documento", "email_contact"]
+      { name: { type: "string" }, tipo_pessoa: { type: "string", enum: ["PF", "PJ"] }, documento: { type: "string" }, email_contact: { type: "string" }, ...{ apelido: { type: "string" }, nascimento: { type: "string", description: "AAAA-MM-DD" }, estado_civil: { type: "string" }, profissao: { type: "string" }, rg: { type: "string" }, ctps: { type: "string" }, pis: { type: "string" }, titulo_eleitor: { type: "string" }, cnh: { type: "string" }, nome_pai: { type: "string" }, nome_mae: { type: "string" }, naturalidade: { type: "string" }, nacionalidade: { type: "string" }, comentarios: { type: "string" }, telefones: { type: "array", items: { type: "string" } }, endereco: { type: "object", description: "{cep, logradouro, numero, complemento, bairro, cidade, uf}" } } },
+      ["name", "tipo_pessoa"]
     ),
     run: async (a) => {
       // id gerado aqui e sem pedir a linha de volta: cliente criado por advogado
       // só fica visível para ele depois do gatilho que o designa (fim do comando)
       const id = crypto.randomUUID();
       const nome = String(a.name).trim();
+      const pf = a.tipo_pessoa === "PF";
+      if (!pf && (!a.documento || !a.email_contact)) throw new Error("Empresa precisa de CNPJ e e-mail.");
+      const doc = a.documento ? String(a.documento).trim() : null;
       const { error } = await db()
         .from("clients")
-        .insert({ id, name: nome, tipo_pessoa: String(a.tipo_pessoa) as never, documento: String(a.documento).replace(/\D/g, "") || String(a.documento), email_contact: String(a.email_contact).trim() });
+        .insert({
+          id,
+          name: nome,
+          tipo_pessoa: pf ? "PF" : "PJ",
+          documento: doc ? doc.replace(/\D/g, "") || doc : null,
+          email_contact: a.email_contact ? String(a.email_contact).trim() : null,
+          ...(pf ? camposPF(a) : {}),
+        } as never);
       if (error) throw new Error(error.code === "23505" ? "Já existe um cliente com esse CPF/CNPJ." : error.message);
       return { id, name: nome, link_ficha: `/admin/clients/${id}`, link_handoff: `/admin/clients/${id}/handoff` };
     },
@@ -407,12 +432,12 @@ export const TOOLS: ToolDef[] = [
     perm: ["editar_cliente"],
     kind: "write",
     label: "Atualizou cliente",
-    description: "Altera nome, e-mail de contato ou ativo de um cliente (só o que muda).",
-    parameters: obj({ client_id: { type: "string" }, name: { type: "string" }, email_contact: { type: "string" }, active: { type: "boolean" } }, ["client_id"]),
+    description: "Altera dados de um cliente (só o que muda): nome, e-mail, documento, ativo e, na pessoa física, os campos do cadastro (apelido, nascimento, estado civil, profissão, RG, telefones, endereço etc.).",
+    parameters: obj({ client_id: { type: "string" }, name: { type: "string" }, email_contact: { type: "string" }, documento: { type: "string" }, active: { type: "boolean" }, ...{ apelido: { type: "string" }, nascimento: { type: "string", description: "AAAA-MM-DD" }, estado_civil: { type: "string" }, profissao: { type: "string" }, rg: { type: "string" }, ctps: { type: "string" }, pis: { type: "string" }, titulo_eleitor: { type: "string" }, cnh: { type: "string" }, nome_pai: { type: "string" }, nome_mae: { type: "string" }, naturalidade: { type: "string" }, nacionalidade: { type: "string" }, comentarios: { type: "string" }, telefones: { type: "array", items: { type: "string" } }, endereco: { type: "object", description: "{cep, logradouro, numero, complemento, bairro, cidade, uf}" } } }, ["client_id"]),
     run: async (a) => {
-      await porId("clients", a.client_id, "Cliente");
-      const patch: Record<string, unknown> = {};
-      for (const k of ["name", "email_contact", "active"]) if (a[k] !== undefined) patch[k] = a[k];
+      const c = await porId<{ tipo_pessoa: string }>("clients", a.client_id, "Cliente");
+      const patch: Record<string, unknown> = c.tipo_pessoa === "PF" ? camposPF(a) : {};
+      for (const k of ["name", "email_contact", "documento", "active"]) if (a[k] !== undefined) patch[k] = a[k];
       if (!Object.keys(patch).length) throw new Error("Nada para alterar.");
       const { data, error } = await db().from("clients").update(patch as never).eq("id", String(a.client_id)).select("id, name, email_contact, active").single();
       if (error) throw error;
@@ -509,10 +534,10 @@ export const TOOLS: ToolDef[] = [
     perm: ["ficha_handoff"],
     kind: "read",
     label: "Consultou os campos da ficha",
-    description: "Lista os campos da Ficha de Handoff (id, tipo e opções válidas). Use antes de preencher_ficha_handoff.",
-    parameters: obj({}),
-    run: async () =>
-      HANDOFF_SECTIONS.flatMap((sec) =>
+    description: "Lista os campos da Ficha de Handoff (id, tipo e opções válidas). Empresa e pessoa física têm fichas diferentes: tipo PJ (padrão) ou PF. Use antes de preencher_ficha_handoff.",
+    parameters: obj({ tipo: { type: "string", enum: ["PJ", "PF"] } }),
+    run: async (a) =>
+      secoesHandoff(a.tipo === "PF" ? "PF" : "PJ").flatMap((sec) =>
         sec.fields.map((f) => ({
           id: f.id,
           campo: f.label,
@@ -531,14 +556,8 @@ export const TOOLS: ToolDef[] = [
     description: "Preenche/atualiza campos da Ficha de Handoff (só os enviados). 'campos' = {id_do_campo: valor}. Antes, consulte os ids e opções com campos_da_ficha_handoff.",
     parameters: obj({ client_id: { type: "string" }, campos: { type: "object" } }, ["client_id", "campos"]),
     run: async (a) => {
-      const c = await porId<{ id: string }>("clients", a.client_id, "Cliente");
-      const permitidos = new Set<string>();
-      for (const sec of HANDOFF_SECTIONS)
-        for (const f of sec.fields) {
-          permitidos.add(f.id);
-          if (f.type === "multi" && f.outro) permitidos.add(`${f.id}_outro`);
-          if (f.type === "yesno" && f.detalhe) permitidos.add(f.detalhe.id);
-        }
+      const c = await porId<{ id: string; tipo_pessoa: "PF" | "PJ" }>("clients", a.client_id, "Cliente");
+      const permitidos = idsHandoff(c.tipo_pessoa);
       const atual = (await getHandoff(c.id, db())).handoff ?? {};
       const novos: HandoffAnswers = {};
       const ignorados: string[] = [];

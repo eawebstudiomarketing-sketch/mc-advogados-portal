@@ -5,13 +5,14 @@ import Link from "next/link";
 import { toast } from "sonner";
 import { Check, Save } from "lucide-react";
 import { saveHandoffAction, type SaveHandoffState } from "../../actions";
-import { HANDOFF_SECTIONS, type HandoffAnswers, type HandoffField } from "@/lib/handoff-schema";
+import { secoesHandoff, type HandoffAnswers, type HandoffField, type TipoPessoa } from "@/lib/handoff-schema";
 
 const initialState: SaveHandoffState = { error: null, savedAt: null };
 
 const vazio = (v: unknown) => v == null || (Array.isArray(v) ? v.length === 0 : String(v).trim() === "");
 
-export function HandoffForm({ clientId, inicial }: { clientId: string; inicial: HandoffAnswers }) {
+export function HandoffForm({ clientId, inicial, tipo = "PJ" }: { clientId: string; inicial: HandoffAnswers; tipo?: TipoPessoa }) {
+  const HANDOFF_SECTIONS = secoesHandoff(tipo);
   const [state, formAction, pending] = useActionState(saveHandoffAction, initialState);
   const [v, setV] = useState<HandoffAnswers>(inicial);
   const [alterado, setAlterado] = useState(false);
@@ -52,7 +53,7 @@ export function HandoffForm({ clientId, inicial }: { clientId: string; inicial: 
     set(id, lista.includes(opcao) ? lista.filter((o) => o !== opcao) : [...lista, opcao]);
   }
 
-  const secaoFeita = (s: (typeof HANDOFF_SECTIONS)[number]) => s.fields.some((f) => !vazio(v[f.id]));
+  const secaoFeita = (s: ReturnType<typeof secoesHandoff>[number]) => s.fields.some((f) => !vazio(v[f.id]));
 
   function campo(f: HandoffField) {
     const valor = v[f.id];
