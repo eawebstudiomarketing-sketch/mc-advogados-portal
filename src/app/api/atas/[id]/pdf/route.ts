@@ -19,6 +19,13 @@ export async function GET(req: Request, { params }: { params: Promise<{ id: stri
   const dados = await dadosDaAta(ata);
   let bytes: Uint8Array;
   let nome = nomeDoPdf(dados);
+  if (v === "carimbo") {
+    const arq = (ata as unknown as { carimbo: { arquivo: string } | null }).carimbo?.arquivo;
+    if (!arq) return NextResponse.json({ error: "Esta ata não tem carimbo do tempo." }, { status: 404 });
+    const { data, error } = await createAdminClient().storage.from("documents").download(arq);
+    if (error || !data) return NextResponse.json({ error: "Arquivo não encontrado." }, { status: 404 });
+    return new NextResponse(data.stream(), { headers: { "Content-Type": "application/timestamp-reply", "Content-Disposition": `attachment; filename="carimbo-do-tempo.tsr"` } });
+  }
   if (v === "assinada") {
     if (!ata.pdf_final_path) return NextResponse.json({ error: "A ata ainda não foi assinada por todos." }, { status: 409 });
     const { data, error } = await createAdminClient().storage.from("documents").download(ata.pdf_final_path);

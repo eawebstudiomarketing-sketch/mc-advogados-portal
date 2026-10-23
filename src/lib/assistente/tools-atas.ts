@@ -1,7 +1,8 @@
 import "server-only";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { createAdminClient } from "@/lib/supabase/admin";
-import { aprovarEEnviar, extrasDoRegistro, localLegivel, reenviarLink, telefoneZap, type AssinaturaRow } from "@/lib/atas/assinatura";
+import { aprovarEEnviar, extrasDoRegistro, linkDeAssinatura, localLegivel, reenviarLink, telefoneZap, type AssinaturaRow } from "@/lib/atas/assinatura";
+import { sincronizarZapsign } from "@/lib/atas/zapsign";
 import { dataHoraBr, STATUS_ROTULO, TIPOS_ATA, textoCompleto, type Participante, type StatusAta, type TipoAta } from "@/lib/atas/formato";
 import type { Ctx, ToolDef } from "./tools";
 
@@ -148,6 +149,38 @@ export const TOOLS_ATAS: ToolDef[] = [
       }
       const via = await reenviarLink(String(a.assinatura_id));
       return { ok: true, enviado_por: via };
+    },
+  },
+  {
+    name: "link_de_assinatura",
+    kind: "read",
+    perm: ["atas"],
+    label: "Pegou o link de assinatura",
+    description: "Devolve o link pessoal de assinatura de quem ainda não assinou uma ata (pelo assinatura_id de assinaturas_da_ata), para a pessoa mandar por onde quiser. O link é pessoal: avise para mandar só para aquela pessoa.",
+    parameters: obj({ assinatura_id: { type: "string" } }, ["assinatura_id"]),
+    run: async (a, ctx) => {
+      const { data: s } = await db().from("ata_assinaturas").select("ata_id, nome").eq("id", String(a.assinatura_id)).maybeSingle();
+      if (!s) throw new Error("Assinatura não encontrada.");
+      if (ctx.role !== "admin") {
+        const { data: dona } = await db().from("atas").select("id").eq("id", s.ata_id).eq("profile_id", ctx.profileId).maybeSingle();
+        if (!dona) throw new Error("Essa ata não é sua.");
+      }
+      const link = await linkDeAssinatura(String(a.assinatura_id));
+      if (!link) throw new Error("Sem link: essa pessoa já assinou ou ainda não é a vez dela.");
+      return { nome: s.nome, link };
+    },
+  },
+  {
+    name: "atualizar_ata_zapsign",
+    kind: "write",
+    perm: ["atas"],
+    label: "Atualizou a ata na ZapSign",
+    description: "Para ata enviada pela ZapSign: consulta a ZapSign agora, marca quem já assinou e, se todos assinaram, guarda o PDF assinado na ficha do cliente e no Drive.",
+    parameters: obj({ id: { type: "string" }, cliente: { type: "string" }, titulo: { type: "string" } }),
+    run: async (a, ctx) => {
+      const t = await acharAta(a, ctx);
+      const r = await sincronizarZapsign(t.id);
+      return { ata: t.titulo, situacao: r.status, link: link(t.id) };
     },
   },
   {

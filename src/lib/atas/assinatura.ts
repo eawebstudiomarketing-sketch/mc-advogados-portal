@@ -11,6 +11,8 @@ import { dataBr, dataHoraBr, PAPEL_ROTULO, TIPOS_ATA, type DadosAta, type Partic
 import { nomeDoPdf, pdfDaAta, sha256 } from "./pdf";
 import { conferirCertificado, conferirIdentidade, type Certificado, type LocalIp, type Verificacao } from "./identidade";
 import type { AtaRow } from "./gerar";
+import { carimbar } from "./carimbo";
+import { selar, titularDoSelo } from "./selo";
 
 // Assinatura das atas pelo próprio portal, no nível da ZapSign (decisões de
 // 22/10/2026: atas aqui, contratos e procurações continuam na ZapSign; só
@@ -82,6 +84,10 @@ export type AtaCompleta = AtaRow & {
   ordem_assinatura: boolean;
   prazo_assinatura: string | null;
   lembretes_dias: number[];
+  assinatura_via: "portal" | "zapsign";
+  zapsign_token: string | null;
+  carimbo: { tsa: string; serie: string; quando: string; politica: string | null; arquivo: string } | null;
+  selo_escritorio: boolean;
 };
 
 export const hashToken = (token: string) => createHash("sha256").update(`ata:${token}`).digest("hex");
@@ -339,6 +345,15 @@ async function enviarDaVez(ataId: string): Promise<{ nome: string; via: string[]
     out.push({ nome: l.nome, via: await enviarLink(l, token, dados) });
   }
   return out;
+}
+
+/** Link de assinatura de uma pessoa pendente (para copiar e mandar por onde quiser). */
+export async function linkDeAssinatura(assinaturaId: string): Promise<string | null> {
+  const { data: a } = await db().from("ata_assinaturas").select("id, geracao, status, link_externo, enviado_em").eq("id", assinaturaId).maybeSingle();
+  if (!a || a.status !== "pendente") return null;
+  if (a.link_externo) return a.link_externo as string;
+  if (!a.enviado_em) return null; // ainda não é a vez (ordem de assinatura)
+  return `${site()}/assinar/${tokenDe(a.id as string, a.geracao as number)}`;
 }
 
 /** Novo link para uma pessoa (o anterior para de funcionar). */
@@ -615,8 +630,19 @@ export async function finalizarSeCompleta(ataId: string): Promise<boolean> {
   const paraCliente = TIPOS_ATA[ata.tipo].assinaCliente;
   const imagens = await Promise.all(assinam.map((l) => baixar(l.assinatura_path)));
   const documento = `${dados.titulo}${dados.cliente ? ` — ${dados.cliente}` : ""} — ${dataBr(dados.data_reuniao)} — versão ${ata.versao}`;
+  // carimbo do tempo do conteúdo assinado (autoridade independente; se falhar, segue sem)
+  const carimbo = ata.pdf_hash ? await carimbar(ata.pdf_hash) : null;
+  let carimboInfo: { tsa: string; serie: string; quando: string; politica: string | null; arquivo: string } | null = null;
+  if (carimbo) {
+    const arq = `${pastaDaAta(ata)}/v${ata.versao}-carimbo.tsr`;
+    const up = await storage().upload(arq, carimbo.tsr, { contentType: "application/timestamp-reply", upsert: true });
+    if (!up.error) carimboInfo = { tsa: carimbo.tsa, serie: carimbo.serie, quando: carimbo.quando, politica: carimbo.politica, arquivo: arq };
+  }
+  const selo = titularDoSelo();
   const registro: Registro = {
     documento,
+    carimbo: carimbo ? { quando: `${dataHoraBr(carimbo.quando)} (horário de Brasília)`, tsa: carimbo.tsa, serie: carimbo.serie } : null,
+    selo,
     hash: ata.pdf_hash ?? "",
     assinaturas: assinam.map(
       (l, i): RegistroAssinatura => ({
@@ -635,7 +661,10 @@ export async function finalizarSeCompleta(ataId: string): Promise<boolean> {
   };
   const assinantes: AssinanteNoPdf[] = assinam.map((l, i) => ({ nome: l.nome, papel: PAPEL_ROTULO[l.papel], img: imagens[i], quando: dataHoraBr(l.assinado_em!) }));
   const rubricas = imagens.filter((b): b is Buffer => !!b);
-  const pdf = await pdfDaAta(dados, ata.texto, paraCliente ? "cliente" : "completa", { registro, assinantes, rubricas, codigo: ata.codigo_validacao });
+  const montado = await pdfDaAta(dados, ata.texto, paraCliente ? "cliente" : "completa", { registro, assinantes, rubricas, codigo: ata.codigo_validacao });
+  // selo PAdES do escritório (só quando o certificado A1 estiver configurado)
+  const selado = selo ? await selar(montado, `${documento} — assinada no Portal MC Advogados`) : null;
+  const pdf = selado ?? montado;
   const caminho = `${pastaDaAta(ata)}/v${ata.versao}-assinada.pdf`;
   const up = await storage().upload(caminho, pdf, { contentType: "application/pdf", upsert: true });
   if (up.error) throw new Error(`Não consegui guardar o PDF assinado: ${up.error.message}`);
@@ -672,7 +701,10 @@ export async function finalizarSeCompleta(ataId: string): Promise<boolean> {
       .single();
     documentId = (doc as { id: string } | null)?.id ?? null;
   }
-  await db().from("atas").update({ status: "assinada", pdf_final_path: caminho, pdf_final_hash: sha256(pdf), document_id: documentId, updated_at: new Date().toISOString() }).eq("id", ata.id);
+  await db()
+    .from("atas")
+    .update({ status: "assinada", pdf_final_path: caminho, pdf_final_hash: sha256(pdf), document_id: documentId, carimbo: carimboInfo, selo_escritorio: !!selado, updated_at: new Date().toISOString() })
+    .eq("id", ata.id);
 
   // cada pessoa de fora (e observador) recebe o aviso: a cópia fica no mesmo link
   for (const l of todas.filter((x) => x.papel !== "escritorio" || x.observador)) {
@@ -721,6 +753,8 @@ export type Validacao = {
   documento: string;
   situacao: string;
   codigo: string | null;
+  carimbo: string | null;
+  selado: boolean;
   confere: "final" | "para_assinatura" | null;
   assinaturas: { nome: string; papel: string; quando: string | null; autenticacoes: string[] }[];
 };
@@ -742,6 +776,8 @@ export async function validarDocumento({ codigo, hash }: { codigo?: string; hash
     documento: `${dados.titulo} — ${dataBr(dados.data_reuniao)} — versão ${ata.versao}`,
     situacao: ata.status === "assinada" ? "Assinada por todos" : ata.status === "aguardando" ? "Aguardando assinaturas" : "Em revisão (versão anterior)",
     codigo: ata.codigo_validacao,
+    carimbo: ata.carimbo ? `${dataHoraBr(ata.carimbo.quando)} — ${ata.carimbo.tsa}` : null,
+    selado: !!ata.selo_escritorio,
     confere: h ? (h === ata.pdf_final_hash ? "final" : h === ata.pdf_hash ? "para_assinatura" : null) : null,
     assinaturas: linhas.map((l) => ({
       nome: l.nome,

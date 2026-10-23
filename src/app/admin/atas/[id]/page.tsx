@@ -6,6 +6,7 @@ import { linkDoAudio } from "@/lib/transcricao";
 import type { AtaRow } from "@/lib/atas/gerar";
 import type { Alerta, StatusAta } from "@/lib/atas/formato";
 import { assinaturasAction } from "../actions";
+import { sincronizarZapsign, zapsignConfigurado } from "@/lib/atas/zapsign";
 import { AtaDetalhe } from "./ata-detalhe";
 
 export const metadata = { title: "Ata" };
@@ -17,9 +18,14 @@ export default async function AtaPage({ params }: { params: Promise<{ id: string
   const { id } = await params;
   if (!/^[0-9a-f-]{36}$/i.test(id)) notFound();
   const db = (await createClient()) as unknown as SupabaseClient;
-  const { data } = await db.from("atas").select("*, clients(name)").eq("id", id).maybeSingle();
+  let { data } = await db.from("atas").select("*, clients(name)").eq("id", id).maybeSingle();
   if (!data) notFound();
-  const ata = data as AtaRow & { status: StatusAta; alertas: Alerta[]; erro: string | null; versao: number; correcao: string | null; pdf_final_path: string | null; pdf_hash: string | null; codigo_validacao: string | null; ordem_assinatura: boolean; clients: { name: string } | null };
+  // assinatura pela ZapSign: consulta o status lá ao abrir (no máximo 1x por minuto)
+  if (data.assinatura_via === "zapsign" && data.status === "aguardando") {
+    await sincronizarZapsign(id, { intervaloMinimoMs: 60_000 }).catch(() => {});
+    data = (await db.from("atas").select("*, clients(name)").eq("id", id).maybeSingle()).data ?? data;
+  }
+  const ata = data as AtaRow & { status: StatusAta; alertas: Alerta[]; erro: string | null; versao: number; correcao: string | null; pdf_final_path: string | null; pdf_hash: string | null; codigo_validacao: string | null; ordem_assinatura: boolean; assinatura_via: "portal" | "zapsign"; carimbo: { quando: string; tsa: string } | null; selo_escritorio: boolean; clients: { name: string } | null };
   const [{ data: t }, assinaturas] = await Promise.all([
     ata.transcricao_id ? db.from("transcricoes").select("texto, duracao_seg").eq("id", ata.transcricao_id).maybeSingle() : Promise.resolve({ data: null }),
     assinaturasAction(id),
@@ -53,12 +59,16 @@ export default async function AtaPage({ params }: { params: Promise<{ id: string
         hash: ata.pdf_hash,
         codigo: ata.codigo_validacao,
         ordemAssinatura: ata.ordem_assinatura,
+        via: ata.assinatura_via,
+        carimbo: ata.carimbo ? { quando: ata.carimbo.quando, tsa: ata.carimbo.tsa } : null,
+        selado: ata.selo_escritorio,
       }}
       transcricao={(t as { texto: string | null } | null)?.texto ?? null}
       duracao={(t as { duracao_seg: number | null } | null)?.duracao_seg ?? null}
       audio={audio}
       assinaturas={assinaturas}
       meuNome={profile.full_name}
+      zapsign={zapsignConfigurado()}
     />
   );
 }

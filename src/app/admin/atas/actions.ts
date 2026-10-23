@@ -6,7 +6,8 @@ import { exigirPermissao } from "@/lib/dal";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { apagarAudio, linkDeEnvio } from "@/lib/transcricao";
-import { apagarArquivosDaAta, aprovarEEnviar, cancelarAssinaturas, extrasDoRegistro, localLegivel, reenviarLink, telefoneZap, type AssinaturaRow, type OpcoesEnvio, type Signatario } from "@/lib/atas/assinatura";
+import { apagarArquivosDaAta, aprovarEEnviar, cancelarAssinaturas, extrasDoRegistro, linkDeAssinatura, localLegivel, reenviarLink, telefoneZap, type AssinaturaRow, type OpcoesEnvio, type Signatario } from "@/lib/atas/assinatura";
+import { cancelarNaZapsign, enviarParaZapsign, sincronizarZapsign } from "@/lib/atas/zapsign";
 import { ipDe, localPeloIp } from "@/lib/atas/identidade";
 import { TIPOS_ATA, type Marcacao, type Participante, type TipoAta } from "@/lib/atas/formato";
 
@@ -24,7 +25,7 @@ const limparParticipantes = (ps: Participante[]): Participante[] =>
     .slice(0, 40)
     .map((p) => ({
       nome: p.nome.trim().slice(0, 120),
-      papel: (["escritorio", "cliente", "outro"].includes(p.papel) ? p.papel : "cliente") as Participante["papel"],
+      papel: (["escritorio", "cliente", "testemunha", "outro"].includes(p.papel) ? p.papel : "cliente") as Participante["papel"],
       profile_id: p.profile_id ?? null,
       telefone: p.telefone?.trim().slice(0, 30) || null,
       email: p.email?.trim().slice(0, 160) || null,
@@ -159,7 +160,7 @@ export async function salvarAtaAction(id: string, c: AtaEdicao): Promise<{ ok: b
 export async function aprovarAtaAction(
   id: string,
   signatarios: Signatario[],
-  opcoes: OpcoesEnvio,
+  opcoes: OpcoesEnvio & { via?: "portal" | "zapsign"; reconhecimentoFacial?: boolean },
   assinaturaPng: string | null
 ): Promise<{ ok: true; enviados: { nome: string; via: string[] }[] } | { ok: false; erro: string }> {
   const { profile } = await exigirPermissao("atas");
@@ -173,7 +174,11 @@ export async function aprovarAtaAction(
     exige: { selfie: !!signatarios[i]?.exige?.selfie, documento: !!signatarios[i]?.exige?.documento, certificado: !!signatarios[i]?.exige?.certificado },
   }));
   try {
-    const r = await aprovarEEnviar(id, { profileId: profile.id, nome: profile.full_name, ip: ipDe(h), ua: h.get("user-agent"), assinaturaPng, local: localPeloIp(h) }, limpos, opcoes);
+    const aprovador = { profileId: profile.id, nome: profile.full_name, ip: ipDe(h), ua: h.get("user-agent"), assinaturaPng, local: localPeloIp(h) };
+    const r =
+      opcoes.via === "zapsign"
+        ? await enviarParaZapsign(id, { ...aprovador, email: profile.email ?? null }, limpos, opcoes)
+        : await aprovarEEnviar(id, aprovador, limpos, opcoes);
     return { ok: true, enviados: r.enviados };
   } catch (e) {
     return { ok: false, erro: e instanceof Error ? e.message : "Não foi possível aprovar." };
@@ -270,10 +275,29 @@ export async function reenviarAssinaturaAction(assinaturaId: string): Promise<{ 
   }
 }
 
+/** Link de assinatura de quem falta (para copiar e mandar por onde quiser). */
+export async function linkDeAssinaturaAction(assinaturaId: string): Promise<string | null> {
+  await exigirPermissao("atas");
+  if (!(await assinaturaVisivel(assinaturaId))) return null;
+  return linkDeAssinatura(assinaturaId);
+}
+
+/** Consulta a ZapSign agora (botão "Atualizar status"). */
+export async function sincronizarZapsignAction(id: string): Promise<{ ok: boolean; erro?: string; status?: string }> {
+  await exigirPermissao("atas");
+  if (!(await lerAta(id))) return { ok: false, erro: "Ata não encontrada." };
+  try {
+    return { ok: true, ...(await sincronizarZapsign(id)) };
+  } catch (e) {
+    return { ok: false, erro: e instanceof Error ? e.message : "Não consegui falar com a ZapSign." };
+  }
+}
+
 export async function cancelarAssinaturasAction(id: string): Promise<{ ok: boolean; erro?: string }> {
   await exigirPermissao("atas");
   const ata = await lerAta(id);
   if (!ata || ata.status !== "aguardando") return { ok: false, erro: "Esta ata não está aguardando assinaturas." };
+  await cancelarNaZapsign(id);
   await cancelarAssinaturas(id);
   return { ok: true };
 }

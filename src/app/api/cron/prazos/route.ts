@@ -3,6 +3,7 @@ import { createAdminClient } from "@/lib/supabase/admin";
 import { getResendClient } from "@/lib/email/resend";
 import { limparAnexosAntigos } from "@/lib/assistente/limpeza";
 import { lembrarAssinaturas } from "@/lib/atas/assinatura";
+import { sincronizarTodasZapsign } from "@/lib/atas/zapsign";
 
 // Alertas de prazo (Vercel Cron, todo dia às 07h da Bahia — ver vercel.json).
 // Para cada responsável, UM e-mail com as atividades dele que:
@@ -75,6 +76,8 @@ export async function GET(request: Request) {
   const anexosApagados = teste ? 0 : await limparAnexosAntigos().catch(() => 0);
   // atas aguardando assinatura: lembrete em 2 e 5 dias (aproveita o cron diário)
   if (!teste) await lembrarAssinaturas().catch((e) => console.error("lembretes de atas:", e instanceof Error ? e.message : e));
+  // atas enviadas pela ZapSign: confere quem assinou e guarda o PDF quando todos assinarem
+  if (!teste) await sincronizarTodasZapsign().catch((e) => console.error("atas ZapSign:", e instanceof Error ? e.message : e));
   const hoje = hojeBahia();
 
   const { data: atividades, error } = await db

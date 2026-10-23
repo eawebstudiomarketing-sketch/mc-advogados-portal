@@ -67,7 +67,15 @@ export type RegistroAssinatura = {
   extras?: string[];
   img?: Buffer | null;
 };
-export type Registro = { documento: string; hash: string; assinaturas: RegistroAssinatura[] };
+export type Registro = {
+  documento: string;
+  hash: string;
+  assinaturas: RegistroAssinatura[];
+  /** carimbo do tempo RFC 3161 do conteúdo assinado */
+  carimbo?: { quando: string; tsa: string; serie: string } | null;
+  /** titular do certificado do escritório que sela o PDF (PAdES) */
+  selo?: string | null;
+};
 
 const png = (b: Buffer) => ({ data: b, format: "png" as const });
 
@@ -186,6 +194,13 @@ export function AtaPdf({
           {codigo ? <Text style={s.regInfo}>Código de validação: {codigo} (confira em mcadvogados.app.br/validar)</Text> : null}
           <Text style={s.regInfo}>Impressão digital do documento assinado (SHA-256):</Text>
           <Text style={s.regHash}>{registro.hash}</Text>
+          {registro.carimbo ? (
+            <Text style={s.regInfo}>
+              Carimbo do tempo: {registro.carimbo.quando} — {registro.carimbo.tsa} (RFC 3161), série {registro.carimbo.serie}. Prova, por uma autoridade independente, que o conteúdo com a impressão digital acima
+              existia nesse instante.
+            </Text>
+          ) : null}
+          {registro.selo ? <Text style={s.regInfo}>PDF selado digitalmente (PAdES) com o certificado de {registro.selo}: qualquer alteração no arquivo invalida o selo.</Text> : null}
           {registro.assinaturas.map((a, i) => (
             <View key={i} style={s.regCaixa} wrap={false}>
               <View style={s.regTexto}>

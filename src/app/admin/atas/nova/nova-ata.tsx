@@ -9,7 +9,7 @@ import { useTopoAoTrocar } from "@/lib/use-topo";
 import { contatosDoClienteAction, criarAtaAction, finalizarGravacaoAction, linkDeEnvioAction, salvarMarcacoesAction } from "../actions";
 
 type Membro = { profileId: string; nome: string; telefone: string | null; email: string | null };
-type Pessoa = { nome: string; cargo: string; telefone: string; email: string; papel: "cliente" | "outro" };
+type Pessoa = { nome: string; cargo: string; telefone: string; email: string; papel: "cliente" | "testemunha" | "outro" };
 type Modo = "presencial" | "online" | "arquivo";
 
 const PEDACO_MS = 30_000;
@@ -250,9 +250,14 @@ export function NovaAta({ clientes, equipe, meuProfileId, clienteInicial }: { cl
           <p className="mt-5 mb-2 text-sm font-medium text-foreground">{tipo === "interna" ? "Convidados" : `Do cliente${cliente ? ` (${cliente.name})` : ""} e convidados`}</p>
           <div className="space-y-3">
             {pessoas.map((p, i) => (
-              <div key={i} className="grid gap-2 rounded-xl border border-border p-3 sm:grid-cols-[1.3fr_1fr_1fr_1.3fr_auto]">
+              <div key={i} className="grid gap-2 rounded-xl border border-border p-3 sm:grid-cols-[1.3fr_0.9fr_0.9fr_1fr_1.2fr_auto]">
                 <input value={p.nome} onChange={(e) => setPessoas((l) => l.map((x, j) => (j === i ? { ...x, nome: e.target.value } : x)))} placeholder="Nome" aria-label="Nome" className="ui-input" />
                 <input value={p.cargo} onChange={(e) => setPessoas((l) => l.map((x, j) => (j === i ? { ...x, cargo: e.target.value } : x)))} placeholder="Cargo (ex.: CEO)" aria-label="Cargo" className="ui-input" />
+                <select value={p.papel} onChange={(e) => setPessoas((l) => l.map((x, j) => (j === i ? { ...x, papel: e.target.value as Pessoa["papel"] } : x)))} aria-label="Papel" className="ui-input">
+                  <option value="cliente">Cliente</option>
+                  <option value="testemunha">Testemunha</option>
+                  <option value="outro">Convidado</option>
+                </select>
                 <input value={p.telefone} onChange={(e) => setPessoas((l) => l.map((x, j) => (j === i ? { ...x, telefone: e.target.value } : x)))} placeholder="WhatsApp com DDD" aria-label="WhatsApp" inputMode="tel" className="ui-input" />
                 <input value={p.email} onChange={(e) => setPessoas((l) => l.map((x, j) => (j === i ? { ...x, email: e.target.value } : x)))} placeholder="E-mail" aria-label="E-mail" inputMode="email" className="ui-input" />
                 <button type="button" onClick={() => setPessoas((l) => l.filter((_, j) => j !== i))} className="icon-btn h-9 w-9 self-center" aria-label="Tirar pessoa" data-tip="Tirar">

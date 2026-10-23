@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { AlertTriangle, ArrowLeft, Check, CheckCircle2, Clock, Download, Eye, FileText, Loader2, Mail, MapPin, MessageCircle, Pencil, RotateCcw, Send, ShieldCheck, Trash2, X } from "lucide-react";
+import { AlertTriangle, ArrowLeft, Check, CheckCircle2, Clock, Copy, Download, Eye, FileText, Loader2, Mail, MapPin, MessageCircle, Pencil, RotateCcw, Send, ShieldCheck, Trash2, X } from "lucide-react";
 import { toast } from "sonner";
 import { AtaDocumento } from "@/components/atas/ata-documento";
 import { AssinaturaPad, type AssinaturaFeita } from "@/components/atas/assinatura-pad";
@@ -25,6 +25,8 @@ import {
   aprovarAtaAction,
   arquivosDaAssinaturaAction,
   cancelarAssinaturasAction,
+  linkDeAssinaturaAction,
+  sincronizarZapsignAction,
   excluirAtaAction,
   finalizarGravacaoAction,
   reenviarAssinaturaAction,
@@ -51,7 +53,11 @@ type Ata = {
   hash: string | null;
   codigo: string | null;
   ordemAssinatura: boolean;
+  via: "portal" | "zapsign";
+  carimbo: { quando: string; tsa: string } | null;
+  selado: boolean;
 };
+type ZapsignInfo = { ok: boolean; sandbox: boolean };
 
 export function AtaDetalhe({
   ata,
@@ -60,6 +66,7 @@ export function AtaDetalhe({
   audio,
   assinaturas,
   meuNome,
+  zapsign,
 }: {
   ata: Ata;
   transcricao: string | null;
@@ -67,6 +74,7 @@ export function AtaDetalhe({
   audio: string | null;
   assinaturas: AssinaturaLinha[];
   meuNome: string;
+  zapsign: ZapsignInfo;
 }) {
   const router = useRouter();
   const [texto, setTexto] = useState(ata.texto ?? "");
@@ -218,7 +226,18 @@ export function AtaDetalhe({
       )}
       {ata.status === "assinada" && (
         <Cartao ok icone={<CheckCircle2 className="h-5 w-5" aria-hidden />} titulo="Ata assinada">
-          O PDF com o registro das assinaturas está na ficha do cliente (ATAs){ata.cliente ? " e na pasta dele no Drive, em “Atas assinadas”" : ""}.
+          {ata.via === "zapsign" ? "Assinada pela ZapSign: o PDF deles, com o relatório de assinaturas," : "O PDF com o registro das assinaturas"} está na ficha do cliente (ATAs)
+          {ata.cliente ? " e na pasta dele no Drive, em “Atas assinadas”" : ""}.
+          {ata.carimbo && (
+            <span className="mt-1 block">
+              Carimbo do tempo: {dataHoraBr(ata.carimbo.quando)} ({ata.carimbo.tsa}) ·{" "}
+              <a href={pdf("carimbo")} className="underline underline-offset-2">
+                baixar o carimbo (.tsr)
+              </a>
+            </span>
+          )}
+          {ata.selado && <span className="mt-1 block">PDF selado digitalmente com o certificado do escritório.</span>}
+          {ata.codigo && ata.via === "portal" && <span className="mt-1 block">Código de validação: {ata.codigo} (mcadvogados.app.br/validar)</span>}
         </Cartao>
       )}
 
@@ -299,7 +318,7 @@ export function AtaDetalhe({
         </div>
       )}
 
-      {aprovando && <Aprovar ata={ata} participantes={participantes} meuNome={meuNome} onFechar={() => setAprovando(false)} onFeito={() => router.refresh()} />}
+      {aprovando && <Aprovar ata={ata} participantes={participantes} meuNome={meuNome} zapsign={zapsign} onFechar={() => setAprovando(false)} onFeito={() => router.refresh()} />}
       {editandoDados && <EditarParticipantes valor={participantes} onFechar={() => setEditandoDados(false)} onSalvar={(p) => (mudou(setParticipantes)(p), setEditandoDados(false))} />}
     </div>
   );
@@ -386,6 +405,18 @@ function Assinaturas({ ata, linhas }: { ata: Ata; linhas: AssinaturaLinha[] }) {
     if (!r.ok) return void toast.error(r.erro);
     router.refresh();
   }
+  async function copiarLink(id: string) {
+    const link = await linkDeAssinaturaAction(id);
+    if (!link) return void toast.error("Sem link para essa pessoa (ainda não é a vez dela?).");
+    await navigator.clipboard.writeText(link).catch(() => {});
+    toast.success("Link copiado. É pessoal: mande só para essa pessoa.");
+  }
+  async function atualizar() {
+    const r = await sincronizarZapsignAction(ata.id);
+    if (!r.ok) return void toast.error(r.erro);
+    toast.success(r.status === "assinada" ? "Todos assinaram na ZapSign." : "Status atualizado.");
+    router.refresh();
+  }
   async function verArquivos(l: AssinaturaLinha) {
     const itens = await arquivosDaAssinaturaAction(l.id);
     if (!itens.length) return void toast("Nada guardado para essa pessoa.");
@@ -396,11 +427,19 @@ function Assinaturas({ ata, linhas }: { ata: Ata; linhas: AssinaturaLinha[] }) {
       <div className="flex flex-wrap items-center justify-between gap-2 border-b border-border px-5 py-3">
         <h2 className="section-title !text-base">
           Assinaturas <span className="font-normal text-muted">({feitas} de {assinam.length})</span>
+          {ata.via === "zapsign" && <span className="ml-2 rounded-full bg-status-info-bg px-2 py-0.5 text-[11px] font-medium text-status-info">pela ZapSign</span>}
         </h2>
         {ata.status === "aguardando" && (
-          <button type="button" onClick={() => void cancelar()} className="text-sm text-muted hover:text-foreground">
-            Cancelar e voltar para rascunho
-          </button>
+          <span className="flex items-center gap-3">
+            {ata.via === "zapsign" && (
+              <button type="button" onClick={() => void atualizar()} className="inline-flex items-center gap-1 text-sm text-muted hover:text-foreground">
+                <RotateCcw className="h-3.5 w-3.5" aria-hidden /> Atualizar status
+              </button>
+            )}
+            <button type="button" onClick={() => void cancelar()} className="text-sm text-muted hover:text-foreground">
+              Cancelar e voltar para rascunho
+            </button>
+          </span>
         )}
       </div>
       <ul className="divide-y divide-border">
@@ -455,7 +494,12 @@ function Assinaturas({ ata, linhas }: { ata: Ata; linhas: AssinaturaLinha[] }) {
                     <Eye className="h-3.5 w-3.5" aria-hidden /> Provas
                   </button>
                 )}
-                {l.status === "pendente" && ata.status === "aguardando" && l.enviado_em && (
+                {l.status === "pendente" && ata.status === "aguardando" && l.enviado_em && !l.observador && (
+                  <button type="button" onClick={() => void copiarLink(l.id)} className="ui-btn-secondary px-2.5 py-1.5 text-xs">
+                    <Copy className="h-3.5 w-3.5" aria-hidden /> Copiar link
+                  </button>
+                )}
+                {l.status === "pendente" && ata.status === "aguardando" && l.enviado_em && ata.via === "portal" && (
                   <button type="button" onClick={() => void reenviar(l.id)} className="ui-btn-secondary px-2.5 py-1.5 text-xs">
                     <Send className="h-3.5 w-3.5" aria-hidden /> Reenviar link
                   </button>
@@ -499,7 +543,9 @@ function Assinaturas({ ata, linhas }: { ata: Ata; linhas: AssinaturaLinha[] }) {
 
 type Linha = Participante & { marcado: boolean; observador: boolean; ordem: number; selfie: boolean; documento: boolean; certificado: boolean };
 
-function Aprovar({ ata, participantes, meuNome, onFechar, onFeito }: { ata: Ata; participantes: Participante[]; meuNome: string; onFechar: () => void; onFeito: () => void }) {
+function Aprovar({ ata, participantes, meuNome, zapsign, onFechar, onFeito }: { ata: Ata; participantes: Participante[]; meuNome: string; zapsign: ZapsignInfo; onFechar: () => void; onFeito: () => void }) {
+  const [via, setVia] = useState<"portal" | "zapsign">("portal");
+  const [facial, setFacial] = useState(false);
   const assinaCliente = TIPOS_ATA[ata.tipo].assinaCliente;
   const candidatos = participantes.filter((p) => p.nome !== meuNome);
   const [lista, setLista] = useState<Linha[]>(() =>
@@ -514,7 +560,7 @@ function Aprovar({ ata, participantes, meuNome, onFechar, onFeito }: { ata: Ata;
   async function aprovar() {
     const escolhidos = lista.filter((p) => p.marcado);
     for (const p of escolhidos) if (!(p.telefone || "").replace(/\D/g, "") && !(p.email || "").includes("@")) return void toast.error(`Falta o WhatsApp ou o e-mail de ${p.nome}.`);
-    if (!minha) return void toast.error("Faça a sua assinatura (você assina pelo escritório).");
+    if (via === "portal" && !minha) return void toast.error("Faça a sua assinatura (você assina pelo escritório).");
     setOcupado(true);
     const r = await aprovarAtaAction(
       ata.id,
@@ -529,8 +575,8 @@ function Aprovar({ ata, participantes, meuNome, onFechar, onFeito }: { ata: Ata;
         ordem: p.ordem,
         exige: { selfie: p.selfie, documento: p.documento, certificado: p.certificado },
       })),
-      { ordem, prazoDias: prazo, lembretes: lembretes ? lembretes.split(",").map(Number) : [] },
-      minha.png
+      { ordem, prazoDias: prazo, lembretes: lembretes ? lembretes.split(",").map(Number) : [], via, reconhecimentoFacial: facial },
+      minha?.png ?? null
     );
     setOcupado(false);
     if (!r.ok) return void toast.error(r.erro);
@@ -548,12 +594,46 @@ function Aprovar({ ata, participantes, meuNome, onFechar, onFeito }: { ata: Ata;
           </button>
         </div>
         <div className="space-y-5 overflow-y-auto p-5 text-sm">
-          <div>
-            <p className="mb-2 font-medium text-foreground">Sua assinatura ({meuNome}, pelo escritório)</p>
-            <div className="rounded-xl bg-slate-50 p-3 text-[#1b1f24] dark:bg-white">
-              <AssinaturaPad nome={meuNome} onChange={setMinha} />
+          {assinaCliente && (
+            <fieldset>
+              <legend className="mb-2 font-medium text-foreground">Assinar pelo</legend>
+              <div className="grid gap-2 sm:grid-cols-2">
+                <label className={`cursor-pointer rounded-xl border p-3 ${via === "portal" ? "border-navy bg-surface-2 ring-1 ring-navy" : "border-border"}`}>
+                  <input type="radio" name="via" checked={via === "portal"} onChange={() => setVia("portal")} className="sr-only" />
+                  <span className="block font-semibold text-foreground">Portal MC (padrão)</span>
+                  <span className="block text-xs text-muted">Grátis. Código, desenho, selfie/documento com IA, certificado A1, carimbo do tempo.</span>
+                </label>
+                <label className={`rounded-xl border p-3 ${!zapsign.ok ? "cursor-not-allowed opacity-60" : "cursor-pointer"} ${via === "zapsign" ? "border-navy bg-surface-2 ring-1 ring-navy" : "border-border"}`}>
+                  <input type="radio" name="via" checked={via === "zapsign"} disabled={!zapsign.ok} onChange={() => setVia("zapsign")} className="sr-only" />
+                  <span className="block font-semibold text-foreground">ZapSign (ata complexa){zapsign.sandbox ? " · teste" : ""}</span>
+                  <span className="block text-xs text-muted">
+                    {zapsign.ok ? "Para Junta/cartório, disputa, A3 ou Gov.br: registro da empresa neutra e reconhecimento facial certificado." : "Falta ligar a API da ZapSign (plano com API)."}
+                  </span>
+                </label>
+              </div>
+            </fieldset>
+          )}
+          {via === "portal" ? (
+            <div>
+              <p className="mb-2 font-medium text-foreground">Sua assinatura ({meuNome}, pelo escritório)</p>
+              <div className="rounded-xl bg-slate-50 p-3 text-[#1b1f24] dark:bg-white">
+                <AssinaturaPad nome={meuNome} onChange={setMinha} />
+              </div>
             </div>
-          </div>
+          ) : (
+            <div className="space-y-2 rounded-xl bg-surface-2 p-3 text-foreground">
+              <p>
+                <b>{meuNome}</b> também assina pela ZapSign (o link chega no seu e-mail). Cada pessoa recebe o link por e-mail (ZapSign) e pelo WhatsApp do escritório. Quando todos
+                assinarem, o PDF da ZapSign vem sozinho para a ficha do cliente e o Drive.
+              </p>
+              <label className="flex items-start gap-2">
+                <input type="checkbox" checked={facial} onChange={(e) => setFacial(e.target.checked)} className="mt-0.5 h-4 w-4 accent-[var(--navy)]" />
+                <span>
+                  Reconhecimento facial com prova de vida para quem tiver <b>selfie + documento</b> marcados <span className="text-muted">(cobrado pela ZapSign por pessoa)</span>
+                </span>
+              </label>
+            </div>
+          )}
           {assinaCliente && temParteInterna(ata.texto) && <p className="text-muted">A parte “uso interno do escritório” não vai para quem assina.</p>}
 
           <div>
@@ -672,6 +752,7 @@ function EditarParticipantes({ valor, onFechar, onSalvar }: { valor: Participant
               <select value={p.papel} onChange={(e) => muda(i, "papel", e.target.value)} className="ui-input !py-1.5 text-sm" aria-label="Papel">
                 <option value="escritorio">Escritório</option>
                 <option value="cliente">Cliente</option>
+                <option value="testemunha">Testemunha</option>
                 <option value="outro">Convidado</option>
               </select>
               <input value={p.cargo ?? ""} onChange={(e) => muda(i, "cargo", e.target.value)} placeholder="Cargo" aria-label="Cargo" className="ui-input !py-1.5 text-sm" />

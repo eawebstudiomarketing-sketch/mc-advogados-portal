@@ -10,7 +10,7 @@
 // ata (cliente, data, local, participantes), sempre igual.
 
 export type TipoAta = "onboarding" | "reuniao_cliente" | "interna";
-export type PapelParticipante = "escritorio" | "cliente" | "outro";
+export type PapelParticipante = "escritorio" | "cliente" | "testemunha" | "outro";
 export type Participante = { nome: string; papel: PapelParticipante; profile_id?: string | null; telefone?: string | null; email?: string | null; cargo?: string | null };
 export type Marcacao = { seg: number; tipo: "importante" | "decisao" };
 export type Alerta = { tipo: "nao_dito" | "faltou"; texto: string; motivo: string; minuto?: string | null };
@@ -75,7 +75,7 @@ export const TIPOS_ATA: Record<TipoAta, { rotulo: string; titulo: string; descri
   },
 };
 
-export const PAPEL_ROTULO: Record<PapelParticipante, string> = { escritorio: "Escritório", cliente: "Cliente", outro: "Convidado" };
+export const PAPEL_ROTULO: Record<PapelParticipante, string> = { escritorio: "Escritório", cliente: "Cliente", testemunha: "Testemunha", outro: "Convidado" };
 
 /* ───────── texto → blocos ───────── */
 

@@ -79,6 +79,8 @@ export function ValidarApp({ codigoInicial }: { codigoInicial: string }) {
           </div>
           <p className="mt-4 font-medium">{resultado.documento}</p>
           {resultado.codigo && <p className="text-sm text-slate-500">Código de validação {resultado.codigo}</p>}
+          {resultado.carimbo && <p className="text-sm text-slate-500">Carimbo do tempo: {resultado.carimbo}</p>}
+          {resultado.selado && <p className="text-sm text-slate-500">PDF selado digitalmente pelo escritório.</p>}
           <ul className="mt-4 divide-y divide-slate-100">
             {resultado.assinaturas.map((a, i) => (
               <li key={i} className="flex items-start gap-3 py-2.5 text-sm">
