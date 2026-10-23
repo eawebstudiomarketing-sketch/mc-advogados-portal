@@ -3,8 +3,18 @@ import type { WaAgente, WaChat } from "@/lib/whatsapp";
 // Funções da tela WhatsApp que rodam no navegador.
 
 export const HEARTBEAT_LIMITE_MS = 35_000; // igual a lib/whatsapp (não dá pra importar server-only aqui)
+
+// O relógio do PC de quem usa pode estar adiantado/atrasado: comparar o batimento
+// (hora do servidor) com Date.now() direto dava "fora do ar" eterno. Calibra pelo
+// próprio batimento quando se sabe que ele é recente (veio agora pelo tempo real,
+// ou o servidor disse que está ligado).
+let desvio = 0;
+export function calibrarRelogio(a: WaAgente | null) {
+  if (a?.last_heartbeat) desvio = new Date(a.last_heartbeat).getTime() - Date.now();
+}
+export const agoraServidor = () => Date.now() + desvio;
 export const ligadoAgora = (a: WaAgente | null) =>
-  !!a?.online && !!a.last_heartbeat && Date.now() - new Date(a.last_heartbeat).getTime() < HEARTBEAT_LIMITE_MS;
+  !!a?.online && !!a.last_heartbeat && agoraServidor() - new Date(a.last_heartbeat).getTime() < HEARTBEAT_LIMITE_MS;
 
 export const telefone = (jid: string) => {
   if (jid.endsWith("@g.us")) return "Grupo";

@@ -13,7 +13,7 @@ import { BarraAgente } from "./agente-barra";
 import { AvatarWa } from "./comum";
 import { Conversa, ItemMenu, Menu } from "./conversa";
 import { EscolherPessoas, PerfilPainel } from "./perfil";
-import { ligadoAgora, ordenar, quando, telefone } from "./util";
+import { agoraServidor, calibrarRelogio, ligadoAgora, ordenar, quando, telefone } from "./util";
 
 // WhatsApp do escritório dentro do portal, ao vivo. As mensagens são backup
 // permanente (apagar no celular não apaga aqui). Toda ação vira uma ordem em
@@ -25,7 +25,10 @@ const PAGINA = 300;
 
 export function WhatsappApp({ agenteInicial, conversasIniciais, clientes }: { agenteInicial: WaAgente | null; conversasIniciais: WaChat[]; clientes: Cliente[] }) {
   const [supabase] = useState(() => createClient());
-  const [agente, setAgente] = useState<WaAgente | null>(agenteInicial);
+  const [agente, setAgente] = useState<WaAgente | null>(() => {
+    if (agenteInicial?.ligado) calibrarRelogio(agenteInicial); // o servidor viu batimento recente
+    return agenteInicial;
+  });
   const [, setTick] = useState(0);
   const [conversas, setConversas] = useState<WaChat[]>(conversasIniciais);
   const [fimDaLista, setFimDaLista] = useState(conversasIniciais.length < PAGINA);
@@ -50,6 +53,7 @@ export function WhatsappApp({ agenteInicial, conversasIniciais, clientes }: { ag
         for (const c of pagina) porJid.set(c.chat_jid, c);
         return ordenar([...porJid.values()].filter((c) => !c.arquivado));
       });
+      if (ag?.ligado) calibrarRelogio(ag);
       if (ag) setAgente(ag);
       setContatos(ctts);
       setArquivadas(null);
@@ -80,13 +84,14 @@ export function WhatsappApp({ agenteInicial, conversasIniciais, clientes }: { ag
     let conferindo = false;
     const conferir = async () => {
       const a = agenteRef.current;
-      if (conferindo || document.hidden || (a?.last_heartbeat && Date.now() - new Date(a.last_heartbeat).getTime() < 20_000)) return;
+      if (conferindo || document.hidden || (a?.last_heartbeat && agoraServidor() - new Date(a.last_heartbeat).getTime() < 20_000)) return;
       conferindo = true;
       try {
         const ag = await statusAgenteAction();
         if (!ag) return;
+        if (ag.ligado) calibrarRelogio(ag);
         setAgente(ag);
-        if (ligadoAgora(ag)) {
+        if (ag.ligado) {
           setCanal((n) => n + 1);
           setVersao((v) => v + 1);
           const pagina = await listarConversasAction({ offset: 0 });
@@ -156,6 +161,8 @@ export function WhatsappApp({ agenteInicial, conversasIniciais, clientes }: { ag
       .on("postgres_changes", { event: "*", schema: "public", table: "wa_agent" }, (p) => {
         const novo = p.new as WaAgente;
         if (!novo?.device_id) return;
+        // batimento novo = acabou de ser gravado pelo Agente
+        if (novo.online && novo.last_heartbeat && novo.last_heartbeat !== agenteRef.current?.last_heartbeat) calibrarRelogio(novo);
         setAgente((atual) =>
           !atual || atual.device_id === novo.device_id || (novo.last_heartbeat ?? "") > (atual.last_heartbeat ?? "") ? { ...novo, ligado: ligadoAgora(novo) } : atual
         );
