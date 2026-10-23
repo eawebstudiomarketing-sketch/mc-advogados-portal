@@ -17,6 +17,8 @@ import type { ModoTranscricao, OpcoesTranscricao } from "@/lib/transcricao-forma
 const TRECHO_SEG = 15 * 60;
 const UM_TRECHO_ATE = 20 * 60; // até 20 min vai inteiro
 const PARALELO = 8;
+/** até aqui o áudio vai junto no pedido (inline); acima, pela API de arquivos */
+const INLINE_ATE = 15 * 1024 * 1024;
 
 /* ───────── VPS: links assinados ───────── */
 
@@ -102,7 +104,7 @@ function sistemaFiel(op: OpcoesTranscricao, contexto?: string) {
     op.falantes
       ? '- separe as falas por pessoa: cada fala começa numa linha nova com "Pessoa 1:", "Pessoa 2:"… (use o nome da pessoa quando ele for dito claramente no áudio e mantenha o mesmo rótulo do início ao fim);'
       : "",
-    op.tempo ? "- comece cada parágrafo (ou fala) com o tempo em que ele começa no áudio inteiro, no formato [HH:MM:SS];" : "",
+    op.tempo ? "- comece cada parágrafo (ou fala) com o tempo em que ele começa no áudio que você recebeu, no formato [HH:MM:SS];" : "",
     "- responda SÓ com a transcrição: sem título, sem comentário, sem markdown.",
     contexto ? `\nContexto da gravação (use para acertar nomes e termos; não escreva nada que não foi dito): ${contexto}` : "",
   ]
@@ -146,7 +148,9 @@ function cliente() {
   return new GoogleGenAI({ apiKey });
 }
 
-async function gerarTexto(ai: GoogleGenAI, sistema: string, partes: ({ text: string } | { fileData: { fileUri: string; mimeType: string } })[]): Promise<string> {
+type ParteIA = { text: string } | { fileData: { fileUri: string; mimeType: string } } | { inlineData: { data: string; mimeType: string } };
+
+async function gerarTexto(ai: GoogleGenAI, sistema: string, partes: ParteIA[]): Promise<string> {
   for (let tentativa = 1; ; tentativa++) {
     try {
       const r = await ai.models.generateContent({
@@ -155,6 +159,8 @@ async function gerarTexto(ai: GoogleGenAI, sistema: string, partes: ({ text: str
         config: { systemInstruction: sistema, maxOutputTokens: 32_768, temperature: 0.2, thinkingConfig: { thinkingLevel: ThinkingLevel.LOW } },
       });
       const fim = r.candidates?.[0]?.finishReason;
+      // GEMINI_LOG_TOKENS=1: mostra o consumo de cada pedido (para medir custo)
+      if (process.env.GEMINI_LOG_TOKENS) console.info("gemini tokens:", JSON.stringify(r.usageMetadata));
       if (r.promptFeedback?.blockReason || fim === "SAFETY" || fim === "PROHIBITED_CONTENT") throw new Error("A IA recusou este conteúdo.");
       return (r.text ?? "").trim();
     } catch (e) {
@@ -196,52 +202,106 @@ async function emParalelo<T>(tarefas: (() => Promise<T>)[], n: number): Promise<
 
 export type ResultadoTranscricao = { texto: string | null; resumo: string | null; trechos: number };
 
-/** Transcreve o áudio que está no VPS: fiel (em trechos paralelos) e/ou resumo. */
+/** Só o pedaço [ini, ini+dur] do áudio, cortado no VPS (sem reconverter). */
+async function baixarTrecho(id: string, ini: number, dur: number): Promise<Buffer> {
+  const { base, q } = assinar("", caminhoDoAudio(id), 600);
+  const r = await fetch(`${base}/trecho/${caminhoDoAudio(id)}?${q}&ini=${Math.floor(ini)}&dur=${Math.ceil(dur)}`, { cache: "no-store" });
+  if (r.status === 404) throw new Error("O áudio não chegou ao servidor. Envie o arquivo de novo.");
+  if (!r.ok) throw new Error(`O servidor de mídia respondeu ${r.status} ao cortar o áudio.`);
+  return Buffer.from(await r.arrayBuffer());
+}
+
+/** Pontos de corte nas pausas da fala, perto de cada 15 min (o VPS acha os silêncios). Sem resposta: cortes fixos. */
+async function cortesNasPausas(id: string, duracao: number): Promise<number[]> {
+  try {
+    const { base, q } = assinar("", caminhoDoAudio(id), 600);
+    const r = await fetch(`${base}/cortes/${caminhoDoAudio(id)}?${q}&alvo=${TRECHO_SEG}`, { cache: "no-store", signal: AbortSignal.timeout(120_000) });
+    const j = (await r.json()) as { cortes?: number[] };
+    if (r.ok && j.cortes && j.cortes.length >= 2) return j.cortes;
+  } catch (e) {
+    console.error("cortes nas pausas:", e instanceof Error ? e.message : e);
+  }
+  const fixos = [];
+  for (let i = 0; i < duracao; i += TRECHO_SEG) fixos.push(i);
+  return [...fixos, duracao];
+}
+
+/** Os tempos [HH:MM:SS] que a IA marcou contam do começo do pedaço: soma o início do trecho. */
+function deslocarTempos(texto: string, seg: number): string {
+  if (!seg) return texto;
+  return texto.replace(/\[(\d{1,2}):(\d{2}):(\d{2})\]/g, (_, h: string, m: string, x: string) => `[${hms(seg + Number(h) * 3600 + Number(m) * 60 + Number(x))}]`);
+}
+
+/** Áudio inteiro para a IA: junto no pedido se for pequeno; senão pela API de arquivos (apagado depois). */
+async function audioInteiro(ai: GoogleGenAI, id: string, nome: string): Promise<{ parte: ParteIA; limpar: () => Promise<void> }> {
+  const audio = await baixarAudio(id);
+  if (audio.size <= INLINE_ATE) return { parte: { inlineData: { data: Buffer.from(await audio.arrayBuffer()).toString("base64"), mimeType: "audio/ogg" } }, limpar: async () => {} };
+  const arquivo = await subirNoGemini(ai, audio, nome);
+  return {
+    parte: { fileData: { fileUri: arquivo.uri!, mimeType: arquivo.mimeType ?? "audio/ogg" } },
+    limpar: async () => void (await ai.files.delete({ name: arquivo.name! }).catch(() => {})),
+  };
+}
+
+/**
+ * Transcreve o áudio que está no VPS: fiel (em trechos paralelos) e/ou resumo.
+ * Cada trecho de 15 min manda para a IA SÓ o seu pedaço (cortado no VPS), com
+ * uns segundos a mais no fim para fechar a frase — antes cada trecho levava o
+ * áudio inteiro e uma reunião de 3 h custava ~12× o necessário (23/10/2026).
+ */
 export async function transcrever(
   id: string,
   { modo, opcoes, duracao, nome, contexto }: { modo: ModoTranscricao; opcoes: OpcoesTranscricao; duracao: number; nome: string; contexto?: string }
 ): Promise<ResultadoTranscricao> {
   const ai = cliente();
-  const audio = await baixarAudio(id);
-  const arquivo = await subirNoGemini(ai, audio, nome);
-  const ref = { fileData: { fileUri: arquivo.uri!, mimeType: arquivo.mimeType ?? "audio/ogg" } };
-  try {
-    let texto: string | null = null;
-    let trechos = 0;
-    if (modo !== "resumo") {
-      const sistema = sistemaFiel(opcoes, contexto);
-      const partes: { ini: number; fim: number }[] = [];
-      if (!duracao || duracao <= UM_TRECHO_ATE) partes.push({ ini: 0, fim: duracao || 0 });
-      else for (let ini = 0; ini < duracao; ini += TRECHO_SEG) partes.push({ ini, fim: Math.min(duracao, ini + TRECHO_SEG) });
+  let texto: string | null = null;
+  let trechos = 0;
+  if (modo !== "resumo") {
+    const sistema = sistemaFiel(opcoes, contexto);
+    if (!duracao || duracao <= UM_TRECHO_ATE) {
+      trechos = 1;
+      const { parte, limpar } = await audioInteiro(ai, id, nome);
+      try {
+        texto = await gerarTexto(ai, sistema, [parte, { text: "Transcreva o áudio inteiro." }]);
+      } finally {
+        await limpar();
+      }
+    } else {
+      // cortes nas pausas perto de cada 15 min: nenhuma frase fica partida
+      const cortes = await cortesNasPausas(id, duracao);
+      const partes = cortes.slice(0, -1).map((ini, i) => ({ ini, fim: cortes[i + 1] }));
       trechos = partes.length;
       const textos = await emParalelo(
-        partes.map((p) => () =>
-          gerarTexto(ai, sistema, [
-            ref,
-            {
-              text:
-                partes.length === 1
-                  ? "Transcreva o áudio inteiro."
-                  : `Transcreva SOMENTE o trecho do áudio de ${hms(p.ini)} até ${hms(p.fim)} (o áudio tem ${hms(duracao)} no total). Se a primeira frase começar antes de ${hms(p.ini)}, comece na primeira frase que começa dentro do trecho; se a última frase passar de ${hms(p.fim)}, termine essa frase.`,
-            },
-          ])
-        ),
+        partes.map((p, i) => async () => {
+          const pedaco = await baixarTrecho(id, p.ini, p.fim - p.ini);
+          const pedido = `Este áudio é o trecho ${i + 1} de ${partes.length} de uma gravação maior (cortado numa pausa). Transcreva este trecho inteiro.`;
+          const t = await gerarTexto(ai, sistema, [{ inlineData: { data: pedaco.toString("base64"), mimeType: "audio/ogg" } }, { text: pedido }]);
+          return deslocarTempos(t, p.ini);
+        }),
         PARALELO
       );
       texto = textos.filter(Boolean).join("\n\n").trim();
-      if (!texto) throw new Error("Não deu para entender nada no áudio (vazio ou inaudível).");
     }
-    let resumo: string | null = null;
-    if (modo !== "fiel") resumo = await resumir(ai, texto ? { texto } : { ref }, opcoes.instrucao);
-    return { texto, resumo, trechos };
-  } finally {
-    await ai.files.delete({ name: arquivo.name! }).catch(() => {});
+    if (!texto?.trim()) throw new Error("Não deu para entender nada no áudio (vazio ou inaudível).");
   }
+  let resumo: string | null = null;
+  if (modo !== "fiel") {
+    if (texto) resumo = await resumir(ai, { texto }, opcoes.instrucao);
+    else {
+      const { parte, limpar } = await audioInteiro(ai, id, nome);
+      try {
+        resumo = await resumir(ai, { audio: parte }, opcoes.instrucao);
+      } finally {
+        await limpar();
+      }
+    }
+  }
+  return { texto, resumo, trechos };
 }
 
-async function resumir(ai: GoogleGenAI, de: { texto: string } | { ref: { fileData: { fileUri: string; mimeType: string } } }, instrucao?: string): Promise<string> {
+async function resumir(ai: GoogleGenAI, de: { texto: string } | { audio: ParteIA }, instrucao?: string): Promise<string> {
   const extra = instrucao?.trim() ? `\n\nInstrução de quem pediu o resumo (siga, sem fugir do formato): ${instrucao.trim().slice(0, 600)}` : "";
-  const partes = "texto" in de ? [{ text: `Transcrição da gravação:\n\n${de.texto}${extra}` }] : [de.ref, { text: `Resuma a gravação.${extra}` }];
+  const partes: ParteIA[] = "texto" in de ? [{ text: `Transcrição da gravação:\n\n${de.texto}${extra}` }] : [de.audio, { text: `Resuma a gravação.${extra}` }];
   const r = await gerarTexto(ai, SISTEMA_RESUMO, partes);
   if (!r) throw new Error("A IA não devolveu o resumo. Tente de novo.");
   return r.replace(/\*\*/g, "").replace(/^#+\s*/gm, "");
