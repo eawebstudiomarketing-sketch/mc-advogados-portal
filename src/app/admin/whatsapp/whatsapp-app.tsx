@@ -68,9 +68,52 @@ export function WhatsappApp({ agenteInicial, conversasIniciais, clientes }: { ag
   }, [conversas]);
 
   const ligado = ligadoAgora(agente);
+  const [canal, setCanal] = useState(0); // muda quando o tempo real caiu: a assinatura é refeita
+  const agenteRef = useRef(agente);
   useEffect(() => {
-    const t = setInterval(() => setTick((n) => n + 1), 10_000);
-    return () => clearInterval(t);
+    agenteRef.current = agente;
+  }, [agente]);
+  useEffect(() => {
+    // O batimento só chega pelo tempo real. Se ele cai (PC hibernou, aba parada, rede
+    // oscilou), a tela acharia que o Agente saiu do ar. Batimento atrasado → pergunta
+    // ao banco; se o Agente estava vivo, era o tempo real: reassina e recarrega a lista.
+    let conferindo = false;
+    const conferir = async () => {
+      const a = agenteRef.current;
+      if (conferindo || document.hidden || (a?.last_heartbeat && Date.now() - new Date(a.last_heartbeat).getTime() < 20_000)) return;
+      conferindo = true;
+      try {
+        const ag = await statusAgenteAction();
+        if (!ag) return;
+        setAgente(ag);
+        if (ligadoAgora(ag)) {
+          setCanal((n) => n + 1);
+          setVersao((v) => v + 1);
+          const pagina = await listarConversasAction({ offset: 0 });
+          setConversas((cs) => {
+            const porJid = new Map(cs.map((c) => [c.chat_jid, c]));
+            for (const c of pagina) porJid.set(c.chat_jid, c);
+            return ordenar([...porJid.values()].filter((c) => !c.arquivado));
+          });
+        }
+      } catch {
+        // sem rede agora: tenta no próximo ciclo
+      } finally {
+        conferindo = false;
+      }
+    };
+    const t = setInterval(() => {
+      setTick((n) => n + 1);
+      void conferir();
+    }, 10_000);
+    const aoVoltar = () => void conferir();
+    document.addEventListener("visibilitychange", aoVoltar);
+    window.addEventListener("online", aoVoltar);
+    return () => {
+      clearInterval(t);
+      document.removeEventListener("visibilitychange", aoVoltar);
+      window.removeEventListener("online", aoVoltar);
+    };
   }, []);
 
   // agenda (nomes de quem fala nos grupos, aba Contatos): depois da tela aparecer
@@ -132,7 +175,7 @@ export function WhatsappApp({ agenteInicial, conversasIniciais, clientes }: { ag
       clearTimeout(timer);
       void supabase.removeChannel(canal);
     };
-  }, [supabase, aberta]);
+  }, [supabase, aberta, canal]);
 
   /* ───── busca no banco inteiro (o que não está carregado) ───── */
   const termo = busca.trim().toLowerCase();
