@@ -29,10 +29,13 @@ function assinar(acao: "" | "up:" | "del:", caminho: string, segundos: number) {
   return { base: base.replace(/\/$/, ""), q: `e=${expira}&s=${s}` };
 }
 
-/** Link para o navegador mandar o arquivo (PUT), válido por 3 h. */
-export function linkDeEnvio(id: string): string {
+/**
+ * Link para o navegador mandar o arquivo (PUT), válido por 3 h. A gravação
+ * das atas usa o mesmo link com /parte/<n> e /fim (pedaços de 30 s), por 14 h.
+ */
+export function linkDeEnvio(id: string, horas = 3): string {
   const caminho = `transcricoes/${id}`;
-  const { base, q } = assinar("up:", caminho, 3 * 3600);
+  const { base, q } = assinar("up:", caminho, horas * 3600);
   return `${base}/up/${caminho}?${q}`;
 }
 
@@ -88,7 +91,7 @@ export async function apagarAudio(id: string): Promise<void> {
 
 const hms = (s: number) => [Math.floor(s / 3600), Math.floor((s % 3600) / 60), Math.floor(s % 60)].map((n) => String(n).padStart(2, "0")).join(":");
 
-function sistemaFiel(op: OpcoesTranscricao) {
+function sistemaFiel(op: OpcoesTranscricao, contexto?: string) {
   return [
     "Você é um transcritor profissional. Transcreva o áudio em português do Brasil PALAVRA POR PALAVRA, exatamente como foi falado:",
     "- não resuma, não corrija a fala, não reescreva e não tire repetições nem hesitações (\"é…\", \"né\", \"tipo\");",
@@ -101,6 +104,7 @@ function sistemaFiel(op: OpcoesTranscricao) {
       : "",
     op.tempo ? "- comece cada parágrafo (ou fala) com o tempo em que ele começa no áudio inteiro, no formato [HH:MM:SS];" : "",
     "- responda SÓ com a transcrição: sem título, sem comentário, sem markdown.",
+    contexto ? `\nContexto da gravação (use para acertar nomes e termos; não escreva nada que não foi dito): ${contexto}` : "",
   ]
     .filter(Boolean)
     .join("\n");
@@ -193,7 +197,10 @@ async function emParalelo<T>(tarefas: (() => Promise<T>)[], n: number): Promise<
 export type ResultadoTranscricao = { texto: string | null; resumo: string | null; trechos: number };
 
 /** Transcreve o áudio que está no VPS: fiel (em trechos paralelos) e/ou resumo. */
-export async function transcrever(id: string, { modo, opcoes, duracao, nome }: { modo: ModoTranscricao; opcoes: OpcoesTranscricao; duracao: number; nome: string }): Promise<ResultadoTranscricao> {
+export async function transcrever(
+  id: string,
+  { modo, opcoes, duracao, nome, contexto }: { modo: ModoTranscricao; opcoes: OpcoesTranscricao; duracao: number; nome: string; contexto?: string }
+): Promise<ResultadoTranscricao> {
   const ai = cliente();
   const audio = await baixarAudio(id);
   const arquivo = await subirNoGemini(ai, audio, nome);
@@ -202,7 +209,7 @@ export async function transcrever(id: string, { modo, opcoes, duracao, nome }: {
     let texto: string | null = null;
     let trechos = 0;
     if (modo !== "resumo") {
-      const sistema = sistemaFiel(opcoes);
+      const sistema = sistemaFiel(opcoes, contexto);
       const partes: { ini: number; fim: number }[] = [];
       if (!duracao || duracao <= UM_TRECHO_ATE) partes.push({ ini: 0, fim: duracao || 0 });
       else for (let ini = 0; ini < duracao; ini += TRECHO_SEG) partes.push({ ini, fim: Math.min(duracao, ini + TRECHO_SEG) });
@@ -244,13 +251,16 @@ async function resumir(ai: GoogleGenAI, de: { texto: string } | { ref: { fileDat
  * Roda a transcrição de ponta a ponta e grava o resultado: processando →
  * pronta (apaga o áudio do VPS) ou erro (o áudio fica para "Tentar de novo").
  */
-export async function executarTranscricao(id: string, dados: { modo: ModoTranscricao; opcoes: OpcoesTranscricao; duracao: number; nome: string }): Promise<ResultadoTranscricao> {
+export async function executarTranscricao(
+  id: string,
+  dados: { modo: ModoTranscricao; opcoes: OpcoesTranscricao; duracao: number; nome: string; contexto?: string; manterAudio?: boolean }
+): Promise<ResultadoTranscricao> {
   const adm = createAdminClient() as unknown as SupabaseClient;
   await adm.from("transcricoes").update({ status: "processando", erro: null, duracao_seg: dados.duracao || null }).eq("id", id);
   try {
     const r = await transcrever(id, dados);
     await adm.from("transcricoes").update({ status: "pronta", texto: r.texto, resumo: r.resumo, updated_at: new Date().toISOString() }).eq("id", id);
-    await apagarAudio(id);
+    if (!dados.manterAudio) await apagarAudio(id);
     return r;
   } catch (e) {
     const erro = e instanceof Error ? e.message : "Falha ao transcrever.";
@@ -258,6 +268,17 @@ export async function executarTranscricao(id: string, dados: { modo: ModoTranscr
     await adm.from("transcricoes").update({ status: "erro", erro }).eq("id", id);
     throw new Error(erro);
   }
+}
+
+/** Pergunta de texto para a IA (gerador de atas), com as mesmas novas tentativas. */
+export async function perguntarIA(sistema: string, texto: string): Promise<string> {
+  return gerarTexto(cliente(), sistema, [{ text: texto }]);
+}
+
+/** Link de leitura do áudio da transcrição (player da revisão da ata). */
+export function linkDoAudio(id: string, segundos = 3 * 3600): string {
+  const { base, q } = assinar("", caminhoDoAudio(id), segundos);
+  return `${base}/m/${caminhoDoAudio(id)}?${q}`;
 }
 
 /** Resumo feito depois, a partir do texto já transcrito (botão "Gerar resumo"). */

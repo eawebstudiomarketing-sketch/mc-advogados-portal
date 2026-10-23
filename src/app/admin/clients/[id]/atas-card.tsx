@@ -1,6 +1,7 @@
 "use client";
 
 import { ExternalLink } from "lucide-react";
+import Link from "next/link";
 import { useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
@@ -61,9 +62,14 @@ export function AtasCard({ clientId, atas }: { clientId: string; atas: AtaItem[]
           <p className="text-xs text-muted">Atas das reuniões com o cliente. Uso interno: o cliente não vê.</p>
         </div>
         {!aberto && (
-          <button type="button" onClick={() => setAberto(true)} className="ui-link">
-            + Adicionar ATA
-          </button>
+          <div className="flex items-center gap-4">
+            <Link href={`/admin/atas/nova?cliente=${clientId}`} className="ui-link">
+              ● Gravar reunião
+            </Link>
+            <button type="button" onClick={() => setAberto(true)} className="ui-link">
+              + Adicionar ATA
+            </button>
+          </div>
         )}
       </div>
 

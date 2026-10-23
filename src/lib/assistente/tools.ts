@@ -16,6 +16,7 @@ import { GoogleGenAI } from "@google/genai";
 import { MODELOS } from "@/lib/ia-modelos";
 import { TOOLS_WHATSAPP } from "./tools-whatsapp";
 import { TOOLS_TRANSCRICAO } from "./tools-transcricao";
+import { TOOLS_ATAS } from "./tools-atas";
 import { toolsOperacao } from "./tools-operacao";
 import { envolvidosPorNome, etiquetasPorNome, toolsSistema } from "./tools-sistema";
 
@@ -832,6 +833,7 @@ export const TOOLS: ToolDef[] = [
   // ───────── WhatsApp do escritório (só admin; envios com confirmação) ─────────
   ...TOOLS_WHATSAPP,
   ...TOOLS_TRANSCRICAO,
+  ...TOOLS_ATAS,
   ...toolsOperacao(db),
   ...toolsSistema(db),
 ];
