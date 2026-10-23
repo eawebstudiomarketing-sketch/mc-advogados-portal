@@ -19,7 +19,7 @@ export default async function AtaPage({ params }: { params: Promise<{ id: string
   const db = (await createClient()) as unknown as SupabaseClient;
   const { data } = await db.from("atas").select("*, clients(name)").eq("id", id).maybeSingle();
   if (!data) notFound();
-  const ata = data as AtaRow & { status: StatusAta; alertas: Alerta[]; erro: string | null; versao: number; correcao: string | null; pdf_final_path: string | null; pdf_hash: string | null; clients: { name: string } | null };
+  const ata = data as AtaRow & { status: StatusAta; alertas: Alerta[]; erro: string | null; versao: number; correcao: string | null; pdf_final_path: string | null; pdf_hash: string | null; codigo_validacao: string | null; ordem_assinatura: boolean; clients: { name: string } | null };
   const [{ data: t }, assinaturas] = await Promise.all([
     ata.transcricao_id ? db.from("transcricoes").select("texto, duracao_seg").eq("id", ata.transcricao_id).maybeSingle() : Promise.resolve({ data: null }),
     assinaturasAction(id),
@@ -51,6 +51,8 @@ export default async function AtaPage({ params }: { params: Promise<{ id: string
         cliente: ata.clients?.name ?? null,
         temFinal: !!ata.pdf_final_path,
         hash: ata.pdf_hash,
+        codigo: ata.codigo_validacao,
+        ordemAssinatura: ata.ordem_assinatura,
       }}
       transcricao={(t as { texto: string | null } | null)?.texto ?? null}
       duracao={(t as { duracao_seg: number | null } | null)?.duracao_seg ?? null}

@@ -6,7 +6,8 @@ import { exigirPermissao } from "@/lib/dal";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { apagarAudio, linkDeEnvio } from "@/lib/transcricao";
-import { aprovarEEnviar, cancelarAssinaturas, reenviarLink, telefoneZap } from "@/lib/atas/assinatura";
+import { apagarArquivosDaAta, aprovarEEnviar, cancelarAssinaturas, extrasDoRegistro, localLegivel, reenviarLink, telefoneZap, type AssinaturaRow, type OpcoesEnvio, type Signatario } from "@/lib/atas/assinatura";
+import { ipDe, localPeloIp } from "@/lib/atas/identidade";
 import { TIPOS_ATA, type Marcacao, type Participante, type TipoAta } from "@/lib/atas/formato";
 
 // Gerador de atas. Cada pessoa vê as atas dela; admin vê todas (regras da
@@ -97,8 +98,8 @@ export async function linkDeEnvioAction(id: string): Promise<string | null> {
 
 async function lerAta(id: string) {
   if (!UUID.test(id)) return null;
-  const { data } = await (await db()).from("atas").select("id, status, transcricao_id, marcacoes").eq("id", id).maybeSingle();
-  return data as { id: string; status: string; transcricao_id: string | null; marcacoes: Marcacao[] } | null;
+  const { data } = await (await db()).from("atas").select("id, status, client_id, transcricao_id, marcacoes").eq("id", id).maybeSingle();
+  return data as { id: string; status: string; client_id: string | null; transcricao_id: string | null; marcacoes: Marcacao[] } | null;
 }
 
 export async function salvarMarcacoesAction(id: string, marcacoes: Marcacao[]): Promise<void> {
@@ -151,37 +152,106 @@ export async function salvarAtaAction(id: string, c: AtaEdicao): Promise<{ ok: b
   return count ? { ok: true } : { ok: false, erro: "Esta ata não pode mais ser editada." };
 }
 
-async function quemPede() {
-  const h = await headers();
-  return { ip: h.get("x-forwarded-for")?.split(",")[0]?.trim() || h.get("x-real-ip"), ua: h.get("user-agent") };
-}
-
-/** Aprovar = assinar pelo escritório + mandar o link para cada pessoa de fora. */
-export async function aprovarAtaAction(id: string, signatarios: Participante[]): Promise<{ ok: true; enviados: { nome: string; via: string[] }[] } | { ok: false; erro: string }> {
+/**
+ * Aprovar = assinar pelo escritório (com a assinatura desenhada de quem
+ * aprova) + mandar o link para quem é da vez e para os observadores.
+ */
+export async function aprovarAtaAction(
+  id: string,
+  signatarios: Signatario[],
+  opcoes: OpcoesEnvio,
+  assinaturaPng: string | null
+): Promise<{ ok: true; enviados: { nome: string; via: string[] }[] } | { ok: false; erro: string }> {
   const { profile } = await exigirPermissao("atas");
   const ata = await lerAta(id);
   if (!ata) return { ok: false, erro: "Ata não encontrada." };
-  const meta = await quemPede();
+  const h = await headers();
+  const limpos = limparParticipantes(signatarios).map((p, i) => ({
+    ...p,
+    observador: !!signatarios[i]?.observador,
+    ordem: Math.max(1, Math.round(Number(signatarios[i]?.ordem) || i + 1)),
+    exige: { selfie: !!signatarios[i]?.exige?.selfie, documento: !!signatarios[i]?.exige?.documento, certificado: !!signatarios[i]?.exige?.certificado },
+  }));
   try {
-    const r = await aprovarEEnviar(id, { profileId: profile.id, nome: profile.full_name, ip: meta.ip ?? null, ua: meta.ua ?? null }, limparParticipantes(signatarios));
+    const r = await aprovarEEnviar(id, { profileId: profile.id, nome: profile.full_name, ip: ipDe(h), ua: h.get("user-agent"), assinaturaPng, local: localPeloIp(h) }, limpos, opcoes);
     return { ok: true, enviados: r.enviados };
   } catch (e) {
     return { ok: false, erro: e instanceof Error ? e.message : "Não foi possível aprovar." };
   }
 }
 
-export type AssinaturaLinha = { id: string; versao: number; nome: string; papel: string; status: string; telefone: string | null; email: string | null; enviado_em: string | null; assinado_em: string | null; assinado_via: string | null; lembretes: number; correcao: string | null };
+export type AssinaturaLinha = {
+  id: string;
+  versao: number;
+  nome: string;
+  papel: string;
+  status: string;
+  telefone: string | null;
+  email: string | null;
+  enviado_em: string | null;
+  assinado_em: string | null;
+  assinado_via: string | null;
+  lembretes: number;
+  correcao: string | null;
+  recusa: string | null;
+  observador: boolean;
+  ordem: number;
+  exige: { selfie?: boolean; documento?: boolean; certificado?: boolean };
+  local: string | null;
+  extras: string[];
+  alerta: boolean;
+  tem: { assinatura: boolean; selfie: boolean; documento: boolean; p7s: boolean };
+};
 
 export async function assinaturasAction(id: string): Promise<AssinaturaLinha[]> {
   await exigirPermissao("atas");
   if (!UUID.test(id)) return [];
-  const { data } = await (await db())
-    .from("ata_assinaturas")
-    .select("id, versao, nome, papel, status, telefone, email, enviado_em, assinado_em, assinado_via, lembretes, correcao")
-    .eq("ata_id", id)
-    .order("versao", { ascending: false })
-    .order("created_at");
-  return (data ?? []) as AssinaturaLinha[];
+  const { data } = await (await db()).from("ata_assinaturas").select("*").eq("ata_id", id).order("versao", { ascending: false }).order("ordem").order("created_at");
+  return ((data ?? []) as AssinaturaRow[]).map((l) => ({
+    id: l.id,
+    versao: l.versao,
+    nome: l.nome,
+    papel: l.papel,
+    status: l.status,
+    telefone: l.telefone,
+    email: l.email,
+    enviado_em: l.enviado_em,
+    assinado_em: l.assinado_em,
+    assinado_via: l.assinado_via,
+    lembretes: l.lembretes,
+    correcao: l.correcao,
+    recusa: l.recusa,
+    observador: l.observador,
+    ordem: l.ordem,
+    exige: l.exige ?? {},
+    local: localLegivel(l.local),
+    extras: l.status === "assinada" ? extrasDoRegistro(l) : [],
+    alerta: !!l.verificacao && (l.verificacao.mesma_pessoa === "nao" || l.verificacao.nome_confere === false || l.verificacao.cpf_confere === false),
+    tem: { assinatura: !!l.assinatura_path, selfie: !!l.selfie_path, documento: !!l.documento_paths, p7s: !!l.p7s_path },
+  }));
+}
+
+/** Links temporários (10 min) das imagens e da assinatura digital de uma pessoa: só a equipe com acesso à ata. */
+export async function arquivosDaAssinaturaAction(assinaturaId: string): Promise<{ rotulo: string; url: string }[]> {
+  await exigirPermissao("atas");
+  if (!UUID.test(assinaturaId)) return [];
+  const { data } = await (await db()).from("ata_assinaturas").select("assinatura_path, selfie_path, documento_paths, p7s_path, verificacao").eq("id", assinaturaId).maybeSingle();
+  if (!data) return [];
+  const l = data as Pick<AssinaturaRow, "assinatura_path" | "selfie_path" | "documento_paths" | "p7s_path">;
+  const itens = [
+    ["Assinatura", l.assinatura_path],
+    ["Selfie", l.selfie_path],
+    ["Documento (frente)", l.documento_paths?.frente],
+    ["Documento (verso)", l.documento_paths?.verso],
+    ["Assinatura digital (.p7s)", l.p7s_path],
+  ].filter((x): x is [string, string] => !!x[1]);
+  const st = createAdminClient().storage.from("documents");
+  const out: { rotulo: string; url: string }[] = [];
+  for (const [rotulo, caminho] of itens) {
+    const { data: u } = await st.createSignedUrl(caminho, 600, rotulo.includes(".p7s") ? { download: "assinatura-digital.p7s" } : undefined);
+    if (u?.signedUrl) out.push({ rotulo, url: u.signedUrl });
+  }
+  return out;
 }
 
 async function assinaturaVisivel(assinaturaId: string): Promise<boolean> {
@@ -220,6 +290,8 @@ export async function excluirAtaAction(id: string): Promise<{ ok: boolean; erro?
     await apagarAudio(ata.transcricao_id);
     await banco.from("transcricoes").delete().eq("id", ata.transcricao_id);
   }
+  // PDFs de versões anteriores, assinaturas, selfies, documentos e .p7s
+  await apagarArquivosDaAta(ata).catch(() => {});
   return { ok: true };
 }
 

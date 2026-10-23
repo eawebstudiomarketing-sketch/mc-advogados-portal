@@ -3,9 +3,10 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { AlertTriangle, ArrowLeft, Check, CheckCircle2, Clock, Download, Eye, FileText, Loader2, Mail, MessageCircle, Pencil, RotateCcw, Send, ShieldCheck, Trash2, X } from "lucide-react";
+import { AlertTriangle, ArrowLeft, Check, CheckCircle2, Clock, Download, Eye, FileText, Loader2, Mail, MapPin, MessageCircle, Pencil, RotateCcw, Send, ShieldCheck, Trash2, X } from "lucide-react";
 import { toast } from "sonner";
 import { AtaDocumento } from "@/components/atas/ata-documento";
+import { AssinaturaPad, type AssinaturaFeita } from "@/components/atas/assinatura-pad";
 import {
   blocosDaAta,
   blocosParaCliente,
@@ -22,6 +23,7 @@ import {
 } from "@/lib/atas/formato";
 import {
   aprovarAtaAction,
+  arquivosDaAssinaturaAction,
   cancelarAssinaturasAction,
   excluirAtaAction,
   finalizarGravacaoAction,
@@ -47,6 +49,8 @@ type Ata = {
   cliente: string | null;
   temFinal: boolean;
   hash: string | null;
+  codigo: string | null;
+  ordemAssinatura: boolean;
 };
 
 export function AtaDetalhe({
@@ -367,7 +371,9 @@ function Conferencia({ alertas, onMinuto }: { alertas: Alerta[]; onMinuto?: (m: 
 
 function Assinaturas({ ata, linhas }: { ata: Ata; linhas: AssinaturaLinha[] }) {
   const router = useRouter();
-  const feitas = linhas.filter((l) => l.status === "assinada").length;
+  const [arquivos, setArquivos] = useState<{ nome: string; itens: { rotulo: string; url: string }[] } | null>(null);
+  const assinam = linhas.filter((l) => !l.observador);
+  const feitas = assinam.filter((l) => l.status === "assinada").length;
   async function reenviar(id: string) {
     const r = await reenviarAssinaturaAction(id);
     if (!r.ok) return void toast.error(r.erro);
@@ -380,11 +386,16 @@ function Assinaturas({ ata, linhas }: { ata: Ata; linhas: AssinaturaLinha[] }) {
     if (!r.ok) return void toast.error(r.erro);
     router.refresh();
   }
+  async function verArquivos(l: AssinaturaLinha) {
+    const itens = await arquivosDaAssinaturaAction(l.id);
+    if (!itens.length) return void toast("Nada guardado para essa pessoa.");
+    setArquivos({ nome: l.nome, itens });
+  }
   return (
     <section className="ui-card mb-6 p-0">
       <div className="flex flex-wrap items-center justify-between gap-2 border-b border-border px-5 py-3">
         <h2 className="section-title !text-base">
-          Assinaturas <span className="font-normal text-muted">({feitas} de {linhas.length})</span>
+          Assinaturas <span className="font-normal text-muted">({feitas} de {assinam.length})</span>
         </h2>
         {ata.status === "aguardando" && (
           <button type="button" onClick={() => void cancelar()} className="text-sm text-muted hover:text-foreground">
@@ -393,90 +404,240 @@ function Assinaturas({ ata, linhas }: { ata: Ata; linhas: AssinaturaLinha[] }) {
         )}
       </div>
       <ul className="divide-y divide-border">
-        {linhas.map((l) => (
-          <li key={l.id} className="flex flex-wrap items-center gap-3 px-5 py-3 text-sm">
-            <span className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-full ${l.status === "assinada" ? "bg-status-success-bg text-status-success" : l.status === "correcao" ? "bg-status-danger-bg text-status-danger" : "bg-surface-2 text-muted"}`}>
-              {l.status === "assinada" ? <Check className="h-4 w-4" aria-hidden /> : l.status === "correcao" ? <Pencil className="h-4 w-4" aria-hidden /> : <Clock className="h-4 w-4" aria-hidden />}
-            </span>
-            <span className="min-w-0 flex-1">
-              <span className="block font-medium text-foreground">
-                {l.nome} <span className="font-normal text-muted">· {PAPEL_ROTULO[l.papel as Participante["papel"]] ?? l.papel}</span>
+        {linhas.map((l) => {
+          const pedidos = [l.exige.selfie && "selfie", l.exige.documento && "documento", l.exige.certificado && "certificado"].filter(Boolean) as string[];
+          return (
+            <li key={l.id} className="flex flex-wrap items-start gap-3 px-5 py-3 text-sm">
+              <span
+                className={`mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-full ${
+                  l.observador ? "bg-surface-2 text-muted" : l.status === "assinada" ? "bg-status-success-bg text-status-success" : l.status === "pendente" ? "bg-surface-2 text-muted" : "bg-status-danger-bg text-status-danger"
+                }`}
+              >
+                {l.observador ? <Eye className="h-4 w-4" aria-hidden /> : l.status === "assinada" ? <Check className="h-4 w-4" aria-hidden /> : l.status === "pendente" ? <Clock className="h-4 w-4" aria-hidden /> : <X className="h-4 w-4" aria-hidden />}
               </span>
-              <span className="block text-xs text-muted">
-                {l.status === "assinada"
-                  ? `Assinou em ${dataHoraBr(l.assinado_em!)}${l.assinado_via ? ` · ${l.assinado_via}` : ""}`
-                  : l.status === "correcao"
-                    ? `Pediu correção: “${l.correcao}”`
-                    : `Aguardando · link enviado ${l.enviado_em ? `em ${dataHoraBr(l.enviado_em)}` : ""}${l.lembretes ? ` · ${Math.min(l.lembretes, 2)} lembrete(s)` : ""}`}
+              <span className="min-w-0 flex-1">
+                <span className="block font-medium text-foreground">
+                  {ata.ordemAssinatura && !l.observador && l.papel !== "escritorio" ? `${l.ordem}. ` : ""}
+                  {l.nome} <span className="font-normal text-muted">· {l.observador ? "Observador" : (PAPEL_ROTULO[l.papel as Participante["papel"]] ?? l.papel)}</span>
+                  {l.alerta && (
+                    <span className="ml-2 inline-flex items-center gap-1 rounded-full bg-status-danger-bg px-2 py-0.5 text-[11px] font-medium text-status-danger">
+                      <AlertTriangle className="h-3 w-3" aria-hidden /> conferir identidade
+                    </span>
+                  )}
+                </span>
+                <span className="block text-xs text-muted">
+                  {l.observador
+                    ? `Acompanha · link enviado ${l.enviado_em ? `em ${dataHoraBr(l.enviado_em)}` : "—"}`
+                    : l.status === "assinada"
+                      ? `Assinou em ${dataHoraBr(l.assinado_em!)}${l.assinado_via ? ` · ${l.assinado_via}` : ""}`
+                      : l.status === "correcao"
+                        ? `Pediu correção: “${l.correcao}”`
+                        : l.status === "recusada"
+                          ? `Recusou: “${l.recusa}”`
+                          : l.enviado_em
+                            ? `Aguardando · link enviado em ${dataHoraBr(l.enviado_em)}${l.lembretes ? ` · ${l.lembretes} lembrete(s)` : ""}${pedidos.length ? ` · pede ${pedidos.join(", ")}` : ""}`
+                            : "Aguardando a vez (ordem de assinatura)"}
+                </span>
+                {l.extras.map((x, i) => (
+                  <span key={i} className="block text-xs text-muted">
+                    {x}
+                  </span>
+                ))}
+                {l.local && l.status === "assinada" && (
+                  <span className="flex items-center gap-1 text-xs text-muted">
+                    <MapPin className="h-3 w-3" aria-hidden /> {l.local}
+                  </span>
+                )}
               </span>
-            </span>
-            {l.status === "pendente" && ata.status === "aguardando" && (
-              <button type="button" onClick={() => void reenviar(l.id)} className="ui-btn-secondary px-2.5 py-1.5 text-xs">
-                <Send className="h-3.5 w-3.5" aria-hidden /> Reenviar link
-              </button>
-            )}
-          </li>
-        ))}
+              <span className="flex flex-wrap gap-2">
+                {(l.tem.selfie || l.tem.documento || l.tem.p7s || (l.tem.assinatura && l.status === "assinada")) && (
+                  <button type="button" onClick={() => void verArquivos(l)} className="ui-btn-secondary px-2.5 py-1.5 text-xs">
+                    <Eye className="h-3.5 w-3.5" aria-hidden /> Provas
+                  </button>
+                )}
+                {l.status === "pendente" && ata.status === "aguardando" && l.enviado_em && (
+                  <button type="button" onClick={() => void reenviar(l.id)} className="ui-btn-secondary px-2.5 py-1.5 text-xs">
+                    <Send className="h-3.5 w-3.5" aria-hidden /> Reenviar link
+                  </button>
+                )}
+              </span>
+            </li>
+          );
+        })}
       </ul>
+      {arquivos && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4" role="dialog" aria-modal="true" aria-label={`Provas de ${arquivos.nome}`} onClick={() => setArquivos(null)}>
+          <div className="ui-card max-h-[90vh] w-full max-w-3xl overflow-y-auto p-5" onClick={(e) => e.stopPropagation()}>
+            <div className="mb-4 flex items-center justify-between">
+              <h3 className="text-base font-semibold text-foreground">Provas da assinatura — {arquivos.nome}</h3>
+              <button type="button" onClick={() => setArquivos(null)} className="icon-btn h-8 w-8" aria-label="Fechar">
+                <X aria-hidden />
+              </button>
+            </div>
+            <div className="grid gap-4 sm:grid-cols-2">
+              {arquivos.itens.map((a) => (
+                <figure key={a.rotulo} className="rounded-xl border border-border p-2">
+                  {a.rotulo.includes(".p7s") ? (
+                    <a href={a.url} className="flex h-40 flex-col items-center justify-center gap-2 text-sm text-foreground hover:underline">
+                      <ShieldCheck className="h-8 w-8 text-status-success" aria-hidden /> Baixar a assinatura digital (.p7s)
+                    </a>
+                  ) : (
+                    // eslint-disable-next-line @next/next/no-img-element -- link temporário do Storage
+                    <img src={a.url} alt={a.rotulo} className={`w-full rounded-lg object-contain ${a.rotulo === "Assinatura" ? "h-28 bg-white" : "max-h-72"}`} />
+                  )}
+                  <figcaption className="mt-1 text-center text-xs text-muted">{a.rotulo}</figcaption>
+                </figure>
+              ))}
+            </div>
+            <p className="mt-3 text-xs text-muted">Dados pessoais sensíveis (LGPD): não compartilhe estas imagens. Os links valem 10 minutos.</p>
+          </div>
+        </div>
+      )}
     </section>
   );
 }
 
+type Linha = Participante & { marcado: boolean; observador: boolean; ordem: number; selfie: boolean; documento: boolean; certificado: boolean };
+
 function Aprovar({ ata, participantes, meuNome, onFechar, onFeito }: { ata: Ata; participantes: Participante[]; meuNome: string; onFechar: () => void; onFeito: () => void }) {
   const assinaCliente = TIPOS_ATA[ata.tipo].assinaCliente;
   const candidatos = participantes.filter((p) => p.nome !== meuNome);
-  const [lista, setLista] = useState(() => candidatos.map((p) => ({ ...p, marcado: p.papel !== "escritorio" })));
+  const [lista, setLista] = useState<Linha[]>(() =>
+    candidatos.map((p, i) => ({ ...p, marcado: p.papel !== "escritorio", observador: false, ordem: i + 1, selfie: false, documento: false, certificado: false }))
+  );
+  const [ordem, setOrdem] = useState(false);
+  const [prazo, setPrazo] = useState(30);
+  const [lembretes, setLembretes] = useState("2,5");
+  const [minha, setMinha] = useState<AssinaturaFeita>(null);
   const [ocupado, setOcupado] = useState(false);
+  const muda = (i: number, c: Partial<Linha>) => setLista((l) => l.map((x, j) => (j === i ? { ...x, ...c } : x)));
   async function aprovar() {
     const escolhidos = lista.filter((p) => p.marcado);
     for (const p of escolhidos) if (!(p.telefone || "").replace(/\D/g, "") && !(p.email || "").includes("@")) return void toast.error(`Falta o WhatsApp ou o e-mail de ${p.nome}.`);
+    if (!minha) return void toast.error("Faça a sua assinatura (você assina pelo escritório).");
     setOcupado(true);
-    const r = await aprovarAtaAction(ata.id, escolhidos.map((p) => ({ nome: p.nome, papel: p.papel, profile_id: p.profile_id, telefone: p.telefone, email: p.email, cargo: p.cargo })));
+    const r = await aprovarAtaAction(
+      ata.id,
+      escolhidos.map((p) => ({
+        nome: p.nome,
+        papel: p.papel,
+        profile_id: p.profile_id,
+        telefone: p.telefone,
+        email: p.email,
+        cargo: p.cargo,
+        observador: p.observador,
+        ordem: p.ordem,
+        exige: { selfie: p.selfie, documento: p.documento, certificado: p.certificado },
+      })),
+      { ordem, prazoDias: prazo, lembretes: lembretes ? lembretes.split(",").map(Number) : [] },
+      minha.png
+    );
     setOcupado(false);
     if (!r.ok) return void toast.error(r.erro);
-    toast.success(r.enviados.length ? `Aprovada. Link enviado para ${r.enviados.map((e) => `${e.nome}${e.via.length ? ` (${e.via.join(" e ")})` : " (sem envio!)"}`).join(", ")}.` : "Ata aprovada e fechada.");
+    toast.success(r.enviados.length ? `Aprovada. Link enviado para ${r.enviados.map((e) => `${e.nome}${e.via.length ? ` (${e.via.join(" e ")})` : " (sem envio!)"}`).join(", ")}.` : "Ata aprovada.");
     onFechar();
     onFeito();
   }
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4" role="dialog" aria-modal="true" aria-label="Aprovar a ata" onClick={onFechar}>
-      <div className="ui-card flex max-h-[90vh] w-full max-w-xl flex-col overflow-hidden p-0" onClick={(e) => e.stopPropagation()}>
+      <div className="ui-card flex max-h-[92vh] w-full max-w-2xl flex-col overflow-hidden p-0" onClick={(e) => e.stopPropagation()}>
         <div className="flex items-center justify-between border-b border-border px-5 py-4">
           <h3 className="text-base font-semibold text-foreground">Aprovar{assinaCliente ? " e enviar para assinatura" : ""}</h3>
           <button type="button" onClick={onFechar} className="icon-btn h-8 w-8" aria-label="Fechar">
             <X aria-hidden />
           </button>
         </div>
-        <div className="space-y-3 overflow-y-auto p-5 text-sm">
-          <p className="flex items-start gap-2 rounded-lg bg-surface-2 p-3 text-foreground">
-            <ShieldCheck className="mt-0.5 h-4 w-4 shrink-0 text-status-success" aria-hidden />
-            <span>
-              <b>{meuNome}</b> assina pelo escritório ao aprovar (fica registrado com data, hora e IP).
-            </span>
-          </p>
-          {assinaCliente && temParteInterna(ata.texto) && <p className="text-muted">A parte “uso interno do escritório” não vai para quem assina.</p>}
-          <p className="font-medium text-foreground">{lista.length ? "Quem mais assina" : "Ninguém mais na lista de participantes."}</p>
-          {lista.map((p, i) => (
-            <div key={i} className={`rounded-xl border p-3 ${p.marcado ? "border-navy" : "border-border"}`}>
-              <label className="flex items-center gap-2 font-medium text-foreground">
-                <input type="checkbox" checked={p.marcado} onChange={(e) => setLista((l) => l.map((x, j) => (j === i ? { ...x, marcado: e.target.checked } : x)))} className="h-4 w-4 accent-[var(--navy)]" />
-                {p.nome} <span className="font-normal text-muted">· {PAPEL_ROTULO[p.papel]}</span>
-              </label>
-              {p.marcado && (
-                <div className="mt-2 grid gap-2 sm:grid-cols-2">
-                  <label className="relative block">
-                    <MessageCircle className="pointer-events-none absolute top-1/2 left-2.5 h-3.5 w-3.5 -translate-y-1/2 text-muted" aria-hidden />
-                    <input value={p.telefone ?? ""} onChange={(e) => setLista((l) => l.map((x, j) => (j === i ? { ...x, telefone: e.target.value } : x)))} placeholder="WhatsApp com DDD" inputMode="tel" className="ui-input !py-1.5 pl-8 text-sm" aria-label={`WhatsApp de ${p.nome}`} />
-                  </label>
-                  <label className="relative block">
-                    <Mail className="pointer-events-none absolute top-1/2 left-2.5 h-3.5 w-3.5 -translate-y-1/2 text-muted" aria-hidden />
-                    <input value={p.email ?? ""} onChange={(e) => setLista((l) => l.map((x, j) => (j === i ? { ...x, email: e.target.value } : x)))} placeholder="E-mail" inputMode="email" className="ui-input !py-1.5 pl-8 text-sm" aria-label={`E-mail de ${p.nome}`} />
-                  </label>
-                </div>
-              )}
+        <div className="space-y-5 overflow-y-auto p-5 text-sm">
+          <div>
+            <p className="mb-2 font-medium text-foreground">Sua assinatura ({meuNome}, pelo escritório)</p>
+            <div className="rounded-xl bg-slate-50 p-3 text-[#1b1f24] dark:bg-white">
+              <AssinaturaPad nome={meuNome} onChange={setMinha} />
             </div>
-          ))}
-          <p className="text-xs text-muted">Cada pessoa recebe um link pessoal (vale 30 dias), confere a ata e assina com um código de 6 dígitos. Quem não assinar recebe lembrete em 2 e em 5 dias.</p>
+          </div>
+          {assinaCliente && temParteInterna(ata.texto) && <p className="text-muted">A parte “uso interno do escritório” não vai para quem assina.</p>}
+
+          <div>
+            <p className="mb-2 font-medium text-foreground">{lista.length ? "Quem mais participa da assinatura" : "Ninguém mais na lista de participantes."}</p>
+            <div className="space-y-2">
+              {lista.map((p, i) => (
+                <div key={i} className={`rounded-xl border p-3 ${p.marcado ? "border-navy" : "border-border"}`}>
+                  <div className="flex flex-wrap items-center gap-2">
+                    <label className="flex flex-1 items-center gap-2 font-medium text-foreground">
+                      <input type="checkbox" checked={p.marcado} onChange={(e) => muda(i, { marcado: e.target.checked })} className="h-4 w-4 accent-[var(--navy)]" />
+                      {p.nome} <span className="font-normal text-muted">· {PAPEL_ROTULO[p.papel]}</span>
+                    </label>
+                    {p.marcado && (
+                      <select value={p.observador ? "observa" : "assina"} onChange={(e) => muda(i, { observador: e.target.value === "observa" })} className="ui-input !w-auto !py-1 text-xs" aria-label={`Papel de ${p.nome}`}>
+                        <option value="assina">Assina</option>
+                        <option value="observa">Só acompanha</option>
+                      </select>
+                    )}
+                    {p.marcado && ordem && !p.observador && (
+                      <input type="number" min={1} max={20} value={p.ordem} onChange={(e) => muda(i, { ordem: Number(e.target.value) || 1 })} className="ui-input !w-16 !py-1 text-xs" aria-label={`Ordem de ${p.nome}`} />
+                    )}
+                  </div>
+                  {p.marcado && (
+                    <>
+                      <div className="mt-2 grid gap-2 sm:grid-cols-2">
+                        <label className="relative block">
+                          <MessageCircle className="pointer-events-none absolute top-1/2 left-2.5 h-3.5 w-3.5 -translate-y-1/2 text-muted" aria-hidden />
+                          <input value={p.telefone ?? ""} onChange={(e) => muda(i, { telefone: e.target.value })} placeholder="WhatsApp com DDD" inputMode="tel" className="ui-input !py-1.5 pl-8 text-sm" aria-label={`WhatsApp de ${p.nome}`} />
+                        </label>
+                        <label className="relative block">
+                          <Mail className="pointer-events-none absolute top-1/2 left-2.5 h-3.5 w-3.5 -translate-y-1/2 text-muted" aria-hidden />
+                          <input value={p.email ?? ""} onChange={(e) => muda(i, { email: e.target.value })} placeholder="E-mail" inputMode="email" className="ui-input !py-1.5 pl-8 text-sm" aria-label={`E-mail de ${p.nome}`} />
+                        </label>
+                      </div>
+                      {!p.observador && (
+                        <div className="mt-2 flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-foreground">
+                          <span className="text-muted">Além do código e da assinatura, pedir:</span>
+                          {(
+                            [
+                              ["selfie", "Selfie"],
+                              ["documento", "Documento com foto"],
+                              ["certificado", "Certificado digital A1"],
+                            ] as const
+                          ).map(([k, r]) => (
+                            <label key={k} className="flex items-center gap-1.5">
+                              <input type="checkbox" checked={p[k]} onChange={(e) => muda(i, { [k]: e.target.checked })} className="h-3.5 w-3.5 accent-[var(--navy)]" />
+                              {r}
+                            </label>
+                          ))}
+                        </div>
+                      )}
+                    </>
+                  )}
+                </div>
+              ))}
+            </div>
+          </div>
+
+          <div className="grid gap-3 rounded-xl bg-surface-2 p-3 sm:grid-cols-3">
+            <label className="flex items-center gap-2 text-foreground">
+              <input type="checkbox" checked={ordem} onChange={(e) => setOrdem(e.target.checked)} className="h-4 w-4 accent-[var(--navy)]" />
+              Ordem de assinatura
+            </label>
+            <label className="flex items-center gap-2 text-foreground">
+              Prazo
+              <select value={prazo} onChange={(e) => setPrazo(Number(e.target.value))} className="ui-input !w-auto !py-1 text-xs">
+                {[3, 7, 15, 30, 60].map((d) => (
+                  <option key={d} value={d}>
+                    {d} dias
+                  </option>
+                ))}
+              </select>
+            </label>
+            <label className="flex items-center gap-2 text-foreground">
+              Lembretes
+              <select value={lembretes} onChange={(e) => setLembretes(e.target.value)} className="ui-input !w-auto !py-1 text-xs">
+                <option value="2,5">em 2 e 5 dias</option>
+                <option value="1,2,3,4,5,6">todo dia</option>
+                <option value="3">em 3 dias</option>
+                <option value="">sem lembrete</option>
+              </select>
+            </label>
+          </div>
+          <p className="text-xs text-muted">Cada pessoa recebe um link pessoal, confere a ata, faz a assinatura (desenho ou nome digitado), o que você pediu acima e confirma com um código de 6 dígitos.</p>
         </div>
         <div className="flex justify-end gap-2 border-t border-border px-5 py-3">
           <button type="button" onClick={onFechar} className="ui-btn-secondary">

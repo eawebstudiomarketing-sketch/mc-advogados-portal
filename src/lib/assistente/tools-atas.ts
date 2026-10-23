@@ -1,7 +1,7 @@
 import "server-only";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { createAdminClient } from "@/lib/supabase/admin";
-import { aprovarEEnviar, reenviarLink, telefoneZap } from "@/lib/atas/assinatura";
+import { aprovarEEnviar, extrasDoRegistro, localLegivel, reenviarLink, telefoneZap, type AssinaturaRow } from "@/lib/atas/assinatura";
 import { dataHoraBr, STATUS_ROTULO, TIPOS_ATA, textoCompleto, type Participante, type StatusAta, type TipoAta } from "@/lib/atas/formato";
 import type { Ctx, ToolDef } from "./tools";
 
@@ -100,19 +100,29 @@ export const TOOLS_ATAS: ToolDef[] = [
     kind: "read",
     perm: ["atas"],
     label: "Viu as assinaturas da ata",
-    description: "Mostra quem já assinou e quem falta assinar uma ata (pelo id, cliente ou título), com data e por onde recebeu o link. Devolve o assinatura_id de cada pessoa (para reenviar_link_ata).",
+    description: "Mostra quem já assinou e quem falta assinar uma ata (pelo id, cliente ou título): data, por onde confirmou, local, selfie/documento (com a conferência da IA), certificado digital, observadores, recusas. Devolve o assinatura_id de cada pessoa (para reenviar_link_ata).",
     parameters: obj({ id: { type: "string" }, cliente: { type: "string" }, titulo: { type: "string" } }),
     run: async (a, ctx) => {
       const t = await acharAta(a, ctx);
-      const { data } = await db().from("ata_assinaturas").select("id, nome, papel, status, assinado_em, enviado_em, lembretes, correcao").eq("ata_id", t.id).eq("versao", t.versao).neq("status", "cancelada").order("created_at");
+      const { data } = await db().from("ata_assinaturas").select("*").eq("ata_id", t.id).eq("versao", t.versao).neq("status", "cancelada").order("ordem").order("created_at");
       return {
         ata: t.titulo,
         cliente: t.clients?.name ?? null,
         situacao: STATUS_ROTULO[t.status],
-        pessoas: (data ?? []).map((s) => ({
+        pessoas: ((data ?? []) as AssinaturaRow[]).map((s) => ({
           assinatura_id: s.id,
           nome: s.nome,
-          situacao: s.status === "assinada" ? `assinou em ${dataHoraBr(s.assinado_em)}` : s.status === "correcao" ? `pediu correção: ${s.correcao}` : `falta assinar (link enviado ${s.enviado_em ? dataHoraBr(s.enviado_em) : "—"}, ${s.lembretes} lembrete(s))`,
+          observador: s.observador || undefined,
+          situacao: s.observador
+            ? "só acompanha"
+            : s.status === "assinada"
+              ? `assinou em ${dataHoraBr(s.assinado_em!)}`
+              : s.status === "correcao"
+                ? `pediu correção: ${s.correcao}`
+                : s.status === "recusada"
+                  ? `recusou: ${s.recusa}`
+                  : `falta assinar (link ${s.enviado_em ? `enviado ${dataHoraBr(s.enviado_em)}` : "ainda não enviado: ordem de assinatura"}, ${s.lembretes} lembrete(s))`,
+          detalhes: s.status === "assinada" ? [...extrasDoRegistro(s), localLegivel(s.local)].filter(Boolean) : undefined,
         })),
         link: link(t.id),
       };
