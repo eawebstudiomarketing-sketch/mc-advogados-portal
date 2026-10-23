@@ -46,6 +46,7 @@ import {
   type ModoTranscricao,
   type ParteExport,
 } from "@/lib/transcricao-formato";
+import { useTopoAoTrocar } from "@/lib/use-topo";
 
 const ACEITA = "audio/*,video/*,.ogg,.oga,.opus,.m4a,.mp3,.wav,.aac,.amr,.wma,.flac,.mp4,.mov,.webm,.3gp,.mkv,.avi";
 const LIMITE = 1024 ** 3;
@@ -97,6 +98,7 @@ export function TranscricaoApp({
   const [carregando, setCarregando] = useState<string | null>(null);
   const [andamento, setAndamento] = useState<Andamento | null>(null);
   const [busca, setBusca] = useState("");
+  useTopoAoTrocar(`${aberta?.id ?? ""}-${andamento ? "andamento" : ""}`);
 
   const recarregarLista = useCallback(async () => setLista(await listarTranscricoesAction()), []);
 

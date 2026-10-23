@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { Camera, Check, CheckCircle2, Clock, Download, Eye, FileKey2, Loader2, Mail, MapPin, MessageCircle, PenLine, RotateCcw, ShieldCheck, Upload, X } from "lucide-react";
 import type { pki } from "node-forge";
 import { AtaDocumento } from "@/components/atas/ata-documento";
+import { useTopoAoTrocar } from "@/lib/use-topo";
 import { AssinaturaPad, type AssinaturaFeita } from "@/components/atas/assinatura-pad";
 import type { BlocoAta, DadosAta } from "@/lib/atas/formato";
 import {
@@ -61,6 +62,7 @@ export function AssinarApp({
   const [etapa, setEtapa] = useState<Etapa | null>(null);
   const [painel, setPainel] = useState<null | "corrigir" | "recusar">(null);
   const [feitos, setFeitos] = useState(feito);
+  useTopoAoTrocar(etapa);
   const primeiro = nome.split(/\s+/)[0];
   const pdf = `/assinar/${token}/pdf`;
   const proxima = (atual: Etapa) => setEtapa(etapas[etapas.indexOf(atual) + 1] ?? "confirmar");

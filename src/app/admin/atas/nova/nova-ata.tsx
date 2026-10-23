@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { AlertTriangle, Check, CheckCircle2, Copy, Loader2, Mic, MonitorUp, Plus, Square, Star, Upload, X } from "lucide-react";
 import { toast } from "sonner";
 import { TIPOS_ATA, type Marcacao, type Participante, type TipoAta } from "@/lib/atas/formato";
+import { useTopoAoTrocar } from "@/lib/use-topo";
 import { contatosDoClienteAction, criarAtaAction, finalizarGravacaoAction, linkDeEnvioAction, salvarMarcacoesAction } from "../actions";
 
 type Membro = { profileId: string; nome: string; telefone: string | null; email: string | null };
@@ -45,6 +46,7 @@ export function NovaAta({ clientes, equipe, meuProfileId, clienteInicial }: { cl
   const [comecando, setComecando] = useState(false);
   const [gravacao, setGravacao] = useState<{ ataId: string; inicio: number; recorder: MediaRecorder; streams: MediaStream[]; online: boolean } | null>(null);
   const [envioArquivo, setEnvioArquivo] = useState<number | null>(null);
+  useTopoAoTrocar(!!gravacao);
 
   // contatos do cliente escolhido (para sugerir WhatsApp/e-mail de quem assina)
   useEffect(() => {
