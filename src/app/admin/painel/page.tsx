@@ -4,9 +4,11 @@ import { exigirSuperAdmin } from "@/lib/dal";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { calcularMetricas } from "@/lib/painel/metricas";
 import { carregarBase } from "@/lib/painel/dados";
-import { PERIODOS, dentro, periodoDe, type Periodo } from "@/lib/painel/base";
+import { PERIODOS, dentro, dias as diasEntre, media, notaPorTempo, noPrazo, periodoDe, type Periodo } from "@/lib/painel/base";
 import { StatCard } from "@/components/ui/stat-card";
-import { BarraSituacao, Barras } from "@/components/painel/graficos";
+import { Barras, BarrasH, LinhaCriadasConcluidas } from "@/components/painel/graficos";
+import { AtividadesDoCliente, MapaCalorClientes, QuadroAgenda, QuadroCargaSemana, QuadroDistChegadas, QuadroDistDecisoes, QuadroDistParados, QuadroVencidas } from "@/components/painel/quadros2";
+import { dadosComercial, dadosFinanceiro, dadosProcessos, fichaCliente, linhasDistribuicao, ultimosMeses } from "@/lib/painel/extras";
 import { PainelBase } from "@/components/painel/contexto";
 import { GerentePainel } from "@/components/painel/gerente";
 import { QuadroAbertasAntigas, QuadroCarga, QuadroCriadasConcluidas, QuadroPorTipo } from "@/components/painel/quadros";
@@ -23,8 +25,11 @@ const ABAS = [
   { id: "resumo", rotulo: "Resumo" },
   { id: "responsaveis", rotulo: "Responsáveis" },
   { id: "clientes", rotulo: "Clientes" },
+  { id: "prazos", rotulo: "Prazos e Agenda" },
+  { id: "processos", rotulo: "Processos e Publicações" },
   { id: "distribuicao", rotulo: "Distribuição" },
   { id: "whatsapp", rotulo: "WhatsApp" },
+  { id: "comercial", rotulo: "Comercial" },
   { id: "financeiro", rotulo: "Financeiro" },
   { id: "sistema", rotulo: "Sistema" },
 ] as const;
@@ -126,13 +131,29 @@ async function linhaDoTempo(pessoaId: string, p: Periodo, base: Awaited<ReturnTy
   return { eventos: eventos.sort((a, b) => b.quando.localeCompare(a.quando)).slice(0, 60), extras };
 }
 
-export default async function PainelPage({ searchParams }: { searchParams: Promise<{ p?: string; aba?: string; pessoa?: string }> }) {
+export default async function PainelPage({ searchParams }: { searchParams: Promise<{ p?: string; aba?: string; pessoa?: string; cliente?: string }> }) {
   const perfil = await exigirSuperAdmin();
   const sp = await searchParams;
   const aba = ABAS.some((a) => a.id === sp.aba) ? sp.aba! : "resumo";
   const periodo = periodoDe(sp.p);
   const [m, base] = await Promise.all([calcularMetricas(periodo), carregarBase()]);
-  const ficha = aba === "responsaveis" && sp.pessoa ? await linhaDoTempo(sp.pessoa, periodo, base) : null;
+  const [ficha, dist, fichaCli, proc, com, fin] = await Promise.all([
+    aba === "responsaveis" && sp.pessoa ? linhaDoTempo(sp.pessoa, periodo, base) : null,
+    aba === "distribuicao" || (aba === "clientes" && !sp.cliente) ? linhasDistribuicao() : [],
+    aba === "clientes" && sp.cliente ? fichaCliente(sp.cliente) : null,
+    aba === "processos" ? dadosProcessos(periodo) : null,
+    aba === "comercial" ? dadosComercial(periodo) : null,
+    aba === "financeiro" ? dadosFinanceiro() : null,
+  ]);
+  const fichaHref = (id: string) => `/admin/painel?aba=clientes&cliente=${id}${periodo.id !== "mes" ? `&p=${periodo.id}` : ""}`;
+  // ficha do cliente: quem cuida e satisfação (pelo tempo de atendimento, 90 dias)
+  const doCliente = fichaCli ? base.atividades.filter((x) => x.clienteId === fichaCli.cliente.id) : [];
+  const cuidam = [...new Set(doCliente.filter((x) => x.status === "aberta" || x.status === "em_andamento").map((x) => base.responsaveis.find((r) => r.id === x.respId)?.nome).filter((x): x is string => !!x))];
+  const agoraIso = periodoDe("hoje").fim;
+  const notasCli = doCliente
+    .filter((x) => x.status === "concluida" && x.concluida && diasEntre(x.concluida, agoraIso) <= 90)
+    .map((x) => notaPorTempo(diasEntre(x.pedido, x.concluida!), !noPrazo(x)));
+  const satisfCli = notasCli.length ? Math.round(media(notasCli)! * 10) / 10 : null;
   const equipeIds = base.responsaveis.filter((r) => r.profileId && m.equipe.some((e) => e.id === r.profileId)).map((r) => r.id);
   const a = m.atividades;
   const d = m.distribuicao;
@@ -154,6 +175,7 @@ export default async function PainelPage({ searchParams }: { searchParams: Promi
     if (pp !== "mes") u.set("p", pp);
     if (aa !== "resumo") u.set("aba", aa);
     if (!q.aba && sp.pessoa && aa === "responsaveis") u.set("pessoa", sp.pessoa);
+    if (!q.aba && sp.cliente && aa === "clientes") u.set("cliente", sp.cliente);
     const s = u.toString();
     return `/admin/painel${s ? `?${s}` : ""}`;
   };
@@ -316,58 +338,137 @@ export default async function PainelPage({ searchParams }: { searchParams: Promi
             </div>
           ))}
 
-        {aba === "clientes" && (
-          <div className="space-y-4">
-            <p className="text-sm text-muted">Satisfação calculada pelo tempo entre o pedido e a entrega (≤1 dia = 5 · ≤3 = 4,5 · ≤7 = 4 · ≤15 = 3 · ≤30 = 2 · mais = 1; −0,5 se passou do prazo; últimos 90 dias).</p>
-            <div className="grid grid-cols-2 gap-3 md:grid-cols-3 xl:grid-cols-6">
-              <StatCard label="Satisfação média" value={m.satisfacao.media === null ? "—" : `${m.satisfacao.media.toLocaleString("pt-BR")} / 5`} hint={`${m.satisfacao.avaliadas} atividades avaliadas`} tone={m.satisfacao.media !== null && m.satisfacao.media < 3.5 ? "pending" : "success"} />
-              <StatCard label="Clientes ativos" value={num(m.comercial.clientesAtivos)} href="/admin/clients" />
-              <StatCard label="Clientes novos" value={num(m.comercial.clientesNovos)} />
-              <StatCard label="Leads novos" value={num(m.comercial.leadsNovos)} />
-              <StatCard label="Relatórios feitos" value={num(m.clientes.relatoriosNoPeriodo)} hint={`${m.clientes.relatoriosEnviados} enviados ao cliente`} href="/admin/reports" />
-              <StatCard label="Esfriando" value={num(m.clientes.esfriando.length)} tone={m.clientes.esfriando.length ? "pending" : "default"} hint="empresas com risco" />
+        {aba === "clientes" &&
+          (fichaCli ? (
+            <div className="space-y-4">
+              <Link href={link({ aba: "clientes" })} className="inline-flex items-center gap-1 text-[13px] font-medium text-muted hover:text-foreground">
+                ‹ Clientes
+              </Link>
+              <div className="ui-card p-5">
+                <div className="flex flex-wrap items-start justify-between gap-4">
+                  <div className="min-w-0">
+                    <p className="eyebrow mb-1">{fichaCli.cliente.pf ? "Pessoa física" : "Empresa"} · cliente desde {new Date(fichaCli.cliente.desde).toLocaleDateString("pt-BR", { timeZone: "America/Bahia" })}</p>
+                    <h2 className="text-xl font-semibold text-foreground">{fichaCli.cliente.nome}</h2>
+                    <p className="mt-1 text-sm text-muted">Cuidam deste cliente: {cuidam.length ? cuidam.join(", ") : "ninguém com atividade aberta"}</p>
+                  </div>
+                  <div className="flex gap-2">
+                    <Link href={`/admin/clients/${fichaCli.cliente.id}`} className="ui-btn-secondary px-3 py-1.5 text-xs">
+                      Abrir cadastro
+                    </Link>
+                  </div>
+                </div>
+                <div className="mt-5 grid grid-cols-2 gap-4 border-t border-border pt-4 sm:grid-cols-4 lg:grid-cols-7">
+                  {[
+                    { r: "satisfação", v: satisfCli === null ? "—" : `${satisfCli.toLocaleString("pt-BR")} / 5` },
+                    { r: "abertas", v: String(base.atividades.filter((x) => x.clienteId === fichaCli.cliente.id && (x.status === "aberta" || x.status === "em_andamento")).length) },
+                    { r: "processos", v: String(fichaCli.processos.length) },
+                    { r: "última msg do cliente", v: fichaCli.whatsapp.ultimaDeles ? quando(fichaCli.whatsapp.ultimaDeles) : "—" },
+                    { r: "nossa última resposta", v: fichaCli.whatsapp.ultimaNossa ? quando(fichaCli.whatsapp.ultimaNossa) : "—" },
+                    { r: "a receber", v: reais(fichaCli.financeiro.aReceber) },
+                    { r: "em atraso", v: reais(fichaCli.financeiro.atrasado) },
+                  ].map((x) => (
+                    <div key={x.r}>
+                      <p className="text-base font-semibold tabular-nums text-foreground">{x.v}</p>
+                      <p className="text-[11px] text-muted">{x.r}</p>
+                    </div>
+                  ))}
+                </div>
+                {fichaCli.whatsapp.esperando && <p className="mt-4 rounded-lg bg-status-danger-bg px-3 py-2 text-sm text-status-danger">A última mensagem no WhatsApp é do cliente e ainda não foi respondida.</p>}
+              </div>
+              <div className="grid grid-cols-1 gap-4 lg:grid-cols-[minmax(0,1.4fr)_minmax(0,1fr)]">
+                <AtividadesDoCliente clienteId={fichaCli.cliente.id} />
+                <div className="space-y-4">
+                  <Lista
+                    titulo="Processos"
+                    vazio="Nenhum processo cadastrado."
+                    itens={fichaCli.processos.slice(0, 10).map((x) => ({ chave: x.id, href: `/admin/processes/${x.id}`, texto: <>{x.numero ?? "sem número"} <span className="text-muted">· {x.titulo ?? x.area ?? ""}</span></>, valor: x.ultimo ? new Date(x.ultimo).toLocaleDateString("pt-BR") : "—" }))}
+                  />
+                  <Lista
+                    titulo="Pedidos na Distribuição"
+                    vazio="Nada passou pela Distribuição."
+                    itens={fichaCli.distribuicao.map((x, k) => ({ chave: String(k), texto: <>{x.titulo} <span className="text-muted">· {ORIGEM[x.origem] ?? x.origem}</span></>, valor: x.status === "aceita" ? "aprovado" : x.status === "descartada" ? "descartado" : "pendente", tom: x.status === "aceita" ? "success" : x.status === "descartada" ? "danger" : "pending" }))}
+                  />
+                  <Lista titulo="Relatórios mensais" vazio="Nenhum relatório gerado." itens={fichaCli.relatorios.map((x) => ({ chave: x.ref, texto: x.ref, valor: x.enviado ? "enviado" : "não enviado", tom: x.enviado ? "success" : "pending" }))} />
+                </div>
+              </div>
             </div>
-            <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
-              <Lista titulo="Menos satisfeitos" vazio="Sem dados suficientes ainda." itens={m.satisfacao.menos.map((c) => ({ chave: c.id, href: `/admin/clients/${c.id}`, texto: c.nome, valor: `${c.nota.toLocaleString("pt-BR")} · ${c.atividades} ativ.`, tom: c.nota < 3 ? "danger" : "pending" }))} />
-              <Lista titulo="Mais satisfeitos" vazio="Nenhum cliente com nota 4 ou mais ainda." itens={m.satisfacao.mais.map((c) => ({ chave: c.id, href: `/admin/clients/${c.id}`, texto: c.nome, valor: `${c.nota.toLocaleString("pt-BR")} · ${c.atividades} ativ.`, tom: "success" }))} />
-              <Lista titulo="Quem mais manda demandas" vazio="Nenhuma demanda no período." itens={m.clientes.maisDemandas.map((c) => ({ chave: c.id, href: `/admin/clients/${c.id}`, texto: c.nome, valor: num(c.demandas) }))} />
+          ) : (
+            <div className="space-y-4">
+              <div className="flex flex-wrap items-center justify-between gap-3">
+                <p className="text-sm text-muted">Satisfação calculada pelo tempo entre o pedido e a entrega (≤1 dia = 5 · ≤3 = 4,5 · ≤7 = 4 · ≤15 = 3 · ≤30 = 2 · mais = 1; −0,5 se passou do prazo; últimos 90 dias).</p>
+                <form method="get" action="/admin/painel" className="flex items-center gap-1.5">
+                  <input type="hidden" name="aba" value="clientes" />
+                  {periodo.id !== "mes" && <input type="hidden" name="p" value={periodo.id} />}
+                  <select name="cliente" aria-label="Abrir ficha do cliente" className="ui-input !w-auto max-w-[14rem] !py-1.5 text-xs" defaultValue="" required>
+                    <option value="" disabled>
+                      Abrir ficha de um cliente…
+                    </option>
+                    {base.clientes
+                      .filter((c) => c.ativo)
+                      .sort((a, b) => a.nome.localeCompare(b.nome))
+                      .map((c) => (
+                        <option key={c.id} value={c.id}>
+                          {c.nome}
+                          {c.pf ? " (PF)" : ""}
+                        </option>
+                      ))}
+                  </select>
+                  <button type="submit" className="ui-btn px-3 py-1.5 text-xs">
+                    Abrir
+                  </button>
+                </form>
+              </div>
+              <div className="grid grid-cols-2 gap-3 md:grid-cols-3 xl:grid-cols-6">
+                <StatCard label="Satisfação média" value={m.satisfacao.media === null ? "—" : `${m.satisfacao.media.toLocaleString("pt-BR")} / 5`} hint={`${m.satisfacao.avaliadas} atividades avaliadas`} tone={m.satisfacao.media !== null && m.satisfacao.media < 3.5 ? "pending" : "success"} />
+                <StatCard label="Empresas ativas" value={num(base.clientes.filter((c) => c.ativo && !c.pf).length)} />
+                <StatCard label="Pessoas físicas ativas" value={num(base.clientes.filter((c) => c.ativo && c.pf).length)} />
+                <StatCard label="Clientes novos" value={num(m.comercial.clientesNovos)} hint={periodo.rotulo.toLowerCase()} />
+                <StatCard label="Relatórios feitos" value={num(m.clientes.relatoriosNoPeriodo)} hint={`${m.clientes.relatoriosEnviados} enviados ao cliente`} href="/admin/reports" />
+                <StatCard label="Esfriando" value={num(m.clientes.esfriando.length)} tone={m.clientes.esfriando.length ? "pending" : "default"} hint="empresas com risco" />
+              </div>
+              <MapaCalorClientes dist={dist} meses={ultimosMeses(6)} />
+              <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
+                <Lista titulo="Menos satisfeitos" vazio="Sem dados suficientes ainda." itens={m.satisfacao.menos.map((c) => ({ chave: c.id, href: fichaHref(c.id), texto: c.nome, valor: `${c.nota.toLocaleString("pt-BR")} · ${c.atividades} ativ.`, tom: c.nota < 3 ? "danger" : "pending" }))} />
+                <Lista titulo="Mais satisfeitos" vazio="Nenhum cliente com nota 4 ou mais ainda." itens={m.satisfacao.mais.map((c) => ({ chave: c.id, href: fichaHref(c.id), texto: c.nome, valor: `${c.nota.toLocaleString("pt-BR")} · ${c.atividades} ativ.`, tom: "success" }))} />
+                <Lista titulo="Quem mais manda demandas" vazio="Nenhuma demanda no período." itens={m.clientes.maisDemandas.map((c) => ({ chave: c.id, href: fichaHref(c.id), texto: c.nome, valor: num(c.demandas) }))} />
+                <Lista
+                  titulo="Pouco ativos (30+ dias sem contato)"
+                  vazio="Todos os clientes tiveram contato recente."
+                  itens={m.clientes.poucoAtivos.map((c) => ({ chave: c.id, href: fichaHref(c.id), texto: c.pf ? <>{c.nome} <span className="text-muted">· PF</span></> : c.nome, valor: c.dias === null ? "nunca" : `${c.dias} dias`, tom: c.dias === null || c.dias > 60 ? "danger" : "pending" }))}
+                />
+              </div>
               <Lista
-                titulo="Pouco ativos (30+ dias sem contato)"
-                vazio="Todos os clientes tiveram contato recente."
-                itens={m.clientes.poucoAtivos.map((c) => ({ chave: c.id, href: `/admin/clients/${c.id}`, texto: c.pf ? <>{c.nome} <span className="text-muted">· PF</span></> : c.nome, valor: c.dias === null ? "nunca" : `${c.dias} dias`, tom: c.dias === null || c.dias > 60 ? "danger" : "pending" }))}
+                titulo="Empresas com risco de perder (sem contato + satisfação + inadimplência)"
+                vazio="Nenhuma empresa em risco."
+                itens={m.clientes.esfriando.map((c) => ({
+                  chave: c.id,
+                  href: fichaHref(c.id),
+                  texto: (
+                    <>
+                      {c.nome} <span className="text-muted">· {c.semContatoDias} dias sem contato · nota {c.nota?.toLocaleString("pt-BR")}{c.inadimplente ? " · inadimplente" : ""}</span>
+                    </>
+                  ),
+                  valor: `risco ${c.risco}`,
+                  tom: c.risco >= 70 ? "danger" : "pending",
+                }))}
               />
             </div>
-            <Lista
-              titulo="Empresas com risco de perder (sem contato + satisfação + inadimplência)"
-              vazio="Nenhuma empresa em risco."
-              itens={m.clientes.esfriando.map((c) => ({
-                chave: c.id,
-                href: `/admin/clients/${c.id}`,
-                texto: (
-                  <>
-                    {c.nome} <span className="text-muted">· {c.semContatoDias} dias sem contato · nota {c.nota?.toLocaleString("pt-BR")}{c.inadimplente ? " · inadimplente" : ""}</span>
-                  </>
-                ),
-                valor: `risco ${c.risco}`,
-                tom: c.risco >= 70 ? "danger" : "pending",
-              }))}
-            />
-          </div>
-        )}
+          ))}
 
         {aba === "distribuicao" && (
           <div className="space-y-4">
             <div className="grid grid-cols-2 gap-3 md:grid-cols-3 xl:grid-cols-6">
-              <StatCard label="Chegaram" value={num(d.chegaram)} />
+              <StatCard label="Chegaram" value={num(d.chegaram)} hint={periodo.rotulo.toLowerCase()} />
               <StatCard label="Aprovadas" value={num(d.aceitas)} tone="success" hint={d.aceitas ? `${d.aceitasFeitas} já concluídas` : undefined} />
               <StatCard label="Descartadas" value={num(d.descartadas)} tone={d.descartadas ? "danger" : "default"} />
               <StatCard label="Pendentes agora" value={num(d.pendentesAgora)} tone={d.pendentesAgora ? "pending" : "default"} href="/admin/distribuicao" />
               <StatCard label="Paradas +2 dias" value={num(d.pendentesHaMaisDe2Dias)} tone={d.pendentesHaMaisDe2Dias ? "danger" : "default"} />
               <StatCard label="Tempo até decidir" value={horas(d.tempoAteTratarHoras)} hint="mediana" />
             </div>
-            <div className="ui-card p-5">
-              <p className="mb-3 text-sm font-semibold text-foreground">Por origem</p>
-              <BarraSituacao linhas={d.porOrigem.map((o) => ({ rotulo: ORIGEM[o.origem] ?? o.origem, ...o }))} />
+            <QuadroDistChegadas dist={dist} />
+            <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
+              <QuadroDistDecisoes dist={dist} />
+              <QuadroDistParados dist={dist} />
             </div>
           </div>
         )}
@@ -382,30 +483,130 @@ export default async function PainelPage({ searchParams }: { searchParams: Promi
               <StatCard label="Pela IA" value={num(w.respostasIa)} hint="Agente MC" />
               <StatCard label="Esperando +2 h" value={num(w.esperandoAgora.length)} tone={w.esperandoAgora.length ? "danger" : "default"} />
             </div>
-            <div className="grid grid-cols-1 gap-4 lg:grid-cols-3">
-              <div className="ui-card min-w-0 p-5 lg:col-span-2">
+            <div className="ui-card min-w-0 p-5">
+              <p className="text-sm font-semibold text-foreground">Recebidas × enviadas por dia</p>
+              <p className="mb-4 mt-0.5 text-xs text-muted">{periodo.rotulo}</p>
+              {w.porDia.length > 1 ? <LinhaCriadasConcluidas serie={w.porDia.map((x) => ({ dia: x.dia, criadas: x.recebidas, concluidas: x.enviadas }))} rotulos={["Recebidas", "Enviadas"]} /> : <p className="text-sm text-muted">Escolha um período maior que um dia para ver a evolução.</p>}
+            </div>
+            <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
+              <div className="ui-card min-w-0 p-5">
+                <p className="mb-3 text-sm font-semibold text-foreground">Tempo de resposta por pessoa</p>
+                {w.tempoPorPessoa.length === 0 ? (
+                  <p className="text-sm text-muted">Nenhuma resposta a cliente no período.</p>
+                ) : (
+                  <table className="ui-table">
+                    <thead>
+                      <tr>
+                        <th className="py-2 pr-2 font-medium">Quem respondeu</th>
+                        <th className="px-2 py-2 text-right font-medium">Respostas</th>
+                        <th className="py-2 pl-2 text-right font-medium">Tempo (mediana)</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-border tabular-nums">
+                      {w.tempoPorPessoa.map((x) => (
+                        <tr key={x.nome}>
+                          <td className="py-2 pr-2 text-foreground">{x.nome}</td>
+                          <td className="px-2 py-2 text-right">{x.respondidas}</td>
+                          <td className={`py-2 pl-2 text-right ${x.medianaHoras !== null && x.medianaHoras > 4 ? "text-status-pending" : ""}`}>{horas(x.medianaHoras)}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                )}
+                <p className="mt-3 text-[11px] text-muted">&quot;Pelo celular&quot; = respondido direto no WhatsApp do aparelho, sem passar pelo portal.</p>
+              </div>
+              <div className="ui-card min-w-0 p-5">
                 <p className="mb-3 text-sm font-semibold text-foreground">Mensagens recebidas por hora do dia</p>
                 <Barras dados={w.porHora.map((v, h) => ({ rotulo: `${h}h`, valor: v }))} destaque={horaAgora} />
               </div>
-              <Lista
-                titulo="Quem mais respondeu"
-                vazio="Nenhuma resposta pelo portal."
-                itens={[
-                  ...w.respostasPorPessoa.map((r) => ({ chave: r.nome, texto: r.nome, valor: num(r.n) })),
-                  ...(w.respostasCelular ? [{ chave: "_celular", texto: <span className="text-muted">Pelo celular (direto no WhatsApp)</span>, valor: num(w.respostasCelular) }] : []),
-                ]}
-              />
             </div>
             <Lista titulo="Clientes esperando resposta agora" vazio="Ninguém esperando há mais de 2 horas." itens={w.esperandoAgora.map((e) => ({ chave: e.conversa, texto: e.cliente ?? e.conversa, valor: `${e.horas} h`, tom: e.horas > 24 ? "danger" : "pending", href: "/admin/whatsapp" }))} />
           </div>
         )}
 
-        {aba === "financeiro" && (
-          <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
-            <StatCard label="Faturado no período" value={reais(m.financas.faturado)} href="/admin/financial" />
-            <StatCard label="Recebido no período" value={reais(m.financas.recebido)} tone="success" />
-            <StatCard label="A receber" value={reais(m.financas.aReceber)} />
-            <StatCard label="Inadimplente" value={reais(m.financas.inadimplente)} tone={m.financas.inadimplente ? "danger" : "default"} hint={`${m.financas.clientesInadimplentes} clientes`} />
+        {aba === "prazos" && (
+          <div className="space-y-4">
+            <div className="grid grid-cols-1 gap-4 lg:grid-cols-[minmax(0,1.3fr)_minmax(0,1fr)]">
+              <QuadroAgenda />
+              <QuadroVencidas />
+            </div>
+            <QuadroCargaSemana equipe={equipeIds} />
+          </div>
+        )}
+
+        {aba === "processos" && proc && (
+          <div className="space-y-4">
+            <div className="grid grid-cols-2 gap-3 md:grid-cols-3 xl:grid-cols-6">
+              <StatCard label="Processos ativos" value={num(proc.ativos)} href="/admin/processes" />
+              <StatCard label="Andamentos no período" value={num(proc.andamentosNoPeriodo)} />
+              <StatCard label="Andamentos sem tratar" value={num(proc.andamentosNovosSemTratar)} tone={proc.andamentosNovosSemTratar ? "pending" : "default"} />
+              <StatCard label="Publicações no período" value={num(proc.publicacoesNoPeriodo)} />
+              <StatCard label="Publicações sem tratar" value={num(proc.publicacoesNaoTratadas)} tone={proc.publicacoesNaoTratadas ? "danger" : "default"} href="/admin/publicacoes" />
+              <StatCard label="Tempo p/ tratar publicação" value={horas(proc.tempoTratarPublicacaoHoras)} hint="mediana" />
+            </div>
+            <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
+              <div className="ui-card min-w-0 p-5">
+                <p className="mb-3 text-sm font-semibold text-foreground">Processos ativos por área</p>
+                <BarrasH dados={proc.porArea} />
+              </div>
+              <div className="ui-card min-w-0 p-5">
+                <p className="mb-3 text-sm font-semibold text-foreground">Publicações por tribunal ({periodo.rotulo.toLowerCase()})</p>
+                {proc.porTribunal.length ? <BarrasH dados={proc.porTribunal} /> : <p className="text-sm text-muted">Nenhuma publicação no período.</p>}
+              </div>
+            </div>
+            <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
+              <Lista titulo="Andamentos novos ainda não vistos" vazio="Nenhum andamento novo." itens={proc.ultimosAndamentos.map((x) => ({ chave: x.id, href: `/admin/processes/${x.processoId}`, texto: <>{x.descricao || "Andamento"} <span className="text-muted">· {x.cliente ?? x.numero}</span></>, valor: quando(x.quando) }))} />
+              <Lista titulo="Publicações esperando tratamento" vazio="Todas as publicações foram tratadas." itens={proc.publicacoesParadas.map((x) => ({ chave: x.id, href: "/admin/publicacoes", texto: <>{x.tipo ?? "Publicação"} · {x.numero ?? ""} <span className="text-muted">· {x.cliente ?? x.tribunal ?? ""}</span></>, valor: `${x.dias} d`, tom: x.dias > 2 ? "danger" : "pending" }))} />
+            </div>
+            <Lista titulo="Processos parados (sem andamento há 90+ dias)" vazio="Nenhum processo parado." itens={proc.parados.map((x) => ({ chave: x.id, href: `/admin/processes/${x.id}`, texto: <>{x.numero ?? "sem número"} <span className="text-muted">· {x.cliente ?? x.titulo ?? ""}{x.resp ? ` · ${x.resp}` : ""}</span></>, valor: x.ultimo ? `último ${new Date(x.ultimo).toLocaleDateString("pt-BR")}` : "sem andamento", tom: "pending" }))} />
+          </div>
+        )}
+
+        {aba === "comercial" && com && (
+          <div className="space-y-4">
+            <div className="grid grid-cols-2 gap-3 md:grid-cols-3 xl:grid-cols-6">
+              <StatCard label="Clientes novos" value={num(com.clientesNovos)} hint={`${com.clientesNovosPj} empresas · ${periodo.rotulo.toLowerCase()}`} />
+              <StatCard label="Clientes ativos" value={num(com.clientesAtivos)} href="/admin/clients" />
+              <StatCard label="Leads novos" value={num(com.leadsNovos)} />
+              <StatCard label="Leads quentes" value={num(com.leadsQuentes)} tone={com.leadsQuentes ? "pending" : "default"} />
+              <StatCard label="Contratos ativos" value={num(com.contratosAtivos)} hint={com.valorContratosAtivos ? reais(com.valorContratosAtivos) : undefined} />
+              <StatCard label="Onboardings" value={num(com.onboardings)} hint="atas de onboarding" />
+            </div>
+            <div className="ui-card min-w-0 p-5">
+              <p className="mb-3 text-sm font-semibold text-foreground">Clientes novos por mês (12 meses)</p>
+              <Barras dados={com.novosPorMes} destaque={com.novosPorMes.length - 1} />
+            </div>
+            <div className="grid grid-cols-1 gap-4 lg:grid-cols-3">
+              <div className="ui-card min-w-0 p-5">
+                <p className="mb-3 text-sm font-semibold text-foreground">Leads por situação</p>
+                {com.leadsPorStatus.length ? <BarrasH dados={com.leadsPorStatus} /> : <p className="text-sm text-muted">Nenhum lead cadastrado ainda. Eles aparecem aqui quando o Agente MC ou a equipe registrar.</p>}
+              </div>
+              <div className="ui-card min-w-0 p-5">
+                <p className="mb-3 text-sm font-semibold text-foreground">De onde vieram ({periodo.rotulo.toLowerCase()})</p>
+                {com.leadsPorOrigem.length ? <BarrasH dados={com.leadsPorOrigem} /> : <p className="text-sm text-muted">Nenhum lead no período.</p>}
+              </div>
+              <Lista titulo="Contratos novos" vazio="Nenhum contrato cadastrado no período." itens={com.contratosNovos.map((x) => ({ chave: x.id, texto: <>{x.titulo} <span className="text-muted">· {x.cliente}</span></>, valor: x.valor ? reais(x.valor) : "—" }))} />
+            </div>
+          </div>
+        )}
+
+        {aba === "financeiro" && fin && (
+          <div className="space-y-4">
+            {fin.vazio && <p className="rounded-lg border border-border bg-surface-2 px-4 py-3 text-sm text-muted">Ainda não há lançamentos no Financeiro do portal. Os números aparecem aqui assim que os honorários forem lançados em Gestão › Financeiro.</p>}
+            <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
+              <StatCard label="Faturado no período" value={reais(m.financas.faturado)} href="/admin/financial" />
+              <StatCard label="Recebido no período" value={reais(m.financas.recebido)} tone="success" />
+              <StatCard label="A receber" value={reais(m.financas.aReceber)} />
+              <StatCard label="Inadimplente" value={reais(m.financas.inadimplente)} tone={m.financas.inadimplente ? "danger" : "default"} hint={`${m.financas.clientesInadimplentes} clientes`} />
+            </div>
+            <div className="ui-card min-w-0 p-5">
+              <p className="mb-4 text-sm font-semibold text-foreground">Faturado × recebido por mês (12 meses)</p>
+              <LinhaCriadasConcluidas serie={fin.porMes.map((x) => ({ dia: x.mes, criadas: x.faturado, concluidas: x.recebido }))} rotulos={["Faturado", "Recebido"]} formatar={(v) => reais(v)} />
+            </div>
+            <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
+              <Lista titulo="Clientes que mais pagaram" vazio="Nenhum pagamento registrado." itens={fin.topClientes.map((x) => ({ chave: x.id, href: fichaHref(x.id), texto: x.nome, valor: reais(x.valor) }))} />
+              <Lista titulo="Inadimplentes" vazio="Ninguém em atraso." itens={fin.inadimplentes.map((x) => ({ chave: x.id, href: fichaHref(x.id), texto: <>{x.nome} <span className="text-muted">· desde {x.desde.split("-").reverse().join("/")}</span></>, valor: reais(x.valor), tom: "danger" }))} />
+            </div>
           </div>
         )}
 

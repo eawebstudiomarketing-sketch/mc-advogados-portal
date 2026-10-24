@@ -16,6 +16,7 @@ import { DIA, aberta, atrasada, dataBahia, dentro, dias, hojeBahia, pesoAtividad
 
 const db = () => createAdminClient() as unknown as SupabaseClient;
 const VALIDADE_MS = 60 * 60 * 1000;
+const MAURICIO = "ee479af5-6a30-4741-880a-c9e96ea0079b"; // perfil do Maurício (recebe o resumo das 7h)
 
 export type AcaoGerente =
   | { tipo: "abrir"; href: string; rotulo: string }
@@ -237,4 +238,36 @@ export async function relatorioDoGerente(periodoId: string, { forcar = false } =
   };
   await db().from("painel_gerente").upsert({ chave, conteudo: gerente, created_at: gerente.geradoEm });
   return { ok: true, gerente };
+}
+
+/**
+ * Cron das 7h: o gerente manda no WhatsApp do Maurício o resumo de ONTEM e o
+ * que fazer hoje (1 vez por dia; marca em painel_sugestoes para não repetir).
+ */
+export async function enviarGerenteDoDia(): Promise<string> {
+  const dia = hojeBahia();
+  const { data: ja } = await db().from("painel_sugestoes").select("enviado_em").eq("dia", dia).maybeSingle();
+  if (ja?.enviado_em) return "já enviado hoje";
+  const r = await relatorioDoGerente("ontem");
+  if (!r.ok) return `erro: ${r.error}`;
+  const g = r.gerente;
+  const { data: resp } = await db().from("responsaveis").select("telefone").eq("profile_id", MAURICIO).maybeSingle();
+  const telefone = String(resp?.telefone ?? "").replace(/\D/g, "");
+  if (telefone.length < 10) return "sem telefone do Maurício em Responsáveis";
+  const bola = { alta: "🔴", media: "🟡", baixa: "🟢" } as const;
+  const ontem = somaDias(dia, -1).split("-").reverse().slice(0, 2).join("/");
+  const texto = [
+    `*Bom dia, Maurício! Resumo de ontem (${ontem})*`,
+    "",
+    ...g.resumo.flatMap((p) => [p, ""]),
+    "*O que eu sugiro para hoje:*",
+    ...g.sugestoes.map((s, i) => `${bola[s.prioridade] ?? "•"} ${i + 1}. ${s.texto}`),
+    "",
+    "Painel completo: mcadvogados.app.br/admin/painel",
+  ].join("\n");
+  const { enfileirarMensagem } = await import("@/lib/zap/fila");
+  const job = await enfileirarMensagem({ para: telefone, texto, origemRef: `painel-gerente:${dia}`, expiraEm: new Date(Date.now() + 12 * 3_600_000) });
+  if (!job) return "falha ao enfileirar";
+  await db().from("painel_sugestoes").upsert({ dia, texto: JSON.stringify({ resumo: g.resumo.join("\n\n"), itens: g.sugestoes.map((s) => ({ titulo: s.texto.slice(0, 80), acao: s.texto, prioridade: s.prioridade })) }), metricas: { origem: "gerente" }, enviado_em: new Date().toISOString() });
+  return "enviado";
 }

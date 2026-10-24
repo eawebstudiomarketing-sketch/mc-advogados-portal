@@ -24,7 +24,16 @@ function Legenda({ itens }: { itens: { cor: string; rotulo: string }[] }) {
 }
 
 /** Linhas criadas × concluídas por dia (ou mês), com cruz e balão ao passar o mouse. */
-export function LinhaCriadasConcluidas({ serie }: { serie: { dia: string; criadas: number; concluidas: number }[] }) {
+export function LinhaCriadasConcluidas({
+  serie,
+  rotulos = ["Criadas", "Concluídas"],
+  formatar = (v: number) => v.toLocaleString("pt-BR"),
+}: {
+  serie: { dia: string; criadas: number; concluidas: number }[];
+  /** nomes das duas séries (a mesma linha serve para recebidas × enviadas, faturado × recebido…) */
+  rotulos?: [string, string];
+  formatar?: (v: number) => string;
+}) {
   const [i, setI] = useState<number | null>(null);
   const n = serie.length;
   const max = Math.max(1, ...serie.flatMap((s) => [s.criadas, s.concluidas]));
@@ -37,12 +46,12 @@ export function LinhaCriadasConcluidas({ serie }: { serie: { dia: string; criada
 
   return (
     <div>
-      <Legenda itens={[{ cor: COR_1, rotulo: "Criadas" }, { cor: COR_2, rotulo: "Concluídas" }]} />
+      <Legenda itens={[{ cor: COR_1, rotulo: rotulos[0] }, { cor: COR_2, rotulo: rotulos[1] }]} />
       <div className="mt-3 flex gap-2">
-        <div className="relative h-48 w-6 shrink-0 text-[10px] text-muted tabular-nums">
+        <div className="relative h-48 w-8 shrink-0 text-[10px] text-muted tabular-nums">
           {marcas.map((m) => (
             <span key={m} className="absolute right-0 -translate-y-1/2" style={{ top: `${y(m)}%` }}>
-              {m}
+              {new Intl.NumberFormat("pt-BR", { notation: "compact" }).format(m)}
             </span>
           ))}
         </div>
@@ -71,10 +80,10 @@ export function LinhaCriadasConcluidas({ serie }: { serie: { dia: string; criada
               >
                 <p className="font-medium text-foreground">{rotuloData(serie[i].dia)}</p>
                 <p className="mt-1 flex items-center gap-1.5 text-muted">
-                  <span className="h-2 w-2 rounded-full" style={{ background: COR_1 }} /> Criadas <b className="ml-auto pl-3 text-foreground tabular-nums">{serie[i].criadas}</b>
+                  <span className="h-2 w-2 rounded-full" style={{ background: COR_1 }} /> {rotulos[0]} <b className="ml-auto pl-3 text-foreground tabular-nums">{formatar(serie[i].criadas)}</b>
                 </p>
                 <p className="flex items-center gap-1.5 text-muted">
-                  <span className="h-2 w-2 rounded-full" style={{ background: COR_2 }} /> Concluídas <b className="ml-auto pl-3 text-foreground tabular-nums">{serie[i].concluidas}</b>
+                  <span className="h-2 w-2 rounded-full" style={{ background: COR_2 }} /> {rotulos[1]} <b className="ml-auto pl-3 text-foreground tabular-nums">{formatar(serie[i].concluidas)}</b>
                 </p>
               </div>
             </>
@@ -86,7 +95,7 @@ export function LinhaCriadasConcluidas({ serie }: { serie: { dia: string; criada
           </div>
         </div>
       </div>
-      <div className="relative ml-8 mt-1.5 h-4 text-[10px] text-muted">
+      <div className="relative ml-10 mt-1.5 h-4 text-[10px] text-muted">
         {serie.map((s, k) =>
           k % passo === 0 || k === n - 1 ? (
             <span key={s.dia} className="absolute -translate-x-1/2 whitespace-nowrap" style={{ left: `${x(k)}%` }}>
@@ -163,5 +172,25 @@ export function BarraSituacao({ linhas }: { linhas: { rotulo: string; aceita: nu
         );
       })}
     </div>
+  );
+}
+
+/** Barras horizontais simples (uma série), com o valor ao lado. */
+export function BarrasH({ dados }: { dados: { rotulo: string; valor: number }[] }) {
+  const max = Math.max(1, ...dados.map((d) => d.valor));
+  return (
+    <ul className="space-y-2">
+      {dados.map((d) => (
+        <li key={d.rotulo} className="grid grid-cols-[minmax(0,9rem)_1fr] items-center gap-3 text-xs">
+          <span className="truncate text-foreground" title={d.rotulo}>
+            {d.rotulo}
+          </span>
+          <span className="flex items-center gap-2">
+            <span className="h-2.5 rounded-r-[4px]" style={{ width: `${Math.max(2, (d.valor / max) * 85)}%`, background: COR_1 }} />
+            <span className="tabular-nums text-muted">{d.valor}</span>
+          </span>
+        </li>
+      ))}
+    </ul>
   );
 }

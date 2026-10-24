@@ -1,6 +1,6 @@
 import "server-only";
 import { calcularMetricas, periodoDe } from "@/lib/painel/metricas";
-import { gerarSugestoes } from "@/lib/painel/sugestao";
+import { relatorioDoGerente } from "@/lib/painel/gerente";
 import type { ToolDef } from "./tools";
 
 // Painel do Dono (só admin máximo): o assistente lê os mesmos números da tela
@@ -58,16 +58,17 @@ export const TOOLS_PAINEL: ToolDef[] = [
     },
   },
   {
-    name: "sugestoes_do_dia",
+    name: "resumo_do_gerente",
     kind: "read",
     soSuper: true,
-    label: "Leu as sugestões do dia",
-    description: "As sugestões de melhoria de hoje do Painel do Dono (geradas 1x por dia às 7h e enviadas no WhatsApp do Maurício). Se ainda não houver, gera agora.",
-    parameters: obj({}),
-    run: async () => {
-      const r = await gerarSugestoes();
+    label: "Leu o resumo do gerente",
+    description: "O \"gerente\" do Painel do Dono: resumo do período (o que entrou, o que cada um concluiu, atrasos, WhatsApp, Distribuição) e sugestões do que fazer (redistribuir demandas, responder clientes com andamento novo, audiência amanhã, prazos parados…). Vem do cache (não gasta IA de novo). periodo: hoje | ontem | 7d | mes (padrão) | 30d | mes-anterior | ano.",
+    parameters: obj({ periodo: { type: "string", enum: [...PERIODOS, "ontem"] } }),
+    run: async (a) => {
+      const id = [...PERIODOS, "ontem"].includes(String(a.periodo)) ? String(a.periodo) : "mes";
+      const r = await relatorioDoGerente(id);
       if (!r.ok) throw new Error(r.error);
-      return { ...r.sugestoes, link_no_portal: "/admin/painel" };
+      return { periodo: r.gerente.periodo, resumo: r.gerente.resumo, sugestoes: r.gerente.sugestoes.map((x) => ({ texto: x.texto, prioridade: x.prioridade, links: x.acoes.filter((c) => c.tipo === "abrir").map((c) => (c as { href: string }).href) })), link_no_portal: `/admin/painel?p=${id}` };
     },
   },
 ];

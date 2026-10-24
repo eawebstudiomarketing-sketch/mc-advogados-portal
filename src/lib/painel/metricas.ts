@@ -160,6 +160,13 @@ export async function calcularMetricas(p: Periodo) {
   let recebidas = 0;
   let enviadas = 0;
   const porHora = Array.from({ length: 24 }, () => 0);
+  const zapPorDia = new Map<string, { recebidas: number; enviadas: number; tempos: number[] }>();
+  const doDia = (iso: string) => {
+    const k = new Date(iso).toLocaleDateString("en-CA", { timeZone: "America/Bahia" });
+    if (!zapPorDia.has(k)) zapPorDia.set(k, { recebidas: 0, enviadas: 0, tempos: [] });
+    return zapPorDia.get(k)!;
+  };
+  const temposPorPessoa = new Map<string, number[]>();
   const esperando = new Map<string, string>(); // chat → desde quando o cliente espera
   for (const m of msgs) {
     const noPeriodo = dentro(m.wa_timestamp, p.ini, p.fim);
@@ -167,6 +174,7 @@ export async function calcularMetricas(p: Periodo) {
     if (!m.from_me) {
       if (noPeriodo) {
         recebidas++;
+        doDia(m.wa_timestamp).recebidas++;
         porHora[Number(new Date(m.wa_timestamp).toLocaleString("en-US", { timeZone: "America/Bahia", hour: "2-digit", hour12: false })) % 24]++;
       }
       if (!esperando.has(m.chat_jid)) esperando.set(m.chat_jid, m.wa_timestamp);
@@ -174,13 +182,21 @@ export async function calcularMetricas(p: Periodo) {
     }
     if (noPeriodo) {
       enviadas++;
+      doDia(m.wa_timestamp).enviadas++;
       const autor = m.job_id ? autorDoJob.get(m.job_id) : null;
       if (m.quem === "ia") respostasIa++;
       else if (autor) respostasPorPessoa.set(autor, (respostasPorPessoa.get(autor) ?? 0) + 1);
       else respostasCelular++;
     }
     const desde = esperando.get(m.chat_jid);
-    if (desde && deCliente && noPeriodo && m.quem !== "ia") temposResposta.push((Date.parse(m.wa_timestamp) - Date.parse(desde)) / 3_600_000);
+    if (desde && deCliente && noPeriodo && m.quem !== "ia") {
+      const t = (Date.parse(m.wa_timestamp) - Date.parse(desde)) / 3_600_000;
+      temposResposta.push(t);
+      doDia(m.wa_timestamp).tempos.push(t);
+      const autor = m.job_id ? autorDoJob.get(m.job_id) : null;
+      const quem = autor ?? "_celular";
+      temposPorPessoa.set(quem, [...(temposPorPessoa.get(quem) ?? []), t]);
+    }
     esperando.delete(m.chat_jid);
   }
   const esperandoAgora = [...esperando.entries()]
@@ -371,6 +387,8 @@ export async function calcularMetricas(p: Periodo) {
       respostasCelular,
       respostasPorPessoa: [...respostasPorPessoa.entries()].map(([id, n]) => ({ nome: nomePerfil.get(id) ?? "?", n })).sort((a, b) => b.n - a.n),
       porHora,
+      porDia: [...zapPorDia.entries()].filter(([d]) => d >= new Date(p.ini).toLocaleDateString("en-CA", { timeZone: "America/Bahia" })).sort((a, b) => a[0].localeCompare(b[0])).map(([dia, v]) => ({ dia, recebidas: v.recebidas, enviadas: v.enviadas, respostaMedianaHoras: arred(mediana(v.tempos), 1) })),
+      tempoPorPessoa: [...temposPorPessoa.entries()].map(([id, ts]) => ({ nome: id === "_celular" ? "Pelo celular" : nomePerfil.get(id) ?? "?", respondidas: ts.length, medianaHoras: arred(mediana(ts), 1) })).sort((a, b) => b.respondidas - a.respondidas),
       esperandoAgora,
     },
     satisfacao: { media: arred(media(notas), 1), avaliadas: notas.length, menos: satisfacaoClientes.filter((c) => c.nota < 4).slice(0, 8), mais: satisfacaoClientes.filter((c) => c.nota >= 4).reverse().slice(0, 8) },
