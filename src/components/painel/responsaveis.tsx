@@ -196,8 +196,9 @@ export function FichaPessoa({ pessoaId, linhaDoTempo, extras }: { pessoaId: stri
                     {g.itens.map((a) => (
                       <li key={a.id} className="border-t border-border first:border-t-0">
                         <Link href={`/admin/activities/${a.id}`} className="flex items-center gap-3 rounded-md py-2 hover:bg-[var(--hover)]">
-                          <span className="min-w-0 flex-1 truncate text-sm text-foreground">
-                            {a.titulo} <span className="text-muted">· {a.clienteId ? clientes.get(a.clienteId)?.nome ?? "?" : "sem cliente"}</span>
+                          <span className="min-w-0 flex-1">
+                            <span className="block truncate text-sm font-medium text-foreground">{a.clienteId ? clientes.get(a.clienteId)?.nome ?? "?" : "Sem cliente"}</span>
+                            <span className="block truncate text-xs text-muted">{a.titulo}</span>
                           </span>
                           <span className="shrink-0 text-xs tabular-nums text-muted">{a.prazo ? `${a.prazo.slice(8, 10)}/${a.prazo.slice(5, 7)}${a.hora ? ` ${a.hora}` : ""}` : "—"}</span>
                         </Link>

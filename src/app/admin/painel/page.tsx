@@ -621,10 +621,10 @@ export default async function PainelPage({ searchParams }: { searchParams: Promi
               </div>
             </div>
             <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
-              <Lista titulo="Andamentos novos ainda não vistos" vazio="Nenhum andamento novo." itens={proc.ultimosAndamentos.map((x) => ({ chave: x.id, href: `/admin/processes/${x.processoId}`, texto: <>{x.descricao || "Andamento"} <span className="text-muted">· {x.cliente ?? x.numero}</span></>, valor: quando(x.quando) }))} />
-              <Lista titulo="Publicações esperando tratamento" vazio="Todas as publicações foram tratadas." itens={proc.publicacoesParadas.map((x) => ({ chave: x.id, href: "/admin/publicacoes", texto: <>{x.tipo ?? "Publicação"} · {x.numero ?? ""} <span className="text-muted">· {x.cliente ?? x.tribunal ?? ""}</span></>, valor: `${x.dias} d`, tom: x.dias > 2 ? "danger" : "pending" }))} />
+              <Lista titulo="Andamentos novos ainda não vistos" vazio="Nenhum andamento novo." itens={proc.ultimosAndamentos.map((x) => ({ chave: x.id, href: `/admin/processes/${x.processoId}`, texto: <><b className="font-medium">{x.cliente ?? "Sem cliente"}</b> <span className="text-muted">· {x.descricao || "Andamento"}</span></>, valor: quando(x.quando) }))} />
+              <Lista titulo="Publicações esperando tratamento" vazio="Todas as publicações foram tratadas." itens={proc.publicacoesParadas.map((x) => ({ chave: x.id, href: "/admin/publicacoes", texto: <><b className="font-medium">{x.cliente ?? "Sem cliente"}</b> <span className="text-muted">· {x.tipo ?? "Publicação"} {x.numero ?? ""} · {x.tribunal ?? ""}</span></>, valor: `${x.dias} d`, tom: x.dias > 2 ? "danger" : "pending" }))} />
             </div>
-            <Lista titulo="Processos parados (sem andamento há 90+ dias)" vazio="Nenhum processo parado." itens={proc.parados.map((x) => ({ chave: x.id, href: `/admin/processes/${x.id}`, texto: <>{x.numero ?? "sem número"} <span className="text-muted">· {x.cliente ?? x.titulo ?? ""}{x.resp ? ` · ${x.resp}` : ""}</span></>, valor: x.ultimo ? `último ${new Date(x.ultimo).toLocaleDateString("pt-BR")}` : "sem andamento", tom: "pending" }))} />
+            <Lista titulo="Processos parados (sem andamento há 90+ dias)" vazio="Nenhum processo parado." itens={proc.parados.map((x) => ({ chave: x.id, href: `/admin/processes/${x.id}`, texto: <><b className="font-medium">{x.resp ?? "Sem responsável"}</b> · {x.cliente ?? "Sem cliente"} <span className="text-muted">· {x.numero ?? x.titulo ?? ""}</span></>, valor: x.ultimo ? `último ${new Date(x.ultimo).toLocaleDateString("pt-BR")}` : "sem andamento", tom: "pending" }))} />
           </div>
         )}
 

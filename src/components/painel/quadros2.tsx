@@ -6,6 +6,7 @@ import { PERIODOS, aberta, atrasada, dataBahia, dentro, hojeBahia, pesoAtividade
 import type { LinhaDist } from "@/lib/painel/extras";
 import { BarraSituacao, Barras, COR_1, COR_2 } from "./graficos";
 import { FiltroQuadro, Quadro, usePainel, useFiltro } from "./contexto";
+import { Avatar, LinhaAgenda, PorResponsavel } from "./pessoas";
 
 const MESES = ["jan", "fev", "mar", "abr", "mai", "jun", "jul", "ago", "set", "out", "nov", "dez"];
 const ORIGEM: Record<string, string> = { whatsapp: "WhatsApp", portal_cliente: "Portal do cliente", publicacao: "Publicações", email: "E-mail", outro: "Outro" };
@@ -260,8 +261,11 @@ export function QuadroDistParados({ dist }: { dist: LinhaDist[] }) {
           return (
             <li key={d.id} className="border-t border-border first:border-t-0">
               <Link href={`/admin/distribuicao?origem=${d.origem}`} className="flex items-center gap-3 rounded-md py-2 hover:bg-[var(--hover)]">
-                <span className="min-w-0 flex-1 truncate text-sm text-foreground">
-                  {d.titulo} <span className="text-muted">· {d.clienteId ? clientes.get(d.clienteId)?.nome ?? "?" : "sem cliente"} · {ORIGEM[d.origem] ?? d.origem}</span>
+                <span className="min-w-0 flex-1">
+                  <span className="block truncate text-sm font-medium text-foreground">{d.clienteId ? clientes.get(d.clienteId)?.nome ?? "?" : "Sem cliente"}</span>
+                  <span className="block truncate text-xs text-muted">
+                    {d.titulo} · {ORIGEM[d.origem] ?? d.origem}
+                  </span>
                 </span>
                 <span className={`shrink-0 text-xs font-medium tabular-nums ${diasP > 2 ? "text-status-danger" : "text-muted"}`}>{diasP} d</span>
               </Link>
@@ -286,13 +290,11 @@ const diaSemana = (d: string) => SEMANA[new Date(`${d}T12:00:00Z`).getUTCDay()];
 /** Próximos 14 dias: prazos e audiências por dia. */
 export function QuadroAgenda() {
   const { filtro, setFiltro, linhas } = useFiltro();
-  const { clientes, responsaveis } = usePainel();
   const hoje = hojeBahia();
   const dias = Array.from({ length: 14 }, (_, k) => somaDias(hoje, k));
   const porDia = dias.map((d) => ({ d, itens: linhas.filter((a) => aberta(a) && a.prazo === d).sort((a, b) => (a.hora ?? "99").localeCompare(b.hora ?? "99")) })).filter((x) => x.itens.length);
-  const nomeResp = (id: string | null) => responsaveis.find((r) => r.id === id)?.nome ?? "sem responsável";
   return (
-    <Quadro titulo="Próximos 14 dias" apoio="Prazos, audiências e tarefas com data" filtro={<FiltroQuadro filtro={filtro} setFiltro={setFiltro} campos={{ resp: true, cliente: true, tipo: true }} />}>
+    <Quadro titulo="Próximos 14 dias" apoio="Quem tem o quê, para qual cliente, em cada dia" filtro={<FiltroQuadro filtro={filtro} setFiltro={setFiltro} campos={{ resp: true, cliente: true, tipo: true }} />}>
       {porDia.length === 0 ? (
         <p className="text-sm text-muted">Nada com prazo nos próximos 14 dias.</p>
       ) : (
@@ -304,16 +306,17 @@ export function QuadroAgenda() {
               </p>
               <ul>
                 {itens.map((a) => (
-                  <li key={a.id} className="border-t border-border first:border-t-0">
-                    <Link href={`/admin/activities/${a.id}`} className="flex items-center gap-3 rounded-md py-2 hover:bg-[var(--hover)]">
-                      <span className="w-12 shrink-0 text-xs tabular-nums text-muted">{a.hora ?? "—"}</span>
-                      {a.categoria === "audiencia" && <span className="shrink-0 rounded-full bg-status-info-bg px-2 py-0.5 text-[10px] font-medium text-status-info">Audiência</span>}
-                      {a.categoria === "prazo" && <span className="shrink-0 rounded-full bg-status-pending-bg px-2 py-0.5 text-[10px] font-medium text-status-pending">Prazo</span>}
-                      <span className="min-w-0 flex-1 truncate text-sm text-foreground">
-                        {a.titulo} <span className="text-muted">· {a.clienteId ? clientes.get(a.clienteId)?.nome ?? "?" : "sem cliente"} · {nomeResp(a.respId)}</span>
-                      </span>
-                    </Link>
-                  </li>
+                  <LinhaAgenda
+                    key={a.id}
+                    a={a}
+                    etiqueta={
+                      a.categoria === "audiencia" ? (
+                        <span className="shrink-0 rounded-full bg-status-info-bg px-2 py-0.5 text-[10px] font-medium text-status-info">Audiência</span>
+                      ) : a.categoria === "prazo" ? (
+                        <span className="shrink-0 rounded-full bg-status-pending-bg px-2 py-0.5 text-[10px] font-medium text-status-pending">Prazo</span>
+                      ) : undefined
+                    }
+                  />
                 ))}
               </ul>
             </div>
@@ -350,7 +353,12 @@ export function QuadroCargaSemana({ equipe }: { equipe: string[] }) {
           <tbody>
             {pessoas.map((r) => (
               <tr key={r.id}>
-                <td className="truncate pr-2 text-foreground">{r.nome}</td>
+                <td className="pr-2">
+                  <span className="flex items-center gap-2 truncate text-foreground">
+                    <Avatar nome={r.nome} foto={r.foto} tamanho={24} />
+                    {r.nome}
+                  </span>
+                </td>
                 {dias.map((d) => {
                   const its = celula(r.id, d);
                   const peso = its.reduce((s, a) => s + pesoAtividade(a, hoje), 0);
@@ -377,27 +385,17 @@ export function QuadroCargaSemana({ equipe }: { equipe: string[] }) {
 /** Vencidas sem fazer, por pessoa. */
 export function QuadroVencidas() {
   const { filtro, setFiltro, linhas } = useFiltro();
-  const { clientes, responsaveis } = usePainel();
   const hoje = hojeBahia();
   const venc = linhas.filter((a) => atrasada(a, hoje)).sort((a, b) => a.prazo!.localeCompare(b.prazo!));
+  const diasAtraso = (p: string) => Math.round((Date.parse(`${hoje}T12:00:00Z`) - Date.parse(`${p}T12:00:00Z`)) / 86_400_000);
   return (
-    <Quadro titulo="Venceram sem ser feitas" apoio={`${venc.length} atrasadas`} filtro={<FiltroQuadro filtro={filtro} setFiltro={setFiltro} campos={{ resp: true, cliente: true, tipo: true }} />}>
-      {venc.length === 0 ? (
-        <p className="text-sm text-muted">Nada atrasado com esse filtro. 👏</p>
-      ) : (
-        <ul>
-          {venc.map((a) => (
-            <li key={a.id} className="border-t border-border first:border-t-0">
-              <Link href={`/admin/activities/${a.id}`} className="flex items-center gap-3 rounded-md py-2 hover:bg-[var(--hover)]">
-                <span className="min-w-0 flex-1 truncate text-sm text-foreground">
-                  {a.titulo} <span className="text-muted">· {a.clienteId ? clientes.get(a.clienteId)?.nome ?? "?" : "sem cliente"} · {responsaveis.find((r) => r.id === a.respId)?.nome ?? "sem responsável"}</span>
-                </span>
-                <span className="shrink-0 text-xs font-medium tabular-nums text-status-danger">venceu {a.prazo!.slice(8, 10)}/{a.prazo!.slice(5, 7)}</span>
-              </Link>
-            </li>
-          ))}
-        </ul>
-      )}
+    <Quadro titulo="Quem deixou atrasar" apoio={`${venc.length} atividade(s) venceram sem ser feitas`} filtro={<FiltroQuadro filtro={filtro} setFiltro={setFiltro} campos={{ resp: true, cliente: true, tipo: true }} />}>
+      <PorResponsavel
+        itens={venc}
+        vazio="Nada atrasado com esse filtro. 👏"
+        rotuloContagem={(n) => `${n} atrasada${n > 1 ? "s" : ""}`}
+        direita={(a) => ({ texto: `venceu ${a.prazo!.slice(8, 10)}/${a.prazo!.slice(5, 7)} · ${diasAtraso(a.prazo!)} d`, tom: "text-status-danger" })}
+      />
     </Quadro>
   );
 }
@@ -414,8 +412,10 @@ export function AtividadesDoCliente({ clienteId }: { clienteId: string }) {
   const Linha = ({ a, direita, tom }: { a: (typeof minhas)[number]; direita: string; tom?: string }) => (
     <li className="border-t border-border first:border-t-0">
       <Link href={`/admin/activities/${a.id}`} className="flex items-center gap-3 rounded-md py-2 hover:bg-[var(--hover)]">
-        <span className="min-w-0 flex-1 truncate text-sm text-foreground">
-          {a.titulo} <span className="text-muted">· {nomeResp(a.respId)}</span>
+        <Avatar nome={nomeResp(a.respId)} foto={responsaveis.find((r) => r.id === a.respId)?.foto} tamanho={26} />
+        <span className="min-w-0 flex-1">
+          <span className="block truncate text-sm font-medium text-foreground">{nomeResp(a.respId)}</span>
+          <span className="block truncate text-xs text-muted">{a.titulo}</span>
         </span>
         <span className={`shrink-0 text-xs tabular-nums ${tom ?? "text-muted"}`}>{direita}</span>
       </Link>

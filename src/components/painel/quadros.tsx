@@ -1,12 +1,12 @@
 "use client";
 
 import Link from "next/link";
-import { useMemo, useState } from "react";
+import { useMemo } from "react";
 import { DIA, TIPOS, aberta, atrasada, dataBahia, dentro, dias, hojeBahia, pesoAtividade, type LinhaAtividade } from "@/lib/painel/base";
 import { COR_1, COR_2, LinhaCriadasConcluidas } from "./graficos";
 import { FiltroQuadro, Quadro, usePainel, useFiltro } from "./contexto";
+import { Avatar, PorResponsavel } from "./pessoas";
 
-const dataBr = (d: string) => d.split("-").reverse().join("/");
 
 /** Criadas × concluídas por dia (ou mês, em períodos longos). */
 export function QuadroCriadasConcluidas() {
@@ -83,52 +83,20 @@ export function QuadroPorTipo() {
   );
 }
 
-function LinhaAtividadeItem({ a, mostrarResp = true }: { a: LinhaAtividade; mostrarResp?: boolean }) {
-  const { clientes, responsaveis } = usePainel();
-  const hoje = hojeBahia();
-  const idade = Math.floor(dias(a.pedido, new Date(Date.parse(`${hoje}T15:00:00Z`)).toISOString()));
-  const atras = atrasada(a, hoje);
-  return (
-    <li className="border-t border-border first:border-t-0">
-      <Link href={`/admin/activities/${a.id}`} className="flex items-center gap-3 rounded-md py-2 hover:bg-[var(--hover)]">
-        <span className="min-w-0 flex-1 truncate text-sm text-foreground">
-          {a.titulo}{" "}
-          <span className="text-muted">
-            · {a.clienteId ? clientes.get(a.clienteId)?.nome ?? "?" : "sem cliente"}
-            {mostrarResp ? ` · ${responsaveis.find((r) => r.id === a.respId)?.nome ?? "sem responsável"}` : ""}
-          </span>
-        </span>
-        <span className={`shrink-0 text-xs font-medium tabular-nums ${atras ? "text-status-danger" : "text-muted"}`}>
-          {a.prazo ? `${atras ? "venceu " : "vence "}${dataBr(a.prazo)}` : `${idade} dias`}
-        </span>
-      </Link>
-    </li>
-  );
-}
-
 /** Abertas há mais tempo (sem período: é o que está aberto agora). */
-export function QuadroAbertasAntigas({ limite = 10 }: { limite?: number }) {
+export function QuadroAbertasAntigas() {
   const { filtro, setFiltro, linhas } = useFiltro();
-  const [todas, setTodas] = useState(false);
+  const hoje = hojeBahia();
   const abertas = useMemo(() => linhas.filter(aberta).sort((a, b) => a.pedido.localeCompare(b.pedido)), [linhas]);
+  const idade = (a: LinhaAtividade) => Math.floor(dias(a.pedido, `${hoje}T15:00:00Z`));
   return (
-    <Quadro titulo="Abertas há mais tempo" apoio={`${abertas.length} abertas agora`} filtro={<FiltroQuadro filtro={filtro} setFiltro={setFiltro} campos={{ resp: true, cliente: true, tipo: true }} />}>
-      {abertas.length === 0 ? (
-        <p className="text-sm text-muted">Nenhuma atividade aberta com esse filtro.</p>
-      ) : (
-        <>
-          <ul>
-            {(todas ? abertas : abertas.slice(0, limite)).map((a) => (
-              <LinhaAtividadeItem key={a.id} a={a} />
-            ))}
-          </ul>
-          {abertas.length > limite && (
-            <button type="button" onClick={() => setTodas((v) => !v)} className="mt-2 text-xs text-muted underline-offset-2 hover:text-foreground hover:underline">
-              {todas ? "Mostrar menos" : `Ver todas (${abertas.length})`}
-            </button>
-          )}
-        </>
-      )}
+    <Quadro titulo="Quem está com coisa parada" apoio={`${abertas.length} abertas agora · mais antigas primeiro`} filtro={<FiltroQuadro filtro={filtro} setFiltro={setFiltro} campos={{ resp: true, cliente: true, tipo: true }} />}>
+      <PorResponsavel
+        itens={abertas}
+        vazio="Nenhuma atividade aberta com esse filtro."
+        rotuloContagem={(n) => `${n} aberta${n > 1 ? "s" : ""}`}
+        direita={(a) => (atrasada(a, hoje) ? { texto: `atrasada · ${idade(a)} d`, tom: "text-status-danger" } : { texto: a.prazo ? `vence ${a.prazo.slice(8, 10)}/${a.prazo.slice(5, 7)}` : `há ${idade(a)} d` })}
+      />
     </Quadro>
   );
 }
@@ -142,7 +110,7 @@ export function QuadroCarga({ equipe }: { equipe: string[] }) {
     .filter((r) => equipe.includes(r.id))
     .map((r) => {
       const minhas = linhas.filter((a) => a.respId === r.id && aberta(a));
-      return { id: r.id, nome: r.nome, carga: Math.round(minhas.reduce((s, a) => s + pesoAtividade(a, hoje), 0) * 10) / 10, abertas: minhas.length, atrasadas: minhas.filter((a) => atrasada(a, hoje)).length };
+      return { id: r.id, nome: r.nome, foto: r.foto, carga: Math.round(minhas.reduce((s, a) => s + pesoAtividade(a, hoje), 0) * 10) / 10, abertas: minhas.length, atrasadas: minhas.filter((a) => atrasada(a, hoje)).length };
     })
     .sort((a, b) => b.carga - a.carga);
   const max = Math.max(1, ...dados.map((d) => d.carga));
@@ -156,7 +124,10 @@ export function QuadroCarga({ equipe }: { equipe: string[] }) {
             <li key={d.id}>
               <Link href={`/admin/painel?aba=responsaveis&pessoa=${d.id}`} className="group block">
                 <div className="mb-1 flex justify-between text-xs">
-                  <span className="text-foreground group-hover:underline">{d.nome}</span>
+                  <span className="flex items-center gap-2 text-foreground group-hover:underline">
+                    <Avatar nome={d.nome} foto={d.foto} tamanho={22} />
+                    {d.nome}
+                  </span>
                   <span className="tabular-nums text-muted">
                     {d.abertas} abertas{d.atrasadas ? <span className="text-status-danger"> · {d.atrasadas} atrasadas</span> : null} · carga <b className={alta ? "text-status-danger" : "text-foreground"}>{d.carga}</b>
                   </span>
