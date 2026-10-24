@@ -127,3 +127,18 @@ export function aplicarFiltro(linhas: LinhaAtividade[], f: Filtro, clientes: Map
     return true;
   });
 }
+
+/** Evolução dia a dia no período (para os minigráficos): criadas, concluídas, abertas e atrasadas. */
+export function seriesAtividades(ats: LinhaAtividade[], ini: string, fim: string) {
+  const dias: string[] = [];
+  for (let t = Date.parse(ini); t < Date.parse(fim); t += DIA) dias.push(dataBahia(new Date(t).toISOString()));
+  const passo = Math.max(1, Math.ceil(dias.length / 40));
+  const usados = dias.filter((_, k) => k % passo === 0 || k === dias.length - 1);
+  const fimDoDia = (d: string) => new Date(`${somaDias(d, 1)}T03:00:00Z`).toISOString();
+  return {
+    criadas: usados.map((d) => ats.filter((a) => dataBahia(a.criada) === d).length),
+    concluidas: usados.map((d) => ats.filter((a) => a.status === "concluida" && a.concluida && dataBahia(a.concluida) === d).length),
+    abertas: usados.map((d) => ats.filter((a) => a.criada < fimDoDia(d) && (a.status !== "concluida" || (a.concluida && a.concluida >= fimDoDia(d))) && a.status !== "cancelada").length),
+    atrasadas: usados.map((d) => ats.filter((a) => a.criada < fimDoDia(d) && (a.status !== "concluida" || (a.concluida && a.concluida >= fimDoDia(d))) && a.status !== "cancelada" && !!a.prazo && a.prazo < d).length),
+  };
+}

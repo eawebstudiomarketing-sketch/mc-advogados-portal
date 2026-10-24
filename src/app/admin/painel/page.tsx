@@ -5,9 +5,10 @@ import { createAdminClient } from "@/lib/supabase/admin";
 import { jidsDoFone } from "@/lib/painel/equipe-zap";
 import { calcularMetricas } from "@/lib/painel/metricas";
 import { carregarBase } from "@/lib/painel/dados";
-import { PERIODOS, dentro, dias as diasEntre, media, notaPorTempo, noPrazo, periodoDe, type Periodo } from "@/lib/painel/base";
+import { PERIODOS, dentro, dias as diasEntre, media, notaPorTempo, noPrazo, periodoDe, seriesAtividades, type Periodo } from "@/lib/painel/base";
 import { StatCard } from "@/components/ui/stat-card";
 import { Barras, BarrasH, LinhaCriadasConcluidas } from "@/components/painel/graficos";
+import { Anel, KpiCard, Medidor, Ranking, Rosca } from "@/components/painel/graficos2";
 import { AtividadesDoCliente, MapaCalorClientes, QuadroAgenda, QuadroCargaSemana, QuadroDistChegadas, QuadroDistDecisoes, QuadroDistParados, QuadroVencidas } from "@/components/painel/quadros2";
 import { dadosComercial, dadosFinanceiro, dadosProcessos, fichaCliente, linhasDistribuicao, ultimosMeses } from "@/lib/painel/extras";
 import { PainelBase } from "@/components/painel/contexto";
@@ -164,9 +165,9 @@ export default async function PainelPage({ searchParams }: { searchParams: Promi
   const satisfCli = notasCli.length ? Math.round(media(notasCli)! * 10) / 10 : null;
   const equipeIds = base.responsaveis.filter((r) => r.profileId && m.equipe.some((e) => e.id === r.profileId)).map((r) => r.id);
   const a = m.atividades;
+  const serie = seriesAtividades(base.atividades, periodo.ini, periodo.fim);
   const d = m.distribuicao;
   const w = m.atendimento;
-  const tomSaude = m.saude >= 75 ? "text-status-success" : m.saude >= 50 ? "text-status-pending" : "text-status-danger";
   const COMPONENTES: { chave: keyof typeof m.componentes; rotulo: string; max: number }[] = [
     { chave: "prazo", rotulo: "Entregas no prazo", max: 25 },
     { chave: "resposta", rotulo: "Rapidez no WhatsApp", max: 20 },
@@ -232,39 +233,60 @@ export default async function PainelPage({ searchParams }: { searchParams: Promi
 
         {aba === "resumo" && (
           <div className="space-y-4">
-            <div className="grid grid-cols-1 gap-4 lg:grid-cols-[minmax(0,20rem)_1fr]">
+            <div className="grid grid-cols-1 gap-4 lg:grid-cols-[minmax(0,22rem)_1fr]">
               <div className="ui-card p-5">
                 <p className="text-sm font-semibold text-foreground">Saúde do escritório</p>
-                <p className={`numero-grande mt-2 text-[3.5rem] leading-none ${tomSaude}`}>
-                  {m.saude}
-                  <span className="text-xl text-muted">/100</span>
-                </p>
-                <ul className="mt-4 space-y-2.5">
-                  {COMPONENTES.map((c) => (
-                    <li key={c.chave}>
-                      <div className="flex justify-between text-xs">
-                        <span className="text-muted">{c.rotulo}</span>
-                        <span className="tabular-nums text-foreground">
-                          {m.componentes[c.chave]}/{c.max}
-                        </span>
-                      </div>
-                      <div className="mt-1 h-1.5 rounded-full bg-surface-2">
-                        <div className="h-full rounded-full bg-navy dark:bg-[#3a6ea5]" style={{ width: `${(m.componentes[c.chave] / c.max) * 100}%` }} />
-                      </div>
-                    </li>
-                  ))}
+                <p className="mt-0.5 text-xs text-muted">Nota de 0 a 100 somando as 6 partes abaixo</p>
+                <div className="mt-4">
+                  <Medidor valor={m.saude} rotulo={m.saude >= 75 ? "saudável" : m.saude >= 50 ? "pede atenção" : "crítico"} />
+                </div>
+                <ul className="mt-5 space-y-2.5">
+                  {COMPONENTES.map((c) => {
+                    const pct = (m.componentes[c.chave] / c.max) * 100;
+                    return (
+                      <li key={c.chave}>
+                        <div className="flex justify-between text-xs">
+                          <span className="text-muted">{c.rotulo}</span>
+                          <span className="tabular-nums text-foreground">
+                            {m.componentes[c.chave]}/{c.max}
+                          </span>
+                        </div>
+                        <div className="mt-1 h-2 rounded-full bg-surface-2">
+                          <div className="h-full rounded-full" style={{ width: `${pct}%`, background: pct >= 75 ? "var(--status-success)" : pct >= 50 ? "var(--status-pending)" : "var(--status-danger)" }} />
+                        </div>
+                      </li>
+                    );
+                  })}
                 </ul>
               </div>
               <div className="grid grid-cols-2 content-start gap-3 md:grid-cols-3">
-                <StatCard label="Criadas" value={num(a.criadas)} hint={variacao(a.criadas, a.criadasAnt)} />
-                <StatCard label="Concluídas" value={num(a.concluidas)} hint={variacao(a.concluidas, a.concluidasAnt)} tone="success" />
-                <StatCard label="Abertas agora" value={num(a.abertas)} href="/admin/activities" />
-                <StatCard label="Atrasadas" value={num(a.atrasadas)} tone={a.atrasadas ? "danger" : "default"} />
-                <StatCard label="No prazo" value={num(a.noPrazoPct, "%")} hint="das concluídas" tone={a.noPrazoPct !== null && a.noPrazoPct < 80 ? "pending" : "default"} />
-                <StatCard label="Pedido → entrega" value={a.tempoMedioDias === null ? "—" : `${a.tempoMedioDias.toLocaleString("pt-BR")} d`} hint={a.tempoMedianoDias === null ? undefined : `mediana ${a.tempoMedianoDias.toLocaleString("pt-BR")} d`} />
-                <StatCard label="Resposta no Zap" value={horas(w.respostaMedianaHoras)} hint="mediana" tone={w.respostaMedianaHoras !== null && w.respostaMedianaHoras > 4 ? "pending" : "default"} />
-                <StatCard label="Na Distribuição" value={num(d.pendentesAgora)} hint={`${d.pendentesHaMaisDe2Dias} há +2 dias`} tone={d.pendentesHaMaisDe2Dias ? "danger" : "default"} href="/admin/distribuicao" />
-                <StatCard label="Satisfação" value={m.satisfacao.media === null ? "—" : `${m.satisfacao.media.toLocaleString("pt-BR")} / 5`} hint="pelo tempo de atendimento" />
+                <KpiCard rotulo="Criadas" valor={num(a.criadas)} serie={serie.criadas} apoio={variacao(a.criadas, a.criadasAnt)} />
+                <KpiCard rotulo="Concluídas" valor={num(a.concluidas)} serie={serie.concluidas} apoio={variacao(a.concluidas, a.concluidasAnt)} tom="success" />
+                <KpiCard rotulo="Abertas" valor={num(a.abertas)} serie={serie.abertas} apoio="evolução no período" href="/admin/activities" />
+                <KpiCard rotulo="Atrasadas" valor={num(a.atrasadas)} serie={serie.atrasadas} apoio="evolução no período" tom={a.atrasadas ? "danger" : undefined} />
+                <KpiCard rotulo="Resposta no Zap" valor={horas(w.respostaMedianaHoras)} serie={w.porDia.map((x) => x.respostaMedianaHoras ?? 0)} apoio="mediana por dia" tom={w.respostaMedianaHoras !== null && w.respostaMedianaHoras > 4 ? "pending" : undefined} />
+                <KpiCard rotulo="Recebidas no Zap" valor={num(w.recebidas)} serie={w.porDia.map((x) => x.recebidas)} apoio={`${num(w.enviadas)} enviadas`} />
+                <div className="ui-card flex items-center gap-3 p-4">
+                  <Anel valor={a.noPrazoPct} texto={a.noPrazoPct === null ? undefined : `${a.noPrazoPct}%`} tamanho={64} />
+                  <div className="min-w-0">
+                    <p className="eyebrow">No prazo</p>
+                    <p className="mt-1 text-xs text-muted">das concluídas · pedido → entrega {a.tempoMedioDias === null ? "—" : `${a.tempoMedioDias.toLocaleString("pt-BR")} d`}</p>
+                  </div>
+                </div>
+                <div className="ui-card flex items-center gap-3 p-4">
+                  <Anel valor={m.satisfacao.media} max={5} texto={m.satisfacao.media === null ? undefined : m.satisfacao.media.toLocaleString("pt-BR")} tamanho={64} />
+                  <div className="min-w-0">
+                    <p className="eyebrow">Satisfação</p>
+                    <p className="mt-1 text-xs text-muted">média de 1 a 5, pelo tempo de atendimento</p>
+                  </div>
+                </div>
+                <Link href="/admin/distribuicao" className="ui-card flex items-center gap-3 p-4 transition-[border-color] hover:border-border-strong">
+                  <Anel valor={d.pendentesAgora ? d.pendentesAgora - d.pendentesHaMaisDe2Dias : 0} max={Math.max(1, d.pendentesAgora)} texto={String(d.pendentesAgora)} tamanho={64} cor={d.pendentesHaMaisDe2Dias ? "var(--status-pending)" : "var(--status-success)"} />
+                  <div className="min-w-0">
+                    <p className="eyebrow">Na Distribuição</p>
+                    <p className="mt-1 text-xs text-muted">{d.pendentesHaMaisDe2Dias} parados há mais de 2 dias</p>
+                  </div>
+                </Link>
               </div>
             </div>
             <div className="grid grid-cols-1 gap-4 lg:grid-cols-[minmax(0,1.6fr)_minmax(0,1fr)]">
@@ -434,11 +456,30 @@ export default async function PainelPage({ searchParams }: { searchParams: Promi
                 <StatCard label="Relatórios feitos" value={num(m.clientes.relatoriosNoPeriodo)} hint={`${m.clientes.relatoriosEnviados} enviados ao cliente`} href="/admin/reports" />
                 <StatCard label="Esfriando" value={num(m.clientes.esfriando.length)} tone={m.clientes.esfriando.length ? "pending" : "default"} hint="empresas com risco" />
               </div>
+              <div className="grid grid-cols-1 gap-4 lg:grid-cols-[minmax(0,1fr)_minmax(0,1.3fr)]">
+                <div className="ui-card min-w-0 p-5">
+                  <p className="text-sm font-semibold text-foreground">Satisfação dos clientes</p>
+                  <p className="mb-4 mt-0.5 text-xs text-muted">Quantos clientes em cada faixa de nota (últimos 90 dias)</p>
+                  <Rosca
+                    partes={m.satisfacao.faixas.map((f, k) => ({ rotulo: f.rotulo, valor: f.valor, cor: ["var(--status-danger)", "#d97706", "var(--status-pending)", "var(--status-success)"][k] }))}
+                    centro={m.satisfacao.media === null ? "—" : m.satisfacao.media.toLocaleString("pt-BR")}
+                    rotuloCentro="nota média"
+                  />
+                </div>
+                <div className="ui-card min-w-0 p-5">
+                  <p className="text-sm font-semibold text-foreground">Quem mais manda demandas</p>
+                  <p className="mb-4 mt-0.5 text-xs text-muted">{periodo.rotulo}</p>
+                  {m.clientes.maisDemandas.length ? <Ranking dados={m.clientes.maisDemandas.map((c) => ({ rotulo: c.nome, valor: c.demandas, href: fichaHref(c.id) }))} /> : <p className="text-sm text-muted">Nenhuma demanda no período.</p>}
+                </div>
+              </div>
               <MapaCalorClientes dist={dist} meses={ultimosMeses(6)} />
               <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
-                <Lista titulo="Menos satisfeitos" vazio="Sem dados suficientes ainda." itens={m.satisfacao.menos.map((c) => ({ chave: c.id, href: fichaHref(c.id), texto: c.nome, valor: `${c.nota.toLocaleString("pt-BR")} · ${c.atividades} ativ.`, tom: c.nota < 3 ? "danger" : "pending" }))} />
+                <div className="ui-card min-w-0 p-5">
+                  <p className="text-sm font-semibold text-foreground">Menos satisfeitos</p>
+                  <p className="mb-4 mt-0.5 text-xs text-muted">Nota de 1 a 5</p>
+                  {m.satisfacao.menos.length ? <Ranking dados={m.satisfacao.menos.map((c) => ({ rotulo: c.nome, valor: c.nota, href: fichaHref(c.id), tom: c.nota < 3 ? "var(--status-danger)" : "var(--status-pending)" }))} /> : <p className="text-sm text-muted">Sem dados suficientes ainda.</p>}
+                </div>
                 <Lista titulo="Mais satisfeitos" vazio="Nenhum cliente com nota 4 ou mais ainda." itens={m.satisfacao.mais.map((c) => ({ chave: c.id, href: fichaHref(c.id), texto: c.nome, valor: `${c.nota.toLocaleString("pt-BR")} · ${c.atividades} ativ.`, tom: "success" }))} />
-                <Lista titulo="Quem mais manda demandas" vazio="Nenhuma demanda no período." itens={m.clientes.maisDemandas.map((c) => ({ chave: c.id, href: fichaHref(c.id), texto: c.nome, valor: num(c.demandas) }))} />
                 <Lista
                   titulo="Pouco ativos (30+ dias sem contato)"
                   vazio="Todos os clientes tiveram contato recente."
@@ -473,6 +514,18 @@ export default async function PainelPage({ searchParams }: { searchParams: Promi
               <StatCard label="Paradas +2 dias" value={num(d.pendentesHaMaisDe2Dias)} tone={d.pendentesHaMaisDe2Dias ? "danger" : "default"} />
               <StatCard label="Tempo até decidir" value={horas(d.tempoAteTratarHoras)} hint="mediana" />
             </div>
+            <div className="ui-card min-w-0 p-5">
+              <p className="text-sm font-semibold text-foreground">Situação do que chegou</p>
+              <p className="mb-4 mt-0.5 text-xs text-muted">{periodo.rotulo}</p>
+              <Rosca
+                partes={[
+                  { rotulo: "Aprovados", valor: d.aceitas, cor: "var(--status-success)" },
+                  { rotulo: "Descartados", valor: d.descartadas, cor: "var(--status-danger)" },
+                  { rotulo: "Esperando decisão", valor: d.pendentes, cor: "var(--status-pending)" },
+                ]}
+                rotuloCentro="chegaram"
+              />
+            </div>
             <QuadroDistChegadas dist={dist} />
             <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
               <QuadroDistDecisoes dist={dist} />
@@ -484,7 +537,7 @@ export default async function PainelPage({ searchParams }: { searchParams: Promi
         {aba === "whatsapp" && (
           <div className="space-y-4">
             <div className="grid grid-cols-2 gap-3 md:grid-cols-3 xl:grid-cols-6">
-              <StatCard label="Resposta (mediana)" value={horas(w.respostaMedianaHoras)} tone={w.respostaMedianaHoras !== null && w.respostaMedianaHoras > 4 ? "pending" : "default"} />
+              <KpiCard rotulo="Resposta (mediana)" valor={horas(w.respostaMedianaHoras)} serie={w.porDia.map((x) => x.respostaMedianaHoras ?? 0)} tom={w.respostaMedianaHoras !== null && w.respostaMedianaHoras > 4 ? "pending" : undefined} />
               <StatCard label="Resposta (média)" value={horas(w.respostaMediaHoras)} hint={w.respostaPiorHoras === null ? undefined : `pior: ${horas(w.respostaPiorHoras)}`} />
               <StatCard label="Recebidas" value={num(w.recebidas)} />
               <StatCard label="Enviadas" value={num(w.enviadas)} />
@@ -499,6 +552,11 @@ export default async function PainelPage({ searchParams }: { searchParams: Promi
             <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
               <div className="ui-card min-w-0 p-5">
                 <p className="mb-3 text-sm font-semibold text-foreground">Tempo de resposta por pessoa</p>
+                {w.tempoPorPessoa.length > 0 && (
+                  <div className="mb-4">
+                    <Ranking dados={w.tempoPorPessoa.filter((x) => x.medianaHoras !== null).map((x) => ({ rotulo: x.nome, valor: x.medianaHoras!, tom: x.medianaHoras! > 4 ? "var(--status-pending)" : undefined }))} sufixo=" h" />
+                  </div>
+                )}
                 {w.tempoPorPessoa.length === 0 ? (
                   <p className="text-sm text-muted">Nenhuma resposta a cliente no período.</p>
                 ) : (

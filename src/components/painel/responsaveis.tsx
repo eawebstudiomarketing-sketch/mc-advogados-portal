@@ -4,10 +4,10 @@ import Link from "next/link";
 import { useMemo } from "react";
 import { ChevronLeft } from "lucide-react";
 import { aberta, atrasada, dataBahia, dias, hojeBahia, media, noPrazo, notaPessoa, notaPorTempo, somaDias, type LinhaAtividade } from "@/lib/painel/base";
-import { Barras } from "./graficos";
+import { Barras, COR_1, COR_2 } from "./graficos";
+import { Anel, BarrasPessoas, Ranking } from "./graficos2";
 import { FiltroQuadro, Quadro, usePainel, useFiltro } from "./contexto";
 
-const corNota = (n: number | null) => (n === null ? "text-muted" : n >= 75 ? "text-status-success" : n >= 50 ? "text-status-pending" : "text-status-danger");
 const iniciais = (n: string) =>
   n
     .replace(/^(Dra?\.)\s+/i, "")
@@ -47,6 +47,23 @@ export function CartoesResponsaveis({ equipe }: { equipe: string[] }) {
   const mediaEquipe = Math.round(media(notas.flatMap((x) => (x.n.nota === null ? [] : [x.n.nota]))) ?? 0);
   return (
     <Quadro titulo="Equipe" apoio={`${periodo.rotulo} · nota média da equipe ${mediaEquipe}`} filtro={<FiltroQuadro filtro={filtro} setFiltro={setFiltro} campos={{ periodo: true, cliente: true, tipo: true }} />}>
+      <div className="mb-6 grid grid-cols-1 gap-6 lg:grid-cols-2">
+        <div>
+          <p className="mb-3 text-xs font-medium text-muted">Atividades de cada um</p>
+          <BarrasPessoas
+            linhas={notas.map(({ r, n }) => ({ nome: r.nome, href: `/admin/painel?aba=responsaveis&pessoa=${r.id}`, valores: [n.concluidas, Math.max(0, n.abertas - n.atrasadas), n.atrasadas] }))}
+            partes={[
+              { rotulo: "Concluídas no período", cor: COR_1 },
+              { rotulo: "Abertas em dia", cor: COR_2 },
+              { rotulo: "Atrasadas", cor: "var(--status-danger)" },
+            ]}
+          />
+        </div>
+        <div>
+          <p className="mb-3 text-xs font-medium text-muted">Nota de cada um (0–100)</p>
+          <Ranking dados={notas.filter((x) => x.n.nota !== null).sort((a, b) => b.n.nota! - a.n.nota!).map(({ r, n }) => ({ rotulo: r.nome, valor: n.nota!, href: `/admin/painel?aba=responsaveis&pessoa=${r.id}`, tom: n.nota! >= 75 ? "var(--status-success)" : n.nota! >= 50 ? "var(--status-pending)" : "var(--status-danger)" }))} />
+        </div>
+      </div>
       <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-3">
         {notas
           .sort((a, b) => (b.n.nota ?? -1) - (a.n.nota ?? -1))
@@ -58,9 +75,9 @@ export function CartoesResponsaveis({ equipe }: { equipe: string[] }) {
                   <p className="truncate text-sm font-semibold text-foreground">{r.nome}</p>
                   <p className="text-xs text-muted">carga {n.carga}</p>
                 </div>
-                <p className={`numero-grande text-3xl ${corNota(n.nota)}`} title="Nota 0–100: prazo, atrasos, rapidez e satisfação">
-                  {n.nota ?? "—"}
-                </p>
+                <span title="Nota 0–100: prazo, atrasos, rapidez e satisfação">
+                  <Anel valor={n.nota} />
+                </span>
               </div>
               <div className="mt-4 grid grid-cols-3 gap-3 border-t border-border pt-3">
                 <Mini rotulo="concluídas" valor={n.concluidas} />
@@ -145,7 +162,7 @@ export function FichaPessoa({ pessoaId, linhaDoTempo, extras }: { pessoaId: stri
             </p>
           </div>
           <div className="text-right">
-            <p className={`numero-grande text-5xl leading-none ${corNota(n.nota)}`}>{n.nota ?? "—"}</p>
+            <div className="flex justify-end"><Anel valor={n.nota} tamanho={84} /></div>
             <p className="mt-1 text-xs text-muted">
               {diferenca === null ? "sem atividades no período" : diferenca === 0 ? "igual à média" : `${diferenca > 0 ? "+" : ""}${diferenca} vs média da equipe (${mediaEquipe})`}
             </p>

@@ -395,7 +395,14 @@ export async function calcularMetricas(p: Periodo) {
       tempoPorPessoa: [...temposPorPessoa.entries()].map(([id, ts]) => ({ nome: id === "_celular" ? "Número do escritório (pelo celular)" : nomePerfil.get(id) ?? "?", respondidas: ts.length, medianaHoras: arred(mediana(ts), 1) })).sort((a, b) => b.respondidas - a.respondidas),
       esperandoAgora,
     },
-    satisfacao: { media: arred(media(notas), 1), avaliadas: notas.length, menos: satisfacaoClientes.filter((c) => c.nota < 4).slice(0, 8), mais: satisfacaoClientes.filter((c) => c.nota >= 4).reverse().slice(0, 8) },
+    satisfacao: { media: arred(media(notas), 1), avaliadas: notas.length, menos: satisfacaoClientes.filter((c) => c.nota < 4).slice(0, 8), mais: satisfacaoClientes.filter((c) => c.nota >= 4).reverse().slice(0, 8),
+      // quantos clientes em cada faixa de nota (gráfico de distribuição)
+      faixas: [
+        { rotulo: "1–2 (insatisfeito)", valor: satisfacaoClientes.filter((c) => c.nota < 2).length },
+        { rotulo: "2–3", valor: satisfacaoClientes.filter((c) => c.nota >= 2 && c.nota < 3).length },
+        { rotulo: "3–4", valor: satisfacaoClientes.filter((c) => c.nota >= 3 && c.nota < 4).length },
+        { rotulo: "4–5 (satisfeito)", valor: satisfacaoClientes.filter((c) => c.nota >= 4).length },
+      ] },
     equipe,
     clientes: { maisDemandas, poucoAtivos, esfriando, relatoriosNoPeriodo: relatoriosPer.length, relatoriosEnviados: relatoriosPer.filter((r) => r.sent_at).length },
     financas,
