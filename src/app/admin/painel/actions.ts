@@ -42,3 +42,64 @@ export async function reatribuirAction(activityId: string, responsavelId: string
   revalidatePath("/admin/activities");
   return {};
 }
+
+/* ───────── ações do gerente (sempre depois da confirmação na tela) ───────── */
+
+export type PedidoAcao =
+  | { tipo: "marcar_reuniao"; clienteId: string; titulo: string; inicio: string; duracaoMin: number; responsavelId: string | null; mensagem: string; destino: string | null; enviar: boolean }
+  | { tipo: "responder"; chatJid: string; texto: string }
+  | { tipo: "alertar"; pessoas: { profileId: string; telefone: string | null }[]; titulo: string; corpo: string; url: string; zap: boolean }
+  | { tipo: "concluir"; activityId: string }
+  | { tipo: "mover_prazos"; ids: string[]; novaData: string }
+  | { tipo: "lembrar_assinatura"; ids: string[] }
+  | { tipo: "reatribuir"; activityId: string; paraId: string };
+
+export async function executarAcaoAction(p: PedidoAcao): Promise<{ ok?: string; error?: string }> {
+  const perfil = await exigirSuperAdmin();
+  const cliente = (await createClient()) as unknown as SupabaseClient;
+  const acoes = await import("@/lib/painel/acoes");
+  try {
+    let ok: string;
+    switch (p.tipo) {
+      case "marcar_reuniao":
+        ok = await acoes.marcarReuniao(p, perfil.id, cliente);
+        break;
+      case "responder":
+        ok = await acoes.enviarResposta(p, perfil.id);
+        break;
+      case "alertar":
+        ok = await acoes.alertar(p, perfil.id);
+        break;
+      case "concluir":
+        ok = await acoes.concluir(p, cliente);
+        break;
+      case "mover_prazos":
+        ok = await acoes.moverPrazos(p, cliente);
+        break;
+      case "lembrar_assinatura":
+        ok = await acoes.lembrarAssinaturas(p);
+        break;
+      case "reatribuir": {
+        const r = await reatribuirAction(p.activityId, p.paraId);
+        if (r.error) throw new Error(r.error);
+        ok = "Atividade passada.";
+        break;
+      }
+    }
+    revalidatePath("/admin/painel");
+    return { ok };
+  } catch (e) {
+    return { error: e instanceof Error ? e.message : "Não foi possível concluir a ação." };
+  }
+}
+
+/** Rascunho de resposta ao cliente (IA só quando clicam em "responder"). */
+export async function rascunhoRespostaAction(chatJid: string): Promise<{ texto?: string; error?: string }> {
+  await exigirSuperAdmin();
+  const { rascunhoResposta } = await import("@/lib/painel/acoes");
+  try {
+    return { texto: await rascunhoResposta(chatJid) };
+  } catch (e) {
+    return { error: e instanceof Error ? e.message : "Não foi possível escrever o rascunho." };
+  }
+}

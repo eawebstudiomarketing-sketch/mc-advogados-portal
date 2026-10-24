@@ -1,6 +1,6 @@
 import "server-only";
 import { calcularMetricas, periodoDe } from "@/lib/painel/metricas";
-import { relatorioDoGerente } from "@/lib/painel/gerente";
+import { gerenteEmTexto, relatorioDoGerente } from "@/lib/painel/gerente";
 import type { ToolDef } from "./tools";
 
 // Painel do Dono (só admin máximo): o assistente lê os mesmos números da tela
@@ -62,13 +62,13 @@ export const TOOLS_PAINEL: ToolDef[] = [
     kind: "read",
     soSuper: true,
     label: "Leu o resumo do gerente",
-    description: "O \"gerente\" do Painel do Dono: resumo do período (o que entrou, o que cada um concluiu, atrasos, WhatsApp, Distribuição) e sugestões do que fazer (redistribuir demandas, responder clientes com andamento novo, audiência amanhã, prazos parados…). Vem do cache (não gasta IA de novo). periodo: hoje | ontem | 7d | mes (padrão) | 30d | mes-anterior | ano.",
+    description: "O \"gerente\" do Painel do Dono: varredura do sistema no período (clientes/onboarding, WhatsApp sem resposta, inconsistências, agenda e carga, rotinas, atividades, Distribuição, publicações, atas, relatórios, sistema) com a sugestão de cada ponto. Vem do cache (não gasta IA de novo). periodo: hoje | ontem | 7d | mes (padrão) | 30d | mes-anterior | ano.",
     parameters: obj({ periodo: { type: "string", enum: [...PERIODOS, "ontem"] } }),
     run: async (a) => {
       const id = [...PERIODOS, "ontem"].includes(String(a.periodo)) ? String(a.periodo) : "mes";
       const r = await relatorioDoGerente(id);
       if (!r.ok) throw new Error(r.error);
-      return { periodo: r.gerente.periodo, resumo: r.gerente.resumo, sugestoes: r.gerente.sugestoes.map((x) => ({ texto: x.texto, prioridade: x.prioridade, links: x.acoes.filter((c) => c.tipo === "abrir").map((c) => (c as { href: string }).href) })), link_no_portal: `/admin/painel?p=${id}` };
+      return { periodo: r.gerente.periodo, varredura: gerenteEmTexto(r.gerente, { negrito: false }), pontos_encontrados: r.gerente.pontos, aviso: "As ações (marcar reunião, responder, alertar…) são feitas com um clique no painel, com confirmação.", link_no_portal: `/admin/painel?p=${id}` };
     },
   },
 ];
