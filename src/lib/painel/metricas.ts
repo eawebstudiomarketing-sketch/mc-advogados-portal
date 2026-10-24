@@ -2,6 +2,9 @@ import "server-only";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { agenteLigado } from "@/lib/whatsapp";
+import { DIA, arred, dentro, dias, hojeBahia as hoje, media, notaPorTempo, periodoDe, type Periodo } from "./base";
+
+export { periodoDe, notaPorTempo, type Periodo };
 
 // Painel do Dono (24/10/2026): todos os números são calculados aqui, em
 // código — a IA não entra (só escreve as sugestões do dia, à parte, com o
@@ -9,11 +12,9 @@ import { agenteLigado } from "@/lib/whatsapp";
 // cliente pedir e a atividade ser concluída (quanto mais rápido, melhor).
 
 const db = () => createAdminClient() as unknown as SupabaseClient;
-const DIA = 86_400_000;
-const hoje = () => new Date().toLocaleDateString("en-CA", { timeZone: "America/Bahia" });
 
 /** Busca tudo em páginas de 1000 (o limite do Supabase). */
-async function tudo<T>(montar: (de: number, ate: number) => PromiseLike<{ data: unknown[] | null; error: { message: string } | null }>): Promise<T[]> {
+export async function tudo<T>(montar: (de: number, ate: number) => PromiseLike<{ data: unknown[] | null; error: { message: string } | null }>): Promise<T[]> {
   const out: T[] = [];
   for (let de = 0; de < 200_000; de += 1000) {
     const { data, error } = await montar(de, de + 999);
@@ -24,65 +25,12 @@ async function tudo<T>(montar: (de: number, ate: number) => PromiseLike<{ data: 
   return out;
 }
 
-export type Periodo = { id: string; rotulo: string; ini: string; fim: string; iniAnterior: string; fimAnterior: string };
-
-export function periodoDe(id: string | undefined): Periodo {
-  const agora = new Date();
-  const h = hoje();
-  const inicioDia = (d: string) => new Date(`${d}T00:00:00-03:00`);
-  const fim = agora.toISOString();
-  let ini: Date;
-  let rotulo: string;
-  switch (id) {
-    case "hoje":
-      ini = inicioDia(h);
-      rotulo = "Hoje";
-      break;
-    case "7d":
-      ini = new Date(agora.getTime() - 7 * DIA);
-      rotulo = "Últimos 7 dias";
-      break;
-    case "30d":
-      ini = new Date(agora.getTime() - 30 * DIA);
-      rotulo = "Últimos 30 dias";
-      break;
-    case "mes-anterior": {
-      const [y, m] = h.split("-").map(Number);
-      const iniM = inicioDia(`${m === 1 ? y - 1 : y}-${String(m === 1 ? 12 : m - 1).padStart(2, "0")}-01`);
-      const fimM = inicioDia(`${y}-${String(m).padStart(2, "0")}-01`);
-      const dur = fimM.getTime() - iniM.getTime();
-      return { id: "mes-anterior", rotulo: "Mês passado", ini: iniM.toISOString(), fim: fimM.toISOString(), iniAnterior: new Date(iniM.getTime() - dur).toISOString(), fimAnterior: iniM.toISOString() };
-    }
-    case "ano":
-      ini = inicioDia(`${h.slice(0, 4)}-01-01`);
-      rotulo = "Este ano";
-      break;
-    default:
-      ini = inicioDia(`${h.slice(0, 7)}-01`);
-      rotulo = "Este mês";
-      id = "mes";
-  }
-  const dur = agora.getTime() - ini.getTime();
-  return { id: id ?? "mes", rotulo, ini: ini.toISOString(), fim, iniAnterior: new Date(ini.getTime() - dur).toISOString(), fimAnterior: ini.toISOString() };
-}
-
-const dentro = (iso: string | null | undefined, ini: string, fim: string) => !!iso && iso >= ini && iso < fim;
-const dias = (de: string, ate: string) => (Date.parse(ate) - Date.parse(de)) / DIA;
-const media = (xs: number[]) => (xs.length ? xs.reduce((a, b) => a + b, 0) / xs.length : null);
 const mediana = (xs: number[]) => {
   if (!xs.length) return null;
   const s = [...xs].sort((a, b) => a - b);
   const m = Math.floor(s.length / 2);
   return s.length % 2 ? s[m] : (s[m - 1] + s[m]) / 2;
 };
-const arred = (n: number | null, c = 1) => (n === null ? null : Math.round(n * 10 ** c) / 10 ** c);
-
-/** Nota de satisfação (1–5) pelo tempo entre o pedido e a conclusão (ou a idade, se ainda aberta). */
-export function notaPorTempo(diasCorridos: number, atrasou: boolean): number {
-  const base = diasCorridos <= 1 ? 5 : diasCorridos <= 3 ? 4.5 : diasCorridos <= 7 ? 4 : diasCorridos <= 15 ? 3 : diasCorridos <= 30 ? 2 : 1;
-  return Math.max(1, base - (atrasou ? 0.5 : 0));
-}
-
 type Atividade = {
   id: string;
   title: string;
