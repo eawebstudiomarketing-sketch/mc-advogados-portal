@@ -354,7 +354,7 @@ export function GerentePainel({ periodoId, nome }: { periodoId: string; nome: st
             {ola}, {nome}.
           </p>
           <p className="text-sm text-muted">
-            {dados ? `Varredura do sistema · ${dados.periodo.toLowerCase()} · ${dados.pontos} ponto(s) de atenção` : "Passando o scanner no sistema…"}
+            {dados ? `Aqui está o resumo · ${dados.periodo.toLowerCase()} · ${dados.pontos} ponto(s) de atenção` : "Passando o scanner no sistema…"}
           </p>
         </div>
         <div className="flex items-center gap-1.5">
@@ -390,35 +390,32 @@ export function GerentePainel({ periodoId, nome }: { periodoId: string; nome: st
             <p className="text-sm text-status-danger">{erro}</p>
           ) : dados ? (
             <div className="space-y-6">
-              <div className="space-y-1.5 text-[15px] leading-relaxed text-foreground">
-                {dados.abertura.map((t, k) => (
-                  <p key={k}>{t}</p>
+              <div className="max-w-[75ch] space-y-3.5 text-[15px] leading-[1.7] text-foreground">
+                {dados.paragrafos.map((t, k) => (
+                  <p key={k} className={k === 0 ? "text-base font-semibold" : undefined}>
+                    {t}
+                  </p>
                 ))}
+                {dados.fechamento && <p className="rounded-xl border-l-4 border-gold bg-surface-2 px-4 py-3 font-medium">{dados.fechamento}</p>}
               </div>
-              {dados.secoes.length === 0 && <p className="text-sm text-muted">Nada pedindo atenção agora.</p>}
-              <div className="grid grid-cols-1 gap-x-8 gap-y-6 xl:grid-cols-2">
-                {dados.secoes.map((s) => (
-                  <div key={s.id} className="min-w-0">
-                    <p className="mb-2 flex items-center gap-2 border-b border-border pb-1.5 text-sm font-semibold text-foreground">
-                      {s.titulo}
-                      <span className="rounded-full bg-surface-2 px-1.5 text-[11px] font-medium tabular-nums text-muted">{s.pontos}</span>
-                    </p>
-                    <ul className="space-y-2.5">
-                      {s.frases.map((f, k) => (
-                        <li key={k} className="flex gap-2.5 text-sm leading-relaxed text-foreground">
-                          <span className={`mt-[7px] h-2 w-2 shrink-0 rounded-full ${COR[f.prioridade ?? "baixa"]}`} title={f.prioridade ? `Prioridade ${f.prioridade}` : undefined} />
-                          <p className="min-w-0">
-                            {f.texto}
-                            {f.acoes.map((a, j) => (
-                              <MiniBotao key={j} acao={a} chave={`${s.id}-${k}-${j}`} feitos={feitos} abrir={(acao, chave) => acao.tipo !== "abrir" && setAberta({ acao, chave })} />
-                            ))}
-                          </p>
-                        </li>
-                      ))}
-                    </ul>
-                  </div>
-                ))}
-              </div>
+              {dados.acoes.length > 0 && (
+                <div>
+                  <p className="mb-2 border-b border-border pb-1.5 text-sm font-semibold text-foreground">O que fazer agora</p>
+                  <ul className="grid grid-cols-1 gap-x-8 gap-y-2.5 xl:grid-cols-2">
+                    {dados.acoes.map((f, k) => (
+                      <li key={k} className="flex gap-2.5 text-sm leading-relaxed text-foreground">
+                        <span className={`mt-[7px] h-2 w-2 shrink-0 rounded-full ${COR[f.prioridade ?? "baixa"]}`} title={f.prioridade ? `Prioridade ${f.prioridade}` : undefined} />
+                        <p className="min-w-0">
+                          {f.texto}
+                          {f.acoes.map((a, j) => (
+                            <MiniBotao key={j} acao={a} chave={`a-${k}-${j}`} feitos={feitos} abrir={(acao, chave) => acao.tipo !== "abrir" && setAberta({ acao, chave })} />
+                          ))}
+                        </p>
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              )}
             </div>
           ) : null}
         </div>

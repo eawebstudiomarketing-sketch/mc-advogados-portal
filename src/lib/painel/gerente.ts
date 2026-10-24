@@ -5,47 +5,59 @@ import { generateJson } from "@/lib/gemini";
 import { MODELOS } from "@/lib/ia-modelos";
 import { enfileirarMensagem } from "@/lib/zap/fila";
 import { hojeBahia, periodoDe, somaDias } from "./base";
-import { SECOES, varrer, type AcaoGerente, type SecaoId } from "./varredura";
+import { varrer, type AcaoGerente } from "./varredura";
 
 export type { AcaoGerente } from "./varredura";
 
-// O "gerente" do Painel do Dono (24/10/2026): passa a varredura do sistema
-// (varredura.ts, tudo em código) para o dono em texto corrido, seção por
-// seção, com a sugestão e o mini-botão de ação junto de cada ponto. A IA
-// (Flash-Lite, 1 chamada) só redige; cada período fica guardado em
-// painel_gerente (os que terminam "agora" valem 1 hora).
+// O "gerente" do Painel do Dono (24/10/2026, estilo aprovado pelo usuário):
+// texto corrido, sem seções, no tom de um assistente que fez a varredura do
+// escritório — panorama, equipe (quem entregou, quem atrasou), o urgente,
+// clientes, WhatsApp, gargalos e "se eu fosse começar…". Embaixo, a lista
+// curta "o que fazer agora" com os mini-botões. Os números e nomes vêm da
+// varredura (código); a IA (Flash-Lite, 1 chamada) só redige. Cache por
+// período em painel_gerente (os que terminam "agora" valem 1 hora).
 
 const db = () => createAdminClient() as unknown as SupabaseClient;
 const VALIDADE_MS = 60 * 60 * 1000;
 const MAURICIO = "ee479af5-6a30-4741-880a-c9e96ea0079b"; // perfil do Maurício (recebe o resumo das 7h)
-const VERSAO = "v2";
+const VERSAO = "v4";
 
 export type FraseGerente = { texto: string; prioridade: "alta" | "media" | "baixa" | null; acoes: AcaoGerente[] };
-export type SecaoGerente = { id: SecaoId; titulo: string; frases: FraseGerente[]; pontos: number };
-export type Gerente = { abertura: string[]; secoes: SecaoGerente[]; geradoEm: string; periodo: string; pontos: number };
+export type Gerente = { paragrafos: string[]; fechamento: string; acoes: FraseGerente[]; geradoEm: string; periodo: string; pontos: number };
 
 const SCHEMA = {
   type: "object",
   properties: {
-    abertura: { type: "array", maxItems: 3, items: { type: "string" }, description: "panorama do período em 2-3 frases curtas" },
-    secoes: {
+    paragrafos: { type: "array", minItems: 5, maxItems: 8, items: { type: "string" } },
+    fechamento: { type: "string", description: "o que fazer primeiro, começando por 'Se eu fosse começar por algum lugar, seria assim:'" },
+    acoes: {
       type: "array",
-      items: {
-        type: "object",
-        properties: {
-          id: { type: "string" },
-          frases: { type: "array", items: { type: "object", properties: { texto: { type: "string" }, achado: { type: "string", description: "id do achado desta frase" } }, required: ["texto", "achado"] } },
-        },
-        required: ["id", "frases"],
-      },
+      items: { type: "object", properties: { achado: { type: "string" }, frase: { type: "string", description: "até 12 palavras, verbo no início" } }, required: ["achado", "frase"] },
     },
   },
-  required: ["abertura", "secoes"],
+  required: ["paragrafos", "fechamento", "acoes"],
 };
 
-const SISTEMA = `Você é o gerente do escritório MC Advogados passando ao dono a varredura do sistema no período. Português do Brasil, tom de gerente de confiança: direto, concreto, sem enrolação, sem elogios.
-"abertura": 2-3 frases com o panorama (números do período, comparação com o período anterior quando houver).
-"secoes": para cada seção recebida, frases que contam o que foi encontrado E já trazem a sugestão no mesmo texto ("…; sugiro marcar a reunião de onboarding", "…; vale responder com o andamento novo"). Cada achado vira UMA frase (informe o id dele em "achado"); use TODOS os achados, sem repetir. NÃO resuma o fato: mantenha todos os detalhes (o que falta, nomes, quantidades, dias, datas, títulos de atividades e o trecho da mensagem do cliente entre aspas), exatamente como vieram; só deixe o texto fluido e acrescente a sugestão no fim. Não invente nada. Não use "ele/ela" nem "o/a" antes do nome de clientes.`;
+const SISTEMA = `Você é o assistente de gestão do escritório MC Advogados e acabou de fazer a varredura completa do sistema no período. Escreva para o dono, em português do Brasil, em TEXTO CORRIDO (sem títulos, sem tópicos, sem listas), com personalidade de assistente executivo de confiança: direto, analítico, humano, sem enrolação e sem elogios vazios. Trate o dono por "você".
+"paragrafos" (5 a 8, cada um com 2 a 5 frases), nesta ordem natural:
+1) Uma frase de abertura dizendo que fez a varredura do período e a saúde do escritório (ex.: "Fiz a varredura completa de outubro, e o escritório está operando a 52 de 100."). NÃO cumprimente (a saudação já aparece na tela).
+2) O panorama: quanto entrou × quanto foi concluído (e a proporção), abertas, atrasadas, % no prazo, tempo do pedido à entrega — e o que isso significa.
+3) A equipe, pessoa por pessoa: quem mais entregou (citando 1-3 títulos e clientes), nota/carga, quem tem atrasos e quantos, a atividade atrasada mais antiga, quem está sem demandas.
+4) O mais urgente agora (prazos vencendo, coisas paradas), com nomes de clientes e responsáveis.
+5) Clientes: quem mais demandou, satisfação média e os menos satisfeitos (com notas), entregas sem retorno ao cliente, onboardings pendentes, cadastros incompletos.
+6) WhatsApp: volume, tempo de resposta, quem respondeu quanto, e quem está esperando resposta (com o motivo/trecho e há quanto tempo).
+7) Gargalos e sistema: Distribuição, publicações, relatórios, robôs.
+"fechamento": comece com "Se eu fosse começar por algum lugar, seria assim:" e liste em uma frase corrida as 4-6 ações mais importantes; termine dizendo o efeito esperado.
+"acoes": para CADA achado recebido, uma frase curta de ação (até 12 palavras, verbo no início, com o nome do cliente/pessoa) e o id em "achado".
+Use os números, nomes, títulos e trechos EXATAMENTE como vieram (com vírgula decimal e ponto de milhar: 2,7 e 1.443); não invente nada; se um dado não veio, não fale dele. Não use "ele/ela" nem "o/a" antes do nome de clientes. Seja RICO EM DETALHES: para cada pessoa da equipe diga concluídas, abertas, atrasadas e nota; diga a satisfação média; quem respondeu quanto no WhatsApp; relatórios feitos/enviados; robôs com erro.
+
+EXEMPLO DE TOM E NÍVEL DE DETALHE (os dados do exemplo são de outro mês — NÃO os copie):
+"Fiz a varredura completa de outubro, e o escritório está operando a 52 de 100."
+"O ponto central do mês é que entrou muito mais trabalho do que saiu. Foram 49 atividades novas e só 10 concluídas, então de cada cinco que entraram, uma foi entregue. Hoje há 39 abertas e 16 já passaram do prazo, e só metade das entregas saiu dentro da data. Quando a entrega acontece, ela é rápida: em média 2,7 dias do pedido do cliente até a conclusão. O problema está no que fica parado, não na velocidade de quem executa."
+"Na equipe, a Dra. Alice foi quem mais entregou: 8 atividades, quase todas da Sabor de Minas (homologações, rescisões pendentes, documento de alteração de horário). Mesmo assim tem a nota mais baixa do time (49), porque 3 das 9 que estão com ela atrasaram. Você concluiu 2 e tem a melhor nota (84), mas também a maior carga: 16 abertas e 5 atrasadas. A Dra. Francielle está com 10 abertas, 4 atrasadas e nenhuma concluída no mês. O Dr. Maurício tem 4 abertas, todas atrasadas, incluindo a mais antiga do escritório. A Talita segue sem nenhuma demanda."
+"No WhatsApp a equipe está rápida: 1.443 mensagens recebidas, 601 enviadas e resposta mediana de 3 horas. Você respondeu 90 vezes, a Fran 62 e a Alice 9, e o número do escritório outras 413. A exceção que preocupa é a Renata Passos: 11 dias sem resposta, perguntando do processo, sendo que já chegou andamento novo para contar a ela."
+"Se eu fosse começar por algum lugar, seria assim: destravar ou dar nova data às quatro da RM, responder a Renata com o andamento novo, avisar a Sabor de Minas das entregas, cobrar o Dr. Maurício e a Fran pelos atrasos, e reunir a equipe 15 minutos para zerar a Distribuição. Só isso já devolveria uns bons pontos à saúde do escritório."
+Quem tem nota null está sem atividades: diga só que está sem demandas (nunca "nota nula"). O dono do escritório é Maurício Cardoso: quando a pessoa for ele, use "você".`;
 
 /** Lê do cache ou monta a varredura + texto (1 chamada barata). */
 export async function relatorioDoGerente(periodoId: string, { forcar = false } = {}): Promise<{ ok: true; gerente: Gerente } | { ok: false; error: string }> {
@@ -56,35 +68,24 @@ export async function relatorioDoGerente(periodoId: string, { forcar = false } =
   if (cache && !forcar && (fechado || Date.now() - Date.parse(cache.created_at as string) < VALIDADE_MS)) return { ok: true, gerente: cache.conteudo as Gerente };
 
   const { achados, numeros } = await varrer(p.id);
-  const porSecao = SECOES.map((s) => ({ ...s, achados: achados.filter((a) => a.secao === s.id) })).filter((s) => s.achados.length);
-  const r = await generateJson<{ abertura: string[]; secoes: { id: string; frases: { texto: string; achado: string }[] }[] }>({
+  const r = await generateJson<{ paragrafos: string[]; fechamento: string; acoes: { achado: string; frase: string }[] }>({
     model: MODELOS.assistente,
     system: SISTEMA,
-    parts: [{ text: JSON.stringify({ numeros, secoes: porSecao.map((s) => ({ id: s.id, titulo: s.titulo, achados: s.achados.map((a) => ({ id: a.id, prioridade: a.prioridade, fato: a.fato, sugestao: a.sugestao })) })) }) }],
+    parts: [{ text: JSON.stringify({ numeros, achados: achados.map((a) => ({ id: a.id, area: a.secao, prioridade: a.prioridade, fato: a.fato, sugestao: a.sugestao })) }) }],
     schema: SCHEMA,
   });
   if (!r.ok && cache) return { ok: true, gerente: cache.conteudo as Gerente };
 
-  const porId = new Map(achados.map((a) => [a.id, a]));
-  const secoes: SecaoGerente[] = porSecao.map((s) => {
-    const usados = new Set<string>();
-    const frases: FraseGerente[] = [];
-    for (const f of (r.ok ? r.data.secoes.find((x) => x.id === s.id)?.frases : null) ?? []) {
-      const a = porId.get(f.achado);
-      if (a && a.secao === s.id && !usados.has(a.id)) {
-        usados.add(a.id);
-        frases.push({ texto: f.texto, prioridade: a.prioridade, acoes: a.acoes });
-      }
-    }
-    // o que a IA deixou de fora (ou sem IA): frase montada em código
-    for (const a of s.achados) if (!usados.has(a.id)) frases.push({ texto: `${a.fato}${a.sugestao ? ` Sugestão: ${a.sugestao.charAt(0).toLowerCase()}${a.sugestao.slice(1)}` : ""}`, prioridade: a.prioridade, acoes: a.acoes });
-    const ordem = { alta: 0, media: 1, baixa: 2 };
-    frases.sort((x, y) => ordem[x.prioridade ?? "baixa"] - ordem[y.prioridade ?? "baixa"]);
-    return { id: s.id, titulo: s.titulo, frases, pontos: s.achados.length };
-  });
+  const frase = new Map((r.ok ? r.data.acoes : []).map((x) => [x.achado, x.frase]));
+  const ordem = { alta: 0, media: 1, baixa: 2 };
+  const acoes: FraseGerente[] = achados
+    .filter((a) => a.acoes.length)
+    .sort((x, y) => ordem[x.prioridade] - ordem[y.prioridade])
+    .map((a) => ({ texto: frase.get(a.id) || a.sugestao || a.fato, prioridade: a.prioridade, acoes: a.acoes }));
   const gerente: Gerente = {
-    abertura: r.ok ? r.data.abertura.filter(Boolean).slice(0, 3) : [`${numeros.periodo}: ${numeros.atividades.criadas} atividades criadas e ${numeros.atividades.concluidas} concluídas; ${numeros.atividades.atrasadas} atrasadas.`],
-    secoes,
+    paragrafos: r.ok ? r.data.paragrafos.filter(Boolean) : achados.map((a) => `${a.fato}${a.sugestao ? ` ${a.sugestao}` : ""}`),
+    fechamento: r.ok ? r.data.fechamento : "",
+    acoes,
     geradoEm: new Date().toISOString(),
     periodo: p.rotulo,
     pontos: achados.length,
@@ -93,11 +94,15 @@ export async function relatorioDoGerente(periodoId: string, { forcar = false } =
   return { ok: true, gerente };
 }
 
-/** Texto corrido da varredura (WhatsApp das 7h e Assistente). */
+/** Texto corrido (WhatsApp das 7h e Assistente). */
 export function gerenteEmTexto(g: Gerente, { negrito = true } = {}) {
   const b = (t: string) => (negrito ? `*${t}*` : t);
   const bola = { alta: "🔴", media: "🟡", baixa: "⚪" } as const;
-  return [...g.abertura, "", ...g.secoes.flatMap((s) => [b(s.titulo), ...s.frases.map((f) => `${f.prioridade ? bola[f.prioridade] : "•"} ${f.texto}`), ""])].join("\n");
+  return [
+    ...g.paragrafos.flatMap((t) => [t, ""]),
+    ...(g.fechamento ? [b(g.fechamento), ""] : []),
+    ...(g.acoes.length ? [b("O que fazer agora:"), ...g.acoes.slice(0, 10).map((f) => `${f.prioridade ? bola[f.prioridade] : "•"} ${f.texto}`), ""] : []),
+  ].join("\n");
 }
 
 /**
@@ -114,9 +119,9 @@ export async function enviarGerenteDoDia(): Promise<string> {
   const telefone = String(resp?.telefone ?? "").replace(/\D/g, "");
   if (telefone.length < 10) return "sem telefone do Maurício em Responsáveis";
   const ontem = somaDias(dia, -1).split("-").reverse().slice(0, 2).join("/");
-  const texto = [`*Bom dia, Maurício! Varredura de ontem (${ontem})*`, "", gerenteEmTexto(r.gerente), "Para resolver com um clique: mcadvogados.app.br/admin/painel?p=ontem"].join("\n");
+  const texto = [`*Bom dia, Maurício! Aqui está o resumo de ontem (${ontem}).*`, "", gerenteEmTexto(r.gerente), "Para resolver com um clique: mcadvogados.app.br/admin/painel?p=ontem"].join("\n");
   const job = await enfileirarMensagem({ para: telefone, texto, origemRef: `painel-gerente:${dia}`, expiraEm: new Date(Date.now() + 12 * 3_600_000) });
   if (!job) return "falha ao enfileirar";
-  await db().from("painel_sugestoes").upsert({ dia, texto: JSON.stringify({ resumo: r.gerente.abertura.join(" "), itens: [] }), metricas: { origem: "gerente", pontos: r.gerente.pontos }, enviado_em: new Date().toISOString() });
+  await db().from("painel_sugestoes").upsert({ dia, texto: JSON.stringify({ resumo: r.gerente.paragrafos[0] ?? "", itens: [] }), metricas: { origem: "gerente", pontos: r.gerente.pontos }, enviado_em: new Date().toISOString() });
   return "enviado";
 }

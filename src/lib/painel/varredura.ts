@@ -6,7 +6,7 @@ import { MODELOS } from "@/lib/ia-modelos";
 import { calcularMetricas, tudo } from "./metricas";
 import { carregarBase } from "./dados";
 import { equipeNoZap } from "./equipe-zap";
-import { DIA, aberta, atrasada, dataBahia, dentro, dias, hojeBahia, pesoAtividade, periodoDe, somaDias, TIPOS, type LinhaAtividade } from "./base";
+import { DIA, aberta, atrasada, dataBahia, dentro, dias, hojeBahia, notaPessoa, pesoAtividade, periodoDe, somaDias, TIPOS, type LinhaAtividade } from "./base";
 
 // Varredura do gerente (24/10/2026): passa por todo o sistema no período do
 // filtro e devolve "achados" — um fato, uma sugestão e as ações possíveis
@@ -523,13 +523,36 @@ export async function varrer(periodoId: string) {
   if (m.sistema.publicacoes?.erro) add({ id: "sis-pub", secao: "sistema", prioridade: "media", fato: `O robô de publicações deu erro na última rodada (${trecho(m.sistema.publicacoes.erro, 60)}).`, sugestao: "Conferir as publicações manualmente até voltar.", acoes: [{ tipo: "abrir", rotulo: "ver", href: "/admin/publicacoes" }] });
   if (m.sistema.andamentos?.erro) add({ id: "sis-and", secao: "sistema", prioridade: "media", fato: `A busca de andamentos do Astrea deu erro (${trecho(m.sistema.andamentos.erro, 60)}).`, sugestao: "", acoes: [] });
 
+  const MESES = ["janeiro", "fevereiro", "março", "abril", "maio", "junho", "julho", "agosto", "setembro", "outubro", "novembro", "dezembro"];
+  const nomePeriodo = p.id === "mes" || p.id === "mes-anterior" ? MESES[Number(dataBahia(p.ini).slice(5, 7)) - 1] : p.rotulo.toLowerCase();
   const numeros = {
-    periodo: p.rotulo,
+    periodo: nomePeriodo,
     saude: m.saude,
-    atividades: { criadas: m.atividades.criadas, criadasAnt: m.atividades.criadasAnt, concluidas: m.atividades.concluidas, concluidasAnt: m.atividades.concluidasAnt, abertas: m.atividades.abertas, atrasadas: m.atividades.atrasadas, noPrazoPct: m.atividades.noPrazoPct },
-    concluidasPorPessoa: equipe.map((r) => `${curto(r.nome)}: ${ats.filter((a) => a.respId === r.id && a.status === "concluida" && dentro(a.concluida, p.ini, p.fim)).length}`),
-    whatsapp: { respostaMedianaHoras: m.atendimento.respostaMedianaHoras, recebidas: m.atendimento.recebidas },
-    satisfacao: m.satisfacao.media,
+    partesDaSaude: m.componentes,
+    atividades: { criadas: m.atividades.criadas, criadasPeriodoAnterior: m.atividades.criadasAnt, concluidas: m.atividades.concluidas, concluidasPeriodoAnterior: m.atividades.concluidasAnt, abertasAgora: m.atividades.abertas, atrasadasAgora: m.atividades.atrasadas, noPrazoPct: m.atividades.noPrazoPct, diasDoPedidoAEntrega: m.atividades.tempoMedioDias },
+    equipe: m.equipe.map((e) => ({
+      nome: curto(e.nome),
+      concluidasNoPeriodo: e.concluidas,
+      titulosConcluidos: ats.filter((a) => resp.get(a.respId ?? "")?.profileId === e.id && a.status === "concluida" && dentro(a.concluida, p.ini, p.fim)).slice(0, 3).map((a) => `${a.titulo} (${nomeCli(a.clienteId)})`),
+      abertas: e.abertas,
+      atrasadas: e.atrasadas,
+      mensagensAosClientes: e.mensagens,
+      carga: carga.find((c) => resp.get(c.id)?.profileId === e.id)?.carga ?? 0,
+      nota0a100: (() => {
+        const r = base.responsaveis.find((x) => x.profileId === e.id);
+        return r ? notaPessoa(ats.filter((a) => a.respId === r.id), p.ini, p.fim).nota : null;
+      })(),
+    })),
+    clientes: {
+      quemMaisDemandou: m.clientes.maisDemandas.slice(0, 4).map((c) => `${c.nome}: ${c.demandas}`),
+      menosSatisfeitos: m.satisfacao.menos.slice(0, 4).map((c) => `${c.nome}: nota ${c.nota}`),
+      satisfacaoMedia: m.satisfacao.media,
+      novos: { total: m.comercial.clientesNovos, empresas: novos.filter((c) => c.tipo_pessoa === "PJ").map((c) => c.name) },
+      esfriando: m.clientes.esfriando.slice(0, 3).map((c) => `${c.nome} (${c.semContatoDias} dias sem contato)`),
+    },
+    whatsapp: { recebidas: m.atendimento.recebidas, enviadas: m.atendimento.enviadas, respostaMedianaHoras: m.atendimento.respostaMedianaHoras, respondidasPorPessoa: m.atendimento.tempoPorPessoa.map((t) => `${t.nome}: ${t.respondidas} (mediana ${t.medianaHoras ?? "—"} h)`) },
+    distribuicao: { chegaram: m.distribuicao.chegaram, aprovadas: m.distribuicao.aceitas, descartadas: m.distribuicao.descartadas, pendentesAgora: m.distribuicao.pendentesAgora, paradasMaisDe2Dias: m.distribuicao.pendentesHaMaisDe2Dias },
+    relatoriosDoMes: { feitos: m.clientes.relatoriosNoPeriodo, enviados: m.clientes.relatoriosEnviados },
   };
   return { periodo: p, achados: out, numeros };
 }
