@@ -2,6 +2,7 @@ import "server-only";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { agenteLigado } from "@/lib/whatsapp";
+import { equipeNoZap } from "./equipe-zap";
 import { DIA, arred, dentro, dias, hojeBahia as hoje, media, notaPorTempo, periodoDe, type Periodo } from "./base";
 
 export { periodoDe, notaPorTempo, type Periodo };
@@ -46,7 +47,7 @@ type Atividade = {
   archived_at: string | null;
 };
 type Dist = { id: string; origem: string; status: string; created_at: string; tratado_em: string | null; activity_id: string | null; client_id: string | null; tratado_por: string | null };
-type Msg = { chat_jid: string; from_me: boolean; wa_timestamp: string; quem: string; job_id: string | null };
+type Msg = { chat_jid: string; from_me: boolean; wa_timestamp: string; quem: string; job_id: string | null; sender_jid: string | null };
 
 export type Metricas = Awaited<ReturnType<typeof calcularMetricas>>;
 
@@ -142,8 +143,9 @@ export async function calcularMetricas(p: Periodo) {
     .sort((a, b) => a.nota - b.nota);
 
   /* ───────── atendimento no WhatsApp ───────── */
+  const membroDaEquipe = await equipeNoZap();
   const msgs = await tudo<Msg>((a, b) =>
-    db().from("wa_messages").select("chat_jid, from_me, wa_timestamp, quem, job_id").gte("wa_timestamp", new Date(Date.parse(p.ini) - 3 * DIA).toISOString()).lt("wa_timestamp", p.fim).order("wa_timestamp").range(a, b)
+    db().from("wa_messages").select("chat_jid, from_me, wa_timestamp, quem, job_id, sender_jid").gte("wa_timestamp", new Date(Date.parse(p.ini) - 3 * DIA).toISOString()).lt("wa_timestamp", p.fim).order("wa_timestamp").range(a, b)
   );
   const jobsIds = [...new Set(msgs.filter((m) => m.job_id).map((m) => m.job_id!))];
   const autorDoJob = new Map<string, string>();
@@ -171,7 +173,9 @@ export async function calcularMetricas(p: Periodo) {
   for (const m of msgs) {
     const noPeriodo = dentro(m.wa_timestamp, p.ini, p.fim);
     const deCliente = chatCliente.has(m.chat_jid);
-    if (!m.from_me) {
+    // resposta = número do escritório (portal/celular) ou alguém da equipe escrevendo no grupo
+    const membro = m.from_me ? null : membroDaEquipe(m.sender_jid);
+    if (!m.from_me && !membro) {
       if (noPeriodo) {
         recebidas++;
         doDia(m.wa_timestamp).recebidas++;
@@ -183,7 +187,7 @@ export async function calcularMetricas(p: Periodo) {
     if (noPeriodo) {
       enviadas++;
       doDia(m.wa_timestamp).enviadas++;
-      const autor = m.job_id ? autorDoJob.get(m.job_id) : null;
+      const autor = membro ?? (m.job_id ? autorDoJob.get(m.job_id) : null);
       if (m.quem === "ia") respostasIa++;
       else if (autor) respostasPorPessoa.set(autor, (respostasPorPessoa.get(autor) ?? 0) + 1);
       else respostasCelular++;
@@ -193,7 +197,7 @@ export async function calcularMetricas(p: Periodo) {
       const t = (Date.parse(m.wa_timestamp) - Date.parse(desde)) / 3_600_000;
       temposResposta.push(t);
       doDia(m.wa_timestamp).tempos.push(t);
-      const autor = m.job_id ? autorDoJob.get(m.job_id) : null;
+      const autor = membro ?? (m.job_id ? autorDoJob.get(m.job_id) : null);
       const quem = autor ?? "_celular";
       temposPorPessoa.set(quem, [...(temposPorPessoa.get(quem) ?? []), t]);
     }
@@ -388,7 +392,7 @@ export async function calcularMetricas(p: Periodo) {
       respostasPorPessoa: [...respostasPorPessoa.entries()].map(([id, n]) => ({ nome: nomePerfil.get(id) ?? "?", n })).sort((a, b) => b.n - a.n),
       porHora,
       porDia: [...zapPorDia.entries()].filter(([d]) => d >= new Date(p.ini).toLocaleDateString("en-CA", { timeZone: "America/Bahia" })).sort((a, b) => a[0].localeCompare(b[0])).map(([dia, v]) => ({ dia, recebidas: v.recebidas, enviadas: v.enviadas, respostaMedianaHoras: arred(mediana(v.tempos), 1) })),
-      tempoPorPessoa: [...temposPorPessoa.entries()].map(([id, ts]) => ({ nome: id === "_celular" ? "Pelo celular" : nomePerfil.get(id) ?? "?", respondidas: ts.length, medianaHoras: arred(mediana(ts), 1) })).sort((a, b) => b.respondidas - a.respondidas),
+      tempoPorPessoa: [...temposPorPessoa.entries()].map(([id, ts]) => ({ nome: id === "_celular" ? "Número do escritório (pelo celular)" : nomePerfil.get(id) ?? "?", respondidas: ts.length, medianaHoras: arred(mediana(ts), 1) })).sort((a, b) => b.respondidas - a.respondidas),
       esperandoAgora,
     },
     satisfacao: { media: arred(media(notas), 1), avaliadas: notas.length, menos: satisfacaoClientes.filter((c) => c.nota < 4).slice(0, 8), mais: satisfacaoClientes.filter((c) => c.nota >= 4).reverse().slice(0, 8) },

@@ -4,6 +4,7 @@ import { createAdminClient } from "@/lib/supabase/admin";
 import { generateJson } from "@/lib/gemini";
 import { MODELOS } from "@/lib/ia-modelos";
 import { calcularMetricas, tudo } from "./metricas";
+import { equipeNoZap } from "./equipe-zap";
 import { carregarBase } from "./dados";
 import { DIA, aberta, atrasada, dataBahia, dentro, dias, hojeBahia, pesoAtividade, periodoDe, somaDias, TIPOS, type LinhaAtividade } from "./base";
 
@@ -72,19 +73,21 @@ export async function fatosDoGerente(periodoId: string) {
   const mediaCarga = carga.length ? carga.reduce((s, c) => s + c.carga, 0) / carga.length : 0;
 
   /* 1) cliente perguntando no WhatsApp + andamento/publicação nova do processo dele */
-  const { data: chats } = await db().from("wa_chats").select("chat_jid, client_id").not("client_id", "is", null).eq("is_group", false);
+  // conversas e grupos de assessoria; resposta = escritório ou alguém da equipe no grupo
+  const [{ data: chats }, membroDaEquipe] = await Promise.all([db().from("wa_chats").select("chat_jid, client_id").not("client_id", "is", null), equipeNoZap()]);
   const chatCli = new Map((chats ?? []).map((c) => [c.chat_jid as string, c.client_id as string]));
   const msgs = chatCli.size
-    ? await tudo<{ chat_jid: string; from_me: boolean; wa_timestamp: string }>((a, b) =>
-        db().from("wa_messages").select("chat_jid, from_me, wa_timestamp").in("chat_jid", [...chatCli.keys()]).gte("wa_timestamp", new Date(Date.now() - 30 * DIA).toISOString()).order("wa_timestamp").range(a, b)
+    ? await tudo<{ chat_jid: string; from_me: boolean; wa_timestamp: string; sender_jid: string | null }>((a, b) =>
+        db().from("wa_messages").select("chat_jid, from_me, wa_timestamp, sender_jid").in("chat_jid", [...chatCli.keys()]).gte("wa_timestamp", new Date(Date.now() - 30 * DIA).toISOString()).order("wa_timestamp").range(a, b)
       )
     : [];
   const esperando = new Map<string, string>(); // cliente → desde quando espera
   const ultimo = new Map<string, { quando: string; deles: boolean }>();
-  for (const x of msgs) ultimo.set(x.chat_jid, { quando: x.wa_timestamp, deles: !x.from_me });
+  const nossa = (x: { from_me: boolean; sender_jid: string | null }) => x.from_me || !!membroDaEquipe(x.sender_jid);
+  for (const x of msgs) ultimo.set(x.chat_jid, { quando: x.wa_timestamp, deles: !nossa(x) });
   const primeiraSemResposta = new Map<string, string>();
   for (const x of msgs) {
-    if (x.from_me) primeiraSemResposta.delete(x.chat_jid);
+    if (nossa(x)) primeiraSemResposta.delete(x.chat_jid);
     else if (!primeiraSemResposta.has(x.chat_jid)) primeiraSemResposta.set(x.chat_jid, x.wa_timestamp);
   }
   for (const [jid, desde] of primeiraSemResposta) if (ultimo.get(jid)?.deles) esperando.set(chatCli.get(jid)!, desde);

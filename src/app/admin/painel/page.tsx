@@ -2,6 +2,7 @@ import Link from "next/link";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { exigirSuperAdmin } from "@/lib/dal";
 import { createAdminClient } from "@/lib/supabase/admin";
+import { jidsDoFone } from "@/lib/painel/equipe-zap";
 import { calcularMetricas } from "@/lib/painel/metricas";
 import { carregarBase } from "@/lib/painel/dados";
 import { PERIODOS, dentro, dias as diasEntre, media, notaPorTempo, noPrazo, periodoDe, type Periodo } from "@/lib/painel/base";
@@ -108,10 +109,17 @@ async function linhaDoTempo(pessoaId: string, p: Periodo, base: Awaited<ReturnTy
     .map((a) => ({ quando: a.concluida!, texto: `Concluiu "${a.titulo}"${a.clienteId ? ` · ${nomeCli(a.clienteId)}` : ""}`, href: `/admin/activities/${a.id}` }));
   const extras = { mensagens: 0, comentarios: 0, horas: 0 };
   if (r?.profileId) {
-    const [aud, com, jobs, hrs] = await Promise.all([
+    const [aud, com, jobs, noGrupo, hrs] = await Promise.all([
       db.from("auditoria").select("quando, tabela, acao, resumo, registro_id, campos").eq("profile_id", r.profileId).gte("quando", p.ini).lt("quando", p.fim).order("quando", { ascending: false }).limit(80),
       db.from("activity_comments").select("created_at, activity_id, texto").eq("autor_id", r.profileId).gte("created_at", p.ini).lt("created_at", p.fim).limit(80),
       db.from("wa_jobs").select("id", { count: "exact", head: true }).eq("criado_por", r.profileId).gte("created_at", p.ini).lt("created_at", p.fim),
+      // o que a pessoa escreveu nos grupos de assessoria com o próprio número
+      db.from("responsaveis").select("telefone").eq("id", pessoaId).maybeSingle().then(async ({ data }) => {
+        const jids = jidsDoFone(data?.telefone as string | null);
+        if (!jids.length) return 0;
+        const { count } = await db.from("wa_messages").select("id", { count: "exact", head: true }).in("sender_jid", jids).gte("wa_timestamp", p.ini).lt("wa_timestamp", p.fim);
+        return count ?? 0;
+      }),
       db.from("time_entries").select("hours").eq("advogado_id", r.profileId).gte("date", p.ini.slice(0, 10)).lte("date", p.fim.slice(0, 10)),
     ]);
     for (const a of aud.data ?? []) {
@@ -125,7 +133,7 @@ async function linhaDoTempo(pessoaId: string, p: Periodo, base: Awaited<ReturnTy
     const titulo = new Map(base.atividades.map((a) => [a.id, a.titulo]));
     for (const c of com.data ?? []) eventos.push({ quando: c.created_at, texto: `Comentou em "${titulo.get(c.activity_id) ?? "atividade"}": ${String(c.texto).slice(0, 80)}`, href: `/admin/activities/${c.activity_id}` });
     extras.comentarios = com.data?.length ?? 0;
-    extras.mensagens = jobs.count ?? 0;
+    extras.mensagens = (jobs.count ?? 0) + noGrupo;
     extras.horas = Math.round((hrs.data ?? []).reduce((s, x) => s + Number(x.hours), 0) * 10) / 10;
   }
   return { eventos: eventos.sort((a, b) => b.quando.localeCompare(a.quando)).slice(0, 60), extras };
@@ -283,7 +291,7 @@ export default async function PainelPage({ searchParams }: { searchParams: Promi
                   vazio="Nenhuma resposta pelo portal no período."
                   itens={[
                     ...w.respostasPorPessoa.map((r) => ({ chave: r.nome, texto: r.nome, valor: num(r.n) })),
-                    ...(w.respostasCelular ? [{ chave: "_cel", texto: <span className="text-muted">Pelo celular (direto no WhatsApp)</span>, valor: num(w.respostasCelular) }] : []),
+                    ...(w.respostasCelular ? [{ chave: "_cel", texto: <span className="text-muted">Número do escritório (pelo celular)</span>, valor: num(w.respostasCelular) }] : []),
                     ...(w.respostasIa ? [{ chave: "_ia", texto: <span className="text-muted">Agente MC (IA)</span>, valor: num(w.respostasIa) }] : []),
                   ]}
                 />
@@ -513,7 +521,7 @@ export default async function PainelPage({ searchParams }: { searchParams: Promi
                     </tbody>
                   </table>
                 )}
-                <p className="mt-3 text-[11px] text-muted">&quot;Pelo celular&quot; = respondido direto no WhatsApp do aparelho, sem passar pelo portal.</p>
+                <p className="mt-3 text-[11px] text-muted">Conta como resposta: o que sai do número do escritório (pelo portal ou pelo celular) e o que cada pessoa da equipe escreve nos grupos de assessoria com o próprio número (cadastrado em Responsáveis). Mensagens de grupo antes de 16/10 não têm remetente.</p>
               </div>
               <div className="ui-card min-w-0 p-5">
                 <p className="mb-3 text-sm font-semibold text-foreground">Mensagens recebidas por hora do dia</p>
