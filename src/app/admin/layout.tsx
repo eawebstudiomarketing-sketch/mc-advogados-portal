@@ -1,5 +1,5 @@
 import { AdminShell } from "@/components/layout/admin-shell";
-import { getPermissoes, requireRole } from "@/lib/dal";
+import { ehSuperAdmin, getPermissoes, requireRole } from "@/lib/dal";
 import { listClients } from "@/lib/data/clients";
 import { contarNaoTratadas } from "@/lib/data/publicacoes";
 import { contarNaoLidas } from "@/lib/data/mensagens";
@@ -26,6 +26,7 @@ export default async function AdminLayout({ children }: { children: React.ReactN
       publicacoesPendentes={publicacoesPendentes}
       mensagensNaoLidas={mensagensNaoLidas}
       distribuicaoPendentes={distribuicaoPendentes}
+      superAdmin={ehSuperAdmin(profile)}
     >
       {children}
     </AdminShell>

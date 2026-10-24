@@ -17,6 +17,7 @@ import { MODELOS } from "@/lib/ia-modelos";
 import { TOOLS_WHATSAPP } from "./tools-whatsapp";
 import { TOOLS_TRANSCRICAO } from "./tools-transcricao";
 import { TOOLS_ATAS } from "./tools-atas";
+import { TOOLS_PAINEL } from "./tools-painel";
 import { toolsOperacao } from "./tools-operacao";
 import { envolvidosPorNome, etiquetasPorNome, toolsSistema } from "./tools-sistema";
 
@@ -450,7 +451,7 @@ export const TOOLS: ToolDef[] = [
     name: "abrir_tela",
     kind: "read",
     label: "Abriu uma tela",
-    description: "Leva a pessoa a uma tela: /admin, /admin/agenda, /admin/agenda/compromisso/novo, /admin/distribuicao (?origem=whatsapp|portal_cliente|publicacao), /admin/publicacoes, /admin/team, /admin/clients, /admin/clients/{id}?aba=atividades|documentos|atas|onboarding|demandas|relatorios|acesso, /admin/clients/{id}/handoff, /admin/activities, /admin/documents, /admin/onboarding/new?clientId={id}, /admin/reports, /admin/lixeira.",
+    description: "Leva a pessoa a uma tela: /admin, /admin/agenda, /admin/agenda/compromisso/novo, /admin/distribuicao (?origem=whatsapp|portal_cliente|publicacao), /admin/publicacoes, /admin/team, /admin/clients, /admin/clients/{id}?aba=atividades|documentos|atas|onboarding|demandas|relatorios|acesso, /admin/clients/{id}/handoff, /admin/activities, /admin/documents, /admin/onboarding/new?clientId={id}, /admin/reports, /admin/lixeira, /admin/painel (Painel do Dono, só admin máximo).",
     parameters: obj({ caminho: { type: "string" } }, ["caminho"]),
     run: async (a) => {
       const c = String(a.caminho);
@@ -834,6 +835,7 @@ export const TOOLS: ToolDef[] = [
   ...TOOLS_WHATSAPP,
   ...TOOLS_TRANSCRICAO,
   ...TOOLS_ATAS,
+  ...TOOLS_PAINEL,
   ...toolsOperacao(db),
   ...toolsSistema(db),
 ];
