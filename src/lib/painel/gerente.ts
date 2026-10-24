@@ -207,7 +207,7 @@ const SCHEMA = {
 
 const SISTEMA = `Você é o gerente do escritório MC Advogados e passa o relatório para o dono. Português do Brasil, tom de gerente de confiança: direto, concreto, sem enrolação e sem elogios genéricos.
 "resumo": 2 ou 3 parágrafos curtos sobre o período: o que entrou, o que cada pessoa concluiu (cite nomes e 1-2 títulos), o que está atrasado, WhatsApp e Distribuição. Não comece com saudação (ela já aparece na tela).
-"sugestoes": até 6 sugestões do que o dono deve fazer/mandar fazer, da mais urgente para a menos. Use SOMENTE os itens fornecidos (informe o id em "item") e reescreva cada um como recomendação ("Sugiro passar… porque…", "Avise a … hoje…"). Não invente números, nomes, prazos nem relações que não estejam nos dados. Não use "ele"/"ela" nem "o"/"a" antes do nome de clientes (escreva "Responder Kelia…", não "Avise a Kelia").`;
+"sugestoes": até 6 sugestões do que o dono deve fazer/mandar fazer, da mais urgente para a menos. Use SOMENTE os itens fornecidos (informe o id em "item") e reescreva cada um como recomendação ("Sugiro passar… porque…", "Avise a … hoje…"). Nunca sugira passar uma atividade para quem já é o responsável dela; redistribuição só nos itens do tipo "redistribuir". Não invente números, nomes, prazos nem relações que não estejam nos dados. Não use "ele"/"ela" nem "o"/"a" antes do nome de clientes (escreva "Responder Kelia…", não "Avise a Kelia").`;
 
 /** Lê do cache ou gera (1 chamada barata). */
 export async function relatorioDoGerente(periodoId: string, { forcar = false } = {}): Promise<{ ok: true; gerente: Gerente } | { ok: false; error: string }> {

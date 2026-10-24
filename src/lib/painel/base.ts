@@ -105,7 +105,9 @@ export function notaPessoa(minhas: LinhaAtividade[], ini: string, fim: string, h
   const pAtras = abertas.length ? atras.length / abertas.length : 0;
   const tMed = media(tempos);
   const sat = media(notas);
-  const nota = Math.round(pPrazo * 40 + (1 - Math.min(1, pAtras * 2)) * 25 + (tMed === null ? 15 : Math.max(0, 1 - tMed / 15) * 20) + (sat === null ? 11 : ((sat - 1) / 4) * 15));
+  // sem nada no período nem aberto: sem nota (não dá 91 de graça)
+  const semDados = !concl.length && !abertas.length;
+  const nota = semDados ? null : Math.round(pPrazo * 40 + (1 - Math.min(1, pAtras * 2)) * 25 + (tMed === null ? 15 : Math.max(0, 1 - tMed / 15) * 20) + (sat === null ? 11 : ((sat - 1) / 4) * 15));
   return { nota, concluidas: concl.length, noPrazoPct: concl.length ? Math.round(pPrazo * 100) : null, abertas: abertas.length, atrasadas: atras.length, tempoMedioDias: arred(tMed, 1), satisfacao: arred(sat, 1), carga: arred(abertas.reduce((s, a) => s + pesoAtividade(a, hoje), 0), 1)! };
 }
 

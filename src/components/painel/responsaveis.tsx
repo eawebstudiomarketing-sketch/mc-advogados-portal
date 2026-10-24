@@ -7,7 +7,7 @@ import { aberta, atrasada, dataBahia, dias, hojeBahia, media, noPrazo, notaPesso
 import { Barras } from "./graficos";
 import { FiltroQuadro, Quadro, usePainel, useFiltro } from "./contexto";
 
-const corNota = (n: number) => (n >= 75 ? "text-status-success" : n >= 50 ? "text-status-pending" : "text-status-danger");
+const corNota = (n: number | null) => (n === null ? "text-muted" : n >= 75 ? "text-status-success" : n >= 50 ? "text-status-pending" : "text-status-danger");
 const iniciais = (n: string) =>
   n
     .replace(/^(Dra?\.)\s+/i, "")
@@ -44,12 +44,12 @@ export function CartoesResponsaveis({ equipe }: { equipe: string[] }) {
   const { responsaveis } = usePainel();
   const pessoas = responsaveis.filter((r) => equipe.includes(r.id));
   const notas = pessoas.map((r) => ({ r, n: notaPessoa(linhas.filter((a) => a.respId === r.id), periodo.ini, periodo.fim) }));
-  const mediaEquipe = Math.round(media(notas.map((x) => x.n.nota)) ?? 0);
+  const mediaEquipe = Math.round(media(notas.flatMap((x) => (x.n.nota === null ? [] : [x.n.nota]))) ?? 0);
   return (
     <Quadro titulo="Equipe" apoio={`${periodo.rotulo} · nota média da equipe ${mediaEquipe}`} filtro={<FiltroQuadro filtro={filtro} setFiltro={setFiltro} campos={{ periodo: true, cliente: true, tipo: true }} />}>
       <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-3">
         {notas
-          .sort((a, b) => b.n.nota - a.n.nota)
+          .sort((a, b) => (b.n.nota ?? -1) - (a.n.nota ?? -1))
           .map(({ r, n }) => (
             <Link key={r.id} href={`/admin/painel?aba=responsaveis&pessoa=${r.id}`} className="rounded-xl border border-border p-4 transition-[border-color,transform] duration-200 hover:-translate-y-px hover:border-border-strong">
               <div className="flex items-center gap-3">
@@ -59,7 +59,7 @@ export function CartoesResponsaveis({ equipe }: { equipe: string[] }) {
                   <p className="text-xs text-muted">carga {n.carga}</p>
                 </div>
                 <p className={`numero-grande text-3xl ${corNota(n.nota)}`} title="Nota 0–100: prazo, atrasos, rapidez e satisfação">
-                  {n.nota}
+                  {n.nota ?? "—"}
                 </p>
               </div>
               <div className="mt-4 grid grid-cols-3 gap-3 border-t border-border pt-3">
@@ -87,8 +87,8 @@ export function FichaPessoa({ pessoaId, linhaDoTempo, extras }: { pessoaId: stri
   const hoje = hojeBahia();
   const minhas = useMemo(() => linhas.filter((a) => a.respId === pessoaId), [linhas, pessoaId]);
   const n = notaPessoa(minhas, periodo.ini, periodo.fim);
-  const equipeNotas = responsaveis.map((x) => notaPessoa(atividades.filter((a) => a.respId === x.id), periodo.ini, periodo.fim)).filter((x) => x.abertas + x.concluidas > 0);
-  const mediaEquipe = Math.round(media(equipeNotas.map((x) => x.nota)) ?? 0);
+  const equipeNotas = responsaveis.map((x) => notaPessoa(atividades.filter((a) => a.respId === x.id), periodo.ini, periodo.fim));
+  const mediaEquipe = Math.round(media(equipeNotas.flatMap((x) => (x.nota === null ? [] : [x.nota]))) ?? 0);
 
   const grupos = useMemo(() => {
     const ab = minhas.filter(aberta);
@@ -128,7 +128,7 @@ export function FichaPessoa({ pessoaId, linhaDoTempo, extras }: { pessoaId: stri
   }, [minhas, hoje]);
 
   if (!r) return <p className="text-sm text-muted">Pessoa não encontrada.</p>;
-  const diferenca = n.nota - mediaEquipe;
+  const diferenca = n.nota === null ? null : n.nota - mediaEquipe;
 
   return (
     <div className="space-y-4">
@@ -145,9 +145,9 @@ export function FichaPessoa({ pessoaId, linhaDoTempo, extras }: { pessoaId: stri
             </p>
           </div>
           <div className="text-right">
-            <p className={`numero-grande text-5xl leading-none ${corNota(n.nota)}`}>{n.nota}</p>
+            <p className={`numero-grande text-5xl leading-none ${corNota(n.nota)}`}>{n.nota ?? "—"}</p>
             <p className="mt-1 text-xs text-muted">
-              {diferenca === 0 ? "igual à média" : `${diferenca > 0 ? "+" : ""}${diferenca} vs média da equipe (${mediaEquipe})`}
+              {diferenca === null ? "sem atividades no período" : diferenca === 0 ? "igual à média" : `${diferenca > 0 ? "+" : ""}${diferenca} vs média da equipe (${mediaEquipe})`}
             </p>
           </div>
         </div>
