@@ -38,7 +38,7 @@ export function MembroCard({
   papel: "admin" | "advogado";
   podeEditar: boolean;
   membro: { id: string; nome: string; email: string; ativo: boolean };
-  clientes: { id: string; name: string }[];
+  clientes: { id: string; name: string; tipo_pessoa: "PF" | "PJ" | string }[];
   designados: string[];
   permissoes: Permissoes;
 }) {
@@ -56,16 +56,27 @@ export function MembroCard({
   const [perm, setPerm] = useState(permissoes);
   const [ativo, setAtivo] = useState(membro.ativo);
   const [busca, setBusca] = useState("");
+  // separa empresas e pessoas pra não misturar na hora de delegar
+  const [tipo, setTipo] = useState<"PJ" | "PF">("PJ");
   const [pending, start] = useTransition();
 
   const clientesMudaram = sel.size !== designados.length || designados.some((d) => !sel.has(d));
   const permMudou = PERMISSOES.some((p) => perm[p.chave] !== permissoes[p.chave]);
+  const livres = useMemo(
+    () => clientes.filter((c) => !deOutro(c.id)),
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- deOutro depende de ctx.dono
+    [clientes, ctx?.dono],
+  );
+  const doTipo = (c: { tipo_pessoa: string }, t: "PJ" | "PF") => (t === "PF" ? c.tipo_pessoa === "PF" : c.tipo_pessoa !== "PF");
   const filtrados = useMemo(() => {
     const t = busca.trim().toLowerCase();
-    const livres = clientes.filter((c) => !deOutro(c.id));
-    return t ? livres.filter((c) => c.name.toLowerCase().includes(t)) : livres;
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- deOutro depende de ctx.dono
-  }, [busca, clientes, ctx?.dono]);
+    const daAba = livres.filter((c) => doTipo(c, tipo));
+    return t ? daAba.filter((c) => c.name.toLowerCase().includes(t)) : daAba;
+  }, [busca, livres, tipo]);
+  const contagem = (t: "PJ" | "PF") => {
+    const daAba = livres.filter((c) => doTipo(c, t));
+    return { total: daAba.length, marcados: daAba.filter((c) => sel.has(c.id)).length };
+  };
   const bloqueadas = PERMISSOES.filter((p) => !perm[p.chave]).length;
 
   function salvarClientes() {
@@ -117,7 +128,9 @@ export function MembroCard({
           </p>
           <p className="truncate text-xs text-muted">
             {membro.email} · {papel === "admin" ? "Administrador(a)" : "Advogado(a)"} ·{" "}
-            {perm.todos_clientes ? "todos os clientes" : `${sel.size} ${sel.size === 1 ? "cliente" : "clientes"}`}
+            {perm.todos_clientes
+              ? "todos os clientes"
+              : `${contagem("PJ").marcados} ${contagem("PJ").marcados === 1 ? "empresa" : "empresas"} · ${contagem("PF").marcados} ${contagem("PF").marcados === 1 ? "pessoa" : "pessoas"}`}
             {bloqueadas ? ` · ${bloqueadas} ${bloqueadas === 1 ? "bloqueio" : "bloqueios"}` : ""}
           </p>
         </div>
@@ -172,20 +185,42 @@ export function MembroCard({
               &ldquo;Ver todos os clientes&rdquo; está ligado em &ldquo;O que pode ver e fazer&rdquo;: a lista abaixo só passa a valer se desligar.
             </p>
           )}
+          <div role="tablist" aria-label="Tipo de cliente" className="mb-3 inline-flex rounded-full border border-border bg-surface p-0.5">
+            {([
+              ["PJ", "Empresas (PJ)"],
+              ["PF", "Pessoas (PF)"],
+            ] as const).map(([t, rotulo]) => {
+              const n = contagem(t);
+              return (
+                <button
+                  key={t}
+                  type="button"
+                  role="tab"
+                  aria-selected={tipo === t}
+                  onClick={() => setTipo(t)}
+                  className={`rounded-full px-3 py-1 text-xs transition-colors ${
+                    tipo === t ? "bg-navy-3 font-medium text-white" : "text-muted hover:text-foreground"
+                  }`}
+                >
+                  {rotulo} · {n.marcados}/{n.total}
+                </button>
+              );
+            })}
+          </div>
           <div className="flex flex-wrap items-center gap-2">
             <div className="relative min-w-[200px] flex-1">
               <Search className="pointer-events-none absolute top-1/2 left-2.5 h-3.5 w-3.5 -translate-y-1/2 text-muted" aria-hidden />
               <input value={busca} onChange={(e) => setBusca(e.target.value)} placeholder="Buscar cliente" aria-label="Buscar cliente" className="ui-input pl-8" />
             </div>
             <button type="button" onClick={() => setSel(new Set([...sel, ...filtrados.map((c) => c.id)]))} className="ui-btn-secondary px-3 py-1.5 text-xs">
-              Marcar {busca ? "os filtrados" : "todos"}
+              Marcar {busca ? "os filtrados" : tipo === "PF" ? "todas as pessoas" : "todas as empresas"}
             </button>
             <button type="button" onClick={() => setSel(new Set([...sel].filter((id) => !filtrados.some((c) => c.id === id))))} className="ui-btn-secondary px-3 py-1.5 text-xs">
-              Desmarcar {busca ? "os filtrados" : "todos"}
+              Desmarcar {busca ? "os filtrados" : tipo === "PF" ? "todas as pessoas" : "todas as empresas"}
             </button>
           </div>
           <div className="mt-3 grid max-h-72 grid-cols-1 gap-1 overflow-y-auto sm:grid-cols-2">
-            {filtrados.length === 0 && <p className="text-sm text-muted">Nenhum cliente encontrado.</p>}
+            {filtrados.length === 0 && <p className="text-sm text-muted">{tipo === "PF" ? "Nenhuma pessoa encontrada." : "Nenhuma empresa encontrada."}</p>}
             {filtrados.map((c) => (
               <label key={c.id} className="flex cursor-pointer items-center gap-2 rounded-lg px-2 py-1.5 text-sm hover:bg-surface">
                 <input

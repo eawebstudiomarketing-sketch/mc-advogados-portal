@@ -87,7 +87,7 @@ export default async function AdminTeamPage({ searchParams }: { searchParams: Pr
   const [staff, clientes, designacoes, salvas] = await Promise.all([listStaff(), listClients(), listDesignacoes(), listPermissoesSalvas()]);
   const admins = staff.filter((p) => p.role === "admin");
   const advogados = staff.filter((p) => p.role === "advogado");
-  const listaClientes = clientes.map((c) => ({ id: c.id, name: c.name }));
+  const listaClientes = clientes.map((c) => ({ id: c.id, name: c.name, tipo_pessoa: c.tipo_pessoa }));
   const semDono = clientes.filter((c) => !advogados.some((a) => designacoes.get(a.id)?.includes(c.id))).length;
 
   return (
