@@ -56,7 +56,7 @@ function Secao({ titulo, descricao, children, id }: { titulo: string; descricao?
 function Lista({ titulo, vazio, itens }: { titulo: string; vazio: string; itens: { chave: string; texto: React.ReactNode; valor: React.ReactNode; href?: string; tom?: "danger" | "pending" | "success" }[] }) {
   const cor = { danger: "text-status-danger", pending: "text-status-pending", success: "text-status-success" };
   return (
-    <div className="ui-card p-5">
+    <div className="ui-card min-w-0 p-5">
       <p className="eyebrow mb-2">{titulo}</p>
       {itens.length === 0 ? (
         <p className="py-3 text-sm text-muted">{vazio}</p>
@@ -129,7 +129,7 @@ export default async function PainelPage({ searchParams }: { searchParams: Promi
       </div>
 
       {/* saúde + sugestões */}
-      <div className="grid gap-4 lg:grid-cols-[minmax(0,22rem)_1fr]">
+      <div className="grid grid-cols-1 gap-4 lg:grid-cols-[minmax(0,22rem)_1fr]">
         <div className="ui-card p-5">
           <p className="eyebrow">Saúde do escritório</p>
           <p className={`numero-grande mt-2 text-[3.5rem] leading-none ${tomSaude}`}>

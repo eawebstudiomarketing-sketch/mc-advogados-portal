@@ -38,7 +38,7 @@ const SCHEMA = {
   required: ["resumo", "itens"],
 };
 
-const SISTEMA = `Você é o consultor de gestão do escritório MC Advogados. Recebe os números do mês (já calculados) e escreve no máximo 5 sugestões do que melhorar HOJE, em português do Brasil, diretas, citando clientes/pessoas pelo nome quando houver. Priorize: clientes esperando resposta, atividades atrasadas ou paradas, clientes esfriando ou insatisfeitos, inadimplência, robôs com erro. Não invente números. Sem elogios genéricos.`;
+const SISTEMA = `Você é o consultor de gestão do escritório MC Advogados. Recebe os números do mês (já calculados) e escreve no máximo 5 sugestões do que melhorar HOJE, em português do Brasil, diretas, citando clientes/pessoas pelo nome quando houver. Priorize: clientes esperando resposta, atividades atrasadas ou paradas, clientes esfriando ou insatisfeitos, inadimplência, robôs com erro. Não invente números nem fatos. Só diga quem deve fazer algo quando o responsável aparecer no próprio dado (ex.: atividade parada com responsável); senão, não atribua a ninguém. Sem elogios genéricos.`;
 
 export async function sugestoesDoDia(dia = hojeBahia()): Promise<SugestoesDoDia | null> {
   const { data } = await createAdminClient().from("painel_sugestoes").select("dia, texto, enviado_em, created_at").eq("dia", dia).maybeSingle();
