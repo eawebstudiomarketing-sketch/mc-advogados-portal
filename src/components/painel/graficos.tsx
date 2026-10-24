@@ -27,13 +27,15 @@ function Legenda({ itens }: { itens: { cor: string; rotulo: string }[] }) {
 export function LinhaCriadasConcluidas({
   serie,
   rotulos = ["Criadas", "Concluídas"],
-  formatar = (v: number) => v.toLocaleString("pt-BR"),
+  moeda = false,
 }: {
   serie: { dia: string; criadas: number; concluidas: number }[];
   /** nomes das duas séries (a mesma linha serve para recebidas × enviadas, faturado × recebido…) */
   rotulos?: [string, string];
-  formatar?: (v: number) => string;
+  /** valores em R$ */
+  moeda?: boolean;
 }) {
+  const formatar = (v: number) => (moeda ? v.toLocaleString("pt-BR", { style: "currency", currency: "BRL", maximumFractionDigits: 0 }) : v.toLocaleString("pt-BR"));
   const [i, setI] = useState<number | null>(null);
   const n = serie.length;
   const max = Math.max(1, ...serie.flatMap((s) => [s.criadas, s.concluidas]));

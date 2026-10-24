@@ -601,7 +601,7 @@ export default async function PainelPage({ searchParams }: { searchParams: Promi
             </div>
             <div className="ui-card min-w-0 p-5">
               <p className="mb-4 text-sm font-semibold text-foreground">Faturado × recebido por mês (12 meses)</p>
-              <LinhaCriadasConcluidas serie={fin.porMes.map((x) => ({ dia: x.mes, criadas: x.faturado, concluidas: x.recebido }))} rotulos={["Faturado", "Recebido"]} formatar={(v) => reais(v)} />
+              <LinhaCriadasConcluidas serie={fin.porMes.map((x) => ({ dia: x.mes, criadas: x.faturado, concluidas: x.recebido }))} rotulos={["Faturado", "Recebido"]} moeda />
             </div>
             <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
               <Lista titulo="Clientes que mais pagaram" vazio="Nenhum pagamento registrado." itens={fin.topClientes.map((x) => ({ chave: x.id, href: fichaHref(x.id), texto: x.nome, valor: reais(x.valor) }))} />
