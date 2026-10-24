@@ -103,11 +103,14 @@ export function Assistente({
   publicacoes = null,
 }: {
   nome: string;
-  modo?: "flutuante" | "pagina";
+  /** flutuante = balão (Ctrl+J); pagina = app do celular (/assistente); tela = Ferramentas › IA, dentro do portal */
+  modo?: "flutuante" | "pagina" | "tela";
   /** App instalável (admin): atalho para as Publicações com o número de não tratadas. */
   publicacoes?: number | null;
 }) {
-  const pagina = modo === "pagina";
+  const tela = modo === "tela";
+  // "pagina" = sempre aberto e em tamanho grande (app do celular e tela IA)
+  const pagina = modo === "pagina" || tela;
   const router = useRouter();
   const pathname = usePathname();
   const [aberto, setAberto] = useState(pagina);
@@ -141,7 +144,8 @@ export function Assistente({
     function atalho(e: KeyboardEvent) {
       if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "j") {
         e.preventDefault();
-        setAberto((a) => !a);
+        if (pagina) inputRef.current?.focus();
+        else setAberto((a) => !a);
       }
       if (e.key === "Escape" && !pagina) setAberto(false);
     }
@@ -324,7 +328,9 @@ export function Assistente({
           style={pagina ? undefined : janela.estilo}
           className={
             pagina
-              ? "mx-auto flex h-[100dvh] w-full max-w-[680px] flex-col overflow-hidden bg-surface sm:border-x sm:border-border"
+              ? tela
+                ? "flex h-[calc(100dvh-9.5rem)] min-h-[480px] w-full flex-col overflow-hidden rounded-2xl border border-border bg-surface shadow-sm"
+                : "mx-auto flex h-[100dvh] w-full max-w-[680px] flex-col overflow-hidden bg-surface sm:border-x sm:border-border"
               : `fixed z-40 flex animate-enter flex-col overflow-hidden bg-surface max-sm:inset-0 sm:rounded-2xl sm:border sm:border-border ${
                   janela.rect ? "" : "sm:right-5 sm:bottom-24 sm:h-[min(640px,calc(100vh-8rem))] sm:w-[400px]"
                 } ${janela.mexendo ? "shadow-xl ring-2 ring-gold/30" : "shadow-lg"}`
@@ -333,7 +339,7 @@ export function Assistente({
           {!pagina && <AlcasRedimensionar onRedimensionar={janela.onRedimensionar} />}
           <header
             onPointerDown={pagina ? undefined : janela.onArrastar}
-            className={`flex shrink-0 items-center gap-3 bg-navy-2 text-white ${pagina ? "px-4 pt-[max(0.75rem,env(safe-area-inset-top))] pb-3" : `px-4 py-3 sm:touch-none sm:select-none ${janela.mexendo ? "sm:cursor-grabbing" : "sm:cursor-grab"}`}`}
+            className={`flex shrink-0 items-center gap-3 bg-navy-2 text-white ${tela ? "px-5 py-3.5" : pagina ? "px-4 pt-[max(0.75rem,env(safe-area-inset-top))] pb-3" : `px-4 py-3 sm:touch-none sm:select-none ${janela.mexendo ? "sm:cursor-grabbing" : "sm:cursor-grab"}`}`}
             title={pagina ? undefined : "Arraste para mover"}
           >
             {pagina ? (
@@ -345,7 +351,7 @@ export function Assistente({
               </span>
             )}
             <div className="min-w-0 flex-1 leading-tight">
-              <p className={`font-semibold ${pagina ? "text-[16px]" : "text-sm"}`}>Assistente MC</p>
+              <p className={`font-semibold ${pagina ? "text-[16px]" : "text-sm"}`}>{tela ? "IA do escritório" : "Assistente MC"}</p>
               <p className="flex items-center gap-1.5 text-[11.5px] text-white/60">
                 {pensando ? (
                   "escrevendo…"
@@ -386,7 +392,7 @@ export function Assistente({
             )}
           </header>
 
-          <div className={`flex-1 overflow-y-auto overscroll-contain ${pagina ? "space-y-4 bg-background px-4 py-5" : "space-y-3.5 px-4 py-4"}`}>
+          <div className={`flex-1 overflow-y-auto overscroll-contain ${tela ? "space-y-4 bg-background px-[max(1rem,calc((100%-52rem)/2))] py-6" : pagina ? "space-y-4 bg-background px-4 py-5" : "space-y-3.5 px-4 py-4"}`}>
             {history.length === 0 && (
               <div className={pagina ? "flex min-h-full flex-col items-center justify-center px-2 pb-6 text-center" : "pt-2"}>
                 {pagina && (
@@ -501,7 +507,7 @@ export function Assistente({
               e.preventDefault();
               enviar();
             }}
-            className={`shrink-0 border-t border-border bg-surface ${pagina ? "px-3 pt-2.5 pb-[max(0.6rem,env(safe-area-inset-bottom))]" : "p-3"}`}
+            className={`shrink-0 border-t border-border bg-surface ${tela ? "px-[max(0.75rem,calc((100%-52rem)/2))] py-3" : pagina ? "px-3 pt-2.5 pb-[max(0.6rem,env(safe-area-inset-bottom))]" : "p-3"}`}
           >
             {anexos.length > 0 && (
               <div className="mb-2 flex flex-wrap gap-1.5">

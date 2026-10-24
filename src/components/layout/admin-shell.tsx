@@ -4,7 +4,7 @@ import Image from "next/image";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { Suspense, useEffect, useMemo, useState, useSyncExternalStore } from "react";
-import { LayoutDashboard, Users, ListChecks, Gavel, FileText, FileSignature, Wallet, ClipboardList, BarChart3, UserCog, Plug, Trash2, Search, Menu, X, LogOut, UserRound, type LucideIcon, Briefcase, Layers, Settings2, ChevronDown, Newspaper, Bell, CalendarDays, MessageCircle, MessagesSquare, Inbox, CalendarCheck, BellRing, AudioLines, NotebookPen } from "lucide-react";
+import { LayoutDashboard, Users, ListChecks, Gavel, FileText, FileSignature, Wallet, ClipboardList, BarChart3, UserCog, Plug, Trash2, Search, Menu, X, LogOut, UserRound, type LucideIcon, Briefcase, Layers, Settings2, ChevronDown, Newspaper, Bell, CalendarDays, MessageCircle, MessagesSquare, Inbox, CalendarCheck, BellRing, AudioLines, NotebookPen, Sparkles, Wrench } from "lucide-react";
 import { logout } from "@/app/logout/actions";
 import { CommandPalette, type PaletteItem } from "./command-palette";
 import { PERM_DA_TELA, type Permissoes } from "@/lib/permissoes";
@@ -47,12 +47,22 @@ const NAV_GROUPS: { id: string; label: string; icon: LucideIcon; items: NavItem[
       { href: "/admin/onboarding", label: "Onboarding", icon: ClipboardList },
       { href: "/admin/activities", label: "Atividades", icon: ListChecks },
       { href: "/admin/rotinas", label: "Rotinas", icon: CalendarCheck, todos: true },
-      { href: "/admin/transcricao", label: "Transcrição", icon: AudioLines, todos: true },
-      { href: "/admin/atas", label: "Atas", icon: NotebookPen },
       { href: "/admin/publicacoes", label: "Publicações", icon: Newspaper },
       { href: "/admin/alertas", label: "Alertas", icon: BellRing },
       { href: "/admin/processes", label: "Processos", icon: Gavel },
       { href: "/admin/documents", label: "Documentos", icon: FileText },
+    ],
+  },
+  {
+    // ferramentas do dia a dia (23/10/2026): IA em tela grande, transcrição, atas
+    // e as próximas que forem criadas
+    id: "ferramentas",
+    label: "Ferramentas",
+    icon: Wrench,
+    items: [
+      { href: "/admin/ia", label: "IA", icon: Sparkles },
+      { href: "/admin/transcricao", label: "Transcrição", icon: AudioLines, todos: true },
+      { href: "/admin/atas", label: "Atas", icon: NotebookPen },
     ],
   },
   {
@@ -72,8 +82,8 @@ const NAV_GROUPS: { id: string; label: string; icon: LucideIcon; items: NavItem[
 
 // grupos abertos no menu (lembrado no navegador; texto JSON para o
 // useSyncExternalStore comparar sem recriar o array a cada leitura)
-const CHAVE_GRUPOS = "mc:menu-grupos";
-const PADRAO_GRUPOS = JSON.stringify(["comercial", "operacional", "gestao"]);
+const CHAVE_GRUPOS = "mc:menu-grupos-v2"; // v2: grupo Ferramentas (abre aberto pra todos)
+const PADRAO_GRUPOS = JSON.stringify(["comercial", "operacional", "ferramentas", "gestao"]);
 const ouvintesGrupos = new Set<() => void>();
 function lerGruposCru(): string {
   try {
@@ -395,7 +405,8 @@ export function AdminShell({
       </div>
 
       <CommandPalette open={busca} onOpenChange={setBusca} items={itensBusca} />
-      {(userRole === "admin" || userRole === "advogado") && permissoes.assistente && <Assistente nome={userName.split(" ")[0] ?? ""} />}
+      {/* na tela IA (Ferramentas) o assistente já está aberto em tela grande */}
+      {(userRole === "admin" || userRole === "advogado") && permissoes.assistente && pathname !== "/admin/ia" && <Assistente nome={userName.split(" ")[0] ?? ""} />}
       <Suspense fallback={null}>
         <NavTrail />
       </Suspense>
