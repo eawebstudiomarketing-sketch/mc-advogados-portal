@@ -5,10 +5,12 @@ import { createAdminClient } from "@/lib/supabase/admin";
 import { jidsDoFone } from "@/lib/painel/equipe-zap";
 import { calcularMetricas } from "@/lib/painel/metricas";
 import { carregarBase } from "@/lib/painel/dados";
-import { PERIODOS, dentro, dias as diasEntre, media, notaPorTempo, noPrazo, periodoDe, seriesAtividades, type Periodo } from "@/lib/painel/base";
+import { PERIODOS, aberta, atrasada, hojeBahia, somaDias, dentro, dias as diasEntre, media, notaPorTempo, noPrazo, periodoDe, seriesAtividades, type LinhaAtividade, type Periodo } from "@/lib/painel/base";
 import { StatCard } from "@/components/ui/stat-card";
 import { Barras, BarrasH, LinhaCriadasConcluidas } from "@/components/painel/graficos";
 import { Anel, KpiCard, Medidor, Ranking, Rosca } from "@/components/painel/graficos2";
+import { ComDetalhe, Numeros, Parte } from "@/components/painel/detalhe";
+import { AbertasPorPessoa, AtrasadasPorPessoa, Avatar } from "@/components/painel/pessoas";
 import { AtividadesDoCliente, MapaCalorClientes, QuadroAgenda, QuadroCargaSemana, QuadroDistChegadas, QuadroDistDecisoes, QuadroDistParados, QuadroVencidas } from "@/components/painel/quadros2";
 import { dadosComercial, dadosFinanceiro, dadosProcessos, fichaCliente, linhasDistribuicao, ultimosMeses } from "@/lib/painel/extras";
 import { PainelBase } from "@/components/painel/contexto";
@@ -101,6 +103,37 @@ function Lista({ titulo, vazio, itens }: { titulo: string; vazio: string; itens:
   );
 }
 
+const dataCurta = (iso: string) => new Date(iso).toLocaleDateString("pt-BR", { timeZone: "America/Bahia", day: "2-digit", month: "2-digit" });
+
+/** Lista de atividades com foco em quem e para qual cliente. */
+function LinhasAtiv({ itens, direita, base, vazio = "Nada por aqui." }: { itens: LinhaAtividade[]; direita: (a: LinhaAtividade) => string; base: Awaited<ReturnType<typeof carregarBase>>; vazio?: string }) {
+  if (!itens.length) return <p className="text-sm text-muted">{vazio}</p>;
+  return (
+    <ul>
+      {itens.map((a) => {
+        const r = base.responsaveis.find((x) => x.id === a.respId);
+        const c = a.clienteId ? base.clientes.find((x) => x.id === a.clienteId) : null;
+        return (
+          <li key={a.id} className="border-t border-border first:border-t-0">
+            <Link href={`/admin/activities/${a.id}`} className="flex items-center gap-3 rounded-md px-1 py-2 hover:bg-[var(--hover)]" title={a.titulo}>
+              <Avatar nome={r?.nome ?? "?"} foto={r?.foto} tamanho={28} />
+              <span className="min-w-0 flex-1">
+                <span className="block truncate text-sm text-foreground">
+                  <b className="font-semibold">{r?.nome ?? "Sem responsável"}</b>
+                  <span className="text-muted"> · </span>
+                  {c?.nome ?? "Sem cliente"}
+                </span>
+                <span className="block truncate text-xs text-muted">{a.titulo}</span>
+              </span>
+              <span className="shrink-0 text-xs tabular-nums text-muted">{direita(a)}</span>
+            </Link>
+          </li>
+        );
+      })}
+    </ul>
+  );
+}
+
 /** Linha do tempo de uma pessoa no período: concluídas, ações (auditoria) e comentários. */
 async function linhaDoTempo(pessoaId: string, p: Periodo, base: Awaited<ReturnType<typeof carregarBase>>) {
   const db = createAdminClient() as unknown as SupabaseClient;
@@ -149,7 +182,7 @@ export default async function PainelPage({ searchParams }: { searchParams: Promi
   const [m, base] = await Promise.all([calcularMetricas(periodo), carregarBase()]);
   const [ficha, dist, fichaCli, proc, com, fin] = await Promise.all([
     aba === "responsaveis" && sp.pessoa ? linhaDoTempo(sp.pessoa, periodo, base) : null,
-    aba === "distribuicao" || (aba === "clientes" && !sp.cliente) ? linhasDistribuicao() : [],
+    aba === "distribuicao" || aba === "resumo" || (aba === "clientes" && !sp.cliente) ? linhasDistribuicao() : [],
     aba === "clientes" && sp.cliente ? fichaCliente(sp.cliente) : null,
     aba === "processos" ? dadosProcessos(periodo) : null,
     aba === "comercial" ? dadosComercial(periodo) : null,
@@ -176,6 +209,20 @@ export default async function PainelPage({ searchParams }: { searchParams: Promi
   const equipeIds = base.responsaveis.filter((r) => r.profileId && m.equipe.some((e) => e.id === r.profileId)).map((r) => r.id);
   const a = m.atividades;
   const serie = seriesAtividades(base.atividades, periodo.ini, periodo.fim);
+  // fichas dos números do Resumo
+  const hojeP = hojeBahia();
+  const seteDias = somaDias(hojeP, 7);
+  const criadasP = base.atividades.filter((x) => dentro(x.criada, periodo.ini, periodo.fim));
+  const concluidasP = base.atividades.filter((x) => x.status === "concluida" && dentro(x.concluida, periodo.ini, periodo.fim));
+  const abertasL = base.atividades.filter(aberta);
+  const atrasadasL = abertasL.filter((x) => atrasada(x, hojeP)).sort((x, y) => x.prazo!.localeCompare(y.prazo!));
+  const nomeResp = (id: string | null) => base.responsaveis.find((x) => x.id === id)?.nome ?? "Sem responsável";
+  const nomeCli = (id: string | null) => (id ? base.clientes.find((c) => c.id === id)?.nome ?? "?" : "Sem cliente");
+  const contaPor = <T,>(xs: T[], k: (x: T) => string) => {
+    const mapa = new Map<string, number>();
+    for (const x of xs) mapa.set(k(x), (mapa.get(k(x)) ?? 0) + 1);
+    return [...mapa.entries()].sort((a, b) => b[1] - a[1]);
+  };
   const d = m.distribuicao;
   const w = m.atendimento;
   const COMPONENTES: { chave: keyof typeof m.componentes; rotulo: string; max: number }[] = [
@@ -274,33 +321,179 @@ export default async function PainelPage({ searchParams }: { searchParams: Promi
                 </ul>
               </div>
               <div className="grid grid-cols-2 content-start gap-3 md:grid-cols-3">
-                <KpiCard rotulo="Criadas" valor={num(a.criadas)} serie={serie.criadas} apoio={variacao(a.criadas, a.criadasAnt)} />
-                <KpiCard rotulo="Concluídas" valor={num(a.concluidas)} serie={serie.concluidas} apoio={variacao(a.concluidas, a.concluidasAnt)} tom="success" />
-                <KpiCard rotulo="Abertas" valor={num(a.abertas)} serie={serie.abertas} apoio="evolução no período" href="/admin/activities" />
-                <KpiCard rotulo="Atrasadas" valor={num(a.atrasadas)} serie={serie.atrasadas} apoio="evolução no período" tom={a.atrasadas ? "danger" : undefined} />
-                <KpiCard rotulo="Resposta no Zap" valor={horas(w.respostaMedianaHoras)} serie={w.porDia.map((x) => x.respostaMedianaHoras ?? 0)} apoio="mediana por dia" tom={w.respostaMedianaHoras !== null && w.respostaMedianaHoras > 4 ? "pending" : undefined} />
-                <KpiCard rotulo="Recebidas no Zap" valor={num(w.recebidas)} serie={w.porDia.map((x) => x.recebidas)} apoio={`${num(w.enviadas)} enviadas`} />
-                <div className="ui-card flex items-center gap-3 p-4">
-                  <Anel valor={a.noPrazoPct} texto={a.noPrazoPct === null ? undefined : `${a.noPrazoPct}%`} tamanho={64} />
-                  <div className="min-w-0">
-                    <p className="eyebrow">No prazo</p>
-                    <p className="mt-1 text-xs text-muted">das concluídas · pedido → entrega {a.tempoMedioDias === null ? "—" : `${a.tempoMedioDias.toLocaleString("pt-BR")} d`}</p>
+                <ComDetalhe
+                  titulo={`Criadas · ${num(a.criadas)}`}
+                  subtitulo={`Atividades novas que entraram de ${periodo.rotulo.toLowerCase()} (${variacao(a.criadas, a.criadasAnt)})`}
+                  cartao={<KpiCard rotulo="Criadas" valor={num(a.criadas)} serie={serie.criadas} apoio="atividades novas no período" />}
+                >
+                  <Numeros itens={[{ rotulo: "criadas no período", valor: num(a.criadas) }, { rotulo: "período anterior", valor: num(a.criadasAnt) }, { rotulo: "clientes diferentes", valor: num(new Set(criadasP.map((x) => x.clienteId)).size) }, { rotulo: "já concluídas", valor: num(criadasP.filter((x) => x.status === "concluida").length) }]} />
+                  <div className="grid grid-cols-1 gap-6 md:grid-cols-2">
+                    <Parte titulo="Quem recebeu">
+                      <Ranking dados={contaPor(criadasP, (x) => nomeResp(x.respId)).map(([rotulo, valor]) => ({ rotulo, valor }))} />
+                    </Parte>
+                    <Parte titulo="De quais clientes">
+                      <Ranking dados={contaPor(criadasP, (x) => nomeCli(x.clienteId)).slice(0, 8).map(([rotulo, valor]) => ({ rotulo, valor }))} />
+                    </Parte>
                   </div>
-                </div>
-                <div className="ui-card flex items-center gap-3 p-4">
-                  <Anel valor={m.satisfacao.media} max={5} texto={m.satisfacao.media === null ? undefined : m.satisfacao.media.toLocaleString("pt-BR")} tamanho={64} />
-                  <div className="min-w-0">
-                    <p className="eyebrow">Satisfação</p>
-                    <p className="mt-1 text-xs text-muted">média de 1 a 5, pelo tempo de atendimento</p>
+                  <Parte titulo="Últimas que entraram">
+                    <LinhasAtiv itens={[...criadasP].sort((x, y) => y.criada.localeCompare(x.criada)).slice(0, 12)} direita={(x) => dataCurta(x.criada)} base={base} />
+                  </Parte>
+                </ComDetalhe>
+
+                <ComDetalhe
+                  titulo={`Concluídas · ${num(a.concluidas)}`}
+                  subtitulo={`Atividades entregues em ${periodo.rotulo.toLowerCase()} (${variacao(a.concluidas, a.concluidasAnt)})`}
+                  cartao={<KpiCard rotulo="Concluídas" valor={num(a.concluidas)} serie={serie.concluidas} apoio="entregues no período" tom="success" />}
+                >
+                  <Numeros itens={[{ rotulo: "concluídas", valor: num(a.concluidas) }, { rotulo: "período anterior", valor: num(a.concluidasAnt) }, { rotulo: "no prazo", valor: num(a.noPrazoPct, "%") }, { rotulo: "pedido → entrega", valor: a.tempoMedioDias === null ? "—" : `${a.tempoMedioDias.toLocaleString("pt-BR")} d` }]} />
+                  <Parte titulo="Quem entregou">
+                    <Ranking dados={contaPor(concluidasP, (x) => nomeResp(x.respId)).map(([rotulo, valor]) => ({ rotulo, valor }))} />
+                  </Parte>
+                  <Parte titulo="O que foi entregue">
+                    <LinhasAtiv itens={[...concluidasP].sort((x, y) => (y.concluida ?? "").localeCompare(x.concluida ?? ""))} direita={(x) => `${dataCurta(x.concluida!)} · ${Math.max(0, Math.round(diasEntre(x.pedido, x.concluida!)))} d`} base={base} />
+                  </Parte>
+                </ComDetalhe>
+
+                <ComDetalhe
+                  titulo={`Abertas · ${num(a.abertas)}`}
+                  subtitulo="Tudo o que está em aberto agora (em dia e atrasado)"
+                  cartao={<KpiCard rotulo="Abertas" valor={num(a.abertas)} serie={serie.abertas} apoio="em aberto agora" />}
+                >
+                  <Numeros itens={[{ rotulo: "abertas", valor: num(a.abertas) }, { rotulo: "atrasadas", valor: num(a.atrasadas), tom: "var(--status-danger)" }, { rotulo: "sem prazo", valor: num(abertasL.filter((x) => !x.prazo).length) }, { rotulo: "vencem em 7 dias", valor: num(abertasL.filter((x) => x.prazo && x.prazo >= hojeP && x.prazo <= seteDias).length) }]} />
+                  <div className="grid grid-cols-1 gap-6 md:grid-cols-2">
+                    <Parte titulo="Com quem estão">
+                      <Ranking dados={contaPor(abertasL, (x) => nomeResp(x.respId)).map(([rotulo, valor]) => ({ rotulo, valor }))} />
+                    </Parte>
+                    <Parte titulo="De quais clientes">
+                      <Ranking dados={contaPor(abertasL, (x) => nomeCli(x.clienteId)).slice(0, 8).map(([rotulo, valor]) => ({ rotulo, valor }))} />
+                    </Parte>
                   </div>
-                </div>
-                <Link href="/admin/distribuicao" className="ui-card flex items-center gap-3 p-4 transition-[border-color] hover:border-border-strong">
-                  <Anel valor={d.pendentesAgora ? d.pendentesAgora - d.pendentesHaMaisDe2Dias : 0} max={Math.max(1, d.pendentesAgora)} texto={String(d.pendentesAgora)} tamanho={64} cor={d.pendentesHaMaisDe2Dias ? "var(--status-pending)" : "var(--status-success)"} />
-                  <div className="min-w-0">
-                    <p className="eyebrow">Na Distribuição</p>
-                    <p className="mt-1 text-xs text-muted">{d.pendentesHaMaisDe2Dias} parados há mais de 2 dias</p>
+                  <Parte titulo="Por responsável">
+                    <AbertasPorPessoa />
+                  </Parte>
+                </ComDetalhe>
+
+                <ComDetalhe
+                  titulo={`Atrasadas · ${num(a.atrasadas)}`}
+                  subtitulo="Abertas com o prazo já vencido — quem deixou atrasar"
+                  cartao={<KpiCard rotulo="Atrasadas" valor={num(a.atrasadas)} serie={serie.atrasadas} apoio="prazo vencido, ainda abertas" tom={a.atrasadas ? "danger" : undefined} />}
+                >
+                  <Numeros itens={[{ rotulo: "atrasadas", valor: num(a.atrasadas), tom: "var(--status-danger)" }, { rotulo: "pessoas com atraso", valor: num(new Set(atrasadasL.map((x) => x.respId)).size) }, { rotulo: "clientes afetados", valor: num(new Set(atrasadasL.map((x) => x.clienteId)).size) }, { rotulo: "mais antiga", valor: atrasadasL[0] ? `${Math.round(diasEntre(`${atrasadasL[0].prazo}T12:00:00Z`, `${hojeP}T12:00:00Z`))} d` : "—" }]} />
+                  <AtrasadasPorPessoa />
+                </ComDetalhe>
+
+                <ComDetalhe
+                  titulo={`Resposta no WhatsApp · ${horas(w.respostaMedianaHoras)}`}
+                  subtitulo="Tempo entre a mensagem do cliente e a primeira resposta da equipe (número do escritório ou alguém da equipe no grupo). Mediana = metade das respostas sai mais rápido que isso."
+                  cartao={<KpiCard rotulo="Resposta no Zap" valor={horas(w.respostaMedianaHoras)} serie={w.porDia.map((x) => x.respostaMedianaHoras ?? 0)} apoio="tempo típico p/ responder o cliente" tom={w.respostaMedianaHoras !== null && w.respostaMedianaHoras > 4 ? "pending" : undefined} />}
+                >
+                  <Numeros itens={[{ rotulo: "mediana", valor: horas(w.respostaMedianaHoras) }, { rotulo: "média", valor: horas(w.respostaMediaHoras) }, { rotulo: "pior espera", valor: horas(w.respostaPiorHoras), tom: "var(--status-danger)" }, { rotulo: "respostas medidas", valor: num(w.respondidas) }]} />
+                  <Parte titulo="Tempo de cada pessoa (mediana)">
+                    {w.tempoPorPessoa.length ? <Ranking dados={w.tempoPorPessoa.filter((x) => x.medianaHoras !== null).map((x) => ({ rotulo: `${x.nome} · ${x.respondidas} resp.`, valor: x.medianaHoras!, tom: x.medianaHoras! > 4 ? "var(--status-pending)" : undefined }))} sufixo=" h" /> : <p className="text-sm text-muted">Nenhuma resposta medida no período.</p>}
+                  </Parte>
+                  <Parte titulo="Tempo de resposta por dia (mediana, em horas)">
+                    <Barras dados={w.porDia.map((x) => ({ rotulo: `${x.dia.slice(8, 10)}/${x.dia.slice(5, 7)}`, valor: x.respostaMedianaHoras ?? 0 }))} unidade=" h" />
+                  </Parte>
+                  <Parte titulo="Esperando resposta agora">
+                    {w.esperandoAgora.length ? (
+                      <ul>
+                        {w.esperandoAgora.map((e) => (
+                          <li key={e.conversa} className="flex items-center justify-between gap-3 border-t border-border py-2 text-sm first:border-t-0">
+                            <span className="min-w-0 truncate font-medium text-foreground">{e.cliente ?? e.conversa}</span>
+                            <span className={`shrink-0 text-xs font-medium tabular-nums ${e.horas > 24 ? "text-status-danger" : "text-status-pending"}`}>{e.horas} h</span>
+                          </li>
+                        ))}
+                      </ul>
+                    ) : (
+                      <p className="text-sm text-muted">Ninguém esperando há mais de 2 horas.</p>
+                    )}
+                  </Parte>
+                </ComDetalhe>
+
+                <ComDetalhe
+                  titulo={`Mensagens no WhatsApp · ${num(w.recebidas)} recebidas`}
+                  subtitulo={`Volume de mensagens de clientes e respostas da equipe em ${periodo.rotulo.toLowerCase()}`}
+                  cartao={<KpiCard rotulo="Recebidas no Zap" valor={num(w.recebidas)} serie={w.porDia.map((x) => x.recebidas)} apoio={`mensagens de clientes · ${num(w.enviadas)} enviadas`} />}
+                >
+                  <Numeros itens={[{ rotulo: "recebidas", valor: num(w.recebidas) }, { rotulo: "enviadas", valor: num(w.enviadas) }, { rotulo: "pela IA (Agente MC)", valor: num(w.respostasIa) }, { rotulo: "esperando +2 h", valor: num(w.esperandoAgora.length), tom: w.esperandoAgora.length ? "var(--status-danger)" : undefined }]} />
+                  <Parte titulo="Recebidas × enviadas por dia">
+                    {w.porDia.length > 1 ? <LinhaCriadasConcluidas serie={w.porDia.map((x) => ({ dia: x.dia, criadas: x.recebidas, concluidas: x.enviadas }))} rotulos={["Recebidas", "Enviadas"]} /> : <p className="text-sm text-muted">Escolha um período maior que um dia.</p>}
+                  </Parte>
+                  <div className="grid grid-cols-1 gap-6 md:grid-cols-2">
+                    <Parte titulo="Quem mais enviou">
+                      <Ranking dados={[...w.respostasPorPessoa.map((r) => ({ rotulo: r.nome, valor: r.n })), ...(w.respostasCelular ? [{ rotulo: "Número do escritório (celular)", valor: w.respostasCelular }] : []), ...(w.respostasIa ? [{ rotulo: "Agente MC (IA)", valor: w.respostasIa }] : [])].sort((x, y) => y.valor - x.valor)} />
+                    </Parte>
+                    <Parte titulo="Horário em que os clientes mais escrevem">
+                      <Barras dados={w.porHora.map((v, h) => ({ rotulo: `${h}h`, valor: v }))} destaque={horaAgora} />
+                    </Parte>
                   </div>
-                </Link>
+                </ComDetalhe>
+
+                <ComDetalhe
+                  titulo={`No prazo · ${num(a.noPrazoPct, "%")}`}
+                  subtitulo="Das atividades concluídas no período, quantas foram entregues até a data combinada"
+                  cartao={
+                    <div className="ui-card flex items-center gap-3 p-4">
+                      <Anel valor={a.noPrazoPct} texto={a.noPrazoPct === null ? undefined : `${a.noPrazoPct}%`} tamanho={64} />
+                      <div className="min-w-0">
+                        <p className="eyebrow">No prazo</p>
+                        <p className="mt-1 text-xs text-muted">entregas dentro da data · pedido → entrega {a.tempoMedioDias === null ? "—" : `${a.tempoMedioDias.toLocaleString("pt-BR")} d`}</p>
+                      </div>
+                    </div>
+                  }
+                >
+                  <Rosca partes={[{ rotulo: "No prazo", valor: concluidasP.filter((x) => noPrazo(x)).length, cor: "var(--status-success)" }, { rotulo: "Fora do prazo", valor: concluidasP.filter((x) => !noPrazo(x)).length, cor: "var(--status-danger)" }]} rotuloCentro="concluídas" />
+                  <Parte titulo="Pontualidade e tempo de cada pessoa">
+                    <Ranking dados={m.equipe.filter((e) => e.concluidas).map((e) => ({ rotulo: `${e.nome} · ${e.tempoMedioDias === null ? "—" : `${e.tempoMedioDias.toLocaleString("pt-BR")} d`}`, valor: Math.round((e.noPrazo / e.concluidas) * 100), tom: e.noPrazo / e.concluidas >= 0.8 ? "var(--status-success)" : "var(--status-pending)" }))} sufixo="%" />
+                  </Parte>
+                  <Parte titulo="Entregues fora do prazo">
+                    <LinhasAtiv itens={concluidasP.filter((x) => !noPrazo(x))} direita={(x) => `venceu ${dataCurta(`${x.prazo}T12:00:00Z`)} · entregue ${dataCurta(x.concluida!)}`} base={base} vazio="Nenhuma entrega fora do prazo." />
+                  </Parte>
+                </ComDetalhe>
+
+                <ComDetalhe
+                  titulo={`Satisfação · ${m.satisfacao.media === null ? "—" : m.satisfacao.media.toLocaleString("pt-BR")} de 5`}
+                  subtitulo="Calculada pelo tempo entre o pedido do cliente e a entrega: até 1 dia = 5 · até 3 = 4,5 · até 7 = 4 · até 15 = 3 · até 30 = 2 · mais = 1; −0,5 se passou do prazo (últimos 90 dias)"
+                  cartao={
+                    <div className="ui-card flex items-center gap-3 p-4">
+                      <Anel valor={m.satisfacao.media} max={5} texto={m.satisfacao.media === null ? undefined : m.satisfacao.media.toLocaleString("pt-BR")} tamanho={64} />
+                      <div className="min-w-0">
+                        <p className="eyebrow">Satisfação</p>
+                        <p className="mt-1 text-xs text-muted">dos clientes, de 1 a 5, pela rapidez das entregas</p>
+                      </div>
+                    </div>
+                  }
+                >
+                  <Rosca partes={m.satisfacao.faixas.map((f, k) => ({ rotulo: f.rotulo, valor: f.valor, cor: ["var(--status-danger)", "#d97706", "var(--status-pending)", "var(--status-success)"][k] }))} centro={m.satisfacao.media === null ? "—" : m.satisfacao.media.toLocaleString("pt-BR")} rotuloCentro="nota média" />
+                  <div className="grid grid-cols-1 gap-6 md:grid-cols-2">
+                    <Parte titulo="Menos satisfeitos">
+                      {m.satisfacao.menos.length ? <Ranking dados={m.satisfacao.menos.map((c) => ({ rotulo: c.nome, valor: c.nota, href: fichaHref(c.id), tom: c.nota < 3 ? "var(--status-danger)" : "var(--status-pending)" }))} /> : <p className="text-sm text-muted">Nenhum.</p>}
+                    </Parte>
+                    <Parte titulo="Mais satisfeitos">
+                      {m.satisfacao.mais.length ? <Ranking dados={m.satisfacao.mais.map((c) => ({ rotulo: c.nome, valor: c.nota, href: fichaHref(c.id), tom: "var(--status-success)" }))} /> : <p className="text-sm text-muted">Nenhum cliente com nota 4 ou mais ainda.</p>}
+                    </Parte>
+                  </div>
+                </ComDetalhe>
+
+                <ComDetalhe
+                  titulo={`Na Distribuição · ${num(d.pendentesAgora)} esperando`}
+                  subtitulo="Pedidos que chegaram (WhatsApp, portal do cliente, publicações) e ainda não viraram atividade nem foram descartados"
+                  cartao={
+                    <div className="ui-card flex items-center gap-3 p-4">
+                      <Anel valor={d.pendentesAgora ? d.pendentesAgora - d.pendentesHaMaisDe2Dias : 0} max={Math.max(1, d.pendentesAgora)} texto={String(d.pendentesAgora)} tamanho={64} cor={d.pendentesHaMaisDe2Dias ? "var(--status-pending)" : "var(--status-success)"} />
+                      <div className="min-w-0">
+                        <p className="eyebrow">Na Distribuição</p>
+                        <p className="mt-1 text-xs text-muted">pedidos esperando decisão · {d.pendentesHaMaisDe2Dias} há +2 dias</p>
+                      </div>
+                    </div>
+                  }
+                >
+                  <Numeros itens={[{ rotulo: "esperando agora", valor: num(d.pendentesAgora) }, { rotulo: "parados +2 dias", valor: num(d.pendentesHaMaisDe2Dias), tom: "var(--status-danger)" }, { rotulo: "aprovados no período", valor: num(d.aceitas), tom: "var(--status-success)" }, { rotulo: "tempo até decidir", valor: horas(d.tempoAteTratarHoras) }]} />
+                  <Parte titulo="Situação do que chegou no período">
+                    <Rosca partes={[{ rotulo: "Aprovados", valor: d.aceitas, cor: "var(--status-success)" }, { rotulo: "Descartados", valor: d.descartadas, cor: "var(--status-danger)" }, { rotulo: "Esperando", valor: d.pendentes, cor: "var(--status-pending)" }]} rotuloCentro="chegaram" />
+                  </Parte>
+                  <QuadroDistParados dist={dist} />
+                </ComDetalhe>
               </div>
             </div>
             <div className="grid grid-cols-1 gap-4 lg:grid-cols-[minmax(0,1.6fr)_minmax(0,1fr)]">

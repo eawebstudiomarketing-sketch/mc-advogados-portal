@@ -140,3 +140,37 @@ export function LinhaAgenda({ a, etiqueta }: { a: LinhaAtividade; etiqueta?: Rea
     </li>
   );
 }
+
+const dm = (d: string) => `${d.slice(8, 10)}/${d.slice(5, 7)}`;
+const diasDesde = (d: string, hoje: string) => Math.round((Date.parse(`${hoje}T12:00:00Z`) - Date.parse(`${d}T12:00:00Z`)) / 86_400_000);
+
+/** Tudo em aberto, por responsável (ficha do número "Abertas"). */
+export function AbertasPorPessoa() {
+  const { atividades } = usePainel();
+  const hoje = new Date().toLocaleDateString("en-CA", { timeZone: "America/Bahia" });
+  const itens = atividades.filter((a) => a.status === "aberta" || a.status === "em_andamento").sort((x, y) => (x.prazo ?? "9999").localeCompare(y.prazo ?? "9999"));
+  return (
+    <PorResponsavel
+      itens={itens}
+      vazio="Nada em aberto."
+      rotuloContagem={(n) => `${n} aberta${n > 1 ? "s" : ""}`}
+      direita={(a) => (a.prazo ? { texto: `vence ${dm(a.prazo)}`, tom: a.prazo < hoje ? "text-status-danger" : undefined } : { texto: "sem prazo" })}
+    />
+  );
+}
+
+/** Atrasadas por responsável (ficha do número "Atrasadas"). */
+export function AtrasadasPorPessoa() {
+  const { atividades } = usePainel();
+  const hoje = new Date().toLocaleDateString("en-CA", { timeZone: "America/Bahia" });
+  const itens = atividades.filter((a) => (a.status === "aberta" || a.status === "em_andamento") && a.prazo && a.prazo < hoje).sort((x, y) => x.prazo!.localeCompare(y.prazo!));
+  return (
+    <PorResponsavel
+      itens={itens}
+      vazio="Nada atrasado. 👏"
+      porPessoa={10}
+      rotuloContagem={(n) => `${n} atrasada${n > 1 ? "s" : ""}`}
+      direita={(a) => ({ texto: `venceu ${dm(a.prazo!)} · ${diasDesde(a.prazo!, hoje)} d`, tom: "text-status-danger" })}
+    />
+  );
+}
