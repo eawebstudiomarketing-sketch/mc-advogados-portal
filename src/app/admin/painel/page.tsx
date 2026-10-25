@@ -13,6 +13,7 @@ import { AtividadesDoCliente, MapaCalorClientes, QuadroAgenda, QuadroCargaSemana
 import { dadosComercial, dadosFinanceiro, dadosProcessos, fichaCliente, linhasDistribuicao, ultimosMeses } from "@/lib/painel/extras";
 import { PainelBase } from "@/components/painel/contexto";
 import { GerentePainel } from "@/components/painel/gerente";
+import { LateralGerente, type CompromissoLateral } from "@/components/painel/lateral";
 import { QuadroAbertasAntigas, QuadroCarga, QuadroCriadasConcluidas, QuadroPorTipo } from "@/components/painel/quadros";
 import { CartoesResponsaveis, FichaPessoa, type EventoLinha } from "@/components/painel/responsaveis";
 
@@ -154,6 +155,15 @@ export default async function PainelPage({ searchParams }: { searchParams: Promi
     aba === "comercial" ? dadosComercial(periodo) : null,
     aba === "financeiro" ? dadosFinanceiro() : null,
   ]);
+  // agenda de hoje e amanhã (coluna ao lado do resumo)
+  const hojeAg = periodoDe("hoje").ini;
+  const { data: compsAg } = await (createAdminClient() as unknown as SupabaseClient)
+    .from("compromissos")
+    .select("id, titulo, inicio, client_id, participantes")
+    .gte("inicio", hojeAg)
+    .lt("inicio", new Date(Date.parse(hojeAg) + 2 * 86_400_000).toISOString())
+    .order("inicio");
+  const compromissosLateral: CompromissoLateral[] = ((compsAg ?? []) as { id: string; titulo: string; inicio: string; client_id: string | null; participantes: string[] | null }[]).map((c) => ({ id: c.id, titulo: c.titulo, inicio: c.inicio, clienteId: c.client_id, participantes: c.participantes ?? [] }));
   const fichaHref = (id: string) => `/admin/painel?aba=clientes&cliente=${id}${periodo.id !== "mes" ? `&p=${periodo.id}` : ""}`;
   // ficha do cliente: quem cuida e satisfação (pelo tempo de atendimento, 90 dias)
   const doCliente = fichaCli ? base.atividades.filter((x) => x.clienteId === fichaCli.cliente.id) : [];
@@ -213,7 +223,11 @@ export default async function PainelPage({ searchParams }: { searchParams: Promi
           </div>
         </div>
 
-        <GerentePainel periodoId={periodo.id} nome={primeiroNome} />
+        <GerentePainel
+          periodoId={periodo.id}
+          nome={primeiroNome}
+          lateral={<LateralGerente saude={m.saude} componentes={m.componentes} equipe={equipeIds} compromissos={compromissosLateral} />}
+        />
 
         <nav className="sticky top-0 z-10 -mx-1 mt-6 mb-6 overflow-x-auto border-b border-border bg-background/90 px-1 backdrop-blur" aria-label="Abas do painel">
           <ul className="flex min-w-max gap-1">

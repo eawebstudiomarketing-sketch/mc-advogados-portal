@@ -309,7 +309,7 @@ function MiniBotao({ acao, chave, feitos, abrir }: { acao: AcaoGerente; chave: s
   );
 }
 
-export function GerentePainel({ periodoId, nome }: { periodoId: string; nome: string }) {
+export function GerentePainel({ periodoId, nome, lateral }: { periodoId: string; nome: string; /** coluna ao lado do texto (saúde, equipe, agenda) */ lateral?: React.ReactNode }) {
   const [res, setRes] = useState<{ periodoId: string; gerente?: Gerente; error?: string } | null>(null);
   const [atualizando, setAtualizando] = useState(false);
   const [aberta, setAberta] = useState<{ acao: Exclude<AcaoGerente, { tipo: "abrir" }>; chave: string } | null>(null);
@@ -382,42 +382,45 @@ export function GerentePainel({ periodoId, nome }: { periodoId: string; nome: st
               </button>
             </p>
           )}
-          {carregando && !dados ? (
-            <div className="space-y-2" aria-busy>
-              {[100, 94, 97, 60, 0, 88, 92, 70].map((w, k) => (w ? <div key={k} className="skeleton h-3.5 rounded" style={{ width: `${w}%` }} /> : <div key={k} className="h-3" />))}
-            </div>
-          ) : erro && !dados ? (
-            <p className="text-sm text-status-danger">{erro}</p>
-          ) : dados ? (
-            <div className="space-y-6">
-              <div className="max-w-[75ch] space-y-3.5 text-[15px] leading-[1.7] text-foreground">
-                {dados.paragrafos.map((t, k) => (
-                  <p key={k} className={k === 0 ? "text-base font-semibold" : undefined}>
-                    {t}
-                  </p>
-                ))}
-                {dados.fechamento && <p className="rounded-xl border-l-4 border-gold bg-surface-2 px-4 py-3 font-medium">{dados.fechamento}</p>}
-              </div>
-              {dados.acoes.length > 0 && (
-                <div>
-                  <p className="mb-2 border-b border-border pb-1.5 text-sm font-semibold text-foreground">O que fazer agora</p>
-                  <ul className="grid grid-cols-1 gap-x-8 gap-y-2.5 xl:grid-cols-2">
-                    {dados.acoes.map((f, k) => (
-                      <li key={k} className="flex gap-2.5 text-sm leading-relaxed text-foreground">
-                        <span className={`mt-[7px] h-2 w-2 shrink-0 rounded-full ${COR[f.prioridade ?? "baixa"]}`} title={f.prioridade ? `Prioridade ${f.prioridade}` : undefined} />
-                        <p className="min-w-0">
-                          {f.texto}
-                          {f.acoes.map((a, j) => (
-                            <MiniBotao key={j} acao={a} chave={`a-${k}-${j}`} feitos={feitos} abrir={(acao, chave) => acao.tipo !== "abrir" && setAberta({ acao, chave })} />
-                          ))}
-                        </p>
-                      </li>
-                    ))}
-                  </ul>
+          <div className={lateral ? "grid grid-cols-1 gap-6 xl:grid-cols-[minmax(0,1fr)_21rem]" : ""}>
+            <div className="min-w-0">
+              {carregando && !dados ? (
+                <div className="space-y-2" aria-busy>
+                  {[100, 94, 97, 60, 0, 88, 92, 70, 0, 96, 90, 64].map((w, k) => (w ? <div key={k} className="skeleton h-3.5 rounded" style={{ width: `${w}%` }} /> : <div key={k} className="h-3" />))}
                 </div>
-              )}
+              ) : erro && !dados ? (
+                <p className="text-sm text-status-danger">{erro}</p>
+              ) : dados ? (
+                <div className="max-w-[75ch] space-y-3.5 text-[15px] leading-[1.7] text-foreground">
+                  {dados.paragrafos.map((t, k) => (
+                    <p key={k} className={k === 0 ? "text-base font-semibold" : undefined}>
+                      {t}
+                    </p>
+                  ))}
+                  {dados.fechamento && <p className="rounded-xl border-l-4 border-gold bg-surface-2 px-4 py-3 font-medium">{dados.fechamento}</p>}
+                </div>
+              ) : null}
             </div>
-          ) : null}
+            {lateral}
+          </div>
+          {dados && dados.acoes.length > 0 && (
+            <div className="mt-6">
+              <p className="mb-2 border-b border-border pb-1.5 text-sm font-semibold text-foreground">O que fazer agora</p>
+              <ul className="grid grid-cols-1 gap-x-8 gap-y-2.5 xl:grid-cols-2">
+                {dados.acoes.map((f, k) => (
+                  <li key={k} className="flex gap-2.5 text-sm leading-relaxed text-foreground">
+                    <span className={`mt-[7px] h-2 w-2 shrink-0 rounded-full ${COR[f.prioridade ?? "baixa"]}`} title={f.prioridade ? `Prioridade ${f.prioridade}` : undefined} />
+                    <p className="min-w-0">
+                      {f.texto}
+                      {f.acoes.map((a, j) => (
+                        <MiniBotao key={j} acao={a} chave={`a-${k}-${j}`} feitos={feitos} abrir={(acao, chave) => acao.tipo !== "abrir" && setAberta({ acao, chave })} />
+                      ))}
+                    </p>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          )}
         </div>
       )}
 
