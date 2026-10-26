@@ -20,7 +20,9 @@ const COR_STATUS: Record<string, string> = {
 type Filtros = { etiqueta?: string; arquivadas?: string; busca?: string; status?: string; cliente?: string; responsavel?: string; tipo?: string; area?: string; prazo?: string; categoria?: string };
 
 export default async function AdminActivitiesPage({ searchParams }: { searchParams: Promise<Filtros> }) {
-  const { permissoes } = await exigirPermissao("atividades");
+  const { profile, permissoes } = await exigirPermissao("atividades");
+  // advogado só enxerga o que é dele: sem filtro por responsável (o banco também limita)
+  const soMinhas = profile.role === "advogado";
   const f = await searchParams;
   const arquivadas = f.arquivadas === "1";
   const [todas, pessoas, config, etiquetas] = await Promise.all([listActivities({ arquivadas }), listPessoas(), getEscritorioConfig(), listEtiquetas()]);
@@ -32,7 +34,7 @@ export default async function AdminActivitiesPage({ searchParams }: { searchPara
       (!f.status || a.status === f.status) &&
       (!f.etiqueta || (a.etiquetas ?? []).includes(f.etiqueta)) &&
       (!f.cliente || a.client_id === f.cliente) &&
-      (!f.responsavel || (f.responsavel === "nenhum" ? !a.responsavel_id : a.responsavel_id === f.responsavel || (a.envolvidos ?? []).includes(f.responsavel))) &&
+      (soMinhas || !f.responsavel || (f.responsavel === "nenhum" ? !a.responsavel_id : a.responsavel_id === f.responsavel || (a.envolvidos ?? []).includes(f.responsavel))) &&
       (!f.tipo || a.type === f.tipo) &&
       (!f.area || a.area === f.area) &&
       (!f.categoria || a.categoria === f.categoria) &&
@@ -85,13 +87,17 @@ export default async function AdminActivitiesPage({ searchParams }: { searchPara
               { valor: "sem_prazo", rotulo: "Sem prazo", cor: "bg-border-strong" },
             ],
           },
-          {
-            tipo: "select",
-            nome: "responsavel",
-            rotulo: "Responsável",
-            todos: "Todos os responsáveis",
-            opcoes: [...pessoas.map((p) => ({ valor: p.id, rotulo: p.nome })), { valor: "nenhum", rotulo: "Sem responsável" }],
-          },
+          ...(soMinhas
+            ? []
+            : [
+                {
+                  tipo: "select" as const,
+                  nome: "responsavel",
+                  rotulo: "Responsável",
+                  todos: "Todos os responsáveis",
+                  opcoes: [...pessoas.map((p) => ({ valor: p.id, rotulo: p.nome })), { valor: "nenhum", rotulo: "Sem responsável" }],
+                },
+              ]),
           { tipo: "select", nome: "cliente", rotulo: "Cliente", todos: "Todos os clientes", opcoes: clientes.map(([v, r]) => ({ valor: v, rotulo: r })) },
           { tipo: "select", nome: "tipo", rotulo: "Tipo", todos: "Todos os tipos", opcoes: Object.entries(ACTIVITY_TYPE_LABEL).map(([v, r]) => ({ valor: v, rotulo: r })) },
           {
