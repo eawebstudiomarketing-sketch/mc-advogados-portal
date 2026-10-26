@@ -10,7 +10,7 @@
 -- (clientes, documentos, processos) não muda.
 
 -- quem criou a atividade (para quem cria para outra pessoa não perder de vista)
-alter table public.activities add column if not exists criado_por uuid references public.profiles (id) on delete set null;
+alter table public.activities add column if not exists criado_por uuid; -- sem FK de propósito (ver 0045: a FK deixava profiles(full_name) ambíguo)
 alter table public.activities alter column criado_por set default public.current_profile_id();
 create index if not exists activities_criado_por_idx on public.activities (criado_por);
 
