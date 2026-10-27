@@ -1,14 +1,16 @@
 import "server-only";
 import mammoth from "mammoth";
+import { planilhaParaTexto } from "@/lib/planilha";
 import type { Part } from "@google/genai";
 import { createClient } from "@/lib/supabase/server";
 import { downloadFile, getDriveSession } from "@/lib/google-drive";
 
 // Transforma um documento do portal (Storage ou Google Drive) em conteúdo que
-// o Gemini lê: PDF, imagem e texto vão como arquivo; Word vira texto.
+// o Gemini lê: PDF, imagem e texto vão como arquivo; Word e Excel (.xlsx) viram texto.
 
 const MAX_BYTES = 15 * 1024 * 1024; // limite de envio direto (inline) ao Gemini
 const DOCX = "application/vnd.openxmlformats-officedocument.wordprocessingml.document";
+const XLSX = "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet";
 
 export type DocRef = { id: string; title: string; file_path: string; drive_file_id: string | null };
 
@@ -33,6 +35,8 @@ function guessMime(mimeType: string, name: string): string {
   const porExt: Record<string, string> = {
     pdf: "application/pdf",
     docx: DOCX,
+    xlsx: XLSX,
+    csv: "text/csv",
     txt: "text/plain",
     md: "text/plain",
     png: "image/png",
@@ -57,11 +61,14 @@ export async function bytesToParts(bytes: Uint8Array, mimeType: string, cabecalh
     const { value } = await mammoth.extractRawText({ buffer: Buffer.from(bytes) });
     return [head, { text: value.trim() || "(documento sem texto)" }];
   }
+  if (mimeType === XLSX) {
+    return [head, { text: planilhaParaTexto(bytes) }];
+  }
   if (mimeType.startsWith("text/")) {
     return [head, { text: new TextDecoder().decode(bytes) }];
   }
   if (mimeType === "application/pdf" || mimeType.startsWith("image/")) {
     return [head, { inlineData: { mimeType, data: Buffer.from(bytes).toString("base64") } }];
   }
-  throw new Error(`o formato de "${cabecalho}" não é suportado (use PDF, Word .docx, texto ou imagem)`);
+  throw new Error(`o formato de "${cabecalho}" não é suportado (use PDF, Word .docx, Excel .xlsx, CSV, texto ou imagem)`);
 }
