@@ -7,6 +7,7 @@ import { AlertTriangle, ArrowLeft, Check, CheckCircle2, Clock, Copy, Download, E
 import { toast } from "sonner";
 import { AtaDocumento } from "@/components/atas/ata-documento";
 import { AssinaturaPad, type AssinaturaFeita } from "@/components/atas/assinatura-pad";
+import { ReuniaoEntrega } from "./reuniao-entrega";
 import {
   blocosDaAta,
   blocosParaCliente,
@@ -49,6 +50,8 @@ type Ata = {
   versao: number;
   correcao: string | null;
   cliente: string | null;
+  criadaEm: string;
+  transcricaoId: string | null;
   temFinal: boolean;
   hash: string | null;
   codigo: string | null;
@@ -62,6 +65,7 @@ type ZapsignInfo = { ok: boolean; sandbox: boolean };
 export function AtaDetalhe({
   ata,
   transcricao,
+  resumo,
   duracao,
   audio,
   assinaturas,
@@ -70,6 +74,7 @@ export function AtaDetalhe({
 }: {
   ata: Ata;
   transcricao: string | null;
+  resumo: string | null;
   duracao: number | null;
   audio: string | null;
   assinaturas: AssinaturaLinha[];
@@ -80,16 +85,18 @@ export function AtaDetalhe({
   const [texto, setTexto] = useState(ata.texto ?? "");
   const [titulo, setTitulo] = useState(ata.titulo);
   const [participantes, setParticipantes] = useState<Participante[]>(ata.participantes);
-  const [aba, setAba] = useState<"ver" | "editar" | "transcricao">("ver");
+  const [aba, setAba] = useState<"ver" | "editar" | "transcricao" | "resumo">("ver");
   const [salvo, setSalvo] = useState<"salvo" | "editando" | "salvando">("salvo");
   const [aprovando, setAprovando] = useState(false);
   const [editandoDados, setEditandoDados] = useState(false);
   const player = useRef<HTMLAudioElement>(null);
   const rascunho = ata.status === "rascunho";
+  const reuniao = ata.status === "transcrita" || ata.status === "gerando";
+  const editavel = rascunho || ata.status === "transcrita";
 
   // geração em andamento: confere a cada 5 s
   useEffect(() => {
-    if (ata.status !== "processando") return;
+    if (ata.status !== "processando" && ata.status !== "gerando") return;
     const t = setInterval(() => router.refresh(), 5000);
     return () => clearInterval(t);
   }, [ata.status, router]);
@@ -101,15 +108,15 @@ export function AtaDetalhe({
       primeira.current = false;
       return;
     }
-    if (!rascunho) return;
+    if (!editavel) return;
     const t = setTimeout(async () => {
       setSalvo("salvando");
-      const r = await salvarAtaAction(ata.id, { texto, titulo, participantes });
+      const r = await salvarAtaAction(ata.id, rascunho ? { texto, titulo, participantes } : { titulo, participantes });
       if (!r.ok) toast.error(r.erro ?? "Não foi possível salvar.");
       setSalvo("salvo");
     }, 1200);
     return () => clearTimeout(t);
-  }, [texto, titulo, participantes, rascunho, ata.id]);
+  }, [texto, titulo, participantes, rascunho, editavel, ata.id]);
 
   const mudou = <T,>(f: (v: T) => void) => (v: T) => {
     setSalvo("editando");
@@ -138,10 +145,10 @@ export function AtaDetalhe({
   }
 
   async function excluir() {
-    if (!confirm("Excluir esta ata e a gravação? Não dá para desfazer.")) return;
+    if (!confirm("Excluir esta reunião (com a transcrição, o resumo e a ata, se houver) e a gravação? Não dá para desfazer.")) return;
     const r = await excluirAtaAction(ata.id);
     if (!r.ok) return void toast.error(r.erro);
-    toast.success("Ata excluída.");
+    toast.success("Reunião excluída.");
     router.push("/admin/atas");
   }
 
@@ -151,7 +158,7 @@ export function AtaDetalhe({
   return (
     <div>
       <Link href="/admin/atas" className="mb-4 inline-flex items-center gap-1.5 text-sm text-muted hover:text-foreground">
-        <ArrowLeft className="h-4 w-4" aria-hidden /> Atas
+        <ArrowLeft className="h-4 w-4" aria-hidden /> Reuniões
       </Link>
       <div className="mb-6 flex flex-wrap items-start justify-between gap-4">
         <div className="min-w-0">
@@ -159,8 +166,8 @@ export function AtaDetalhe({
             {TIPOS_ATA[ata.tipo].rotulo} · {STATUS_ROTULO[ata.status]}
             {ata.versao > 1 ? ` · versão ${ata.versao}` : ""}
           </p>
-          {rascunho ? (
-            <input value={titulo} onChange={(e) => mudou(setTitulo)(e.target.value)} maxLength={160} className="page-title w-full max-w-2xl rounded-lg bg-transparent px-1 -mx-1 hover:bg-surface-2 focus:bg-surface-2 focus:outline-none" aria-label="Título da ata" />
+          {editavel ? (
+            <input value={titulo} onChange={(e) => mudou(setTitulo)(e.target.value)} maxLength={160} className="page-title w-full max-w-2xl rounded-lg bg-transparent px-1 -mx-1 hover:bg-surface-2 focus:bg-surface-2 focus:outline-none" aria-label="Título" />
           ) : (
             <h1 className="page-title">{titulo}</h1>
           )}
@@ -189,7 +196,7 @@ export function AtaDetalhe({
             </>
           )}
           {!["aguardando", "assinada"].includes(ata.status) && (
-            <button type="button" onClick={() => void excluir()} className="icon-btn h-9 w-9" aria-label="Excluir ata" data-tip="Excluir">
+            <button type="button" onClick={() => void excluir()} className="icon-btn h-9 w-9" aria-label="Excluir reunião" data-tip="Excluir">
               <Trash2 aria-hidden />
             </button>
           )}
@@ -198,19 +205,19 @@ export function AtaDetalhe({
 
       {ata.status === "gravando" && (
         <Cartao icone={<Clock className="h-5 w-5" aria-hidden />} titulo="A gravação não foi encerrada">
-          A aba da gravação foi fechada antes de encerrar? O que chegou ao servidor está salvo. Se a reunião já acabou, gere a ata com o que foi gravado.
+          A aba da gravação foi fechada antes de encerrar? O que chegou ao servidor está salvo. Se a reunião já acabou, transcreva com o que foi gravado.
           <div className="mt-3">
-            <Acao onClick={() => tentarDeNovo(true)}>Gerar a ata com o que foi gravado</Acao>
+            <Acao onClick={() => tentarDeNovo(true)}>Transcrever com o que foi gravado</Acao>
           </div>
         </Cartao>
       )}
       {ata.status === "processando" && (
-        <Cartao icone={<Loader2 className="h-5 w-5 animate-spin" aria-hidden />} titulo="Gerando a ata…">
-          Transcrevendo a gravação{duracao ? ` (${Math.round(duracao / 60)} min)` : ""}, montando a ata no modelo e conferindo. Costuma levar de 1 a 3 minutos; esta página atualiza sozinha.
+        <Cartao icone={<Loader2 className="h-5 w-5 animate-spin" aria-hidden />} titulo="Transcrevendo a reunião…">
+          Transcrevendo a gravação{duracao ? ` (${Math.round(duracao / 60)} min)` : ""} e fazendo o resumo. Costuma levar de 1 a 3 minutos; esta página atualiza sozinha. Pode fechar a aba: a reunião fica pronta aqui na lista.
         </Cartao>
       )}
       {ata.status === "erro" && (
-        <Cartao perigo icone={<AlertTriangle className="h-5 w-5" aria-hidden />} titulo="Não deu para gerar a ata">
+        <Cartao perigo icone={<AlertTriangle className="h-5 w-5" aria-hidden />} titulo="Não deu para transcrever a reunião">
           {ata.erro ?? "Erro desconhecido."}
           <div className="mt-3">
             <Acao onClick={() => tentarDeNovo(false)}>
@@ -243,6 +250,22 @@ export function AtaDetalhe({
 
       {atuais.length > 0 && <Assinaturas ata={ata} linhas={atuais} />}
 
+      {reuniao && ata.transcricaoId && (
+        <ReuniaoEntrega
+          ataId={ata.id}
+          transcricaoId={ata.transcricaoId}
+          titulo={titulo}
+          criadaEm={ata.criadaEm}
+          duracao={duracao}
+          tipo={ata.tipo}
+          texto={transcricao ?? ""}
+          resumo={resumo ?? ""}
+          audio={audio}
+          gerando={ata.status === "gerando"}
+          erro={ata.erro}
+        />
+      )}
+
       {ata.texto !== null && (
         <div className="grid grid-cols-1 gap-6 xl:grid-cols-[minmax(0,1fr)_340px]">
           <div className="min-w-0">
@@ -257,6 +280,7 @@ export function AtaDetalhe({
                   [
                     ["ver", "Ver"],
                     ...(rascunho ? [["editar", "Editar"]] : []),
+                    ...(resumo?.trim() ? [["resumo", "Resumo"]] : []),
                     ...(transcricao ? [["transcricao", "Transcrição"]] : []),
                   ] as [typeof aba, string][]
                 ).map(([id, rotulo]) => (
@@ -279,6 +303,8 @@ export function AtaDetalhe({
                 </p>
                 <textarea value={texto} onChange={(e) => mudou(setTexto)(e.target.value)} rows={30} spellCheck className="ui-input min-h-[60vh] resize-y font-mono text-[13px] leading-relaxed" aria-label="Texto da ata" />
               </div>
+            ) : aba === "resumo" && resumo?.trim() ? (
+              <pre className="ui-card max-h-[75vh] overflow-y-auto p-5 font-sans text-sm leading-relaxed whitespace-pre-wrap text-foreground">{resumo}</pre>
             ) : aba === "transcricao" && transcricao ? (
               <pre className="ui-card max-h-[75vh] overflow-y-auto p-5 font-sans text-sm leading-relaxed whitespace-pre-wrap text-foreground">
                 {transcricao.split("\n").map((l, i) => {

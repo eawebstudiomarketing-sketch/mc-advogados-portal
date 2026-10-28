@@ -27,10 +27,10 @@ export default async function AtaPage({ params }: { params: Promise<{ id: string
   }
   const ata = data as AtaRow & { status: StatusAta; alertas: Alerta[]; erro: string | null; versao: number; correcao: string | null; pdf_final_path: string | null; pdf_hash: string | null; codigo_validacao: string | null; ordem_assinatura: boolean; assinatura_via: "portal" | "zapsign"; carimbo: { quando: string; tsa: string } | null; selo_escritorio: boolean; clients: { name: string } | null };
   const [{ data: t }, assinaturas] = await Promise.all([
-    ata.transcricao_id ? db.from("transcricoes").select("texto, duracao_seg").eq("id", ata.transcricao_id).maybeSingle() : Promise.resolve({ data: null }),
+    ata.transcricao_id ? db.from("transcricoes").select("texto, resumo, duracao_seg").eq("id", ata.transcricao_id).maybeSingle() : Promise.resolve({ data: null }),
     assinaturasAction(id),
   ]);
-  const comAudio = ["gravando", "processando", "rascunho", "erro"].includes(ata.status) && !!ata.transcricao_id;
+  const comAudio = ["gravando", "processando", "transcrita", "gerando", "rascunho", "erro"].includes(ata.status) && !!ata.transcricao_id;
   let audio: string | null = null;
   try {
     audio = comAudio && t?.texto ? linkDoAudio(ata.transcricao_id!) : null;
@@ -55,6 +55,8 @@ export default async function AtaPage({ params }: { params: Promise<{ id: string
         versao: ata.versao,
         correcao: ata.correcao,
         cliente: ata.clients?.name ?? null,
+        criadaEm: (ata as unknown as { created_at: string }).created_at,
+        transcricaoId: ata.transcricao_id,
         temFinal: !!ata.pdf_final_path,
         hash: ata.pdf_hash,
         codigo: ata.codigo_validacao,
@@ -64,6 +66,7 @@ export default async function AtaPage({ params }: { params: Promise<{ id: string
         selado: ata.selo_escritorio,
       }}
       transcricao={(t as { texto: string | null } | null)?.texto ?? null}
+      resumo={(t as { resumo: string | null } | null)?.resumo ?? null}
       duracao={(t as { duracao_seg: number | null } | null)?.duracao_seg ?? null}
       audio={audio}
       assinaturas={assinaturas}

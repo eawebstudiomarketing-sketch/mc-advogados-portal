@@ -14,11 +14,13 @@ export type PapelParticipante = "escritorio" | "cliente" | "testemunha" | "outro
 export type Participante = { nome: string; papel: PapelParticipante; profile_id?: string | null; telefone?: string | null; email?: string | null; cargo?: string | null };
 export type Marcacao = { seg: number; tipo: "importante" | "decisao" };
 export type Alerta = { tipo: "nao_dito" | "faltou"; texto: string; motivo: string; minuto?: string | null };
-export type StatusAta = "gravando" | "processando" | "rascunho" | "erro" | "aguardando" | "aprovada" | "assinada";
+export type StatusAta = "gravando" | "processando" | "transcrita" | "gerando" | "rascunho" | "erro" | "aguardando" | "aprovada" | "assinada";
 
 export const STATUS_ROTULO: Record<StatusAta, string> = {
   gravando: "Gravando",
-  processando: "Gerando a ata",
+  processando: "Transcrevendo",
+  transcrita: "Reunião pronta",
+  gerando: "Gerando a ata",
   rascunho: "Rascunho",
   erro: "Deu erro",
   aguardando: "Aguardando assinaturas",

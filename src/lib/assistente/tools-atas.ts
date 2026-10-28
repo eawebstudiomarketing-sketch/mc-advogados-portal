@@ -1,12 +1,14 @@
 import "server-only";
+import { after } from "next/server";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { aprovarEEnviar, extrasDoRegistro, linkDeAssinatura, localLegivel, reenviarLink, telefoneZap, type AssinaturaRow } from "@/lib/atas/assinatura";
 import { sincronizarZapsign } from "@/lib/atas/zapsign";
+import { processarAta } from "@/lib/atas/gerar";
 import { dataHoraBr, STATUS_ROTULO, TIPOS_ATA, textoCompleto, type Participante, type StatusAta, type TipoAta } from "@/lib/atas/formato";
 import type { Ctx, ToolDef } from "./tools";
 
-// Atas (gerador de atas): o assistente lista, lê, diz quem falta assinar,
+// Reuniões e atas: o assistente lista, lê a reunião (resumo e transcrição), gera a ata, lê, diz quem falta assinar,
 // reenvia o link e aprova (os dois últimos pedem confirmação na tela).
 // A gravação em si é só pela tela (precisa do navegador).
 
@@ -51,7 +53,7 @@ export const TOOLS_ATAS: ToolDef[] = [
     kind: "read",
     perm: ["atas"],
     label: "Consultou as atas",
-    description: "Lista as atas de reunião do gerador de atas (título, cliente, data, tipo, situação: rascunho, aguardando assinaturas, assinada…), mais recentes primeiro. Filtros opcionais: cliente (nome) e situacao.",
+    description: "Lista as reuniões e atas (título, cliente, data, tipo, situação: transcrevendo, reunião pronta, rascunho, aguardando assinaturas, assinada…), mais recentes primeiro. Filtros opcionais: cliente (nome) e situacao.",
     parameters: obj({ cliente: { type: "string" }, situacao: { type: "string", enum: Object.keys(STATUS_ROTULO) }, limite: { type: "integer" } }),
     run: async (a, ctx) => {
       let q = db()
@@ -88,7 +90,7 @@ export const TOOLS_ATAS: ToolDef[] = [
     kind: "read",
     perm: ["atas"],
     label: "Leu uma ata",
-    description: "Lê o texto de uma ata (pelo id, cliente ou parte do título; sem filtro, a mais recente). Use para responder sobre o que foi decidido/combinado numa reunião.",
+    description: "Lê o texto de uma ata já gerada (pelo id, cliente ou parte do título; sem filtro, a mais recente). Para reunião sem ata, use ler_reuniao.",
     parameters: obj({ id: { type: "string" }, cliente: { type: "string" }, titulo: { type: "string" } }),
     run: async (a, ctx) => {
       const t = await acharAta(a, ctx);
@@ -181,6 +183,49 @@ export const TOOLS_ATAS: ToolDef[] = [
       const t = await acharAta(a, ctx);
       const r = await sincronizarZapsign(t.id);
       return { ata: t.titulo, situacao: r.status, link: link(t.id) };
+    },
+  },
+  {
+    name: "ler_reuniao",
+    kind: "read",
+    perm: ["atas"],
+    label: "Leu uma reunião",
+    description:
+      "Lê a reunião transcrita (resumo com IA e transcrição fiel, com quem falou e o tempo), pelo id, cliente ou parte do título; sem filtro, a mais recente. Use para responder sobre o que foi dito numa reunião, mesmo sem ata gerada. A transcrição vem cortada se for muito longa.",
+    parameters: obj({ id: { type: "string" }, cliente: { type: "string" }, titulo: { type: "string" }, so_resumo: { type: "boolean" } }),
+    run: async (a, ctx) => {
+      const t = await acharAta(a, ctx);
+      const { data: tr } = await db().from("transcricoes").select("texto, resumo, status").eq("id", (t as unknown as { transcricao_id: string | null }).transcricao_id ?? "").maybeSingle();
+      if (!tr?.texto) return { id: t.id, situacao: STATUS_ROTULO[t.status], aviso: "Essa reunião ainda não tem transcrição pronta.", link: link(t.id) };
+      return {
+        id: t.id,
+        titulo: t.titulo,
+        cliente: t.clients?.name ?? null,
+        situacao: STATUS_ROTULO[t.status],
+        resumo: tr.resumo ?? null,
+        transcricao: a.so_resumo ? undefined : tr.texto.length > 40_000 ? `${tr.texto.slice(0, 40_000)}
+[… cortado: abra a reunião]` : tr.texto,
+        link: link(t.id),
+      };
+    },
+  },
+  {
+    name: "gerar_ata_da_reuniao",
+    kind: "confirm",
+    perm: ["atas"],
+    label: "Gerou a ata da reunião",
+    description:
+      "Gera a ata de uma reunião já transcrita (situação \"Reunião pronta\"), no modelo escolhido na reunião. A IA escreve em segundo plano (1 a 2 minutos) e a ata fica em rascunho para revisar. Só use quando a pessoa pedir a ata.",
+    parameters: obj({ id: { type: "string" }, cliente: { type: "string" }, titulo: { type: "string" } }),
+    descrever: async (a) => {
+      const { data } = await db().from("atas").select("titulo").eq("id", String(a.id ?? "")).maybeSingle();
+      return data ? `Gerar a ata da reunião "${data.titulo}"?` : "Gerar a ata desta reunião?";
+    },
+    run: async (a, ctx) => {
+      const t = await acharAta(a, ctx);
+      if (t.status !== "transcrita") throw new Error(`Essa reunião está "${STATUS_ROTULO[t.status]}"; só dá para gerar a ata de uma reunião pronta (transcrita).`);
+      after(() => processarAta(t.id).catch(() => {}));
+      return { ok: true, aviso: "A ata está sendo escrita; fica em rascunho para revisar em 1 a 2 minutos.", link: link(t.id) };
     },
   },
   {

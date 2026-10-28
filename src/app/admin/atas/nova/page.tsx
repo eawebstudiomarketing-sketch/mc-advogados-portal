@@ -3,7 +3,7 @@ import { createClient } from "@/lib/supabase/server";
 import { listPessoas } from "@/lib/data/escritorio";
 import { NovaAta } from "./nova-ata";
 
-export const metadata = { title: "Nova ata" };
+export const metadata = { title: "Nova reunião" };
 
 // Nova ata: dados da reunião + participantes, e a gravação (microfone, ou
 // microfone + som da reunião online) que sobe em pedaços de 30 s. Também
@@ -16,8 +16,8 @@ export default async function NovaAtaPage({ searchParams }: { searchParams: Prom
   return (
     <div>
       <div className="mb-8">
-        <p className="eyebrow mb-2">Operacional · Atas</p>
-        <h1 className="page-title">Nova ata</h1>
+        <p className="eyebrow mb-2">Operacional · Reuniões</p>
+        <h1 className="page-title">Nova reunião</h1>
         <p className="mt-1 text-sm text-muted">Preencha a reunião, avise que vai gravar e clique em Começar. Pode trocar de aba ou minimizar: a gravação continua e é salva a cada 30 segundos.</p>
       </div>
       <NovaAta

@@ -102,38 +102,66 @@ export async function conferirAta(texto: string, transcricao: string): Promise<A
   }
 }
 
+/** Nome do cliente da reunião (para o contexto da IA). */
+async function nomeDoCliente(clientId: string | null): Promise<string | null> {
+  if (!clientId) return null;
+  const { data } = await db().from("clients").select("name").eq("id", clientId).maybeSingle();
+  return (data as { name: string } | null)?.name ?? null;
+}
+
 /**
- * Transcreve (se ainda não estiver transcrita), escreve a ata e confere.
- * processando → rascunho, ou erro (dá para tentar de novo).
+ * Etapa 1 — a reunião: transcreve (fiel, com tempo e quem fala) e resume com IA,
+ * numa passada só. processando → transcrita (reunião entregue), ou erro.
+ * Não escreve a ata: isso é a etapa 2, pedida pelo botão "Gerar ata".
  */
-export async function processarAta(ataId: string): Promise<void> {
+export async function processarReuniao(ataId: string): Promise<void> {
   const { data: ata } = await db().from("atas").select("*").eq("id", ataId).single<AtaRow>();
-  if (!ata?.transcricao_id) throw new Error("Ata sem gravação.");
+  if (!ata?.transcricao_id) throw new Error("Reunião sem gravação.");
   await db().from("atas").update({ status: "processando", erro: null, updated_at: new Date().toISOString() }).eq("id", ataId);
   try {
-    const { data: cli } = ata.client_id ? await db().from("clients").select("name").eq("id", ata.client_id).maybeSingle() : { data: null };
-    const cliente = (cli as { name: string } | null)?.name ?? null;
-    const { data: t } = await db().from("transcricoes").select("status, texto, duracao_seg, titulo").eq("id", ata.transcricao_id).single();
-    let transcricao: string | null = t?.status === "pronta" ? t.texto : null;
-    if (!transcricao) {
+    const cliente = await nomeDoCliente(ata.client_id);
+    const { data: t } = await db().from("transcricoes").select("status, texto, resumo, duracao_seg, titulo").eq("id", ata.transcricao_id).single();
+    if (t?.status !== "pronta" || !t.texto?.trim()) {
       const r = await executarTranscricao(ata.transcricao_id, {
-        modo: "fiel",
+        modo: "ambos",
         opcoes: { falantes: true, tempo: true },
         duracao: t?.duracao_seg ?? 0,
         nome: t?.titulo ?? ata.titulo,
         contexto: contexto(ata, cliente),
-        manterAudio: true, // o player da revisão usa; apaga ao aprovar
+        manterAudio: true, // o player da revisão da ata usa; apaga ao aprovar ou ao excluir
       });
-      transcricao = r.texto;
+      if (!r.texto?.trim()) throw new Error("A gravação ficou sem fala para transcrever.");
     }
-    if (!transcricao?.trim()) throw new Error("A gravação ficou sem fala para transcrever.");
+    await db().from("atas").update({ status: "transcrita", updated_at: new Date().toISOString() }).eq("id", ataId);
+  } catch (e) {
+    const erro = e instanceof Error ? e.message : "Falha ao transcrever a reunião.";
+    console.error("reunião:", ataId, erro);
+    await db().from("atas").update({ status: "erro", erro }).eq("id", ataId);
+    throw new Error(erro);
+  }
+}
+
+/**
+ * Etapa 2 — a ata: escreve a partir da transcrição já pronta e confere.
+ * gerando → rascunho. Se falhar, a reunião continua entregue (volta para
+ * transcrita com o motivo) e dá para tentar de novo.
+ */
+export async function processarAta(ataId: string): Promise<void> {
+  const { data: ata } = await db().from("atas").select("*").eq("id", ataId).single<AtaRow>();
+  if (!ata?.transcricao_id) throw new Error("Ata sem gravação.");
+  await db().from("atas").update({ status: "gerando", erro: null, updated_at: new Date().toISOString() }).eq("id", ataId);
+  try {
+    const cliente = await nomeDoCliente(ata.client_id);
+    const { data: t } = await db().from("transcricoes").select("status, texto").eq("id", ata.transcricao_id).single();
+    const transcricao = t?.status === "pronta" ? t.texto : null;
+    if (!transcricao?.trim()) throw new Error("A reunião ainda não foi transcrita.");
     const texto = await escreverAta(ata, cliente, transcricao);
     const alertas = await conferirAta(texto, transcricao);
     await db().from("atas").update({ status: "rascunho", texto, alertas, updated_at: new Date().toISOString() }).eq("id", ataId);
   } catch (e) {
     const erro = e instanceof Error ? e.message : "Falha ao gerar a ata.";
     console.error("ata:", ataId, erro);
-    await db().from("atas").update({ status: "erro", erro }).eq("id", ataId);
+    await db().from("atas").update({ status: "transcrita", erro }).eq("id", ataId);
     throw new Error(erro);
   }
 }

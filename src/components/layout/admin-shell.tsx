@@ -62,7 +62,7 @@ const NAV_GROUPS: { id: string; label: string; icon: LucideIcon; items: NavItem[
     items: [
       { href: "/admin/ia", label: "IA", icon: Sparkles },
       { href: "/admin/transcricao", label: "Transcrição", icon: AudioLines, todos: true },
-      { href: "/admin/atas", label: "Atas", icon: NotebookPen },
+      { href: "/admin/atas", label: "Reuniões", icon: NotebookPen },
     ],
   },
   {

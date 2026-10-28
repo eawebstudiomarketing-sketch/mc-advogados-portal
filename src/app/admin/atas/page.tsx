@@ -5,11 +5,13 @@ import { exigirPermissao } from "@/lib/dal";
 import { createClient } from "@/lib/supabase/server";
 import { dataHoraBr, STATUS_ROTULO, TIPOS_ATA, type StatusAta, type TipoAta } from "@/lib/atas/formato";
 
-export const metadata = { title: "Atas" };
+export const metadata = { title: "Reuniões" };
 
 const COR: Record<StatusAta, string> = {
   gravando: "bg-status-danger-bg text-status-danger",
   processando: "bg-surface-2 text-foreground/70",
+  gerando: "bg-surface-2 text-foreground/70",
+  transcrita: "bg-status-info-bg text-status-info",
   rascunho: "bg-status-pending-bg text-status-pending",
   erro: "bg-status-danger-bg text-status-danger",
   aguardando: "bg-status-info-bg text-status-info",
@@ -17,7 +19,8 @@ const COR: Record<StatusAta, string> = {
   assinada: "bg-status-success-bg text-status-success",
 };
 
-// Atas: grava a reunião, a IA monta a ata no modelo do escritório, o advogado
+// Reuniões: grava (ou recebe o arquivo), transcreve e entrega a reunião (texto fiel +
+// resumo com IA). Dali, "Gerar ata" monta a ata no modelo do escritório, o advogado
 // revisa e aprova e o portal colhe as assinaturas (link + código).
 export default async function AtasPage() {
   const { profile } = await exigirPermissao("atas");
@@ -45,12 +48,12 @@ export default async function AtasPage() {
     <div>
       <div className="mb-8 flex flex-wrap items-end justify-between gap-4">
         <div>
-          <p className="eyebrow mb-2">Operacional · Atas</p>
-          <h1 className="page-title">Atas de reunião</h1>
-          <p className="mt-1 max-w-2xl text-sm text-muted">Grave a reunião (pode deixar a aba em segundo plano). A IA monta a ata no modelo do escritório, você revisa e aprova, e o portal colhe as assinaturas.</p>
+          <p className="eyebrow mb-2">Operacional · Reuniões</p>
+          <h1 className="page-title">Reuniões</h1>
+          <p className="mt-1 max-w-2xl text-sm text-muted">Grave a reunião (pode deixar a aba em segundo plano) ou envie o arquivo. Você recebe a transcrição fiel e o resumo com IA, para baixar em PDF, TXT ou Word. Se precisar de ata, é só clicar em “Gerar ata” dentro da reunião: a IA monta no modelo do escritório, você revisa e aprova, e o portal colhe as assinaturas.</p>
         </div>
         <Link href="/admin/atas/nova" className="ui-btn">
-          <Plus className="h-4 w-4" aria-hidden /> Nova ata
+          <Plus className="h-4 w-4" aria-hidden /> Nova reunião
         </Link>
       </div>
 
@@ -59,8 +62,8 @@ export default async function AtasPage() {
           <span className="flex h-12 w-12 items-center justify-center rounded-full bg-surface-2 text-foreground/70 ring-1 ring-border">
             <NotebookPen className="h-5 w-5" aria-hidden />
           </span>
-          <p className="mt-3 font-medium text-foreground">Nenhuma ata ainda</p>
-          <p className="mt-1 text-sm text-muted">Comece uma reunião em “Nova ata”: grave e a ata sai pronta para revisar.</p>
+          <p className="mt-3 font-medium text-foreground">Nenhuma reunião ainda</p>
+          <p className="mt-1 text-sm text-muted">Comece em “Nova reunião”: grave e a transcrição sai pronta. A ata é um clique depois.</p>
         </div>
       ) : (
         <div className="ui-card overflow-hidden p-0">

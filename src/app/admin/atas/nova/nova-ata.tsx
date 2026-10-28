@@ -14,7 +14,7 @@ type Modo = "presencial" | "online" | "arquivo";
 
 const PEDACO_MS = 30_000;
 const PROGRAMAS = ["Google Meet", "Zoom", "Microsoft Teams", "WhatsApp", "Outro"];
-const AVISO = "Pessoal, só um aviso: esta reunião vai ser gravada para gerar a ata. Ao final, a ata é enviada para todos conferirem e assinarem. Tudo bem?";
+const AVISO = "Pessoal, só um aviso: esta reunião vai ser gravada e transcrita. Se for preciso, depois é feita uma ata e enviada para todos conferirem e assinarem. Tudo bem?";
 const mmss = (s: number) => `${Math.floor(s / 3600) ? `${Math.floor(s / 3600)}:` : ""}${String(Math.floor((s % 3600) / 60)).padStart(Math.floor(s / 3600) ? 2 : 1, "0")}:${String(Math.floor(s % 60)).padStart(2, "0")}`;
 const agoraLocal = () => {
   const d = new Date();
@@ -66,7 +66,7 @@ export function NovaAta({ clientes, equipe, meuProfileId, clienteInicial }: { cl
   async function criar(origem: "gravacao" | "arquivo") {
     return criarAtaAction({
       tipo,
-      titulo: titulo || TIPOS_ATA[tipo].titulo,
+      titulo: titulo || TIPOS_ATA[tipo].rotulo,
       clientId: clienteId || null,
       dataReuniao: new Date(data).toISOString(),
       local: onde === "presencial" ? "Presencial" : `Online (${programa})`,
@@ -198,7 +198,7 @@ export function NovaAta({ clientes, equipe, meuProfileId, clienteInicial }: { cl
             </label>
             <label className="block">
               <span className="mb-1.5 block text-sm font-medium text-foreground">Título</span>
-              <input value={titulo} onChange={(e) => setTitulo(e.target.value)} placeholder={TIPOS_ATA[tipo].titulo} maxLength={160} className="ui-input" />
+              <input value={titulo} onChange={(e) => setTitulo(e.target.value)} placeholder={TIPOS_ATA[tipo].rotulo} maxLength={160} className="ui-input" />
             </label>
             <div>
               <span className="mb-1.5 block text-sm font-medium text-foreground">Local</span>
@@ -334,7 +334,7 @@ export function NovaAta({ clientes, equipe, meuProfileId, clienteInicial }: { cl
               <input type="file" accept="audio/*,video/*,.ogg,.opus,.m4a,.mp3,.wav,.mp4,.mov,.webm" onChange={(e) => setArquivo(e.target.files?.[0] ?? null)} className="block w-full text-sm" aria-label="Arquivo de áudio" />
               <button type="button" onClick={() => void enviarArquivo()} disabled={!arquivo || comecando} className="ui-btn mt-3 w-full justify-center">
                 {comecando ? <Loader2 className="h-4 w-4 animate-spin" aria-hidden /> : <Upload className="h-4 w-4" aria-hidden />}
-                {envioArquivo !== null ? `Enviando… ${envioArquivo}%` : "Enviar e gerar a ata"}
+                {envioArquivo !== null ? `Enviando… ${envioArquivo}%` : "Enviar e transcrever"}
               </button>
             </div>
           ) : (
@@ -470,7 +470,7 @@ function Gravando({
   }
 
   async function encerrar() {
-    if (!confirm("Encerrar a gravação e gerar a ata?")) return;
+    if (!confirm("Encerrar a gravação e transcrever a reunião?")) return;
     setEncerrando("Salvando o final da gravação…");
     await new Promise<void>((ok) => {
       g.recorder.addEventListener("stop", () => ok(), { once: true });
@@ -494,7 +494,7 @@ function Gravando({
       setEncerrando(null);
       return void toast.error(f.erro);
     }
-    setEncerrando("Gerando a ata…");
+    setEncerrando("Transcrevendo…");
     await fetch(`/api/atas/${g.ataId}/gerar`, { method: "POST" }).catch(() => {});
     onFim(g.ataId);
   }
@@ -536,10 +536,10 @@ function Gravando({
             <Check className="h-4 w-4" aria-hidden /> Decisão{decisoes ? ` (${decisoes})` : ""}
           </button>
           <button type="button" disabled={!!encerrando} onClick={() => void encerrar()} className="ui-btn ml-auto">
-            {encerrando ? <Loader2 className="h-4 w-4 animate-spin" aria-hidden /> : <Square className="h-4 w-4 fill-current" aria-hidden />} Encerrar e gerar a ata
+            {encerrando ? <Loader2 className="h-4 w-4 animate-spin" aria-hidden /> : <Square className="h-4 w-4 fill-current" aria-hidden />} Encerrar e transcrever
           </button>
         </div>
-        <p className="text-xs text-muted">Marque os momentos importantes e as decisões: eles entram na ata com prioridade. Não feche esta aba até encerrar.</p>
+        <p className="text-xs text-muted">Marque os momentos importantes e as decisões: eles entram com prioridade na ata, se você gerar uma. Não feche esta aba até encerrar.</p>
       </div>
     </section>
   );

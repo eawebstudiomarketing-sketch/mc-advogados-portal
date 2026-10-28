@@ -48,7 +48,7 @@ export type NovaAtaDados = {
 export async function criarAtaAction(d: NovaAtaDados): Promise<{ ok: true; id: string; envio: string } | { ok: false; erro: string }> {
   const { profile } = await exigirPermissao("atas");
   const tipo: TipoAta = d.tipo in TIPOS_ATA ? d.tipo : "reuniao_cliente";
-  const titulo = d.titulo.trim().slice(0, 160) || TIPOS_ATA[tipo].titulo;
+  const titulo = d.titulo.trim().slice(0, 160) || TIPOS_ATA[tipo].rotulo;
   const banco = await db();
   const { data: t, error: et } = await banco
     .from("transcricoes")
@@ -148,7 +148,7 @@ export async function salvarAtaAction(id: string, c: AtaEdicao): Promise<{ ok: b
   if (c.dataReuniao !== undefined && !Number.isNaN(new Date(c.dataReuniao).getTime())) muda.data_reuniao = new Date(c.dataReuniao).toISOString();
   if (c.participantes !== undefined) muda.participantes = limparParticipantes(c.participantes);
   // só rascunho se edita (aprovada/assinada ficam travadas: corrigir = nova versão)
-  const { error, count } = await (await db()).from("atas").update(muda, { count: "exact" }).eq("id", id).in("status", ["rascunho", "erro"]);
+  const { error, count } = await (await db()).from("atas").update(muda, { count: "exact" }).eq("id", id).in("status", ["rascunho", "erro", "transcrita"]);
   if (error) return { ok: false, erro: "Não foi possível salvar." };
   return count ? { ok: true } : { ok: false, erro: "Esta ata não pode mais ser editada." };
 }
