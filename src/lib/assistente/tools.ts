@@ -139,11 +139,14 @@ function validarAnexo(caminho: string, ctx: Ctx): string {
   return limpo;
 }
 function mimePorNome(nome: string, tipo: string): string {
-  if (tipo && tipo !== "application/octet-stream") return tipo;
   const ext = nome.toLowerCase().split(".").pop() ?? "";
+  // o Windows costuma mandar .csv como application/vnd.ms-excel: vale a extensão
+  if (ext === "csv") return "text/csv";
+  if (tipo && tipo !== "application/octet-stream") return tipo;
   const m: Record<string, string> = {
     pdf: "application/pdf",
     docx: "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+    xlsx: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
     txt: "text/plain",
     png: "image/png",
     jpg: "image/jpeg",

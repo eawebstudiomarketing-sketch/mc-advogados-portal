@@ -550,7 +550,7 @@ export function Assistente({
                 ref={arquivoRef}
                 type="file"
                 multiple
-                accept=".pdf,.doc,.docx,.txt,.md,image/*"
+                accept=".pdf,.doc,.docx,.xlsx,.csv,.txt,.md,image/*"
                 className="hidden"
                 onChange={(e) => void anexar(e.target.files)}
               />

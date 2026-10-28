@@ -3,6 +3,7 @@
 // conta bancária. Usado no cadastro e na edição do cliente PF.
 
 import type { Client } from "@/lib/data/clients";
+import { CampoCep } from "./campo-cep";
 
 export type EnderecoPF = { cep?: string; logradouro?: string; numero?: string; complemento?: string; bairro?: string; cidade?: string; uf?: string };
 export type ContaPF = { banco?: string; agencia?: string; conta?: string; pix?: string };
@@ -69,7 +70,7 @@ export function CamposPF({ c }: { c?: Partial<Client> }) {
           <textarea id="telefones" name="telefones" rows={2} defaultValue={(c?.telefones ?? []).join("\n")} placeholder="(73) 99999-9999" className="ui-input" />
           <p className="mt-1 text-xs text-muted">Um por linha. O primeiro também liga a conversa do WhatsApp.</p>
         </div>
-        <Campo nome="end_cep" rotulo="CEP" valor={end.cep} meia />
+        <CampoCep valor={end.cep} meia />
         <Campo nome="end_cidade" rotulo="Cidade" valor={end.cidade} meia />
         <Campo nome="end_logradouro" rotulo="Rua / avenida" valor={end.logradouro} />
         <Campo nome="end_numero" rotulo="Número" valor={end.numero} meia />
