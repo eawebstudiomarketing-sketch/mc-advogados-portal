@@ -14,7 +14,7 @@ import { createAdminClient } from "@/lib/supabase/admin";
 
 export type CompromissoState = { error: string | null };
 
-const TIPOS = ["reuniao", "ligacao", "evento", "outro"];
+const TIPOS = ["reuniao", "audiencia", "ligacao", "evento", "outro"];
 const texto = (v: FormDataEntryValue | null) => (typeof v === "string" ? v.trim() : "");
 
 export async function salvarCompromissoAction(_prev: CompromissoState, formData: FormData): Promise<CompromissoState> {
@@ -61,7 +61,7 @@ export async function salvarCompromissoAction(_prev: CompromissoState, formData:
     salvoId = data.id;
   }
 
-  await reagendarLembretes({ id: salvoId, titulo, inicio: dados.inicio, local: dados.local, client_id: clientId, lembrar_cliente: dados.lembrar_cliente }, profile.id);
+  await reagendarLembretes({ id: salvoId, tipo, criacao: !id, titulo, inicio: dados.inicio, local: dados.local, client_id: clientId, lembrar_cliente: dados.lembrar_cliente }, profile.id);
 
   // aviso para quem entrou agora no compromisso (menos quem criou)
   const novos = participantes.filter((p) => !antes.includes(p));

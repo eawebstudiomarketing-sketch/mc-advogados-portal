@@ -916,7 +916,7 @@ export type Database = {
         Insert: {
           area?: string | null
           concluida_em?: string | null
-          client_id: string
+          client_id?: string | null // opcional: tarefa interna (migration 0004)
           created_at?: string
           deadline?: string | null
           description?: string | null

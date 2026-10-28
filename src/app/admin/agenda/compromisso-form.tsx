@@ -24,6 +24,7 @@ export type CompromissoInicial = {
 
 const TIPOS = [
   ["reuniao", "Reunião"],
+  ["audiencia", "Audiência"],
   ["ligacao", "Ligação"],
   ["evento", "Evento"],
   ["outro", "Outro"],

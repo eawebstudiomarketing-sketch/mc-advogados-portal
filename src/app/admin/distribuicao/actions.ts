@@ -4,6 +4,7 @@ import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
 import { exigirPermissao } from "@/lib/dal";
 import { ACTIVITY_TYPES } from "@/lib/activity-type";
+import { reagendarAudienciaDaAtividade } from "@/lib/zap/lembretes";
 import type { Database } from "@/lib/supabase/types";
 
 // Distribuir = escolher responsável, área e prazo. Pedido vindo do Zap vira
@@ -22,11 +23,14 @@ export async function distribuirAction(_prev: DistribuirState, formData: FormDat
   const area = texto(formData.get("area")) || null;
   const tipo = texto(formData.get("tipo"));
   const prazo = texto(formData.get("prazo")) || null;
+  const categoriaTxt = texto(formData.get("categoria"));
+  const categoria = ["tarefa", "prazo", "audiencia"].includes(categoriaTxt) ? categoriaTxt : "tarefa";
   const horaTxt = texto(formData.get("hora"));
   const hora = prazo && /^\d{2}:\d{2}$/.test(horaTxt) ? horaTxt : null;
   const responsavelId = texto(formData.get("responsavel_id"));
 
   if (!titulo) return { error: "Informe o título." };
+  if (categoria === "audiencia" && (!prazo || !hora)) return { error: "Para audiência, informe o dia e o horário." };
   if (!responsavelId) return { error: "Escolha o responsável." };
   if (!ACTIVITY_TYPES.includes(tipo as never)) return { error: "Escolha o tipo." };
 
@@ -38,7 +42,7 @@ export async function distribuirAction(_prev: DistribuirState, formData: FormDat
   if (!item || item.status !== "pendente") return { error: "Esta demanda já foi distribuída ou não existe mais." };
   if (!resp) return { error: "Responsável inválido." };
   const clientId = item.client_id ?? (texto(formData.get("client_id")) || null);
-  if (!clientId) return { error: "Escolha o cliente." };
+  if (!clientId && item.publicacao_id) return { error: "Escolha o cliente desta publicação." };
 
   const campos = {
     title: titulo,
@@ -47,6 +51,7 @@ export async function distribuirAction(_prev: DistribuirState, formData: FormDat
     type: tipo as Database["public"]["Enums"]["activity_type"],
     deadline: prazo,
     ...(hora ? { hora } : {}),
+    categoria,
     responsavel_id: resp.id,
   };
 
@@ -63,6 +68,11 @@ export async function distribuirAction(_prev: DistribuirState, formData: FormDat
       .single();
     if (error || !criada) return { error: "Não foi possível criar a atividade." };
     activityId = criada.id;
+  }
+
+  // audiência: avisa o cliente (na criação, 5 dias e 1 dia antes)
+  if (activityId && categoria === "audiencia") {
+    await reagendarAudienciaDaAtividade(activityId, { criacao: true, criadoPor: profile.id }).catch(() => undefined);
   }
 
   await supabase

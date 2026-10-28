@@ -25,7 +25,7 @@ function saudacao() {
 
 const CONCLUIDAS_DIAS = 14;
 const ROTULO_CAT: Record<string, string> = { prazo: "Prazo", audiencia: "Audiência", tarefa: "Tarefa" };
-const ROTULO_TIPO: Record<string, string> = { reuniao: "Reunião", ligacao: "Ligação", evento: "Evento", outro: "Compromisso" };
+const ROTULO_TIPO: Record<string, string> = { reuniao: "Reunião", audiencia: "Audiência", ligacao: "Ligação", evento: "Evento", outro: "Compromisso" };
 const horaBahia = (iso: string) => new Date(iso).toLocaleTimeString("pt-BR", { timeZone: "America/Bahia", hour: "2-digit", minute: "2-digit" });
 
 // Visão geral: o dia do escritório numa tela só. Números da pessoa, agenda de

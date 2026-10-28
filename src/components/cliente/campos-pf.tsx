@@ -30,6 +30,35 @@ function Grupo({ titulo, children }: { titulo: string; children: React.ReactNode
   );
 }
 
+/** Endereço com CEP automático para a empresa (PJ), mesmos campos end_* do cadastro de pessoa física. */
+export function EnderecoCampos({ c }: { c?: Partial<Client> }) {
+  const end = (c?.endereco ?? {}) as EnderecoPF;
+  return (
+    <Grupo titulo="Endereço">
+      <CampoCep valor={end.cep} meia />
+      <Campo nome="end_cidade" rotulo="Cidade" valor={end.cidade} meia />
+      <Campo nome="end_logradouro" rotulo="Rua / avenida" valor={end.logradouro} />
+      <Campo nome="end_numero" rotulo="Número" valor={end.numero} meia />
+      <Campo nome="end_complemento" rotulo="Complemento" valor={end.complemento} meia />
+      <Campo nome="end_bairro" rotulo="Bairro" valor={end.bairro} meia />
+      <Campo nome="end_uf" rotulo="UF" valor={end.uf} meia placeholder="BA" />
+    </Grupo>
+  );
+}
+
+/** Lê só o endereço do formulário (empresa). */
+export function lerEndereco(f: FormData) {
+  return semVazios({
+    cep: txt(f, "end_cep"),
+    logradouro: txt(f, "end_logradouro"),
+    numero: txt(f, "end_numero"),
+    complemento: txt(f, "end_complemento"),
+    bairro: txt(f, "end_bairro"),
+    cidade: txt(f, "end_cidade"),
+    uf: txt(f, "end_uf")?.toUpperCase().slice(0, 2) ?? null,
+  });
+}
+
 export function CamposPF({ c }: { c?: Partial<Client> }) {
   const end = (c?.endereco ?? {}) as EnderecoPF;
   const conta = (c?.conta_bancaria ?? {}) as ContaPF;

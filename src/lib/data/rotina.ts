@@ -84,7 +84,7 @@ export async function diaDaPessoa(responsavelId: string | null, dia: string): Pr
 }
 
 const ROTULO_CAT: Record<string, string> = { prazo: "Prazo", audiencia: "Audiência", tarefa: "Tarefa" };
-const ROTULO_TIPO: Record<string, string> = { reuniao: "Reunião", ligacao: "Ligação", evento: "Evento", outro: "Compromisso" };
+const ROTULO_TIPO: Record<string, string> = { reuniao: "Reunião", audiencia: "Audiência", ligacao: "Ligação", evento: "Evento", outro: "Compromisso" };
 const dataCurta = (iso: string) => iso.split("-").reverse().slice(0, 2).join("/");
 
 /** Texto da mensagem das 8h (WhatsApp: *negrito*, _itálico_). */

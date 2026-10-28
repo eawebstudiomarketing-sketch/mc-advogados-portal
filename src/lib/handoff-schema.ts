@@ -38,6 +38,7 @@ export const HANDOFF_SECTIONS: HandoffSection[] = [
       { id: "mensalidade", label: "Valor da mensalidade", type: "money", half: true },
       { id: "forma_pagamento", label: "Forma de pagamento", type: "text", half: true },
       { id: "inicio_assessoria", label: "Data de início da assessoria", type: "date", half: true },
+      { id: "fim_contrato", label: "Fim do contrato (prazo)", type: "date", half: true },
     ],
   },
   {
@@ -249,6 +250,7 @@ export const HANDOFF_SECTIONS_PF: HandoffSection[] = [
       { id: "pf_honorarios_valor", label: "Valor fixo", type: "money", half: true },
       { id: "pf_honorarios_exito", label: "Percentual de êxito (%)", type: "text", half: true },
       { id: "pf_forma_pagamento", label: "Forma de pagamento", type: "text", half: true },
+      { id: "pf_fim_contrato", label: "Fim do contrato (prazo)", type: "date", half: true },
     ],
   },
   {

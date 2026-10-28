@@ -44,7 +44,7 @@ import {
 } from "./actions";
 import { executarOrdem } from "./ordem";
 import { AvatarWa } from "./comum";
-import { EMOJIS_RAPIDOS, diaDe, telefone, tamanhoLegivel } from "./util";
+import { EMOJIS_RAPIDOS, dataHoraCompleta, diaChave, diaCompleto, telefone, tamanhoLegivel } from "./util";
 
 const POR_PAGINA = 60;
 const EDITAR_ATE_MS = 15 * 60_000; // o WhatsApp deixa editar por 15 min
@@ -93,6 +93,9 @@ export function Conversa({
   const [novasAbaixo, setNovasAbaixo] = useState(false);
   const [arrastando, setArrastando] = useState(false);
   const rolagemRef = useRef<HTMLDivElement>(null);
+  // cartãozinho da data que aparece enquanto rola (igual ao WhatsApp)
+  const [pilula, setPilula] = useState<string | null>(null);
+  const pilulaTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const temNovasRef = useRef(false);
   const posRef = useRef<{ primeiro?: string; ultimo?: string; altura: number; topo: number; perto: boolean }>({ altura: 0, topo: 0, perto: true });
   useEffect(() => {
@@ -183,6 +186,20 @@ export function Conversa({
     if (!el) return;
     const perto = el.scrollHeight - el.scrollTop - el.clientHeight < 150;
     posRef.current = { ...posRef.current, altura: el.scrollHeight, topo: el.scrollTop, perto };
+    // data da primeira mensagem visível no topo
+    const linhas = el.querySelectorAll<HTMLElement>("[data-dia]");
+    let diaTopo: string | null = null;
+    for (const n of linhas) {
+      if (n.offsetTop + n.offsetHeight > el.scrollTop + 12) {
+        diaTopo = n.dataset.dia ?? null;
+        break;
+      }
+    }
+    if (diaTopo) {
+      setPilula(diaTopo);
+      if (pilulaTimer.current) clearTimeout(pilulaTimer.current);
+      pilulaTimer.current = setTimeout(() => setPilula(null), 1600);
+    }
     if (perto) setNovasAbaixo(false);
     if (buscandoRef.current || carregando) return;
     if (el.scrollTop < 200 && temMais && mensagens.length) {
@@ -487,6 +504,11 @@ export function Conversa({
 
       {/* mensagens */}
       <div className="relative min-h-0 flex-1">
+        {pilula && (
+          <div className="pointer-events-none absolute inset-x-0 top-2 z-10 flex justify-center" aria-hidden>
+            <span className="rounded-lg bg-surface/95 px-3 py-1 text-[11px] font-medium capitalize text-foreground shadow-md ring-1 ring-border">{pilula}</span>
+          </div>
+        )}
         <div ref={rolagemRef} onScroll={() => void aoRolar()} className="wa-fundo h-full overflow-y-auto overscroll-contain px-3 py-3 sm:px-[6%]">
           {temMais && !carregando && (
             <div className="flex justify-center pb-2 text-muted">
@@ -500,14 +522,14 @@ export function Conversa({
           )}
           {!carregando && mensagens.length === 0 && <p className="py-10 text-center text-sm text-muted">Nenhuma mensagem guardada nesta conversa ainda.</p>}
           {mensagens.map((m, i) => {
-            const dia = diaDe(m.wa_timestamp);
-            const separador = i === 0 || dia !== diaDe(mensagens[i - 1].wa_timestamp);
+            const dia = diaCompleto(m.wa_timestamp);
+            const separador = i === 0 || diaChave(m.wa_timestamp) !== diaChave(mensagens[i - 1].wa_timestamp);
             const seguida = !separador && i > 0 && mensagens[i - 1].from_me === m.from_me && mensagens[i - 1].sender_jid === m.sender_jid;
             return (
-              <div key={m.id} data-msg={m.id} className="[contain-intrinsic-size:auto_64px] [content-visibility:auto]">
+              <div key={m.id} data-msg={m.id} data-dia={dia} className="[contain-intrinsic-size:auto_64px] [content-visibility:auto]">
                 {separador && (
                   <div className="my-3 text-center">
-                    <span className="rounded-lg bg-surface px-3 py-1 text-[11px] font-medium text-muted shadow-sm">{dia}</span>
+                    <span className="rounded-lg bg-surface px-3 py-1 text-[11px] font-medium capitalize text-muted shadow-sm">{dia}</span>
                   </div>
                 )}
                 <Balao m={m} grupo={chat.is_group} nomes={nomes} fotos={fotos} seguida={seguida} destaque={destaque === m.id} acoes={acoes} onCarregou={aoCarregarMidia} />
@@ -761,7 +783,7 @@ const Balao = memo(function Balao({
                 <Bot className="h-3 w-3" aria-hidden /> IA
               </span>
             )}
-            {hora}
+            <span title={dataHoraCompleta(m.wa_timestamp)}>{hora}</span>
             {meu && <StatusEnvio status={m.status} erro={m.erro} />}
           </p>
         </div>

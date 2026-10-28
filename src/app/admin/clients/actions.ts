@@ -7,7 +7,7 @@ import { createAdminClient } from "@/lib/supabase/admin";
 import { exigirPermissao, getPermissoes, requireRole } from "@/lib/dal";
 import { destinoDeVolta } from "@/lib/voltar";
 import { lerCamposWhatsapp } from "@/components/cliente/campos-whatsapp";
-import { lerCamposPF } from "@/components/cliente/campos-pf";
+import { lerCamposPF, lerEndereco } from "@/components/cliente/campos-pf";
 
 /** PF: os telefones do cadastro também ligam a conversa do WhatsApp (números do cliente). */
 function comZap(pf: ReturnType<typeof lerCamposPF>, numeros: string[]) {
@@ -60,7 +60,7 @@ export async function createClientAction(
     documento: String(documento ?? "").trim() || null,
     email_contact: String(emailContact ?? "").trim() || null,
     ...lerCamposWhatsapp(formData),
-    ...(tipoPessoa === "PF" ? comZap(lerCamposPF(formData), lerCamposWhatsapp(formData).whatsapp_numeros) : {}),
+    ...(tipoPessoa === "PF" ? comZap(lerCamposPF(formData), lerCamposWhatsapp(formData).whatsapp_numeros) : { endereco: lerEndereco(formData) }),
   });
 
   if (error) {
@@ -124,7 +124,7 @@ export async function updateClientAction(
       email_contact: String(emailContact ?? "").trim() || null,
       active,
       ...lerCamposWhatsapp(formData),
-      ...(tipoPessoa === "PF" ? comZap(lerCamposPF(formData), lerCamposWhatsapp(formData).whatsapp_numeros) : {}),
+      ...(tipoPessoa === "PF" ? comZap(lerCamposPF(formData), lerCamposWhatsapp(formData).whatsapp_numeros) : { endereco: lerEndereco(formData) }),
     })
     .eq("id", id);
 

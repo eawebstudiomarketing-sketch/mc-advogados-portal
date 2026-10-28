@@ -19,7 +19,7 @@ type Part = {
 };
 type Content = { role?: string; parts?: Part[] };
 type Pendente = { tipo?: "exclusao" | "envio" | "alteracao"; itens: { name: string; label: string; resumo: string }[] };
-type Anexo = { caminho: string; nome: string; enviando?: boolean };
+type Anexo = { caminho: string; nome: string; enviando?: boolean; previa?: string };
 
 const RE_ANEXO = /\[Anexo: (.+?) \(anexo=[^)]+\)\]/g;
 
@@ -117,6 +117,7 @@ export function Assistente({
   const janela = useJanelaMovel(aberto && !pagina);
   const [anexos, setAnexos] = useState<Anexo[]>([]);
   const arquivoRef = useRef<HTMLInputElement>(null);
+  const [arrastando, setArrastando] = useState(false);
   const [history, setHistory] = useState<Content[]>([]);
   const [texto, setTexto] = useState("");
   const [pensando, setPensando] = useState(false);
@@ -197,9 +198,10 @@ export function Assistente({
   }
 
   // 📎 envia direto ao Storage (URL assinada), sem passar pelo limite da Vercel
-  async function anexar(lista: FileList | null) {
+  async function anexar(lista: FileList | File[] | null) {
     for (const file of Array.from(lista ?? []).slice(0, 5)) {
-      const temp: Anexo = { caminho: `tmp-${file.name}-${file.size}`, nome: file.name, enviando: true };
+      const previa = file.type.startsWith("image/") ? URL.createObjectURL(file) : undefined;
+      const temp: Anexo = { caminho: `tmp-${file.name}-${file.size}-${Math.random().toString(36).slice(2, 6)}`, nome: file.name, enviando: true, previa };
       setAnexos((xs) => [...xs, temp]);
       try {
         const prep = await fetch("/api/assistente/anexo", {
@@ -211,13 +213,36 @@ export function Assistente({
         if (!prep.ok) throw new Error(dados.error ?? "Não foi possível anexar.");
         const { error } = await criarSupabase().storage.from("documents").uploadToSignedUrl(dados.caminho, dados.token, file, { contentType: file.type || undefined });
         if (error) throw new Error("Falha ao enviar o arquivo.");
-        setAnexos((xs) => xs.map((x) => (x === temp ? { caminho: dados.caminho, nome: file.name } : x)));
+        setAnexos((xs) => xs.map((x) => (x === temp ? { caminho: dados.caminho, nome: file.name, previa } : x)));
       } catch (e) {
         setAnexos((xs) => xs.filter((x) => x !== temp));
         toast.error(e instanceof Error ? e.message : "Não foi possível anexar.");
       }
     }
     if (arquivoRef.current) arquivoRef.current.value = "";
+  }
+
+  // Ctrl+V com imagem na área de transferência (print, foto copiada) vira anexo; texto cola normal
+  function aoColar(e: React.ClipboardEvent) {
+    const itens = Array.from(e.clipboardData?.items ?? []).filter((i) => i.kind === "file");
+    if (!itens.length || e.clipboardData.getData("text/plain").trim()) return;
+    const arquivos = itens
+      .map((i, k) => {
+        const f = i.getAsFile();
+        if (!f) return null;
+        const ext = (f.type.split("/")[1] ?? "png").replace("jpeg", "jpg").replace(/[^a-z0-9]/gi, "");
+        const hora = new Date().toLocaleTimeString("pt-BR", { hour12: false }).replace(/:/g, "");
+        return f.name && !/^image\.\w+$/i.test(f.name) ? f : new File([f], `imagem-colada-${hora}${k ? `-${k + 1}` : ""}.${ext}`, { type: f.type });
+      })
+      .filter((f): f is File => !!f);
+    if (!arquivos.length) return;
+    e.preventDefault();
+    void anexar(arquivos);
+  }
+
+  // arrastar e soltar arquivos/fotos em cima do assistente
+  function temArquivos(e: React.DragEvent) {
+    return Array.from(e.dataTransfer?.types ?? []).includes("Files");
   }
 
   function novaConversa() {
@@ -325,6 +350,21 @@ export function Assistente({
           ref={pagina ? undefined : janela.ref}
           role="dialog"
           aria-label="Assistente do portal"
+          onDragEnter={(e) => {
+            if (temArquivos(e) && !pendente) setArrastando(true);
+          }}
+          onDragOver={(e) => {
+            if (temArquivos(e) && !pendente) e.preventDefault();
+          }}
+          onDragLeave={(e) => {
+            if (!e.currentTarget.contains(e.relatedTarget as Node | null)) setArrastando(false);
+          }}
+          onDrop={(e) => {
+            if (!temArquivos(e)) return;
+            e.preventDefault();
+            setArrastando(false);
+            if (!pendente) void anexar(e.dataTransfer.files);
+          }}
           style={pagina ? undefined : janela.estilo}
           className={
             pagina
@@ -336,6 +376,13 @@ export function Assistente({
                 } ${janela.mexendo ? "shadow-xl ring-2 ring-gold/30" : "shadow-lg"}`
           }
         >
+          {arrastando && (
+            <div className="pointer-events-none absolute inset-2 z-50 flex flex-col items-center justify-center gap-1 rounded-2xl border-2 border-dashed border-navy-3 bg-surface/90 text-center">
+              <Paperclip className="h-6 w-6 text-navy-3" aria-hidden />
+              <p className="text-sm font-semibold text-foreground">Solte para anexar</p>
+              <p className="text-xs text-muted">fotos, PDF, Word, Excel…</p>
+            </div>
+          )}
           {!pagina && <AlcasRedimensionar onRedimensionar={janela.onRedimensionar} />}
           <header
             onPointerDown={pagina ? undefined : janela.onArrastar}
@@ -513,7 +560,14 @@ export function Assistente({
               <div className="mb-2 flex flex-wrap gap-1.5">
                 {anexos.map((a) => (
                   <span key={a.caminho} className="inline-flex max-w-full items-center gap-1.5 rounded-lg bg-surface-2 py-1 pr-1 pl-2 text-xs text-foreground ring-1 ring-border">
-                    {a.enviando ? <Loader2 className="h-3.5 w-3.5 animate-spin text-muted" aria-hidden /> : <FileText className="h-3.5 w-3.5 text-navy-3" aria-hidden />}
+                    {a.enviando ? (
+                      <Loader2 className="h-3.5 w-3.5 animate-spin text-muted" aria-hidden />
+                    ) : a.previa ? (
+                      // eslint-disable-next-line @next/next/no-img-element
+                      <img src={a.previa} alt="" className="h-6 w-6 rounded object-cover" />
+                    ) : (
+                      <FileText className="h-3.5 w-3.5 text-navy-3" aria-hidden />
+                    )}
                     <span className="max-w-[180px] truncate">{a.nome}</span>
                     <button type="button" onClick={() => setAnexos((xs) => xs.filter((x) => x !== a))} className="rounded p-0.5 text-muted hover:bg-border hover:text-foreground" aria-label={`Remover ${a.nome}`}>
                       <X className="h-3 w-3" />
@@ -533,6 +587,7 @@ export function Assistente({
                 ref={inputRef}
                 value={texto}
                 onChange={(e) => setTexto(e.target.value)}
+                onPaste={aoColar}
                 onKeyDown={(e) => {
                   if (e.key === "Enter" && !e.shiftKey) {
                     e.preventDefault();
@@ -540,7 +595,7 @@ export function Assistente({
                   }
                 }}
                 rows={1}
-                placeholder={pendente ? "Confirme ou cancele acima…" : pagina ? "Mensagem" : "Peça algo… (Enter envia)"}
+                placeholder={pendente ? "Confirme ou cancele acima…" : pagina ? "Mensagem (cole ou arraste imagens aqui)" : "Peça algo… (Enter envia · cole imagens com Ctrl+V)"}
                 disabled={!!pendente}
                 className={`max-h-32 flex-1 resize-none bg-transparent text-foreground outline-none focus-visible:outline-none placeholder:text-muted/70 [field-sizing:content] ${
                   pagina ? "min-h-[40px] px-2.5 py-2 text-base" : "min-h-[36px] px-1.5 py-2 text-base sm:text-[13.5px]"

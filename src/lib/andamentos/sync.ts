@@ -5,7 +5,7 @@ import { criarAvisos } from "@/lib/avisos";
 import { htmlParaTexto, temHtml } from "@/lib/astrea/texto";
 import { sincronizarPublicacoesAstrea, type ResultadoPubAstrea } from "@/lib/publicacoes/astrea";
 import { BAIXADO } from "./padroes";
-import { entrarNoAstrea, historicoDoCaso, listarAlertas, listarCasos, pastaDoCaso, type CasoAstrea, type HistoricoAstrea, type PastaAstrea, type SessaoAstrea } from "@/lib/astrea/cliente";
+import { contatoDoAstrea, entrarNoAstrea, historicoDoCaso, listarAlertas, listarCasos, pastaDoCaso, type CasoAstrea, type HistoricoAstrea, type PastaAstrea, type SessaoAstrea } from "@/lib/astrea/cliente";
 
 // Copia processos e andamentos do Astrea para o portal.
 //  - completo: todos os processos (ativos e, se pedido, arquivados) com a capa e
@@ -17,7 +17,7 @@ type Db = ReturnType<typeof createAdminClient>;
 type Area = "trabalhista" | "consumidor" | "previdenciario" | "civel" | "empresarial";
 type ProcessoPortal = { id: string; numero_digitos: string | null; astrea_id: string | null; client_id: string | null; titulo: string | null };
 
-export type ResultadoSync = { processos: number; novosProcessos: number; novos: number; historico: number; publicacoes?: ResultadoPubAstrea; erro?: string };
+export type ResultadoSync = { processos: number; novosProcessos: number; novosClientes?: number; novos: number; historico: number; publicacoes?: ResultadoPubAstrea; erro?: string };
 
 const semAcento = (t: string) => t.normalize("NFD").replace(/[̀-ͯ]/g, "");
 const limpaNome = (t: string) =>
@@ -63,6 +63,47 @@ function casarCliente(nome: string | null, clientes: { id: string; chaves: strin
   if (n.length < 4) return null;
   const achados = clientes.filter((c) => c.chaves.some((k) => k === n || (k.length >= 6 && (n.includes(k) || k.includes(n)))));
   return achados.length === 1 ? achados[0].id : null;
+}
+
+/** Texto de um item que o Astrea manda como string ou como objeto ({number}, {email}, {address}…). */
+function textoDoItem(x: unknown): string | null {
+  if (typeof x === "string") return x.trim() || null;
+  if (x && typeof x === "object") {
+    for (const v of Object.values(x as Record<string, unknown>)) if (typeof v === "string" && v.trim() && /[@\d]/.test(v)) return v.trim();
+  }
+  return null;
+}
+
+/**
+ * Processo novo de cliente que AINDA NÃO existe no portal: lê o contato no Astrea
+ * e cria o cliente (PJ ou PF), ligado ao contato pelo astrea_contato_id. Só leitura no Astrea.
+ */
+async function criarClienteDoAstrea(s: SessaoAstrea, db: Db, cliente: { contactId?: number; contactName: string }): Promise<string | null> {
+  if (!cliente.contactId) return null;
+  const contato = await contatoDoAstrea(s, cliente.contactId).catch(() => null);
+  const nome = (contato?.name ?? cliente.contactName ?? "").replace(/\s*-\s*(CPF|CNPJ):.*$/, "").trim();
+  if (nome.length < 3) return null;
+  const empresa = /COMPANY|JURIDIC|LEGAL/i.test(String(contato?.contactKind ?? "")) || /\b(LTDA|ME|EPP|EIRELI|S\/?A|COMERCIO|COMÉRCIO|SERVICOS|SERVIÇOS|INDUSTRIA|INDÚSTRIA)\b/i.test(nome);
+  const telefones = [...new Set((contato?.telephones ?? []).map(textoDoItem).filter((t): t is string => !!t && t.replace(/\D/g, "").length >= 8))];
+  const email = (contato?.emails ?? []).map(textoDoItem).find((e) => !!e && e.includes("@")) ?? null;
+  const { data, error } = await db
+    .from("clients")
+    .insert({
+      name: nome.slice(0, 200),
+      tipo_pessoa: empresa ? "PJ" : "PF",
+      documento: null,
+      email_contact: email,
+      telefones,
+      astrea_contato_id: String(cliente.contactId),
+    })
+    .select("id")
+    .single();
+  if (error) {
+    // já existe (corrida entre duas leituras): reaproveita
+    const { data: ja } = await db.from("clients").select("id").eq("astrea_contato_id", String(cliente.contactId)).maybeSingle();
+    return ja?.id ?? null;
+  }
+  return data.id;
 }
 
 function linhaProcesso(c: CasoAstrea, pasta: PastaAstrea | null) {
@@ -162,6 +203,16 @@ export async function sincronizarAstrea(op: { completo?: boolean; arquivados?: b
           }
         } else {
           const numero = c.number?.trim() || `ASTREA-${c.id}`;
+          // cliente já existe → só liga; não existe → lê o contato no Astrea e cria o cliente
+          let clienteDoProcesso = (pasta?.customer && porContato.get(String(pasta.customer.contactId))) || casarCliente(dados.cliente_nome, chavesClientes);
+          if (!clienteDoProcesso && pasta?.customer) {
+            clienteDoProcesso = await criarClienteDoAstrea(s, db, pasta.customer).catch(() => null);
+            if (clienteDoProcesso) {
+              r.novosClientes = (r.novosClientes ?? 0) + 1;
+              porContato.set(String(pasta.customer.contactId), clienteDoProcesso);
+              chavesClientes.push({ id: clienteDoProcesso, chaves: [limpaNome(dados.cliente_nome ?? "")].filter((x) => x.length >= 4) });
+            }
+          }
           const { data: novo, error } = await db
             .from("processes")
             .insert({
@@ -170,7 +221,7 @@ export async function sincronizarAstrea(op: { completo?: boolean; arquivados?: b
               vara_tribunal: c.court ?? pasta?.courtName ?? null,
               area: areaDe(c),
               status: c.active === false ? "arquivado" : "ativo",
-              client_id: (pasta?.customer && porContato.get(String(pasta.customer.contactId))) || casarCliente(dados.cliente_nome, chavesClientes),
+              client_id: clienteDoProcesso,
             })
             .select("id, numero_digitos, astrea_id, client_id, titulo")
             .single();

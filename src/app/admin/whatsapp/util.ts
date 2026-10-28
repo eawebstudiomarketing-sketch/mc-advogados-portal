@@ -47,6 +47,24 @@ export const diaDe = (iso: string) => {
   return d.toLocaleDateString("pt-BR", { weekday: "long", day: "2-digit", month: "2-digit", year: d.getFullYear() === hoje.getFullYear() ? undefined : "numeric" });
 };
 
+/** Chave do dia (para saber quando começa um dia novo na conversa). */
+export const diaChave = (iso: string) => new Date(iso).toDateString();
+
+/** Rótulo do cartãozinho de data, como no WhatsApp: Hoje, Ontem, ou "segunda-feira, 26 de outubro". */
+export const diaCompleto = (iso: string) => {
+  const d = new Date(iso);
+  const hoje = new Date();
+  if (d.toDateString() === hoje.toDateString()) return "Hoje";
+  const ontem = new Date(hoje);
+  ontem.setDate(hoje.getDate() - 1);
+  if (d.toDateString() === ontem.toDateString()) return "Ontem";
+  return d.toLocaleDateString("pt-BR", { weekday: "long", day: "numeric", month: "long", year: d.getFullYear() === hoje.getFullYear() ? undefined : "numeric" });
+};
+
+/** Data e hora por extenso (dica ao passar o mouse na hora da mensagem). */
+export const dataHoraCompleta = (iso: string) =>
+  new Date(iso).toLocaleString("pt-BR", { weekday: "long", day: "2-digit", month: "long", year: "numeric", hour: "2-digit", minute: "2-digit", second: "2-digit" });
+
 export const iniciais = (nome: string) =>
   nome
     .replace(/[^\p{L}\s]/gu, "")

@@ -1,7 +1,7 @@
 "use client";
 
 import { CamposWhatsapp } from "@/components/cliente/campos-whatsapp";
-import { CamposPF } from "@/components/cliente/campos-pf";
+import { CamposPF, EnderecoCampos } from "@/components/cliente/campos-pf";
 import { useActionState, useState } from "react";
 import { updateClientAction, type UpdateClientState } from "../../actions";
 import type { Client } from "@/lib/data/clients";
@@ -56,7 +56,7 @@ export function EditClientForm({ client }: { client: Client }) {
         Cliente ativo
       </label>
 
-      {pf && <CamposPF c={client} />}
+      {pf ? <CamposPF c={client} /> : <EnderecoCampos c={client} />}
 
       <CamposWhatsapp grupos={client.whatsapp_grupos} numeros={client.whatsapp_numeros} />
 

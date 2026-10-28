@@ -132,6 +132,18 @@ export async function listarCasos(s: SessaoAstrea, op: { ate?: string; status?: 
   return out;
 }
 
+/** Contato (cliente) do Astrea: nome, tipo, telefones, e-mails e endereços. SÓ LEITURA. */
+export type ContatoAstrea = {
+  id: number;
+  name: string;
+  nickname?: string | null;
+  contactKind?: string | null; // PERSON | COMPANY (o Astrea usa estes nomes)
+  telephones?: unknown[];
+  emails?: unknown[];
+  addresses?: unknown[];
+};
+export const contatoDoAstrea = (s: SessaoAstrea, id: string | number) => chamar<ContatoAstrea>(`/api/v2/contact/${id}?userId=${s.userId}`, s);
+
 export const pastaDoCaso = (s: SessaoAstrea, id: string) => chamar<PastaAstrea>(`/api/v2/folder/${id}?userId=${s.userId}&withDetails=true`, s);
 
 /** Histórico do processo (mais novo primeiro). `conhecidos`: para ao encontrar um registro já gravado. */

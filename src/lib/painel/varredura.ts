@@ -6,6 +6,7 @@ import { MODELOS } from "@/lib/ia-modelos";
 import { calcularMetricas, tudo } from "./metricas";
 import { carregarBase } from "./dados";
 import { equipeNoZap } from "./equipe-zap";
+import { diasParaFim, fimDoContrato, textoFaltam } from "@/lib/contrato";
 import { DIA, aberta, atrasada, dataBahia, dentro, dias, hojeBahia, notaPessoa, pesoAtividade, periodoDe, somaDias, TIPOS, type LinhaAtividade } from "./base";
 
 // Varredura do gerente (24/10/2026): passa por todo o sistema no período do
@@ -196,6 +197,23 @@ export async function varrer(periodoId: string) {
       acoes: cadIncompleto.slice(0, 3).map((c) => ({ tipo: "abrir" as const, rotulo: c.name.length > 22 ? `${c.name.slice(0, 20)}…` : c.name, href: `/admin/clients/${c.id}` })),
     });
   }
+
+  // contratos perto do fim (campo "Fim do contrato" da ficha de handoff)
+  const fimContratos = ((handoffs ?? []) as { client_id: string; handoff: Record<string, unknown> | null }[])
+    .map((h) => ({ cid: h.client_id, fim: fimDoContrato(h.handoff) }))
+    .filter((x): x is { cid: string; fim: string } => !!x.fim && !!cli.get(x.cid)?.ativo)
+    .map((x) => ({ ...x, dias: diasParaFim(x.fim, hoje) }))
+    .filter((x) => x.dias >= -15 && x.dias <= 45)
+    .sort((a, b) => a.dias - b.dias);
+  if (fimContratos.length)
+    add({
+      id: "contratos-fim",
+      secao: "clientes",
+      prioridade: fimContratos.some((x) => x.dias <= 7) ? "alta" : "media",
+      fato: `Contratos perto do fim: ${fimContratos.slice(0, 5).map((x) => `${nomeCli(x.cid)} (${textoFaltam(x.dias)}, ${br(x.fim)})`).join("; ")}${fimContratos.length > 5 ? "…" : ""}.`,
+      sugestao: "Conversar sobre a renovação antes do fim.",
+      acoes: fimContratos.slice(0, 3).map((x) => ({ tipo: "abrir" as const, rotulo: x.cid ? (nomeCli(x.cid).length > 22 ? `${nomeCli(x.cid).slice(0, 20)}…` : nomeCli(x.cid)) : "cliente", href: `/admin/clients/${x.cid}` })),
+    });
 
   /* ───────── 2) WhatsApp ───────── */
   const jidsCli = [...new Set(((chats ?? []) as Chat[]).map((c) => c.chat_jid))];

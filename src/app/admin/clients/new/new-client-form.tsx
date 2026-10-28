@@ -1,7 +1,7 @@
 "use client";
 
 import { CamposWhatsapp } from "@/components/cliente/campos-whatsapp";
-import { CamposPF } from "@/components/cliente/campos-pf";
+import { CamposPF, EnderecoCampos } from "@/components/cliente/campos-pf";
 import { useActionState, useState } from "react";
 import { createClientAction, type CreateClientState } from "../actions";
 
@@ -46,7 +46,7 @@ export function NewClientForm({ tipoInicial = "PJ", podePF = true }: { tipoInici
         </div>
       </div>
 
-      {pf && <CamposPF />}
+      {pf ? <CamposPF /> : <EnderecoCampos />}
 
       <CamposWhatsapp />
 

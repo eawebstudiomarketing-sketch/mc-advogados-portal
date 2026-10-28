@@ -8,6 +8,8 @@ import { ACTIVITY_TYPES } from "@/lib/activity-type";
 import { ACTIVITY_STATUSES } from "@/lib/activity-status";
 import type { Database } from "@/lib/supabase/types";
 import { destinoDeVolta } from "@/lib/voltar";
+import { reagendarAudienciaDaAtividade } from "@/lib/zap/lembretes";
+import { cancelarPendentes } from "@/lib/zap/fila";
 
 type Db = Awaited<ReturnType<typeof createClient>>;
 
@@ -68,8 +70,10 @@ export async function createActivityAction(
   const type = formData.get("type");
   const deadline = formData.get("deadline");
 
-  if (typeof clientId !== "string" || !clientId) {
-    return { error: "Selecione o cliente." };
+  // cliente é opcional (tarefa interna do escritório); só quem vem de publicação precisa dele
+  const clienteDaAtividade = typeof clientId === "string" && clientId ? clientId : null;
+  if (!clienteDaAtividade && formData.get("publicacao_id")) {
+    return { error: "Selecione o cliente desta publicação." };
   }
   if (typeof title !== "string" || !title.trim()) {
     return { error: "Informe o título da atividade." };
@@ -86,7 +90,7 @@ export async function createActivityAction(
   const { data: criada, error } = await supabase.from("activities").insert({
     ...(etiquetas ? { etiquetas } : {}),
     ...(envolvidos ? { envolvidos: envolvidos.filter((e) => e !== responsavel?.responsavel_id) } : {}),
-    client_id: clientId,
+    client_id: clienteDaAtividade,
     responsible_id: responsavel?.responsible_id ?? profile.id,
     ...(responsavel ? { responsavel_id: responsavel.responsavel_id } : {}),
     title: title.trim(),
@@ -99,6 +103,9 @@ export async function createActivityAction(
   if (error) {
     return { error: "Não foi possível salvar a atividade. Tente novamente." };
   }
+
+  // audiência: avisa o cliente (criação, 5 dias e 1 dia antes) — só se for categoria Audiência com data e horário
+  if (criada) await reagendarAudienciaDaAtividade(criada.id, { criacao: true, criadoPor: profile.id }).catch(() => undefined);
 
   // Veio de uma publicação do DJEN: ela passa a "tratada" e aponta para a atividade.
   const publicacaoId = formData.get("publicacao_id");
@@ -156,6 +163,7 @@ export async function updateActivityStatusAction(formData: FormData): Promise<vo
     .from("activities")
     .update({ status: status as Database["public"]["Enums"]["activity_status"] })
     .eq("id", id);
+  await reagendarAudienciaDaAtividade(id).catch(() => undefined); // concluída/cancelada → lembretes saem da fila
 
   revalidatePath("/admin/activities");
   revalidatePath("/admin");
@@ -200,6 +208,7 @@ async function salvarAtividade(formData: FormData): Promise<string | null> {
     .eq("id", id);
 
   if (error) return "Não foi possível salvar as alterações. Tente novamente.";
+  await reagendarAudienciaDaAtividade(id).catch(() => undefined);
   revalidatePath("/admin/activities");
   revalidatePath("/admin/agenda");
   revalidatePath("/admin");
@@ -228,6 +237,7 @@ export async function deleteActivityAction(formData: FormData): Promise<void> {
 
   const supabase = await createClient();
   await supabase.from("activities").delete().eq("id", id);
+  await cancelarPendentes(`audiencia:${id}:`).catch(() => undefined);
 
   revalidatePath("/admin/activities");
   revalidatePath("/admin");
@@ -259,6 +269,7 @@ export async function bulkUpdateStatusAction(ids: string[], status: string): Pro
     .in("id", lista)
     .select("id");
   if (error) return { ok: false, error: "Não foi possível mudar o status. Tente novamente." };
+  await Promise.all(lista.map((aid) => reagendarAudienciaDaAtividade(aid).catch(() => undefined)));
 
   revalidatePath("/admin/activities");
   revalidatePath("/admin");

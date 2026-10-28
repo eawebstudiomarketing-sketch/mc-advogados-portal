@@ -20,6 +20,7 @@ import { TOOLS_ATAS } from "./tools-atas";
 import { TOOLS_PAINEL } from "./tools-painel";
 import { toolsOperacao } from "./tools-operacao";
 import { envolvidosPorNome, etiquetasPorNome, toolsSistema } from "./tools-sistema";
+import { reagendarAudienciaDaAtividade } from "@/lib/zap/lembretes";
 
 // Ferramentas do assistente do portal (balão de chat com Gemini). Mesma
 // lógica das ferramentas do servidor MCP (src/lib/mcp/tools.ts), adaptada
@@ -309,7 +310,7 @@ export const TOOLS: ToolDef[] = [
     name: "criar_atividade",
     kind: "write",
     label: "Criou atividade",
-    description: "Cria uma atividade para um cliente (ache o client_id com buscar_clientes). Responsável: quem está usando, ou o informado em responsavel.",
+    description: "Cria uma atividade. Com cliente: ache o client_id com buscar_clientes. SEM cliente (tarefa interna do escritório): omita client_id. Responsável: quem está usando, ou o informado em responsavel.",
     parameters: obj(
       {
         client_id: { type: "string" },
@@ -324,14 +325,14 @@ export const TOOLS: ToolDef[] = [
         etiquetas: { type: "array", items: { type: "string" }, description: "Nomes das etiquetas (cria as que não existem)" },
         responsavel: RESPONSAVEL,
       },
-      ["client_id", "title", "type"]
+      ["title", "type"]
     ),
     run: async (a, ctx) => {
-      await porId("clients", a.client_id, "Cliente");
+      if (a.client_id) await porId("clients", a.client_id, "Cliente");
       const { data, error } = await db()
         .from("activities")
         .insert({
-          client_id: String(a.client_id),
+          client_id: a.client_id ? String(a.client_id) : null,
           title: String(a.title).slice(0, 200),
           type: String(a.type) as never,
           description: a.description ? String(a.description) : null,
@@ -344,6 +345,7 @@ export const TOOLS: ToolDef[] = [
         .select("id, title, deadline, status")
         .single();
       if (error) throw error;
+      await reagendarAudienciaDaAtividade(data.id, { criacao: true, criadoPor: ctx.profileId }).catch(() => undefined);
       return { ...data, link_no_portal: `/admin/activities/${data.id}` };
     },
   },

@@ -26,6 +26,8 @@ import { PortalAccessInvite } from "./portal-access";
 import { ConfirmSubmitButton } from "@/components/ui/confirm-submit-button";
 import { HandoffCard } from "./handoff-card";
 import { handoffPreenchido } from "@/lib/handoff-schema";
+import { statusContrato } from "@/lib/contrato";
+import { ContratoStatus } from "@/components/cliente/contrato-status";
 import { AtasCard } from "./atas-card";
 import { ActivitiesView } from "@/app/admin/activities/activities-view";
 import { DeleteClient } from "./delete-client";
@@ -166,6 +168,14 @@ export default async function AdminClientDetailPage({
                 </span>
               )}
             </p>
+            {(() => {
+              const contrato = statusContrato(ficha.handoff as Record<string, unknown> | null);
+              return contrato ? (
+                <p className="mt-2">
+                  <ContratoStatus status={contrato} />
+                </p>
+              ) : null;
+            })()}
           </div>
         </div>
         <div className="flex items-center gap-2">

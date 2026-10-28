@@ -139,9 +139,9 @@ export function DemandaCard({
                 {d.cliente.nome}
               </Link>
             ) : (
-              <select name="client_id" required defaultValue="" className={`${campo} mt-1`} aria-label="Cliente">
-                <option value="" disabled>
-                  Escolher cliente…
+              <select name="client_id" required={!!d.publicacao} defaultValue="" className={`${campo} mt-1`} aria-label="Cliente">
+                <option value="" disabled={!!d.publicacao}>
+                  {d.publicacao ? "Escolher cliente…" : "Sem cliente (tarefa interna)"}
                 </option>
                 {clientes.map((c) => (
                   <option key={c.id} value={c.id}>
@@ -205,8 +205,13 @@ export function DemandaCard({
               </option>
             ))}
           </select>
-          <input type="date" name="prazo" defaultValue={d.prazo ?? ""} className={campo} aria-label="Prazo" />
-          <input type="time" name="hora" className={`${campo} w-28`} aria-label="Horário (opcional)" title="Horário (opcional)" />
+          <select name="categoria" defaultValue="tarefa" className={campo} aria-label="Na agenda, é" title="Na agenda, é">
+            <option value="tarefa">Tarefa</option>
+            <option value="prazo">Prazo processual</option>
+            <option value="audiencia">Audiência</option>
+          </select>
+          <input type="date" name="prazo" defaultValue={d.prazo ?? ""} className={campo} aria-label="Dia (prazo ou audiência)" title="Dia (prazo ou audiência)" />
+          <input type="time" name="hora" className={`${campo} w-28`} aria-label="Horário (obrigatório na audiência)" title="Horário (obrigatório na audiência)" />
           <div className="ml-auto flex items-center gap-2">
             {state.error && <p className="text-xs text-status-danger">{state.error}</p>}
             <button type="button" onClick={() => mudarStatus("descartada")} disabled={pending} className="ui-btn-secondary" aria-label="Descartar">

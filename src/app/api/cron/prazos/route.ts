@@ -5,6 +5,7 @@ import { limparAnexosAntigos } from "@/lib/assistente/limpeza";
 import { lembrarAssinaturas } from "@/lib/atas/assinatura";
 import { sincronizarTodasZapsign } from "@/lib/atas/zapsign";
 import { enviarGerenteDoDia } from "@/lib/painel/gerente";
+import { avisarFimDeContrato } from "@/lib/contrato-aviso";
 
 // Alertas de prazo (Vercel Cron, todo dia às 07h da Bahia — ver vercel.json).
 // Para cada responsável, UM e-mail com as atividades dele que:
@@ -80,6 +81,8 @@ export async function GET(request: Request) {
   // atas enviadas pela ZapSign: confere quem assinou e guarda o PDF quando todos assinarem
   if (!teste) await sincronizarTodasZapsign().catch((e) => console.error("atas ZapSign:", e instanceof Error ? e.message : e));
   // Painel do Dono: o "gerente" manda o resumo de ontem + o que fazer hoje no WhatsApp do Maurício
+  // fim de contrato: aviso ao Maurício 30 dias antes e no último dia (portal + WhatsApp + Gmail)
+  if (!teste) await avisarFimDeContrato().then((r) => console.log("fim de contrato:", r)).catch((e) => console.error("fim de contrato:", e instanceof Error ? e.message : e));
   if (!teste) await enviarGerenteDoDia().then((r) => console.log("painel gerente:", r)).catch((e) => console.error("painel gerente:", e instanceof Error ? e.message : e));
   const hoje = hojeBahia();
 

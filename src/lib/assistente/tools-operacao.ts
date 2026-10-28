@@ -238,7 +238,7 @@ export function toolsOperacao(db: () => Db): ToolDef[] {
       parameters: obj(
         {
           titulo: { type: "string" },
-          tipo: { type: "string", enum: ["reuniao", "ligacao", "evento", "outro"] },
+          tipo: { type: "string", enum: ["reuniao", "audiencia", "ligacao", "evento", "outro"] },
           dia: DATA,
           hora: HORA,
           hora_fim: HORA,
@@ -262,7 +262,7 @@ export function toolsOperacao(db: () => Db): ToolDef[] {
           .from("compromissos")
           .insert({
             titulo: String(a.titulo).slice(0, 200),
-            tipo: ["reuniao", "ligacao", "evento", "outro"].includes(String(a.tipo)) ? String(a.tipo) : "reuniao",
+            tipo: ["reuniao", "audiencia", "ligacao", "evento", "outro"].includes(String(a.tipo)) ? String(a.tipo) : "reuniao",
             inicio,
             fim,
             client_id: a.client_id ? String(a.client_id) : null,
@@ -272,10 +272,10 @@ export function toolsOperacao(db: () => Db): ToolDef[] {
             lembrar_cliente: lembrar,
             criado_por: ctx.profileId,
           })
-          .select("id, titulo, inicio, local, client_id, lembrar_cliente")
+          .select("id, tipo, titulo, inicio, local, client_id, lembrar_cliente")
           .single();
         if (error) throw error;
-        const lembretes = await reagendarLembretes(data, ctx.profileId);
+        const lembretes = await reagendarLembretes({ ...data, criacao: true }, ctx.profileId);
         return { id: data.id, link: `/admin/agenda/compromisso/${data.id}`, lembretes_agendados: lembretes.agendados, lembrete_por: lembretes.destino, motivo_sem_lembrete: lembretes.motivo ?? null };
       },
     },
