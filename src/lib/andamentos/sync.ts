@@ -5,6 +5,7 @@ import { criarAvisos } from "@/lib/avisos";
 import { htmlParaTexto, temHtml } from "@/lib/astrea/texto";
 import { sincronizarPublicacoesAstrea, type ResultadoPubAstrea } from "@/lib/publicacoes/astrea";
 import { BAIXADO } from "./padroes";
+import { andamentoEquivalente } from "./robos";
 import { contatoDoAstrea, entrarNoAstrea, historicoDoCaso, listarAlertas, listarCasos, pastaDoCaso, type CasoAstrea, type HistoricoAstrea, type PastaAstrea, type SessaoAstrea } from "@/lib/astrea/cliente";
 
 // Copia processos e andamentos do Astrea para o portal.
@@ -238,7 +239,10 @@ export async function sincronizarAstrea(op: { completo?: boolean; arquivados?: b
       const { data: conhecidos } = await db.from("andamentos").select("externo_id").eq("process_id", p!.id).like("externo_id", "astrea:%").order("data", { ascending: false }).limit(300);
       const ids = new Set((conhecidos ?? []).map((x) => x.externo_id!.slice(7)));
       const hs = await historicoDoCaso(s, c.id, { conhecidos: novoNoPortal || op.completo ? undefined : ids, maxPaginas: novoNoPortal || op.completo ? 30 : 3 });
-      const frescos = hs.filter((h) => !ids.has(String(h.id)));
+      // o que o robô próprio já trouxe direto do tribunal não entra de novo (evita aviso em dobro)
+      const { data: doTribunal } = await db.from("andamentos").select("data, descricao").eq("process_id", p!.id).eq("fonte", "tribunal").order("data", { ascending: false }).limit(1000);
+      const trib = (doTribunal ?? []).map((t) => ({ data: t.data as string, texto: t.descricao as string }));
+      const frescos = hs.filter((h) => !ids.has(String(h.id)) && !(tipoDe(h) === "andamento" && trib.some((t) => andamentoEquivalente(t, { data: h.date, texto: htmlParaTexto(h.description) || "" }))));
       const g = await gravarAndamentos(db, p!.id, frescos, novoNoPortal || op.completo ? "historico" : "novo");
       r.novos += g.novos;
       r.historico += g.historico;
