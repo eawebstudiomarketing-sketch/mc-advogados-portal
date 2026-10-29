@@ -63,6 +63,15 @@ export async function gravarDoRobo(numero: string, sistema: string, movs: MovRob
       r.jaExistiam++;
       continue;
     }
+    // reserva (DataJud): nomes genéricos ("Conclusão", "Publicação") não batem com o texto do tribunal;
+    // se já há qualquer andamento nesse dia (±1), considera coberto e não grava
+    if (sistema.startsWith("datajud")) {
+      const dia = Date.parse(m.data.slice(0, 10));
+      if (lista.some((e) => Math.abs(Date.parse(e.data.slice(0, 10)) - dia) <= 86_400_000)) {
+        r.jaExistiam++;
+        continue;
+      }
+    }
     // um-para-um: cada andamento já existente "casa" com no máximo um do robô
     const par = lista.findIndex((e, i) => !usados.has(i) && !e.externo?.startsWith("trib:") && andamentoEquivalente(e, m));
     if (par >= 0) {
