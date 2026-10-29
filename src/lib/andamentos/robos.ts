@@ -46,7 +46,8 @@ export async function gravarDoRobo(numero: string, sistema: string, movs: MovRob
   const { data: existentes } = await db.from("andamentos").select("data, descricao, externo_id").eq("process_id", p.id).order("data", { ascending: false }).limit(3000);
   const lista = (existentes ?? []).map((e) => ({ data: e.data as string, texto: e.descricao as string, externo: e.externo_id as string | null }));
   const primeiraVez = !lista.some((e) => e.externo?.startsWith("trib:"));
-  const ultimoConhecido = lista.filter((e) => !e.externo?.startsWith("trib:")).map((e) => e.data.slice(0, 10)).sort().at(-1) ?? null;
+  // último andamento conhecido ANTES desta leitura (fixo: a lista cresce durante o laço)
+  const ultimoConhecido = lista.map((e) => e.data.slice(0, 10)).sort().at(-1) ?? null;
 
   const linhas = [];
   for (const m of movs) {
@@ -57,8 +58,9 @@ export async function gravarDoRobo(numero: string, sistema: string, movs: MovRob
       r.jaExistiam++;
       continue;
     }
-    // 1ª leitura do processo: o que é anterior ao que já se conhecia é histórico (sem aviso)
-    const novo = !primeiraVez || !ultimoConhecido || m.data.slice(0, 10) >= ultimoConhecido;
+    // 1ª leitura do processo: só é novo o que for do dia do último andamento conhecido em diante;
+    // processo que não tinha histórico nenhum entra todo como histórico (sem aviso)
+    const novo = ultimoConhecido !== null && (!primeiraVez || m.data.slice(0, 10) >= ultimoConhecido);
     linhas.push({
       process_id: p.id,
       data: dataIso,
@@ -67,7 +69,7 @@ export async function gravarDoRobo(numero: string, sistema: string, movs: MovRob
       importante: IMPORTANTE.test(m.texto),
       fonte: "tribunal",
       externo_id: externo,
-      situacao: novo && lista.length > 0 ? "novo" : "historico",
+      situacao: novo ? "novo" : "historico",
       bruto: { sistema, ...m },
     });
     lista.push({ data: dataIso, texto: m.texto, externo });
