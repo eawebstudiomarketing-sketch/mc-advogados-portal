@@ -4,7 +4,7 @@ import Image from "next/image";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { Suspense, useEffect, useMemo, useState, useSyncExternalStore } from "react";
-import { LayoutDashboard, Users, ListChecks, Gavel, FileText, FileSignature, Wallet, ClipboardList, BarChart3, UserCog, Plug, Trash2, Search, Menu, X, LogOut, UserRound, type LucideIcon, Briefcase, Layers, Settings2, ChevronDown, Newspaper, Bell, CalendarDays, MessageCircle, MessagesSquare, Inbox, CalendarCheck, BellRing, AudioLines, NotebookPen, Sparkles, Wrench, Gauge } from "lucide-react";
+import { Activity, LayoutDashboard, Users, ListChecks, Gavel, FileText, FileSignature, Wallet, ClipboardList, BarChart3, UserCog, Plug, Trash2, Search, Menu, X, LogOut, UserRound, type LucideIcon, Briefcase, Layers, Settings2, ChevronDown, Newspaper, Bell, CalendarDays, MessageCircle, MessagesSquare, Inbox, CalendarCheck, BellRing, AudioLines, NotebookPen, Sparkles, Wrench, Gauge } from "lucide-react";
 import { logout } from "@/app/logout/actions";
 import { CommandPalette, type PaletteItem } from "./command-palette";
 import { PERM_DA_TELA, type Permissoes } from "@/lib/permissoes";
@@ -71,6 +71,7 @@ const NAV_GROUPS: { id: string; label: string; icon: LucideIcon; items: NavItem[
     icon: Settings2,
     items: [
       { href: "/admin/painel", label: "Painel do Dono", icon: Gauge, soSuper: true },
+      { href: "/admin/indicadores", label: "Indicadores", icon: Activity, todos: true },
       { href: "/admin/reports", label: "Relatórios", icon: BarChart3 },
       { href: "/admin/financial", label: "Financeiro", icon: Wallet },
       { href: "/admin/team", label: "Equipe", icon: UserCog },

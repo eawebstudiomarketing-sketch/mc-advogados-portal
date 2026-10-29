@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { Suspense } from "react";
 import { PeriodoFiltro } from "@/components/ui/periodo-filtro";
 import { lerPeriodo } from "@/lib/periodo";
 import { pontosDeRotina, rotinaDoDia, rotinaOutrosDias } from "@/lib/data/rotina-diaria";
@@ -17,6 +18,7 @@ import { createClient } from "@/lib/supabase/server";
 import { exigirPermissao } from "@/lib/dal";
 import { formatCurrency } from "@/lib/mock-data";
 import { QuadroInicial } from "./quadro-inicial";
+import { MiniIndicadores } from "./indicadores/mini";
 
 function saudacao() {
   const h = Number(new Intl.DateTimeFormat("pt-BR", { timeZone: "America/Bahia", hour: "numeric", hour12: false }).format(new Date()));
@@ -224,6 +226,10 @@ export default async function AdminOverviewPage({
           </p>
         </Link>
       </section>
+
+      <Suspense fallback={null}>
+        <MiniIndicadores profileId={profile.id} nome={profile.full_name} />
+      </Suspense>
 
       {(minhaRotina.length > 0 || rotinaOutros.length > 0) && (
         <div className="mb-10">
