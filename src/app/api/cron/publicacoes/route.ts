@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { executarMonitor } from "@/lib/publicacoes/monitor";
 
+import { cronAutorizado } from "@/lib/seguranca";
 // Monitor de publicações: GitHub Actions a cada 2h (06h–22h da Bahia,
 // .github/workflows/publicacoes.yml) + Vercel Cron 07h/13h de reserva (vercel.json).
 // Roda na região gru1 (São Paulo): o DJEN recusa (403) acesso vindo de fora do
@@ -9,7 +10,7 @@ export const dynamic = "force-dynamic";
 export const maxDuration = 60;
 
 export async function GET(request: Request) {
-  if (!process.env.CRON_SECRET || request.headers.get("authorization") !== `Bearer ${process.env.CRON_SECRET}`) {
+  if (!cronAutorizado(request)) {
     return NextResponse.json({ error: "unauthorized" }, { status: 401 });
   }
   const origem = new URL(request.url).searchParams.get("origem") === "manual" ? "manual" : "cron";

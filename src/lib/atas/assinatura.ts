@@ -36,6 +36,7 @@ export type LocalAssinatura = { gps?: { lat: number; lng: number; precisao: numb
 
 export type AssinaturaRow = {
   id: string;
+  token_hash?: string | null;
   ata_id: string;
   versao: number;
   nome: string;
@@ -92,11 +93,24 @@ export type AtaCompleta = AtaRow & {
 
 export const hashToken = (token: string) => createHash("sha256").update(`ata:${token}`).digest("hex");
 
-/** O link de cada pessoa sai do id + geração (no banco só fica o hash). */
-function tokenDe(id: string, geracao: number): string {
-  const segredo = process.env.ATAS_SEGREDO || process.env.WA_MIDIA_SEGREDO || process.env.CRON_SECRET;
-  if (!segredo) throw new Error("Falta o segredo dos links de assinatura (ATAS_SEGREDO).");
-  return createHmac("sha256", segredo).update(`assinar:${id}:${geracao}`).digest("base64url").slice(0, 32);
+/**
+ * O link de cada pessoa sai do id + geração (no banco só fica o hash). Links NOVOS
+ * são sempre assinados com ATAS_SEGREDO (segredo só dos links). Os segredos que
+ * valiam antes de 28/10/2026 (WA_MIDIA_SEGREDO/CRON_SECRET) só servem para
+ * reconhecer links já enviados (reenvio e lembretes) — passando o hash guardado.
+ */
+function tokenDe(id: string, geracao: number, hashGuardado?: string | null): string {
+  const atual = process.env.ATAS_SEGREDO;
+  if (!atual) throw new Error("Falta o segredo dos links de assinatura (ATAS_SEGREDO).");
+  const calcular = (segredo: string) => createHmac("sha256", segredo).update(`assinar:${id}:${geracao}`).digest("base64url").slice(0, 32);
+  if (hashGuardado) {
+    for (const segredo of [atual, process.env.WA_MIDIA_SEGREDO, process.env.CRON_SECRET]) {
+      if (!segredo) continue;
+      const t = calcular(segredo);
+      if (hashToken(t) === hashGuardado) return t;
+    }
+  }
+  return calcular(atual);
 }
 const hashCodigo = (id: string, codigo: string) => createHash("sha256").update(`${id}:${codigo}`).digest("hex");
 
@@ -349,11 +363,11 @@ async function enviarDaVez(ataId: string): Promise<{ nome: string; via: string[]
 
 /** Link de assinatura de uma pessoa pendente (para copiar e mandar por onde quiser). */
 export async function linkDeAssinatura(assinaturaId: string): Promise<string | null> {
-  const { data: a } = await db().from("ata_assinaturas").select("id, geracao, status, link_externo, enviado_em").eq("id", assinaturaId).maybeSingle();
+  const { data: a } = await db().from("ata_assinaturas").select("id, geracao, status, link_externo, enviado_em, token_hash").eq("id", assinaturaId).maybeSingle();
   if (!a || a.status !== "pendente") return null;
   if (a.link_externo) return a.link_externo as string;
   if (!a.enviado_em) return null; // ainda não é a vez (ordem de assinatura)
-  return `${site()}/assinar/${tokenDe(a.id as string, a.geracao as number)}`;
+  return `${site()}/assinar/${tokenDe(a.id as string, a.geracao as number, a.token_hash as string | null)}`;
 }
 
 /** Novo link para uma pessoa (o anterior para de funcionar). */
@@ -736,7 +750,7 @@ export async function lembrarAssinaturas(): Promise<{ lembretes: number; avisos:
     if (a.lembretes < marcos.length && dias >= marcos[a.lembretes]) {
       // o mesmo link de antes (sai do id + geração)
       await db().from("ata_assinaturas").update({ lembretes: a.lembretes + 1, ultimo_lembrete: new Date().toISOString() }).eq("id", a.id);
-      await enviarLink(a, tokenDe(a.id, a.geracao), await dadosDaAta(ata), true);
+      await enviarLink(a, tokenDe(a.id, a.geracao, a.token_hash), await dadosDaAta(ata), true);
       lembretes++;
     } else if (a.lembretes === marcos.length && dias >= (marcos.at(-1) ?? 5) + 2) {
       await db().from("ata_assinaturas").update({ lembretes: a.lembretes + 1 }).eq("id", a.id);

@@ -19,7 +19,7 @@ function chaveConfere(recebida: string | null): boolean {
 }
 
 export async function POST(req: Request) {
-  if (!chaveConfere(new URL(req.url).searchParams.get("chave"))) return NextResponse.json({ ok: false }, { status: 401 });
+  if (!chaveConfere(req.headers.get("x-zapsign-chave") ?? new URL(req.url).searchParams.get("chave"))) return NextResponse.json({ ok: false }, { status: 401 });
   const corpo = (await req.json().catch(() => ({}))) as { token?: string; external_id?: string; doc?: { token?: string; external_id?: string } };
   const token = corpo.token ?? corpo.doc?.token ?? null;
   const externo = corpo.external_id ?? corpo.doc?.external_id ?? null;

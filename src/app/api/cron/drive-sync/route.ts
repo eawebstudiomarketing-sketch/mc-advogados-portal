@@ -4,6 +4,7 @@ import { getDriveConnection, getDriveSession } from "@/lib/google-drive";
 import { syncAllClients, systemCtx } from "@/lib/drive-sync";
 import { purgeTrash } from "@/lib/trash";
 
+import { cronAutorizado } from "@/lib/seguranca";
 export const dynamic = "force-dynamic";
 export const maxDuration = 60;
 
@@ -12,7 +13,7 @@ export const maxDuration = 60;
 // Tem limite de tempo: o que não couber fica pra próxima rodada (que começa
 // pelos clientes sincronizados há mais tempo).
 export async function GET(request: Request) {
-  if (!process.env.CRON_SECRET || request.headers.get("authorization") !== `Bearer ${process.env.CRON_SECRET}`) {
+  if (!cronAutorizado(request)) {
     return NextResponse.json({ error: "unauthorized" }, { status: 401 });
   }
 

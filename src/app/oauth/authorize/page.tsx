@@ -54,8 +54,8 @@ export default async function AuthorizePage({ searchParams }: { searchParams: Pr
     <Shell>
       <h1 className="text-lg font-semibold text-navy">Conectar o Claude ao Portal MC</h1>
       <p className="mt-2 text-sm text-foreground/70">
-        <strong>{client.client_name ?? "Claude"}</strong> quer acessar o portal como <strong>{profile.full_name}</strong>. Poderá consultar clientes, processos,
-        atividades, documentos e financeiro, e também criar, editar e excluir registros. Tudo fica registrado no log de auditoria.
+        <strong>{client.client_name ?? "Aplicativo sem nome"}</strong> (volta para <strong>{new URL(redirectUri).host}</strong>) quer acessar o portal como <strong>{profile.full_name}</strong>. Poderá consultar clientes, processos,
+        atividades, documentos e financeiro, e também criar, editar e excluir registros. Tudo fica registrado no log de auditoria. Só permita se você mesmo iniciou esta conexão e reconhece o endereço acima.
       </p>
       <form method="POST" action="/oauth/consent" className="mt-5 flex gap-2">
         <input type="hidden" name="client_id" value={clientId} />

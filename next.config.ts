@@ -4,7 +4,37 @@ import type { NextConfig } from "next";
 // (clickjacking) e forçam HTTPS. Microfone fica liberado só para o próprio
 // portal (áudio do onboarding e do assistente). Câmera e localização só no
 // próprio portal: selfie, foto do documento e local na assinatura das atas.
+// Content-Security-Policy (28/10/2026): só fala com o próprio portal, o Supabase e o
+// servidor de mídia do escritório. 'unsafe-inline' em script/estilo é exigência do
+// Next (scripts de inicialização); mesmo assim a política barra script de fora,
+// envio de dados para outros domínios, <object>, <base> e uso em iframe de terceiros.
+// (Sem form-action: o consentimento do MCP redireciona para o Claude depois do POST.)
+const hostMidia = (() => {
+  try {
+    return process.env.WA_MIDIA_URL ? new URL(process.env.WA_MIDIA_URL).origin : "";
+  } catch {
+    return "";
+  }
+})();
+const csp = [
+  "default-src 'self'",
+  "script-src 'self' 'unsafe-inline'",
+  "style-src 'self' 'unsafe-inline'",
+  `img-src 'self' data: blob: https://*.supabase.co ${hostMidia}`.trim(),
+  `media-src 'self' blob: https://*.supabase.co ${hostMidia}`.trim(),
+  "font-src 'self' data:",
+  `connect-src 'self' https://*.supabase.co wss://*.supabase.co https://viacep.com.br ${hostMidia}`.trim(),
+  `frame-src 'self' blob: https://*.supabase.co ${hostMidia}`.trim(),
+  "worker-src 'self' blob:",
+  "manifest-src 'self'",
+  "object-src 'none'",
+  "base-uri 'self'",
+  "frame-ancestors 'none'",
+  "upgrade-insecure-requests",
+].join("; ");
+
 const securityHeaders = [
+  { key: "Content-Security-Policy", value: csp },
   { key: "X-Frame-Options", value: "DENY" },
   { key: "X-Content-Type-Options", value: "nosniff" },
   { key: "Referrer-Policy", value: "strict-origin-when-cross-origin" },

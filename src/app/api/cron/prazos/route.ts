@@ -7,6 +7,8 @@ import { sincronizarTodasZapsign } from "@/lib/atas/zapsign";
 import { enviarGerenteDoDia } from "@/lib/painel/gerente";
 import { avisarFimDeContrato } from "@/lib/contrato-aviso";
 
+import { cronAutorizado } from "@/lib/seguranca";
+import { verificarSaude } from "@/lib/saude";
 // Alertas de prazo (Vercel Cron, todo dia às 07h da Bahia — ver vercel.json).
 // Para cada responsável, UM e-mail com as atividades dele que:
 //   - vencem em 1 ou 2 dias ("chegando"),
@@ -69,7 +71,7 @@ function html(nome: string, itens: Item[], hoje: string): string {
 const escapar = (s: string) => s.replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" })[c]!);
 
 export async function GET(request: Request) {
-  if (!process.env.CRON_SECRET || request.headers.get("authorization") !== `Bearer ${process.env.CRON_SECRET}`) {
+  if (!cronAutorizado(request)) {
     return NextResponse.json({ error: "unauthorized" }, { status: 401 });
   }
   const teste = new URL(request.url).searchParams.get("teste") === "1";
@@ -84,6 +86,8 @@ export async function GET(request: Request) {
   // fim de contrato: aviso ao Maurício 30 dias antes e no último dia (portal + WhatsApp + Gmail)
   if (!teste) await avisarFimDeContrato().then((r) => console.log("fim de contrato:", r)).catch((e) => console.error("fim de contrato:", e instanceof Error ? e.message : e));
   if (!teste) await enviarGerenteDoDia().then((r) => console.log("painel gerente:", r)).catch((e) => console.error("painel gerente:", e instanceof Error ? e.message : e));
+  // saúde do sistema: uso do banco (alerta antes do limite) e limpeza das cópias de excluídos
+  if (!teste) await verificarSaude().then((r) => console.log("saúde:", r.join(" | "))).catch((e) => console.error("saúde:", e instanceof Error ? e.message : e));
   const hoje = hojeBahia();
 
   const { data: atividades, error } = await db

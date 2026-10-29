@@ -11,8 +11,11 @@ export async function POST(request: Request) {
   if (!Array.isArray(uris) || uris.length === 0 || uris.length > 10 || !uris.every(validRedirectUri)) {
     return Response.json({ error: "invalid_redirect_uri", error_description: "redirect_uris inválidos" }, { status: 400 });
   }
+  // limite global (o endpoint é público): evita encher a tabela
+  const { count: recentes } = await mcpDb().from("mcp_oauth_clients").select("client_id", { count: "exact", head: true }).gte("created_at", new Date(Date.now() - 3_600_000).toISOString());
+  if ((recentes ?? 0) >= 30) return Response.json({ error: "temporarily_unavailable" }, { status: 429, headers: { "Retry-After": "600" } });
   const clientId = newSecret("mcpc");
-  const name = typeof body?.client_name === "string" ? body.client_name.slice(0, 100) : null;
+  const name = typeof body?.client_name === "string" ? body.client_name.replace(/[<>]/g, " ").replace(/\p{Cc}/gu, " ").replace(/\s+/g, " ").trim().slice(0, 60) || null : null;
   const { error } = await mcpDb().from("mcp_oauth_clients").insert({ client_id: clientId, client_name: name, redirect_uris: uris });
   if (error) return Response.json({ error: "server_error" }, { status: 500 });
   return Response.json(

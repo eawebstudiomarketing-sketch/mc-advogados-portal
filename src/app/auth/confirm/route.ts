@@ -1,5 +1,6 @@
 import { type EmailOtpType } from "@supabase/supabase-js";
 import { type NextRequest, NextResponse } from "next/server";
+import { caminhoInterno } from "@/lib/seguranca";
 import { createClient } from "@/lib/supabase/server";
 
 // Endpoint pro qual o template de e-mail do Supabase (recovery, invite,
@@ -11,7 +12,7 @@ export async function GET(request: NextRequest) {
   const { searchParams, origin } = new URL(request.url);
   const tokenHash = searchParams.get("token_hash");
   const type = searchParams.get("type") as EmailOtpType | null;
-  const next = searchParams.get("next") ?? "/";
+  const next = caminhoInterno(searchParams.get("next"));
 
   if (tokenHash && type) {
     const supabase = await createClient();
