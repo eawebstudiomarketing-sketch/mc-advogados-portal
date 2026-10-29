@@ -16,9 +16,8 @@ type Db = SupabaseClient;
 export type MovRobo = { data: string; texto: string };
 
 const semAcento = (t: string) => t.normalize("NFD").replace(/[̀-ͯ]/g, "").toLowerCase();
-const palavras = (t: string) => semAcento(t).replace(/[^a-z0-9 ]/g, " ").split(/\s+/).filter((w) => w.length > 3).slice(0, 5);
 
-/** Mesmo andamento visto por duas fontes (Astrea x tribunal)? Data ±1 dia e as primeiras palavras batem. */
+/** Mesmo andamento visto por duas fontes (Astrea x tribunal)? Data ±1 dia e texto praticamente igual. */
 export function andamentoEquivalente(a: { data: string; texto: string }, b: { data: string; texto: string }): boolean {
   const dias = Math.abs(Date.parse(a.data.slice(0, 10)) - Date.parse(b.data.slice(0, 10))) / 86_400_000;
   if (!(dias <= 1)) return false;
@@ -27,11 +26,16 @@ export function andamentoEquivalente(a: { data: string; texto: string }, b: { da
   // "Proferidas outras decisões" (Astrea) = documento "Decisão (Decisão)" na consulta pública do PJe
   const tipo = (t: string) => (/proferid|^documento:|\bdecisao\b|\bdespacho\b|\bsentenca\b/.test(t) ? (t.match(/decis|despacho|sentenc/)?.[0] ?? null) : null);
   if (tipo(ta) && tipo(ta) === tipo(tb) && (/proferid/.test(ta) || /proferid/.test(tb) || /documento:/.test(ta) || /documento:/.test(tb))) return true;
-  const pa = palavras(a.texto);
-  const pb = new Set(palavras(b.texto));
-  if (!pa.length) return ta.trim() === tb.trim();
-  const iguais = pa.filter((w) => pb.has(w)).length;
-  return iguais >= Math.min(2, pa.length);
+  // texto praticamente igual: o Astrea copia o texto do tribunal (às vezes cortado ou com quebra de linha).
+  // Rígido de propósito: "Juntada de Manifestação" ≠ "Juntada de Contestação" no mesmo dia.
+  const na = ta.replace(/[^a-z0-9]+/g, " ").trim();
+  const nb = tb.replace(/[^a-z0-9]+/g, " ").trim();
+  if (!na || !nb) return false;
+  if (na === nb || (Math.min(na.length, nb.length) >= 25 && (na.startsWith(nb) || nb.startsWith(na)))) return true;
+  const sa = new Set(na.split(" ").filter((w) => w.length > 2));
+  const sb = new Set(nb.split(" ").filter((w) => w.length > 2));
+  const inter = [...sa].filter((w) => sb.has(w)).length;
+  return inter / Math.max(1, new Set([...sa, ...sb]).size) >= 0.8;
 }
 
 export type ResultadoRobo = { processo: string | null; recebidos: number; gravados: number; novos: number; jaExistiam: number };
@@ -50,11 +54,19 @@ export async function gravarDoRobo(numero: string, sistema: string, movs: MovRob
   const ultimoConhecido = lista.map((e) => e.data.slice(0, 10)).sort().at(-1) ?? null;
 
   const linhas = [];
+  const usados = new Set<number>();
   for (const m of movs) {
     if (!m?.data || !m?.texto) continue;
     const dataIso = /T\d{2}:\d{2}/.test(m.data) ? `${m.data.slice(0, 16)}:00-03:00` : `${m.data.slice(0, 10)}T12:00:00-03:00`;
     const externo = `trib:${createHash("sha1").update(`${dig}|${m.data.slice(0, 16)}|${m.texto.trim()}`).digest("hex").slice(0, 24)}`;
-    if (lista.some((e) => e.externo === externo || andamentoEquivalente(e, m))) {
+    if (lista.some((e) => e.externo === externo)) {
+      r.jaExistiam++;
+      continue;
+    }
+    // um-para-um: cada andamento já existente "casa" com no máximo um do robô
+    const par = lista.findIndex((e, i) => !usados.has(i) && !e.externo?.startsWith("trib:") && andamentoEquivalente(e, m));
+    if (par >= 0) {
+      usados.add(par);
       r.jaExistiam++;
       continue;
     }
