@@ -7,6 +7,7 @@ import { PROCESS_AREAS } from "@/lib/process-area";
 import { cumprimento, listarItensRotina, relatorioDoDia, rotinaDoDia } from "@/lib/data/rotina-diaria";
 import { conversaCom, GERAL } from "@/lib/data/mensagens";
 import { hojeBahia, somaDias } from "@/lib/periodo";
+import { MOTIVO_TEXTO, todosOsRobos, type MotivoFalha } from "@/lib/robos/saude";
 import type { Ctx, ToolDef } from "./tools";
 
 // Ferramentas do assistente para o que entrou no portal em out/2026: rotinas,
@@ -117,6 +118,29 @@ const DIAS_PARAM = { type: "string", description: "Dias: 'seg a sex' (padrão), 
 
 export function toolsSistema(db: () => Db): ToolDef[] {
   return [
+    {
+      name: "saude_robos",
+      kind: "read",
+      label: "Conferiu a saúde dos robôs",
+      description: "Situação de cada robô automático (publicações do DJEN, andamentos, agente do WhatsApp, robôs dos tribunais): funcionando, com falha ou fora do ar, desde quando, motivo e última leitura com sucesso. Use quando perguntarem se os robôs/automações estão funcionando.",
+      parameters: obj({}),
+      run: async () => {
+        const robos = await todosOsRobos();
+        const hora = (iso: string | null) => (iso ? new Date(iso).toLocaleString("pt-BR", { timeZone: "America/Bahia" }) : "nunca");
+        return {
+          resumo: robos.length ? `${robos.filter((r) => r.status === "ok").length} de ${robos.length} funcionando` : "nenhum robô registrou rodada ainda",
+          robos: robos.map((r) => ({
+            robo: r.nome,
+            situacao: { ok: "funcionando", atencao: "com falha (tentando de novo)", fora: "FORA DO AR", pausado: "pausado" }[r.status],
+            desde: hora(r.desde),
+            motivo: r.status === "ok" ? null : (MOTIVO_TEXTO[r.motivo as MotivoFalha] ?? r.motivo),
+            detalhe: r.status === "ok" ? null : r.detalhe,
+            ultima_leitura_ok: hora(r.ultima_ok),
+          })),
+          link_no_portal: "/admin/alertas?aba=robos",
+        };
+      },
+    },
     // ───────── ROTINAS ─────────
     {
       name: "rotina_do_dia",

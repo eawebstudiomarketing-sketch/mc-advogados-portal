@@ -6,8 +6,11 @@ import { alertasDeAndamentos, alertasDePublicacoes, comentariosDe, contadoresAle
 import { contadoresAndamentos } from "@/lib/data/andamentos";
 import { LerAgora } from "../andamentos/ler-agora";
 import { ListaAlertas, type ItemAndamento, type ItemPublicacao } from "./lista-alertas";
+import { robosComProblema, todosOsRobos } from "@/lib/robos/saude";
+import { CardsRobos, TabelaRobos, type RoboTela } from "./saude-robos";
 
-// Alertas no padrão do Astrea: aba Publicações e aba Andamentos.
+// Alertas no padrão do Astrea: aba Publicações e aba Andamentos. Em cima, cards de robô com
+// problema (saúde dos robôs); a aba Robôs mostra a situação de todos.
 
 type Busca = { aba?: string; q?: string };
 
@@ -17,11 +20,17 @@ export default async function AlertasPage({ searchParams }: { searchParams: Prom
   const { profile, permissoes } = await exigirPermissao("publicacoes");
   const sp = await searchParams;
   const podeAndamentos = !!permissoes.processos;
-  const aba = sp.aba === "andamentos" && podeAndamentos ? "andamentos" : "publicacoes";
-  const [contadores, ultima] = await Promise.all([contadoresAlertas(), podeAndamentos ? contadoresAndamentos().then((c) => c.ultima) : null]);
+  const aba = sp.aba === "andamentos" && podeAndamentos ? "andamentos" : sp.aba === "robos" ? "robos" : "publicacoes";
+  const [contadores, ultima, problemas] = await Promise.all([
+    contadoresAlertas(),
+    podeAndamentos ? contadoresAndamentos().then((c) => c.ultima) : null,
+    robosComProblema().catch(() => [] as RoboTela[]),
+  ]);
 
   let lista: React.ReactNode;
-  if (aba === "andamentos") {
+  if (aba === "robos") {
+    lista = <TabelaRobos robos={(await todosOsRobos().catch(() => [])) as RoboTela[]} />;
+  } else if (aba === "andamentos") {
     const grupos = await alertasDeAndamentos(sp.q);
     const comentarios = await comentariosDe({ andamentos: grupos.flatMap((g) => g.andamentos.map((a) => a.id)) });
     const qtd = (id: string) => comentarios.filter((c) => c.andamento_id === id).length;
@@ -57,6 +66,7 @@ export default async function AlertasPage({ searchParams }: { searchParams: Prom
   const abas = [
     { chave: "publicacoes", rotulo: "Publicações", n: contadores.publicacoes, href: "/admin/alertas" },
     ...(podeAndamentos ? [{ chave: "andamentos", rotulo: "Andamentos", n: contadores.andamentos, href: "/admin/alertas?aba=andamentos" }] : []),
+    { chave: "robos", rotulo: "Robôs", n: problemas.length, href: "/admin/alertas?aba=robos" },
   ];
 
   return (
@@ -76,6 +86,8 @@ export default async function AlertasPage({ searchParams }: { searchParams: Prom
         {profile.role === "admin" && podeAndamentos && <LerAgora />}
       </div>
 
+      <CardsRobos robos={problemas as RoboTela[]} />
+
       <nav className="mb-5 flex gap-6 border-b border-border" aria-label="Abas de alertas">
         {abas.map((a) => (
           <Link
@@ -90,7 +102,7 @@ export default async function AlertasPage({ searchParams }: { searchParams: Prom
         ))}
       </nav>
 
-      <BarraFiltros filtros={[{ tipo: "busca", nome: "q", rotulo: aba === "andamentos" ? "Nº do processo, parte ou cliente" : "Nº do processo ou termo" }]} />
+      {aba !== "robos" && <BarraFiltros filtros={[{ tipo: "busca", nome: "q", rotulo: aba === "andamentos" ? "Nº do processo, parte ou cliente" : "Nº do processo ou termo" }]} />}
       {lista}
     </div>
   );

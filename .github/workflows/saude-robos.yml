@@ -1,0 +1,18 @@
+# Vigia dos robôs: de hora em hora, 24 h. Marca como "fora do ar" o robô que parou de dar sinal.
+name: Saúde dos robôs
+
+on:
+  schedule:
+    - cron: "40 * * * *"
+  workflow_dispatch:
+
+jobs:
+  vigiar:
+    runs-on: ubuntu-latest
+    timeout-minutes: 3
+    steps:
+      - name: Conferir sinais
+        run: |
+          curl -fsS -m 60 \
+            -H "Authorization: Bearer ${{ secrets.CRON_SECRET }}" \
+            "https://mcadvogados.app.br/api/cron/saude-robos"
