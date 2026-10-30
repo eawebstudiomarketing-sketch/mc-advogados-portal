@@ -1,3 +1,4 @@
+import { Fragment } from "react";
 import { Download, Star } from "lucide-react";
 import { DriveIcon } from "@/components/ui/drive-icon";
 import Link from "next/link";
@@ -18,6 +19,9 @@ import { listPublicacoesDoProcesso, STATUS_PUBLICACAO, type PublicacaoStatus } f
 
 type Parte = { nome: string; papel: string; polo: "ativo" | "passivo" | "outro" };
 const TIPO: Record<string, string> = { andamento: "Andamento", publicacao: "Publicação", tarefa: "Tarefa", compromisso: "Compromisso", nota: "Anotação" };
+// linha do tempo (item 18): cor da bolinha por tipo; importante fica dourada
+const COR_TIPO: Record<string, string> = { andamento: "bg-navy-3", publicacao: "bg-status-info", tarefa: "bg-status-success", compromisso: "bg-roxo", nota: "bg-border-strong" };
+const mesAno = (iso: string) => new Date(`${iso.slice(0, 10)}T12:00:00`).toLocaleDateString("pt-BR", { month: "long", year: "numeric" });
 const dataBR = (iso: string) => new Date(iso).toLocaleDateString("pt-BR", { timeZone: "America/Bahia" });
 
 export default async function ProcessDetailPage({ params, searchParams }: { params: Promise<{ id: string }>; searchParams: Promise<{ todos?: string; imp?: string }> }) {
@@ -198,9 +202,16 @@ export default async function ProcessDetailPage({ params, searchParams }: { para
           <p className="py-3 text-sm text-muted">Nenhum andamento registrado ainda.</p>
         ) : (
           <ol className="mt-4 space-y-3 border-l-2 border-border pl-4">
-            {andamentos.map((a) => (
-              <li key={a.id} className="relative">
-                <span className={`absolute top-1.5 -left-[21px] h-2.5 w-2.5 rounded-full ${a.importante ? "bg-gold" : "bg-border-strong"}`} aria-hidden />
+            {andamentos.map((a, i) => (
+              <Fragment key={a.id}>
+              {(i === 0 || mesAno(andamentos[i - 1].data) !== mesAno(a.data)) && (
+                <li className="relative pt-1" aria-hidden>
+                  <span className="absolute top-1/2 -left-[23px] h-3.5 w-3.5 -translate-y-1/2 rounded-full border-2 border-border bg-surface" />
+                  <span className="eyebrow capitalize">{mesAno(a.data)}</span>
+                </li>
+              )}
+              <li className="relative">
+                <span className={`absolute top-1.5 -left-[21px] h-2.5 w-2.5 rounded-full ring-2 ring-surface ${a.importante ? "bg-gold" : (COR_TIPO[a.tipo] ?? "bg-border-strong")}`} aria-hidden />
                 <p className="text-xs text-muted">
                   {dataBR(a.data)} · {TIPO[a.tipo] ?? a.tipo}
                   {a.importante && (
@@ -217,6 +228,7 @@ export default async function ProcessDetailPage({ params, searchParams }: { para
                   <TextoAstrea texto={a.descricao_html ?? a.descricao} />
                 </p>
               </li>
+              </Fragment>
             ))}
           </ol>
         )}
