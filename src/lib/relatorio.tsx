@@ -22,7 +22,7 @@ export async function atividadesDoPeriodo(db: Db, clientId: string, inicio: stri
   const [concl, abertas] = await Promise.all([
     db
       .from("activities")
-      .select("*, clients(name), profiles(full_name)")
+      .select("*, clients(name), profiles!activities_responsible_id_fkey(full_name)")
       .eq("client_id", clientId)
       .eq("status", "concluida")
       .gte("updated_at", inicio)
@@ -30,7 +30,7 @@ export async function atividadesDoPeriodo(db: Db, clientId: string, inicio: stri
       .order("updated_at"),
     db
       .from("activities")
-      .select("*, clients(name), profiles(full_name)")
+      .select("*, clients(name), profiles!activities_responsible_id_fkey(full_name)")
       .eq("client_id", clientId)
       .in("status", ["aberta", "em_andamento"])
       .is("archived_at", null)

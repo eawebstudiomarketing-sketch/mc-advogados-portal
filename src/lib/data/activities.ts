@@ -14,7 +14,7 @@ export async function listActivities(filter?: { clientId?: string; arquivadas?: 
   const supabase = await createClient();
   let query = supabase
     .from("activities")
-    .select("*, clients(name), profiles(full_name), responsaveis(nome, foto_url)")
+    .select("*, clients(name), profiles!activities_responsible_id_fkey(full_name), responsaveis(nome, foto_url)")
     .order("deadline", { ascending: true, nullsFirst: false })
     .order("created_at", { ascending: false });
   if (filter?.clientId) query = query.eq("client_id", filter.clientId);
@@ -28,7 +28,7 @@ export async function getActivity(id: string): Promise<Activity | null> {
   const supabase = await createClient();
   const { data } = await supabase
     .from("activities")
-    .select("*, clients(name), profiles(full_name), responsaveis(nome, foto_url)")
+    .select("*, clients(name), profiles!activities_responsible_id_fkey(full_name), responsaveis(nome, foto_url)")
     .eq("id", id)
     .maybeSingle();
   return data ? (await comNomeDoCliente([data]))[0] : null;
