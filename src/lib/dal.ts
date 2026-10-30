@@ -13,12 +13,14 @@ type Profile = Database["public"]["Tables"]["profiles"]["Row"];
 // `cache()` garante uma única consulta por request mesmo se chamado em
 // vários Server Components da mesma árvore.
 
-export const getUser = cache(async () => {
+export const getUser = cache(async (): Promise<{ id: string; email: string | null } | null> => {
   const supabase = await createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-  return user;
+  // getClaims confere a assinatura do token com a chave pública do projeto (ES256), sem ir ao
+  // servidor de autenticação a cada página (desempenho, 30/10/2026). Quem foi desativado cai
+  // pelo profile.ativo logo abaixo.
+  const { data } = await supabase.auth.getClaims();
+  const c = data?.claims;
+  return c?.sub ? { id: String(c.sub), email: typeof c.email === "string" ? c.email : null } : null;
 });
 
 export const getProfile = cache(async (): Promise<Profile | null> => {

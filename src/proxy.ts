@@ -31,9 +31,9 @@ export async function proxy(request: NextRequest) {
     }
   );
 
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
+  // getClaims: confere o token localmente (chave pública ES256), sem ida ao servidor de autenticação a cada clique
+  const { data } = await supabase.auth.getClaims();
+  const user = data?.claims?.sub ? { id: String(data.claims.sub) } : null;
 
   const { pathname } = request.nextUrl;
   const isProtected = PROTECTED_PREFIXES.some((prefix) => pathname.startsWith(prefix));
