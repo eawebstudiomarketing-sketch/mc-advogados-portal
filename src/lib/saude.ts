@@ -2,6 +2,7 @@ import "server-only";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { enfileirarMensagem } from "@/lib/zap/fila";
+import { preferenciaDe } from "@/lib/notificacoes";
 import { getResendClient } from "@/lib/email/resend";
 
 // Saúde do sistema (28/10/2026), chamada pelo cron diário de prazos:
@@ -19,9 +20,10 @@ const mb = (b: number) => `${(b / 1_048_576).toFixed(0)} MB`;
 async function avisar(titulo: string, corpo: string) {
   const { data: resp } = await db().from("responsaveis").select("telefone").eq("profile_id", MAURICIO).maybeSingle();
   const tel = String(resp?.telefone ?? "").replace(/\D/g, "");
-  if (tel.length >= 10) await enfileirarMensagem({ para: tel, texto: `*${titulo}*\n\n${corpo}`, origemRef: `saude:${titulo}`, expiraEm: new Date(Date.now() + 24 * 3_600_000) }).catch(() => undefined);
+  const [prefZap, prefEmail] = await Promise.all([preferenciaDe(MAURICIO, "alertas_sistema", "zap"), preferenciaDe(MAURICIO, "alertas_sistema", "email")]);
+  if (prefZap.ativo && tel.length >= 10) await enfileirarMensagem({ para: tel, texto: `*${titulo}*\n\n${corpo}`, origemRef: `saude:${titulo}`, expiraEm: new Date(Date.now() + 24 * 3_600_000) }).catch(() => undefined);
   const r = getResendClient();
-  if (r) await r.client.emails.send({ from: r.from, to: EMAIL_ALERTAS, subject: titulo, text: corpo }).catch(() => undefined);
+  if (prefEmail.ativo && r) await r.client.emails.send({ from: r.from, to: EMAIL_ALERTAS, subject: titulo, text: corpo }).catch(() => undefined);
 }
 
 export async function verificarSaude(): Promise<string[]> {

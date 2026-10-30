@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { getResendClient } from "@/lib/email/resend";
+import { preferenciaOuPadrao, preferenciasDe } from "@/lib/notificacoes";
 import { limparAnexosAntigos } from "@/lib/assistente/limpeza";
 import { lembrarAssinaturas } from "@/lib/atas/assinatura";
 import { sincronizarTodasZapsign } from "@/lib/atas/zapsign";
@@ -92,7 +93,7 @@ export async function GET(request: Request) {
 
   const { data: atividades, error } = await db
     .from("activities")
-    .select("id, title, deadline, status, responsible_id, clients(name), responsaveis(nome, email)")
+    .select("id, title, deadline, status, responsible_id, clients(name), responsaveis(nome, email, profile_id)")
     .in("status", ["aberta", "em_andamento"])
     .is("archived_at", null)
     .not("deadline", "is", null);
@@ -118,13 +119,13 @@ export async function GET(request: Request) {
   const { data: pessoas } = semResponsavel.length
     ? await db.from("profiles").select("id, full_name, email").in("id", [...new Set(semResponsavel)])
     : { data: [] as { id: string; full_name: string; email: string }[] };
-  const porPessoa = new Map<string, { nome: string; email: string; itens: Item[] }>();
+  const porPessoa = new Map<string, { nome: string; email: string; profileId: string | null; itens: Item[] }>();
   for (const n of novos) {
     const p = pessoas?.find((x) => x.id === n.responsible_id);
-    const dest = n.responsaveis?.email ? { nome: n.responsaveis.nome, email: n.responsaveis.email } : p?.email ? { nome: p.full_name, email: p.email } : null;
+    const dest = n.responsaveis?.email ? { nome: n.responsaveis.nome, email: n.responsaveis.email, profileId: n.responsaveis.profile_id as string | null } : p?.email ? { nome: p.full_name, email: p.email, profileId: p.id as string | null } : null;
     if (!dest) continue;
     const chave = dest.email.toLowerCase();
-    const g = porPessoa.get(chave) ?? { nome: dest.nome.split(" ")[0], email: dest.email, itens: [] };
+    const g = porPessoa.get(chave) ?? { nome: dest.nome.split(" ")[0], email: dest.email, profileId: dest.profileId, itens: [] };
     g.itens.push({ id: n.id, title: n.title, deadline: n.deadline!, status: n.status, cliente: n.clients?.name ?? "Sem cliente", tipo: n.tipo });
     porPessoa.set(chave, g);
   }
@@ -143,12 +144,20 @@ export async function GET(request: Request) {
 
   let enviados = 0;
   const falhas: string[] = [];
+  // quem desligou "Atividades atrasadas e a vencer" em Minha conta › Notificações não recebe; cada um escolhe o formato
+  const prefs = await preferenciasDe([...porPessoa.values()].map((g) => g.profileId).filter((x): x is string => !!x), "atividades_atrasadas", "email");
   for (const g of porPessoa.values()) {
+    const pref = preferenciaOuPadrao(prefs, g.profileId);
+    if (!pref.ativo) continue;
     const urgentes = g.itens.filter((i) => i.tipo !== "antes").length;
     const assunto = urgentes
       ? `⚠️ ${urgentes} atividade(s) vencendo hoje ou atrasada(s)`
       : `Prazos chegando: ${g.itens.length} atividade(s) nos próximos 2 dias`;
-    const { error: erroEnvio } = await resend.client.emails.send({ from: resend.from, to: g.email, subject: assunto, html: html(g.nome, g.itens, hoje) });
+    const corpo =
+      pref.formato === "titulo"
+        ? `<p style="font-family:Arial,sans-serif">${assunto}. <a href="https://mcadvogados.app.br/admin/activities">Abrir no portal</a></p>`
+        : html(g.nome, pref.formato === "resumida" ? g.itens.slice(0, 3) : g.itens, hoje);
+    const { error: erroEnvio } = await resend.client.emails.send({ from: resend.from, to: g.email, subject: assunto, html: corpo });
     if (erroEnvio) {
       falhas.push(g.email);
       continue;

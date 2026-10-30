@@ -4,6 +4,8 @@ import { createAdminClient as adminTipado } from "@/lib/supabase/admin";
 import { generateJson } from "@/lib/gemini";
 import { MODELOS } from "@/lib/ia-modelos";
 import { enfileirarMensagem } from "@/lib/zap/fila";
+import { preferenciaDe } from "@/lib/notificacoes";
+import { aplicarFormato } from "@/lib/notificacoes-tipos";
 import { calcularMetricas, periodoDe, resumoParaIa } from "./metricas";
 
 // Sugestões do dia do Painel do Dono (24/10/2026). Gasto mínimo: os números
@@ -90,6 +92,8 @@ export async function enviarSugestoesDoDia(): Promise<string> {
   const { data: resp } = await db.from("responsaveis").select("telefone").eq("profile_id", MAURICIO).maybeSingle();
   const telefone = (resp?.telefone ?? "").replace(/\D/g, "");
   if (telefone.length < 10) return "sem telefone do Maurício em Responsáveis";
+  const pref = await preferenciaDe(MAURICIO, "resumos_painel", "zap");
+  if (!pref.ativo) return "desligado em Minha conta › Notificações";
   const emoji = { alta: "🔴", media: "🟡", baixa: "🟢" } as const;
   const texto = [
     `*Painel do Dono — sugestões de hoje*`,
@@ -99,7 +103,7 @@ export async function enviarSugestoesDoDia(): Promise<string> {
     "",
     "Detalhes: mcadvogados.app.br/admin/painel",
   ].join("\n");
-  const job = await enfileirarMensagem({ para: telefone, texto, origemRef: `painel-sugestoes:${r.sugestoes.dia}`, expiraEm: new Date(Date.now() + 12 * 3_600_000) });
+  const job = await enfileirarMensagem({ para: telefone, texto: aplicarFormato(texto, pref.formato), origemRef: `painel-sugestoes:${r.sugestoes.dia}`, expiraEm: new Date(Date.now() + 12 * 3_600_000) });
   if (!job) return "falha ao enfileirar";
   await db.from("painel_sugestoes").update({ enviado_em: new Date().toISOString() }).eq("dia", r.sugestoes.dia);
   return "enviado";

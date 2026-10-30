@@ -81,6 +81,7 @@ function blocoRelatorio(r: RelatorioDoDia): string {
   for (const s of SECOES) {
     const perguntas = snap.perguntas.filter((p) => p.secao === s);
     if (!perguntas.length) continue;
+    if (s === "equipe_pessoa" && snap.equipe.length === 0) continue;
     let corpo = "";
     if (s === "equipe_pessoa") {
       corpo = snap.equipe

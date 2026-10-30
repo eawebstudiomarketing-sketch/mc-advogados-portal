@@ -117,8 +117,15 @@ export async function demandasVencidas(responsavelId: string, dia: string): Prom
   }));
 }
 
-/** A equipe sobre quem a pessoa responde nas perguntas "por pessoa": quem tem login, menos ela mesma. */
+/**
+ * A equipe sobre quem a pessoa responde nas perguntas "por pessoa" (a avaliação de cada integrante).
+ * Só o admin máximo avalia a equipe: para os demais a lista é vazia e a seção nem aparece.
+ */
 export async function equipeDe(responsavelId: string): Promise<PessoaEquipe[]> {
+  const { data: resp } = await db().from("responsaveis").select("profile_id").eq("id", responsavelId).maybeSingle();
+  if (!resp?.profile_id) return [];
+  const { data: perfil } = await db().from("profiles").select("super_admin").eq("id", resp.profile_id).maybeSingle();
+  if (!perfil?.super_admin) return [];
   return (await listPessoas())
     .filter((p) => p.profileId && p.id !== responsavelId)
     .map((p) => ({ id: p.id, nome: p.nome }));

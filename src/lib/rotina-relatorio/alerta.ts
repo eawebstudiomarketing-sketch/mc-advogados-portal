@@ -20,7 +20,8 @@ export async function alertaDaRotina(profileId: string): Promise<AlertaRotina> {
   const hoje = hojeBahia();
   const [itens, { data: resp }] = await Promise.all([rotinaDoDia(eu, hoje, adm), adm.from("responsaveis").select("rotina_modelo_id").eq("id", eu).maybeSingle()]);
   const temModelo = !!resp?.rotina_modelo_id;
-  if (!itens.length && !temModelo) return null;
+  // sem rotina montada ainda (caso do Maurício até criar a dele): o relógio aparece igual e leva à página de Rotinas, sem alerta
+  if (!itens.length && !temModelo) return { href: "/admin/rotinas", atrasadas: 0, relatorioPendente: false };
   const atrasadas = itens.filter((i) => !i.feito && i.situacao === "atrasado").length;
   const hora = Number(new Intl.DateTimeFormat("en-GB", { timeZone: "America/Bahia", hour: "2-digit", hour12: false }).format(new Date()));
   let relatorioPendente = false;

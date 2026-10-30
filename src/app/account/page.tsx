@@ -1,4 +1,7 @@
-import { requireProfile } from "@/lib/dal";
+import { ehSuperAdmin, requireProfile } from "@/lib/dal";
+import { NotificacoesForm } from "./notificacoes-form";
+import { preferenciasDaPessoa } from "@/lib/notificacoes";
+import { TIPOS_AVISO } from "@/lib/notificacoes-tipos";
 import { AccountForm } from "./account-form";
 import { BackButton } from "@/components/nav/back-button";
 import { createAdminClient } from "@/lib/supabase/admin";
@@ -14,7 +17,7 @@ export default async function AccountPage() {
       : await createAdminClient().from("responsaveis").select("id, foto_url").eq("profile_id", profile.id).maybeSingle();
 
   return (
-    <div className="mx-auto max-w-md py-8">
+    <div className="mx-auto max-w-xl py-8">
       <BackButton fallback={backHref} />
 
       <h1 className="mt-3 mb-6 page-title">Minha conta</h1>
@@ -27,7 +30,15 @@ export default async function AccountPage() {
         </div>
       </div>
 
-      <AccountForm />
+      <div className="max-w-md">
+        <AccountForm />
+      </div>
+
+      {profile.role !== "client" && (
+        <div className="mt-10">
+          <NotificacoesForm tipos={TIPOS_AVISO.filter((t) => !t.soSuper || ehSuperAdmin(profile))} inicial={Object.fromEntries(await preferenciasDaPessoa(profile.id))} />
+        </div>
+      )}
     </div>
   );
 }

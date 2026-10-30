@@ -7,6 +7,8 @@ import { criarAvisos } from "@/lib/avisos";
 import { reagendarLembretes } from "@/lib/zap/lembretes";
 import { reenviarLink } from "@/lib/atas/assinatura";
 import { equipeNoZap } from "./equipe-zap";
+import { preferenciaOuPadrao, preferenciasDe } from "@/lib/notificacoes";
+import { aplicarFormato } from "@/lib/notificacoes-tipos";
 
 // Ações do gerente, executadas SÓ depois da confirmação na tela (com os
 // campos que a pessoa editou). Escrevem com o perfil de quem confirmou.
@@ -55,11 +57,14 @@ export async function alertar(a: { pessoas: { profileId: string; telefone: strin
   if (!a.pessoas.length) throw new Error("Ninguém para alertar.");
   await criarAvisos(a.pessoas.map((p) => ({ profile_id: p.profileId, tipo: "gerente", titulo: a.titulo, corpo: a.corpo, url: a.url })));
   let zap = 0;
+  const prefs = a.zap ? await preferenciasDe(a.pessoas.map((p) => p.profileId), "avisos_do_gerente", "zap") : new Map();
   if (a.zap)
     for (const p of a.pessoas) {
+      const pref = preferenciaOuPadrao(prefs, p.profileId);
+      if (!pref.ativo) continue; // a pessoa desligou esse aviso em Minha conta › Notificações
       const tel = String(p.telefone ?? "").replace(/\D/g, "");
       if (tel.length < 10) continue;
-      await mandarZap(tel, `*${a.titulo}*\n${a.corpo}\n\nmcadvogados.app.br${a.url}`, perfilId);
+      await mandarZap(tel, aplicarFormato(`*${a.titulo}*\n${a.corpo}\n\nmcadvogados.app.br${a.url}`, pref.formato, `mcadvogados.app.br${a.url}`), perfilId);
       zap++;
     }
   return `Aviso no portal para ${a.pessoas.length} pessoa(s)${a.zap ? ` e WhatsApp para ${zap}` : ""}.`;

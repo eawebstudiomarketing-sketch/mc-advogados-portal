@@ -218,6 +218,8 @@ export function RelatorioDoDia({
   const blocoPerguntas = SECOES.map((s) => {
     const lista = porSecao(s);
     if (!lista.length) return null;
+    // a avaliação de cada pessoa é só de quem avalia a equipe: para os demais a seção não aparece
+    if (s === "equipe_pessoa" && equipe.length === 0) return null;
     return (
       <div key={s} className="ui-card p-4 sm:p-5">
         <h3 className="eyebrow">{SECAO_ROTULO[s].titulo}</h3>

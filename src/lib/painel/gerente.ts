@@ -4,6 +4,8 @@ import { createAdminClient } from "@/lib/supabase/admin";
 import { generateJson } from "@/lib/gemini";
 import { MODELOS } from "@/lib/ia-modelos";
 import { enfileirarMensagem } from "@/lib/zap/fila";
+import { preferenciaDe } from "@/lib/notificacoes";
+import { aplicarFormato } from "@/lib/notificacoes-tipos";
 import { hojeBahia, periodoDe, somaDias } from "./base";
 import { varrer, type AcaoGerente } from "./varredura";
 
@@ -118,9 +120,11 @@ export async function enviarGerenteDoDia(): Promise<string> {
   const { data: resp } = await db().from("responsaveis").select("telefone").eq("profile_id", MAURICIO).maybeSingle();
   const telefone = String(resp?.telefone ?? "").replace(/\D/g, "");
   if (telefone.length < 10) return "sem telefone do Maurício em Responsáveis";
+  const pref = await preferenciaDe(MAURICIO, "resumos_painel", "zap");
+  if (!pref.ativo) return "desligado em Minha conta › Notificações";
   const ontem = somaDias(dia, -1).split("-").reverse().slice(0, 2).join("/");
   const texto = [`*Bom dia, Maurício! Aqui está o resumo de ontem (${ontem}).*`, "", gerenteEmTexto(r.gerente), "Para resolver com um clique: mcadvogados.app.br/admin/painel?p=ontem"].join("\n");
-  const job = await enfileirarMensagem({ para: telefone, texto, origemRef: `painel-gerente:${dia}`, expiraEm: new Date(Date.now() + 12 * 3_600_000) });
+  const job = await enfileirarMensagem({ para: telefone, texto: aplicarFormato(texto, pref.formato), origemRef: `painel-gerente:${dia}`, expiraEm: new Date(Date.now() + 12 * 3_600_000) });
   if (!job) return "falha ao enfileirar";
   await db().from("painel_sugestoes").upsert({ dia, texto: JSON.stringify({ resumo: r.gerente.paragrafos[0] ?? "", itens: [] }), metricas: { origem: "gerente", pontos: r.gerente.pontos }, enviado_em: new Date().toISOString() });
   return "enviado";

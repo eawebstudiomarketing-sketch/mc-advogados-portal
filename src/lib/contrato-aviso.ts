@@ -3,6 +3,7 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { getResendClient } from "@/lib/email/resend";
 import { enfileirarMensagem } from "@/lib/zap/fila";
+import { preferenciaDe } from "@/lib/notificacoes";
 import { criarAvisos } from "@/lib/avisos";
 import { diasParaFim, fimDoContrato } from "./contrato";
 
@@ -36,6 +37,7 @@ export async function avisarFimDeContrato(): Promise<string> {
   const telefone = String(resp?.telefone ?? "").replace(/\D/g, "");
   const email = (perfil?.email as string | null) ?? null;
   const resend = getResendClient();
+  const [prefZap, prefEmail] = await Promise.all([preferenciaDe(MAURICIO, "contratos", "zap"), preferenciaDe(MAURICIO, "contratos", "email")]);
   const feitos: string[] = [];
 
   for (const a of alvos) {
@@ -43,8 +45,8 @@ export async function avisarFimDeContrato(): Promise<string> {
     if (!enviado.has(`${a.clientId}|${a.fim}|d30`) && a.dias > 0) {
       const texto = `*Contrato perto do fim*\n${a.nome}: o contrato termina em ${br(a.fim)} (faltam ${a.dias} ${a.dias === 1 ? "dia" : "dias"}).\nVale conversar sobre a renovação.\nmcadvogados.app.br/admin/clients/${a.clientId}`;
       await criarAvisos([{ profile_id: MAURICIO, tipo: "contrato", titulo: `Contrato de ${a.nome} termina em ${a.dias} dias`, corpo: `Fim do contrato: ${br(a.fim)}`, url: `/admin/clients/${a.clientId}` }]).catch(() => undefined);
-      if (telefone.length >= 10) await enfileirarMensagem({ para: telefone, texto, origemRef: `contrato:${a.clientId}:${a.fim}:d30`, expiraEm: new Date(Date.now() + 24 * 3_600_000) });
-      if (resend && email)
+      if (prefZap.ativo && telefone.length >= 10) await enfileirarMensagem({ para: telefone, texto, origemRef: `contrato:${a.clientId}:${a.fim}:d30`, expiraEm: new Date(Date.now() + 24 * 3_600_000) });
+      if (prefEmail.ativo && resend && email)
         await resend.client.emails
           .send({
             from: resend.from,
@@ -60,7 +62,7 @@ export async function avisarFimDeContrato(): Promise<string> {
     if (a.dias === 0 && !enviado.has(`${a.clientId}|${a.fim}|d0`)) {
       const texto = `*Hoje é o último dia do contrato*\n${a.nome}: o contrato termina hoje (${br(a.fim)}).\nmcadvogados.app.br/admin/clients/${a.clientId}`;
       await criarAvisos([{ profile_id: MAURICIO, tipo: "contrato", titulo: `Hoje termina o contrato de ${a.nome}`, corpo: `Fim do contrato: ${br(a.fim)}`, url: `/admin/clients/${a.clientId}` }]).catch(() => undefined);
-      if (telefone.length >= 10) await enfileirarMensagem({ para: telefone, texto, origemRef: `contrato:${a.clientId}:${a.fim}:d0`, expiraEm: new Date(Date.now() + 18 * 3_600_000) });
+      if (prefZap.ativo && telefone.length >= 10) await enfileirarMensagem({ para: telefone, texto, origemRef: `contrato:${a.clientId}:${a.fim}:d0`, expiraEm: new Date(Date.now() + 18 * 3_600_000) });
       await db().from("contrato_avisos").upsert({ client_id: a.clientId, fim: a.fim, tipo: "d0" });
       feitos.push(`${a.nome} (último dia)`);
     }

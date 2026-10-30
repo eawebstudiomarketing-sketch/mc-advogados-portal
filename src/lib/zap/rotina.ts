@@ -4,6 +4,8 @@ import { getEscritorioConfig, listPessoas } from "@/lib/data/escritorio";
 import { diaDaPessoa, textoDaRotina } from "@/lib/data/rotina";
 import { ehDiaDeExpediente } from "@/lib/publicacoes/sugestoes";
 import { enfileirarMensagem } from "@/lib/zap/fila";
+import { preferenciaOuPadrao, preferenciasDe } from "@/lib/notificacoes";
+import { aplicarFormato } from "@/lib/notificacoes-tipos";
 
 // Rotina das 8h: para cada pessoa com WhatsApp e "rotina no Zap" ligada, monta
 // a agenda do dia e deixa na fila para sair às 08:00 (Bahia). Só em dia de
@@ -24,6 +26,8 @@ export async function enfileirarRotinas({ forcar = false, so }: { forcar?: boole
   const pessoas = (await listPessoas()).filter((p) => p.telefone && p.rotinaZap && (!so || p.id === so));
   const { data: feitas } = await db.from("rotina_envios").select("responsavel_id").eq("dia", dia);
   const jaFoi = new Set((feitas ?? []).map((f) => f.responsavel_id));
+  // quem desligou a rotina das 8h em Minha conta › Notificações não recebe (e escolhe o formato da mensagem)
+  const prefs = await preferenciasDe(pessoas.map((p) => p.profileId).filter((x): x is string => !!x), "rotina_8h", "zap");
 
   // sai às 08:00; se já passou (rodou atrasado), sai na hora
   const oitoHoras = new Date(`${dia}T08:00:00-03:00`);
@@ -34,8 +38,13 @@ export async function enfileirarRotinas({ forcar = false, so }: { forcar?: boole
       r.puladas++;
       continue;
     }
+    const pref = preferenciaOuPadrao(prefs, p.profileId);
+    if (!pref.ativo && !forcar) {
+      r.puladas++;
+      continue;
+    }
     try {
-      const texto = textoDaRotina(p.nome, dia, await diaDaPessoa(p.id, dia), `${SITE}/admin/agenda`);
+      const texto = aplicarFormato(textoDaRotina(p.nome, dia, await diaDaPessoa(p.id, dia), `${SITE}/admin/agenda`), pref.formato, `${SITE}/admin/agenda`);
       // marca antes de enfileirar: duas execuções ao mesmo tempo não duplicam
       const { error: dup } = await db.from("rotina_envios").insert({ responsavel_id: p.id, dia });
       if (dup && !forcar) {

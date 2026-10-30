@@ -5,7 +5,7 @@ export type Secao = (typeof SECOES)[number];
 export const SECAO_ROTULO: Record<Secao, { titulo: string; ajuda: string }> = {
   pessoal: { titulo: "Sobre você", ajuda: "Perguntas sobre o seu dia." },
   equipe_geral: { titulo: "Sobre a equipe", ajuda: "Perguntas gerais, sobre a equipe como um todo." },
-  equipe_pessoa: { titulo: "Sobre cada pessoa", ajuda: "A mesma pergunta, uma vez para cada integrante." },
+  equipe_pessoa: { titulo: "Sobre cada pessoa", ajuda: "A mesma pergunta para cada integrante da equipe. Só aparece para quem avalia a equipe (o Maurício)." },
 };
 
 export const TIPOS = ["texto_curto", "texto_longo", "escolha", "multipla", "sim_nao", "nota", "numero"] as const;

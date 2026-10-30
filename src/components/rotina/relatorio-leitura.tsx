@@ -31,6 +31,7 @@ export function RelatorioLeitura({ relatorio }: { relatorio: RelatorioDoDia }) {
       {SECOES.map((s) => {
         const perguntas = snap.perguntas.filter((p) => p.secao === s);
         if (!perguntas.length) return null;
+        if (s === "equipe_pessoa" && snap.equipe.length === 0) return null;
         return (
           <div key={s}>
             <h4 className="eyebrow mb-1.5">{SECAO_ROTULO[s].titulo}</h4>
