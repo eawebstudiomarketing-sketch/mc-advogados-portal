@@ -20,6 +20,10 @@ import { ActivitiesView } from "@/app/admin/activities/activities-view";
 import { ConteudoIndicadores } from "@/app/admin/indicadores/conteudo";
 import { MembroCard } from "../membro-card";
 import { DesignacoesProvider } from "../designacoes";
+import { LinhaPessoa } from "../pessoas-zap";
+import { DemandasEquipe } from "../demandas-equipe";
+import { getEscritorioConfig, listPessoas } from "@/lib/data/escritorio";
+import { serializarCargas } from "@/lib/data/painel";
 import { removeStaffAction } from "../actions";
 
 // Página de uma pessoa da equipe (só o admin máximo): tudo dela num lugar só,
@@ -31,7 +35,7 @@ const ABAS = [
   ["rotina", "Rotina"],
   ["demandas", "Demandas"],
   ["whatsapp", "WhatsApp"],
-  ["acessos", "Acessos e permissões"],
+  ["configuracoes", "Configurações"],
 ] as const;
 type Aba = (typeof ABAS)[number][0];
 
@@ -46,7 +50,8 @@ export default async function PessoaDaEquipePage({ params, searchParams }: { par
   if (!ehSuperAdmin(profile)) redirect("/admin/team");
   const { id } = await params;
   const sp = await searchParams;
-  const aba: Aba = ABAS.some(([a]) => a === sp.aba) ? (sp.aba as Aba) : "indicadores";
+  const pedida = sp.aba === "acessos" ? "configuracoes" : sp.aba;
+  const aba: Aba = ABAS.some(([a]) => a === pedida) ? (pedida as Aba) : "indicadores";
   const adm = createAdminClient() as unknown as SupabaseClient;
 
   const [{ data: pessoa }, { data: resp }] = await Promise.all([
@@ -130,10 +135,16 @@ export default async function PessoaDaEquipePage({ params, searchParams }: { par
   } else if (aba === "demandas") {
     if (!resp) corpo = <p className="ui-card p-6 text-sm text-muted">Esta pessoa ainda não está ligada a um responsável.</p>;
     else {
-      const [todas, etiquetas] = await Promise.all([listActivities(), listEtiquetas()]);
+      const [todas, etiquetas, pessoasTodas] = await Promise.all([listActivities(), listEtiquetas(), listPessoas()]);
       const dela = todas.filter((a) => a.responsavel_id === resp.id || (a.envolvidos ?? []).includes(resp.id));
+      const { cargas } = serializarCargas(todas, pessoasTodas);
       corpo = (
-        <div className="space-y-3">
+        <div className="space-y-6">
+          <section className="space-y-2">
+            <h2 className="section-title">Em aberto, por prazo</h2>
+            <DemandasEquipe cargas={cargas.filter((c) => c.id === resp.id)} semResponsavel={[]} />
+          </section>
+          <h2 className="section-title">Todas as demandas</h2>
           <p className="text-sm text-muted">
             {dela.length} {dela.length === 1 ? "demanda ativa" : "demandas ativas"} em que é responsável ou está envolvida.
           </p>
@@ -206,11 +217,28 @@ export default async function PessoaDaEquipePage({ params, searchParams }: { par
       </div>
     );
   } else {
+    const [pessoasTodas, config] = await Promise.all([listPessoas(), getEscritorioConfig()]);
+    const doEscritorio = pessoasTodas.find((x) => x.profileId === id);
+    const blocoZap = doEscritorio ? (
+      <section className="space-y-2">
+        <h2 className="section-title">WhatsApp e áreas</h2>
+        <p className="text-sm text-muted">O WhatsApp recebe a rotina das 8h e os avisos; as áreas guiam a sugestão de responsável na Distribuição.</p>
+        <ul>
+          <LinhaPessoa pessoa={doEscritorio} areas={config.areas} />
+        </ul>
+      </section>
+    ) : null;
     if (pessoa.super_admin) {
       corpo = (
         <p className="ui-card flex items-center gap-2 p-5 text-sm text-foreground">
           <Crown className="h-4 w-4 text-gold-ink" aria-hidden /> Admin máximo: vê tudo e decide o que cada pessoa vê.
         </p>
+      );
+      corpo = (
+        <div className="space-y-6">
+          {blocoZap}
+          {corpo}
+        </div>
       );
     } else {
       const [staff, clientes, designacoes, salvas] = await Promise.all([listStaff(), listClients(), listDesignacoes(), listPermissoesSalvas()]);
@@ -237,6 +265,15 @@ export default async function PessoaDaEquipePage({ params, searchParams }: { par
             }
           />
         </DesignacoesProvider>
+      );
+      corpo = (
+        <div className="space-y-6">
+          {blocoZap}
+          <section className="space-y-2">
+            <h2 className="section-title">Acessos, clientes e permissões</h2>
+            {corpo}
+          </section>
+        </div>
       );
     }
   }

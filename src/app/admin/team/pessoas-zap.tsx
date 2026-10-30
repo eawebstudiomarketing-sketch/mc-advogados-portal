@@ -19,7 +19,7 @@ function formatarTel(t: string | null) {
   return t ?? "";
 }
 
-function LinhaPessoa({ pessoa, areas }: { pessoa: Pessoa; areas: string[] }) {
+export function LinhaPessoa({ pessoa, areas }: { pessoa: Pessoa; areas: string[] }) {
   const [tel, setTel] = useState(formatarTel(pessoa.telefone));
   const [sel, setSel] = useState<string[]>(pessoa.areas);
   const [rotina, setRotina] = useState(pessoa.rotinaZap);
@@ -98,7 +98,7 @@ function LinhaPessoa({ pessoa, areas }: { pessoa: Pessoa; areas: string[] }) {
   );
 }
 
-function EditorAreas({ areas }: { areas: string[] }) {
+export function EditorAreas({ areas }: { areas: string[] }) {
   const [lista, setLista] = useState(areas);
   const [nova, setNova] = useState("");
   const [pending, start] = useTransition();

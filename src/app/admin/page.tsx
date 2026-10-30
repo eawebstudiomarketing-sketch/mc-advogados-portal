@@ -435,7 +435,7 @@ export default async function AdminOverviewPage({
                   </span>
                 </span>
                 {permissoes.equipe && (
-                  <Link href="/admin/team?aba=demandas" className="eyebrow hover:!text-foreground">
+                  <Link href="/admin/team" className="eyebrow hover:!text-foreground">
                     Por pessoa ›
                   </Link>
                 )}
