@@ -106,6 +106,7 @@ export function RelatorioDoDia({
   demandas,
   inicial,
   resumo,
+  equipeNode,
   edicao,
 }: {
   perguntas: PerguntaTela[];
@@ -114,6 +115,8 @@ export function RelatorioDoDia({
   inicial: { respostas: Record<string, Valor>; justificativas: Record<string, string>; enviadoEm: string | null };
   /** passo 1 (resumo do dia: tarefas fixas e demandas); só aparece no fluxo em etapas da própria pessoa */
   resumo?: React.ReactNode;
+  /** 1ª etapa de quem aprova (o Maurício): ler e aprovar os relatórios da equipe */
+  equipeNode?: React.ReactNode;
   /** admin máximo corrigindo o relatório já enviado de outra pessoa */
   edicao?: { responsavelId: string; dia: string };
 }) {
@@ -290,8 +293,7 @@ export function RelatorioDoDia({
   }
 
   // ── fluxo em etapas: resumo do dia → justificar → perguntas → enviar
-  const passos = ETAPAS.filter((_, i) => i !== 0 || resumo) as readonly string[];
-  const nomes = [...passos];
+  const nomes: string[] = [...(equipeNode ? ["Relatórios da equipe"] : []), ...ETAPAS.filter((_, i) => i !== 0 || resumo)];
   const atual = Math.min(etapa, nomes.length - 1);
   const nomeAtual = nomes[atual];
   const ultimo = atual === nomes.length - 1;
@@ -314,6 +316,7 @@ export function RelatorioDoDia({
         ))}
       </ol>
 
+      {nomeAtual === "Relatórios da equipe" && <div>{equipeNode}</div>}
       {nomeAtual === "Resumo do dia" && <div>{resumo}</div>}
       {nomeAtual === "Justificar" && (blocoJustificar || <p className="ui-card p-4 text-sm text-muted">Você não tem demandas vencidas para justificar. Pode seguir.</p>)}
       {nomeAtual === "Perguntas" && (blocoPerguntas.some(Boolean) ? <div className="space-y-5">{blocoPerguntas}</div> : <p className="ui-card p-4 text-sm text-muted">Este relatório não tem perguntas.</p>)}

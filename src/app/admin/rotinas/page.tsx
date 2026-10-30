@@ -213,22 +213,10 @@ async function rotinaDaPessoa({
     const relsEquipe = souSuper && meu ? (await relatoriosDoDia(dia)).filter((r) => r.responsavel_id !== alvo.id) : [];
     const daEquipe = souSuper && meu ? pessoas.filter((x) => x.id !== alvo.id && (atribuidos.has(x.id) || relsEquipe.some((r) => r.responsavel_id === x.id))) : [];
     const aprovadorNome = pessoas.find((x) => x.id === modelo?.aprovador_id)?.nome ?? "Maurício";
-    corpo = (
-      <div className="space-y-6">
-        <form method="get" className="flex flex-wrap items-center gap-1.5">
-          <input type="hidden" name="pessoa" value={alvo.id} />
-          <input type="hidden" name="aba" value="hoje" />
-          <label htmlFor="rot-dia" className="text-sm text-muted">
-            Dia
-          </label>
-          <input id="rot-dia" type="date" name="dia" defaultValue={dia} max={hoje} className="ui-input !w-auto !py-1.5 text-sm" />
-          <button type="submit" className="ui-btn-secondary px-3 py-1.5">
-            Ver
-          </button>
-          {dia !== hoje && <span className="text-sm text-muted">Mostrando {dataBr(dia)} (só leitura).</span>}
-        </form>
-
-        {souSuper && meu && (
+    // fluxo em etapas aberto: a própria pessoa, com modelo, ainda sem enviar
+    const fluxoAberto = editavel && !!modelo && rel?.status !== "enviado";
+    const secaoEquipe =
+      souSuper && meu ? (
           <section aria-label="Relatórios da equipe" className="space-y-3">
             <div>
               <h3 className="section-title">Relatórios da equipe</h3>
@@ -273,7 +261,23 @@ async function rotinaDaPessoa({
               </ul>
             )}
           </section>
-        )}
+      ) : null;
+    corpo = (
+      <div className="space-y-6">
+        <form method="get" className="flex flex-wrap items-center gap-1.5">
+          <input type="hidden" name="pessoa" value={alvo.id} />
+          <input type="hidden" name="aba" value="hoje" />
+          <label htmlFor="rot-dia" className="text-sm text-muted">
+            Dia
+          </label>
+          <input id="rot-dia" type="date" name="dia" defaultValue={dia} max={hoje} className="ui-input !w-auto !py-1.5 text-sm" />
+          <button type="submit" className="ui-btn-secondary px-3 py-1.5">
+            Ver
+          </button>
+          {dia !== hoje && <span className="text-sm text-muted">Mostrando {dataBr(dia)} (só leitura).</span>}
+        </form>
+
+        {secaoEquipe && !fluxoAberto && secaoEquipe}
 
         {editavel ? (
           <>
@@ -320,6 +324,7 @@ async function rotinaDaPessoa({
                     equipe={equipe}
                     demandas={enviado && rel.snapshot ? rel.snapshot.demandas : venc}
                     resumo={enviado ? undefined : resumoNode}
+                    equipeNode={enviado ? undefined : (secaoEquipe ?? undefined)}
                     inicial={{ respostas: rel?.respostas ?? {}, justificativas: rel?.justificativas ?? {}, enviadoEm: enviado ? rel.enviado_em : null }}
                   />
                   {enviado && (
