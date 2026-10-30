@@ -1,4 +1,4 @@
-import type { Metadata } from "next";
+import type { Metadata, Viewport } from "next";
 import { Geist_Mono, Nunito_Sans } from "next/font/google";
 import { Toaster } from "sonner";
 import "./globals.css";
@@ -18,7 +18,11 @@ const geistMono = Geist_Mono({
 export const metadata: Metadata = {
   title: "MC Advogados Portal",
   description: "Portal de clientes MC Advogados",
+  // iPhone: "Adicionar à Tela de Início" abre como app (a página do assistente tem o dela)
+  appleWebApp: { capable: true, title: "MC Advogados", statusBarStyle: "default" },
 };
+
+export const viewport: Viewport = { themeColor: "#0a1b31" };
 
 // Tema antes de pintar a tela (sem piscar branco): escolha salva ou o do sistema.
 const SCRIPT_TEMA = `try{var t=localStorage.getItem("tema");if(t==="escuro"||(t!=="claro"&&window.matchMedia("(prefers-color-scheme: dark)").matches))document.documentElement.dataset.theme="dark"}catch(e){}`;

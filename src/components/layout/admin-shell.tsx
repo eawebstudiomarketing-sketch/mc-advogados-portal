@@ -11,6 +11,7 @@ import type { Permissoes } from "@/lib/permissoes";
 import { secoesVisiveis, rotaAtiva, type Secao } from "./secoes";
 import { AbasSecao } from "./abas-secao";
 import { NovoMenu, AtalhosMenu } from "./atalhos-topo";
+import { InstalarApp } from "./instalar-app";
 import { TemaBotao } from "@/components/ui/tema-botao";
 import { NavTrail } from "@/components/nav/nav-trail";
 import { AtividadeModalProvider } from "@/components/atividade/atividade-modal";
@@ -176,6 +177,7 @@ export function AdminShell({
       </nav>
 
       <div className="border-t border-border px-[10px] py-3">
+        <InstalarApp />
         <Link
           href="/account"
           className="flex h-11 items-center gap-3 rounded-xl px-[6px] whitespace-nowrap hover:bg-hover"
