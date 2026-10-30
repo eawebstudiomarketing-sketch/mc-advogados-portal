@@ -20,6 +20,7 @@ import {
   NotebookPen,
   Plug,
   BellRing,
+  Cake,
   Settings2,
   Sparkles,
   Trash2,
@@ -29,9 +30,10 @@ import {
   Wrench,
   type LucideIcon,
 } from "lucide-react";
-import { PERM_DA_TELA, type Permissoes } from "@/lib/permissoes";
+import { PERM_DA_TELA, type PermChave, type Permissoes } from "@/lib/permissoes";
 
-export type NavItem = { href: string; label: string; icon: LucideIcon; todos?: boolean; soSuper?: boolean };
+/** perm: permissão da tela quando ela não está em PERM_DA_TELA (subtelas novas). */
+export type NavItem = { href: string; label: string; icon: LucideIcon; todos?: boolean; soSuper?: boolean; perm?: PermChave };
 export type Secao = { id: string; label: string; icon: LucideIcon; abas: NavItem[] };
 
 // Menu em seções (30/10/2026, redesenho da navegação): cada item do menu é uma
@@ -68,6 +70,7 @@ export const SECOES: Secao[] = [
     abas: [
       { href: "/admin/clients", label: "Contatos", icon: Users },
       { href: "/admin/onboarding", label: "Onboarding", icon: ClipboardList },
+      { href: "/admin/clients/aniversarios", label: "Aniversários", icon: Cake, perm: "clientes" },
     ],
   },
   { id: "processos", label: "Processos", icon: Gavel, abas: [{ href: "/admin/processes", label: "Processos e casos", icon: Gavel }] },
@@ -114,7 +117,7 @@ export function secoesVisiveis(permissoes: Permissoes, superAdmin: boolean): Sec
     abas: s.abas.filter((i) => {
       if (i.soSuper) return superAdmin;
       if (i.todos) return true;
-      const chave = PERM_DA_TELA[i.href];
+      const chave = i.perm ?? PERM_DA_TELA[i.href];
       return !!chave && permissoes[chave];
     }),
   })).filter((s) => s.abas.length > 0);

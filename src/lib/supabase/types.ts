@@ -117,6 +117,8 @@ export type Database = {
       }
       escritorio_config: {
         Row: {
+          aniversario_ativo: boolean
+          aniversario_mensagem: string
           id: number
           areas: string[]
           lembrete_24h: string
@@ -127,6 +129,8 @@ export type Database = {
           updated_at: string
         }
         Insert: {
+          aniversario_ativo?: boolean
+          aniversario_mensagem?: string
           id?: number
           areas?: string[]
           lembrete_24h?: string
@@ -137,6 +141,8 @@ export type Database = {
           updated_at?: string
         }
         Update: {
+          aniversario_ativo?: boolean
+          aniversario_mensagem?: string
           id?: number
           areas?: string[]
           lembrete_24h?: string
