@@ -9,6 +9,8 @@ import { getClientPortalUser } from "@/lib/data/team";
 import { getResendClient } from "@/lib/email/resend";
 import { formatCurrency } from "@/lib/mock-data";
 import { destinoDeVolta } from "@/lib/voltar";
+import { idsDoLote } from "@/lib/lote";
+import type { ResultadoLote } from "@/components/ui/selecao-lista";
 
 export type CreateFinancialRecordState = { error: string | null };
 
@@ -138,4 +140,21 @@ export async function sendReminderAction(
 
   revalidatePath("/admin/financial");
   return { error: null, success: true };
+}
+
+/** Ações em massa: marca vários lançamentos como pagos de uma vez. */
+export async function marcarPagosEmLoteAction(ids: string[]): Promise<ResultadoLote> {
+  await exigirPermissao("financeiro");
+  const lista = idsDoLote(ids);
+  if (!lista) return { ok: false, error: "Nenhum lançamento selecionado." };
+  const supabase = await createClient();
+  const { data, error } = await supabase
+    .from("financial_records")
+    .update({ status: "paid", paid_at: new Date().toISOString() })
+    .in("id", lista)
+    .neq("status", "paid")
+    .select("id");
+  if (error) return { ok: false, error: "Não foi possível marcar como pago. Tente novamente." };
+  revalidatePath("/admin/financial");
+  return { ok: true, count: data?.length ?? 0 };
 }

@@ -6,7 +6,10 @@ import { ListaVazia } from "@/components/ui/empty-state";
 import { listProcesses } from "@/lib/data/processes";
 import { PROCESS_AREA_LABEL } from "@/lib/process-area";
 import { StatusBadge } from "@/components/ui/status-badge";
-import { deleteProcessAction } from "./actions";
+import { deleteProcessAction, trocarResponsavelEmLoteAction } from "./actions";
+import { SelecaoLista, MarcarTodos, MarcarLinha } from "@/components/ui/selecao-lista";
+import { listStaff } from "@/lib/data/team";
+import { EditarNaLinha } from "@/components/ui/editar-na-linha";
 import { ConfirmSubmitButton } from "@/components/ui/confirm-submit-button";
 import { exigirPermissao } from "@/lib/dal";
 
@@ -15,7 +18,7 @@ type F = { busca?: string; cliente?: string; area?: string; status?: string; ord
 export default async function AdminProcessesPage({ searchParams }: { searchParams: Promise<F> }) {
   await exigirPermissao("processos");
   const f = await searchParams;
-  const todos = await listProcesses();
+  const [todos, equipe] = await Promise.all([listProcesses(), listStaff()]);
   const termo = (f.busca ?? "").trim().toLowerCase();
   const digitos = termo.replace(/\D/g, "");
   const filtrados = todos.filter(
@@ -38,6 +41,7 @@ export default async function AdminProcessesPage({ searchParams }: { searchParam
     cliente: (p) => p.clients?.name ?? p.cliente_nome,
     criado: (p) => p.created_at,
   });
+  const opcoesResponsavel = [...equipe.filter((e) => e.ativo !== false).map((e) => ({ valor: e.id, rotulo: e.full_name })), { valor: "nenhum", rotulo: "Sem responsável" }];
   const statuses = [...new Set(todos.map((p) => p.status))].sort();
 
   return (
@@ -95,10 +99,25 @@ export default async function AdminProcessesPage({ searchParams }: { searchParam
         }}
       />
 
+      <SelecaoLista
+        ids={processes.map((p) => p.id)}
+        nome={["processo", "processos"]}
+        acoes={[
+          {
+            tipo: "escolha",
+            rotulo: "Trocar responsável",
+            icone: "pessoa",
+            opcoes: opcoesResponsavel,
+            acao: trocarResponsavelEmLoteAction,
+            sucesso: "Responsável trocado em {n} processo(s)",
+          },
+        ]}
+      >
       <div className="overflow-x-auto ui-card">
         <table className="ui-table">
           <thead>
             <tr>
+              <th className="w-10 py-2.5 pr-0 pl-5"><MarcarTodos /></th>
               <th className="px-5 py-2.5 font-medium">Título</th>
               <th className="px-5 py-2.5 font-medium">Cliente / pasta</th>
               <th className="px-5 py-2.5 font-medium">Ação / foro</th>
@@ -111,7 +130,7 @@ export default async function AdminProcessesPage({ searchParams }: { searchParam
           <tbody className="divide-y divide-border">
             {processes.length === 0 && (
               <tr>
-                <td colSpan={7}>
+                <td colSpan={8}>
                   <ListaVazia
                     icon={Gavel}
                     filtrado={todos.length > 0}
@@ -124,6 +143,7 @@ export default async function AdminProcessesPage({ searchParams }: { searchParam
             )}
             {processes.map((p) => (
               <tr key={p.id}>
+                <td className="w-10 py-2.5 pr-0 pl-5"><MarcarLinha id={p.id} rotulo={p.numero_processo} /></td>
                 <td className="px-5 py-2.5 font-medium">
                   <Link href={`/admin/processes/${p.id}`} className="text-status-info hover:underline">
                     {p.numero_processo}
@@ -136,7 +156,11 @@ export default async function AdminProcessesPage({ searchParams }: { searchParam
                   <span className="block text-xs text-muted">{p.vara_tribunal ?? "—"}</span>
                 </td>
                 <td className="px-5 py-3 whitespace-nowrap text-foreground/70">{p.ultimo_andamento_em ? new Date(p.ultimo_andamento_em).toLocaleDateString("pt-BR", { timeZone: "America/Bahia" }) : "—"}</td>
-                <td className="px-5 py-3 text-foreground/70">{p.profiles?.full_name ?? p.responsavel_nome ?? "—"}</td>
+                <td className="px-5 py-3 text-foreground/70">
+                  <EditarNaLinha id={p.id} tipo="opcoes" valor={p.responsible_id ?? "nenhum"} opcoes={opcoesResponsavel} rotulo="Responsável" salvar={trocarResponsavelEmLoteAction}>
+                    {p.profiles?.full_name ?? p.responsavel_nome ?? "—"}
+                  </EditarNaLinha>
+                </td>
                 <td className="px-5 py-3">
                   <StatusBadge status={p.status} />
                 </td>
@@ -157,6 +181,7 @@ export default async function AdminProcessesPage({ searchParams }: { searchParam
           </tbody>
         </table>
       </div>
+      </SelecaoLista>
     </div>
   );
 }

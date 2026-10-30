@@ -8,6 +8,8 @@ import { PROCESS_AREAS } from "@/lib/process-area";
 import type { Database } from "@/lib/supabase/types";
 import { ligarPublicacoesAosProcessos } from "@/lib/publicacoes/monitor";
 import { destinoDeVolta } from "@/lib/voltar";
+import { idsDoLote } from "@/lib/lote";
+import type { ResultadoLote } from "@/components/ui/selecao-lista";
 
 export type CreateProcessState = { error: string | null };
 
@@ -130,4 +132,18 @@ export async function vincularClienteProcessoAction(formData: FormData): Promise
   revalidatePath(`/admin/processes/${id}`);
   revalidatePath("/admin/processes");
   revalidatePath("/admin/alertas", "layout");
+}
+
+/** Ações em massa: troca o responsável de vários processos ("nenhum" tira o responsável). */
+export async function trocarResponsavelEmLoteAction(ids: string[], responsavel: string): Promise<ResultadoLote> {
+  await exigirPermissao("processos");
+  const lista = idsDoLote(ids);
+  if (!lista) return { ok: false, error: "Nenhum processo selecionado." };
+  const novo = responsavel === "nenhum" ? null : responsavel;
+  if (novo && !/^[0-9a-f-]{36}$/i.test(novo)) return { ok: false, error: "Responsável inválido." };
+  const supabase = await createClient();
+  const { data, error } = await supabase.from("processes").update({ responsible_id: novo }).in("id", lista).select("id");
+  if (error) return { ok: false, error: "Não foi possível trocar o responsável. Tente novamente." };
+  revalidatePath("/admin/processes");
+  return { ok: true, count: data?.length ?? 0 };
 }

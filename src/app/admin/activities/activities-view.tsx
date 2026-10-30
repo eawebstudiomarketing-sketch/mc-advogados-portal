@@ -7,7 +7,8 @@ import { ACTIVITY_TYPE_LABEL } from "@/lib/activity-type";
 import { StatusSelect } from "./status-select";
 import { EtiquetasLinha } from "@/components/atividade/etiquetas";
 import type { Etiqueta } from "@/lib/data/etiquetas";
-import { deleteActivityAction } from "./actions";
+import { deleteActivityAction, bulkUpdateDeadlineAction } from "./actions";
+import { EditarNaLinha } from "@/components/ui/editar-na-linha";
 import { ConfirmSubmitButton } from "@/components/ui/confirm-submit-button";
 import { formatDate } from "@/lib/mock-data";
 import { ActivitiesKanban } from "./activities-kanban";
@@ -400,13 +401,15 @@ export function ActivitiesView({
                         </div>
                       </td>
                       <td className="px-4 text-[13px] whitespace-nowrap">
-                        {a.deadline ? (
-                          <span title={formatDate(a.deadline)} className={`inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-xs font-semibold ${chipDoPrazo(a)}`}>
-                            {textoDoPrazo(a)}
-                          </span>
-                        ) : (
-                          <span className="text-xs text-muted">Sem prazo</span>
-                        )}
+                        <EditarNaLinha id={a.id} tipo="data" valor={a.deadline} rotulo="Prazo" salvar={(ids, v) => bulkUpdateDeadlineAction(ids, v || null)}>
+                          {a.deadline ? (
+                            <span title={formatDate(a.deadline)} className={`inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-xs font-semibold ${chipDoPrazo(a)}`}>
+                              {textoDoPrazo(a)}
+                            </span>
+                          ) : (
+                            <span className="text-xs text-muted">Sem prazo</span>
+                          )}
+                        </EditarNaLinha>
                       </td>
                       <td className="px-4">
                         <StatusSelect key={`${a.id}-${a.status}`} id={a.id} status={a.status} />

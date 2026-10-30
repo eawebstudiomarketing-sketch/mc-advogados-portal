@@ -3,7 +3,8 @@ import Link from "next/link";
 import { StatCard } from "@/components/ui/stat-card";
 import { StatusBadge } from "@/components/ui/status-badge";
 import { listFinancialRecords } from "@/lib/data/financial";
-import { markAsPaidAction } from "./actions";
+import { markAsPaidAction, marcarPagosEmLoteAction } from "./actions";
+import { SelecaoLista, MarcarTodos, MarcarLinha } from "@/components/ui/selecao-lista";
 import { ReminderButton } from "./reminder-button";
 import { exigirPermissao } from "@/lib/dal";
 import { formatCurrency, formatDate } from "@/lib/mock-data";
@@ -96,10 +97,16 @@ export default async function AdminFinancialPage({ searchParams }: { searchParam
         />
       </div>
 
+      <SelecaoLista
+        ids={records.filter((r) => r.status !== "paid").map((r) => r.id)}
+        nome={["lançamento", "lançamentos"]}
+        acoes={[{ tipo: "simples", rotulo: "Marcar como pago", icone: "pago", acao: marcarPagosEmLoteAction, sucesso: "{n} marcado(s) como pago", confirmar: "Marcar {n} como pago(s)?" }]}
+      >
       <div className="overflow-x-auto ui-card">
         <table className="ui-table">
           <thead>
             <tr>
+              <th className="w-10 py-2.5 pr-0 pl-5"><MarcarTodos /></th>
               <th className="px-5 py-2.5 font-medium">Cliente</th>
               <th className="px-5 py-2.5 font-medium">Descrição</th>
               <th className="px-5 py-2.5 font-medium">Vencimento</th>
@@ -111,7 +118,7 @@ export default async function AdminFinancialPage({ searchParams }: { searchParam
           <tbody className="divide-y divide-border">
             {records.length === 0 && (
               <tr>
-                <td colSpan={6}>
+                <td colSpan={7}>
                   <ListaVazia
                     icon={Wallet}
                     filtrado={todos.length > 0}
@@ -124,6 +131,7 @@ export default async function AdminFinancialPage({ searchParams }: { searchParam
             )}
             {records.map((f) => (
               <tr key={f.id}>
+                <td className="w-10 py-3 pr-0 pl-5">{f.status !== "paid" && <MarcarLinha id={f.id} rotulo={f.description} />}</td>
                 <td className="px-5 py-3 font-medium text-foreground">{f.clients?.name}</td>
                 <td className="px-5 py-3 text-foreground/70">{f.description}</td>
                 <td className="px-5 py-3 text-foreground/70">{formatDate(f.due_date)}</td>
@@ -149,6 +157,7 @@ export default async function AdminFinancialPage({ searchParams }: { searchParam
           </tbody>
         </table>
       </div>
+      </SelecaoLista>
     </div>
   );
 }
