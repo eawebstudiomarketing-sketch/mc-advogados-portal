@@ -141,9 +141,9 @@ function BarraLote({ ids, acoes, nome, limpar }: { ids: string[]; acoes: AcaoLot
         ref={barra}
         role="toolbar"
         aria-label={`Ações para ${qtd}`}
-        className="pointer-events-auto flex flex-wrap items-center gap-1 rounded-2xl border border-border bg-surface p-1.5 shadow-[0_18px_40px_-12px_rgba(15,26,42,0.35)] animate-[enter_160ms_var(--ease-out)_both]"
+        className="pointer-events-auto relative flex animate-enter flex-wrap items-center gap-1 rounded-2xl bg-navy-2 p-1.5 pl-4 text-white shadow-lg"
       >
-        <span className="px-3 text-sm font-semibold text-foreground tabular-nums">{qtd}</span>
+        <span className="mr-2 text-sm font-medium tabular-nums">{qtd}</span>
         {acoes.map((a, i) => {
           const Icone = ICONES[a.icone];
           return (
@@ -156,14 +156,14 @@ function BarraLote({ ids, acoes, nome, limpar }: { ids: string[]; acoes: AcaoLot
                   if (a.confirmar && !window.confirm(a.confirmar.replace("{n}", qtd))) return;
                   rodar(() => a.acao(ids), a.sucesso);
                 }}
-                className="inline-flex h-9 items-center gap-1.5 rounded-xl px-3 text-sm font-medium text-foreground/85 hover:bg-surface-2 hover:text-foreground disabled:opacity-50"
+                className="inline-flex items-center gap-1.5 rounded-xl px-3 py-2 text-sm transition-colors hover:bg-white/10 disabled:opacity-50"
               >
-                <Icone className="h-4 w-4" aria-hidden />
+                <Icone className="h-4 w-4 text-gold-2" aria-hidden />
                 {a.rotulo}
-                {a.tipo === "escolha" && <ChevronDown className="h-3.5 w-3.5 opacity-60" aria-hidden />}
+                {a.tipo === "escolha" && <ChevronDown className="h-3.5 w-3.5 text-white/50" aria-hidden />}
               </button>
               {a.tipo === "escolha" && menu === i && (
-                <ul role="menu" className="absolute bottom-[calc(100%+8px)] left-0 max-h-72 w-60 overflow-y-auto rounded-2xl border border-border bg-surface p-1.5 shadow-lg">
+                <ul role="menu" className="absolute bottom-full left-0 mb-2 max-h-72 w-60 animate-enter overflow-y-auto rounded-xl border border-border bg-surface p-1 text-foreground shadow-lg">
                   {a.opcoes.map((o) => (
                     <li key={o.valor}>
                       <button
@@ -182,8 +182,8 @@ function BarraLote({ ids, acoes, nome, limpar }: { ids: string[]; acoes: AcaoLot
             </div>
           );
         })}
-        {pending && <Loader2 className="mx-2 h-4 w-4 animate-spin text-muted" aria-hidden />}
-        <button type="button" onClick={limpar} aria-label="Limpar seleção" className="rounded-xl p-2 text-muted hover:bg-surface-2 hover:text-foreground">
+        {pending && <Loader2 className="mx-2 h-4 w-4 animate-spin text-white/70" aria-hidden />}
+        <button type="button" onClick={limpar} aria-label="Limpar seleção" className="rounded-xl p-2 text-white/70 transition-colors hover:bg-white/10 hover:text-white">
           <X className="h-4 w-4" aria-hidden />
         </button>
       </div>

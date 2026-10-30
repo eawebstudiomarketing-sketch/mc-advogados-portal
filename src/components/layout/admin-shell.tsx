@@ -10,6 +10,7 @@ import { CommandPalette, type PaletteItem } from "./command-palette";
 import type { Permissoes } from "@/lib/permissoes";
 import { secoesVisiveis, rotaAtiva, type Secao } from "./secoes";
 import { AbasSecao } from "./abas-secao";
+import { NovoMenu, AtalhosMenu } from "./atalhos-topo";
 import { TemaBotao } from "@/components/ui/tema-botao";
 import { NavTrail } from "@/components/nav/nav-trail";
 import { AtividadeModalProvider } from "@/components/atividade/atividade-modal";
@@ -230,6 +231,10 @@ export function AdminShell({
             <kbd className="hidden rounded-md border border-border bg-surface px-1.5 font-mono text-[10px] text-muted sm:inline">Ctrl K</kbd>
           </button>
           <div className="ml-auto flex shrink-0 items-center gap-0.5 sm:gap-1">
+            <NovoMenu permissoes={permissoes} />
+            <Suspense fallback={null}>
+              <AtalhosMenu />
+            </Suspense>
             <TemaBotao />
             {alertaRotina && (
               <Link
