@@ -1,6 +1,7 @@
 import "server-only";
 import { distribuirPublicacoesNovas } from "@/lib/distribuicao/de-publicacoes";
 import { createAdminClient } from "@/lib/supabase/admin";
+import { criarProcessosDoDJEN } from "./criar-processos";
 import { getResendClient } from "@/lib/email/resend";
 import { enviarPush, idsDosAdmins } from "@/lib/push";
 import { buscarPorOab, textoLimpo, type ComunicacaoDJEN } from "./djen";
@@ -56,6 +57,7 @@ async function completarUf(db: Db): Promise<void> {
 }
 
 export type ResultadoMonitor = {
+  processosCriados?: number;
   encontradas: number;
   novas: number;
   inpiRevista: number | null;
@@ -181,8 +183,11 @@ export async function executarMonitor(origem: "cron" | "manual"): Promise<Result
     erros.push(`INPI: ${e instanceof Error ? e.message : String(e)}`);
   }
 
-  // 3) manutenção: liga ao processo, completa estado e sugestões das antigas
+  // 3) manutenção: cria processo novo descoberto pelo DJEN (substitui o Astrea nisso),
+  //    liga ao processo, completa estado e sugestões das antigas
   try {
+    const nov = await criarProcessosDoDJEN(db);
+    if (nov.criados) resultado.processosCriados = nov.criados;
     await ligarPublicacoesAosProcessos(db);
     await completarUf(db);
     await completarSugestoes(db);
