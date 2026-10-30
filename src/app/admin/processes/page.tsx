@@ -66,11 +66,10 @@ export default async function AdminProcessesPage({ searchParams }: { searchParam
         <table className="ui-table">
           <thead>
             <tr>
-              <th className="px-5 py-2.5 font-medium">Número</th>
-              <th className="px-5 py-2.5 font-medium">Cliente</th>
-              <th className="px-5 py-2.5 font-medium">Vara / Tribunal</th>
-              <th className="px-5 py-2.5 font-medium">Área</th>
-              <th className="px-5 py-2.5 font-medium">Último andamento</th>
+              <th className="px-5 py-2.5 font-medium">Título</th>
+              <th className="px-5 py-2.5 font-medium">Cliente / pasta</th>
+              <th className="px-5 py-2.5 font-medium">Ação / foro</th>
+              <th className="px-5 py-2.5 font-medium">Últ. mov.</th>
               <th className="px-5 py-2.5 font-medium">Responsável</th>
               <th className="px-5 py-2.5 font-medium">Status</th>
               <th className="px-5 py-2.5 font-medium"></th>
@@ -79,7 +78,7 @@ export default async function AdminProcessesPage({ searchParams }: { searchParam
           <tbody className="divide-y divide-border">
             {processes.length === 0 && (
               <tr>
-                <td colSpan={8} className="px-5 py-12 text-center text-sm text-muted">
+                <td colSpan={7} className="px-5 py-12 text-center text-sm text-muted">
                   Nenhum processo cadastrado ainda.
                 </td>
               </tr>
@@ -87,14 +86,16 @@ export default async function AdminProcessesPage({ searchParams }: { searchParam
             {processes.map((p) => (
               <tr key={p.id}>
                 <td className="px-5 py-2.5 font-medium">
-                  <Link href={`/admin/processes/${p.id}`} className="text-navy hover:underline">
+                  <Link href={`/admin/processes/${p.id}`} className="text-status-info hover:underline">
                     {p.numero_processo}
                   </Link>
                   {p.titulo && <p className="max-w-xs truncate text-xs font-normal text-muted" title={p.titulo}>{p.titulo}</p>}
                 </td>
                 <td className="px-5 py-3 text-foreground/70">{p.clients?.name ?? (p.cliente_nome ? <span title="Sem ficha no portal">{p.cliente_nome} <span className="text-xs text-muted">(sem ficha)</span></span> : "—")}</td>
-                <td className="px-5 py-3 text-foreground/70">{p.vara_tribunal ?? "—"}</td>
-                <td className="px-5 py-3 text-foreground/70">{PROCESS_AREA_LABEL[p.area]}</td>
+                <td className="px-5 py-3 text-foreground/80">
+                  {PROCESS_AREA_LABEL[p.area]}
+                  <span className="block text-xs text-muted">{p.vara_tribunal ?? "—"}</span>
+                </td>
                 <td className="px-5 py-3 whitespace-nowrap text-foreground/70">{p.ultimo_andamento_em ? new Date(p.ultimo_andamento_em).toLocaleDateString("pt-BR", { timeZone: "America/Bahia" }) : "—"}</td>
                 <td className="px-5 py-3 text-foreground/70">{p.profiles?.full_name ?? p.responsavel_nome ?? "—"}</td>
                 <td className="px-5 py-3">

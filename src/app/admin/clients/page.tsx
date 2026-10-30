@@ -8,6 +8,7 @@ import { StatusBadge } from "@/components/ui/status-badge";
 import { listClients } from "@/lib/data/clients";
 import { exigirPermissao } from "@/lib/dal";
 import { createClient } from "@/lib/supabase/server";
+import { hojeBahia } from "@/lib/data/painel";
 
 const COR_ETAPA: Record<string, string> = {
   ficha_incompleta: "bg-status-danger",
@@ -39,6 +40,18 @@ export default async function AdminClientsPage({
     for (const p of data ?? []) processosPorCliente.set(p.client_id!, (processosPorCliente.get(p.client_id!) ?? 0) + 1);
   }
   const etapaDe = new Map(pipeline.map((c) => [c.id, c.etapa]));
+  // demandas em aberto por cliente: a lista abre com quem tem mais em aberto no topo
+  const abertasPorCliente = new Map<string, { n: number; atrasadas: number }>();
+  {
+    const hoje = hojeBahia();
+    const { data } = await (await createClient()).from("activities").select("client_id, deadline").in("status", ["aberta", "em_andamento"]).is("archived_at", null).not("client_id", "is", null);
+    for (const a of data ?? []) {
+      const x = abertasPorCliente.get(a.client_id!) ?? { n: 0, atrasadas: 0 };
+      x.n++;
+      if (a.deadline && a.deadline < hoje) x.atrasadas++;
+      abertasPorCliente.set(a.client_id!, x);
+    }
+  }
   const termo = (sp.busca ?? "").trim().toLowerCase();
   const clients = todos.filter(
     (c) =>
@@ -51,6 +64,7 @@ export default async function AdminClientsPage({
       (!sp.status || (sp.status === "ativo" ? c.active : !c.active)) &&
       (!sp.etapa || etapaDe.get(c.id) === sp.etapa)
   );
+  clients.sort((a, b) => (abertasPorCliente.get(b.id)?.n ?? 0) - (abertasPorCliente.get(a.id)?.n ?? 0) || (abertasPorCliente.get(b.id)?.atrasadas ?? 0) - (abertasPorCliente.get(a.id)?.atrasadas ?? 0) || a.name.localeCompare(b.name, "pt-BR"));
   const ids = new Set(clients.map((c) => c.id));
   const alternar = (ver: "lista" | "pipeline") => {
     const q = new URLSearchParams(Object.entries(sp).filter(([k, v]) => v && k !== "ver") as [string, string][]);
@@ -134,8 +148,8 @@ export default async function AdminClientsPage({
         <table className="ui-table">
           <thead>
             <tr>
-              <th className="w-12 pl-5">Nº</th>
               <th className="px-5 py-2.5 font-medium">Cliente</th>
+              <th className="px-5 py-2.5 font-medium">Em aberto</th>
               <th className="px-5 py-2.5 font-medium">{tipo === "PF" ? "Telefone" : "Tipo"}</th>
               <th className="px-5 py-2.5 font-medium">{tipo === "PF" ? "Processos" : "Etapa"}</th>
               <th className="px-5 py-2.5 font-medium">Cadastrado em</th>
@@ -150,11 +164,8 @@ export default async function AdminClientsPage({
                 </td>
               </tr>
             )}
-            {clients.map((c, i) => (
+            {clients.map((c) => (
               <tr key={c.id}>
-                <td className="pl-5">
-                  <span className="eyebrow !text-[11px] tabular-nums">{String(i + 1).padStart(2, "0")}</span>
-                </td>
                 <td className="px-5 py-3">
                   <Link href={`/admin/clients/${c.id}`} className="group flex items-center gap-3">
                     <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-navy text-[11px] font-semibold text-gold-2">
@@ -165,6 +176,18 @@ export default async function AdminClientsPage({
                       <span className="block text-xs text-muted">{[c.apelido && c.apelido !== c.name ? c.apelido : null, formatarDocumento(c.documento)].filter(Boolean).join(" · ")}</span>
                     </span>
                   </Link>
+                </td>
+                <td className="px-5 py-3 text-sm whitespace-nowrap">
+                  {(() => {
+                    const x = abertasPorCliente.get(c.id);
+                    if (!x) return <span className="text-muted">—</span>;
+                    return (
+                      <span className="inline-flex items-center gap-2">
+                        <span className="font-semibold text-foreground tabular-nums">{x.n}</span>
+                        {x.atrasadas > 0 && <span className="rounded-full bg-status-danger-bg px-2 py-0.5 text-xs font-semibold text-status-danger">{x.atrasadas} {x.atrasadas === 1 ? "atrasada" : "atrasadas"}</span>}
+                      </span>
+                    );
+                  })()}
                 </td>
                 <td className="px-5 py-3 text-foreground/70">{tipo === "PF" ? (formatarTelefone(c.telefones?.[0]) || "—") : c.tipo_pessoa}</td>
                 <td className="px-5 py-3 text-xs whitespace-nowrap text-foreground/75">

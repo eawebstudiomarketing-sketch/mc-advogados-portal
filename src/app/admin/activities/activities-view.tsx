@@ -279,9 +279,7 @@ export function ActivitiesView({
                       onChange={() => setSel(todas ? new Set() : new Set(todasAtividades.map((a) => a.id)))}
                     />
                   </th>
-                  <th className="w-10 px-2">Nº</th>
                   <th className="px-4">Atividade</th>
-                  <th className="hidden px-4 md:table-cell">Responsável</th>
                   <th className="px-4">Prazo</th>
                   <th className="px-4">Status</th>
                   <th className="px-4"></th>
@@ -290,7 +288,7 @@ export function ActivitiesView({
               <tbody className="divide-y divide-border">
                 {todasAtividades.length === 0 && (
                   <tr>
-                    <td colSpan={7} className="px-5 py-12 text-center text-sm text-muted">
+                    <td colSpan={5} className="px-5 py-12 text-center text-sm text-muted">
                       {arquivadas ? "Nenhuma atividade arquivada." : "Nenhuma atividade registrada ainda."}
                     </td>
                   </tr>
@@ -330,7 +328,7 @@ export function ActivitiesView({
                                 }
                               />
                             </td>
-                            <td colSpan={6} className="px-2 py-2.5">
+                            <td colSpan={4} className="px-2 py-2.5">
                               {/* o clique sobe até a linha, que alterna o grupo (por isso o botão não tem onClick) */}
                               <button
                                 type="button"
@@ -354,7 +352,7 @@ export function ActivitiesView({
                           </tr>
                         )}
                         {abertoAgora &&
-                          g.itens.map((a, n) => {
+                          g.itens.map((a) => {
                   const i = corrente++;
                   const marcada = sel.has(a.id);
                   return (
@@ -370,39 +368,22 @@ export function ActivitiesView({
                       <td className="pr-0 pl-5">
                         <Caixa checked={marcada} label={`Selecionar "${a.title}"`} onChange={(e) => alternar(i, e.shiftKey)} />
                       </td>
-                      <td className="px-2 align-middle">
-                        <span className="eyebrow !text-[11px] tabular-nums">{String(n + 1).padStart(2, "0")}</span>
-                      </td>
-                      <td className="max-w-[420px] px-4">
-                        <AtividadeLink id={a.id} className="block truncate font-medium text-foreground underline-offset-2 hover:underline">
+                      <td className="max-w-[560px] px-4 py-3">
+                        <AtividadeLink id={a.id} className="block font-medium text-status-info underline-offset-2 hover:underline">
                           {a.title}
                         </AtividadeLink>
-                        {(a.etiquetas ?? []).length > 0 && (
-                          <div className="mt-1">
-                            <EtiquetasLinha ids={a.etiquetas ?? []} todas={etiquetas} />
-                          </div>
-                        )}
-                        <p className="mt-0.5 truncate text-xs text-muted">
-                          {a.clients?.name ?? "Sem cliente"}
-                          <span className="mx-1.5 text-border-strong">·</span>
-                          {ACTIVITY_TYPE_LABEL[a.type]}
-                          {a.area ? (
-                            <>
-                              <span className="mx-1.5 text-border-strong">·</span>
-                              {a.area}
-                            </>
-                          ) : null}
-                        </p>
-                      </td>
-                      <td className="hidden px-4 md:table-cell">
-                        {nomeResponsavel(a) ? (
-                          <span className="inline-flex items-center gap-2 text-[13px] text-foreground/80">
-                            <Avatar nome={nomeResponsavel(a)!} foto={a.responsaveis?.foto_url} tamanho={26} />
-                            {nomeResponsavel(a)!.replace(/^(Dr\.?|Dra\.?)\s+/i, "").split(" ")[0]}
-                          </span>
-                        ) : (
-                          <span className="text-xs text-muted">—</span>
-                        )}
+                        <p className="mt-0.5 truncate text-[13px] text-foreground/75">{a.clients?.name ?? "Sem cliente"}</p>
+                        <div className="mt-1.5 flex flex-wrap items-center gap-1.5">
+                          {nomeResponsavel(a) && (
+                            <span title={nomeResponsavel(a)!} className="inline-flex items-center gap-1.5 rounded bg-navy px-1.5 py-0.5 text-xs font-bold tracking-wide text-white uppercase">
+                              {nomeResponsavel(a)!.replace(/^(Dr.?|Dra.?)s+/i, "").split(" ")[0]}
+                            </span>
+                          )}
+                          <span className="rounded bg-surface-2 px-1.5 py-0.5 text-xs font-semibold text-foreground/75">{ACTIVITY_TYPE_LABEL[a.type]}</span>
+                          {a.area && <span className="rounded bg-surface-2 px-1.5 py-0.5 text-xs font-semibold text-foreground/75">{a.area}</span>}
+                          {a.cliente_avisado_em && <span className="rounded bg-status-success-bg px-1.5 py-0.5 text-xs font-semibold text-status-success">Cliente avisado</span>}
+                          {(a.etiquetas ?? []).length > 0 && <EtiquetasLinha ids={a.etiquetas ?? []} todas={etiquetas} />}
+                        </div>
                       </td>
                       <td className="px-4 text-[13px] whitespace-nowrap">
                         {a.deadline ? (

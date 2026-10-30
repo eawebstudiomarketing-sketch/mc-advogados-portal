@@ -270,7 +270,7 @@ export function AdminShell({
           <p className="eyebrow">Painel do escritório</p>
         </div>
         {modo === "sempre" && (
-          <button type="button" onClick={() => setMenuMobile(false)} aria-label="Fechar menu" className="ml-auto rounded-lg p-1.5 text-muted hover:bg-surface-2">
+          <button type="button" onClick={() => setMenuMobile(false)} aria-label="Fechar menu" className="ml-auto rounded-lg p-1.5 text-muted hover:bg-surface-2 lg:hidden">
             <X className="h-5 w-5" />
           </button>
         )}
@@ -337,12 +337,10 @@ export function AdminShell({
   return (
     <AtividadeModalProvider>
     <div className="flex min-h-screen w-full bg-background">
-      {/* computador: trilho fino de ícones que abre (por cima do conteúdo) ao passar o mouse */}
-      <div className="sticky top-0 z-40 hidden h-screen w-[64px] shrink-0 lg:block">
-        <aside
-          className="group/menu absolute inset-y-0 left-0 z-40 w-[64px] overflow-hidden border-r border-border bg-surface transition-[width,box-shadow] duration-200 ease-[var(--ease-out)] hover:w-60 hover:shadow-[12px_0_40px_-16px_rgba(15,26,42,0.25)] focus-within:w-60"
-        >
-          {menu("hover")}
+      {/* computador: menu fixo com os nomes sempre à vista (como no Astrea) */}
+      <div className="sticky top-0 z-40 hidden h-screen w-[232px] shrink-0 lg:block">
+        <aside className="absolute inset-y-0 left-0 z-40 w-[232px] overflow-hidden border-r border-border bg-surface">
+          {menu("sempre")}
         </aside>
       </div>
 
