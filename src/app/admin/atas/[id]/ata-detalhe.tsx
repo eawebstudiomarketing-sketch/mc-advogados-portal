@@ -97,7 +97,12 @@ export function AtaDetalhe({
   // geração em andamento: confere a cada 5 s
   useEffect(() => {
     if (ata.status !== "processando" && ata.status !== "gerando") return;
-    const t = setInterval(() => router.refresh(), 5000);
+    let voltas = 0;
+    const t = setInterval(() => {
+      // depois de uns 45 s, recarrega a página inteira: se o site foi atualizado no meio da gravação, o refresh leve pode ficar preso
+      if (++voltas % 9 === 0) window.location.reload();
+      else router.refresh();
+    }, 5000);
     return () => clearInterval(t);
   }, [ata.status, router]);
 

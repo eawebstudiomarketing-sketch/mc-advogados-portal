@@ -1,6 +1,6 @@
 import "server-only";
 import { createHmac } from "node:crypto";
-import { ApiError, GoogleGenAI, ThinkingLevel, type File as ArquivoGemini } from "@google/genai";
+import { ApiError, GoogleGenAI, HarmBlockThreshold, HarmCategory, ThinkingLevel, type File as ArquivoGemini } from "@google/genai";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { MODELOS } from "@/lib/ia-modelos";
 import { createAdminClient } from "@/lib/supabase/admin";
@@ -148,6 +148,16 @@ function cliente() {
   return new GoogleGenAI({ apiKey });
 }
 
+// Reunião de escritório fala de crimes, violência e conflitos: sem filtro de segurança, o Gemini recusava a gravação inteira
+// (29/10: reunião de 47 min perdida com "A IA recusou este conteúdo"). Aqui o trabalho é só transcrever o que foi dito.
+const SEM_FILTRO = [
+  HarmCategory.HARM_CATEGORY_HARASSMENT,
+  HarmCategory.HARM_CATEGORY_HATE_SPEECH,
+  HarmCategory.HARM_CATEGORY_SEXUALLY_EXPLICIT,
+  HarmCategory.HARM_CATEGORY_DANGEROUS_CONTENT,
+].map((category) => ({ category, threshold: HarmBlockThreshold.BLOCK_NONE }));
+const RECUSA = "A IA recusou este conteúdo.";
+
 type ParteIA = { text: string } | { fileData: { fileUri: string; mimeType: string } } | { inlineData: { data: string; mimeType: string } };
 
 async function gerarTexto(ai: GoogleGenAI, sistema: string, partes: ParteIA[]): Promise<string> {
@@ -156,12 +166,12 @@ async function gerarTexto(ai: GoogleGenAI, sistema: string, partes: ParteIA[]): 
       const r = await ai.models.generateContent({
         model: MODELOS.transcricao,
         contents: [{ role: "user", parts: partes }],
-        config: { systemInstruction: sistema, maxOutputTokens: 32_768, temperature: 0.2, thinkingConfig: { thinkingLevel: ThinkingLevel.LOW } },
+        config: { systemInstruction: sistema, maxOutputTokens: 32_768, temperature: 0.2, thinkingConfig: { thinkingLevel: ThinkingLevel.LOW }, safetySettings: SEM_FILTRO },
       });
       const fim = r.candidates?.[0]?.finishReason;
       // GEMINI_LOG_TOKENS=1: mostra o consumo de cada pedido (para medir custo)
       if (process.env.GEMINI_LOG_TOKENS) console.info("gemini tokens:", JSON.stringify(r.usageMetadata));
-      if (r.promptFeedback?.blockReason || fim === "SAFETY" || fim === "PROHIBITED_CONTENT") throw new Error("A IA recusou este conteúdo.");
+      if (r.promptFeedback?.blockReason || fim === "SAFETY" || fim === "PROHIBITED_CONTENT") throw new Error(RECUSA);
       return (r.text ?? "").trim();
     } catch (e) {
       // instabilidade/limite: tenta mais 2 vezes
@@ -275,8 +285,17 @@ export async function transcrever(
         partes.map((p, i) => async () => {
           const pedaco = await baixarTrecho(id, p.ini, p.fim - p.ini);
           const pedido = `Este áudio é o trecho ${i + 1} de ${partes.length} de uma gravação maior (cortado numa pausa). Transcreva este trecho inteiro.`;
-          const t = await gerarTexto(ai, sistema, [{ inlineData: { data: pedaco.toString("base64"), mimeType: "audio/ogg" } }, { text: pedido }]);
-          return deslocarTempos(t, p.ini);
+          try {
+            const t = await gerarTexto(ai, sistema, [{ inlineData: { data: pedaco.toString("base64"), mimeType: "audio/ogg" } }, { text: pedido }]);
+            return deslocarTempos(t, p.ini);
+          } catch (e) {
+            // um trecho recusado não derruba a reunião inteira: fica o aviso no lugar e o resto é entregue
+            if (e instanceof Error && e.message === RECUSA) {
+              const mmss = (s: number) => `${Math.floor(s / 60)}:${String(Math.floor(s % 60)).padStart(2, "0")}`;
+              return `[Trecho de ${mmss(p.ini)} a ${mmss(p.fim)} não transcrito: a IA recusou esse trecho.]`;
+            }
+            throw e;
+          }
         }),
         PARALELO
       );
