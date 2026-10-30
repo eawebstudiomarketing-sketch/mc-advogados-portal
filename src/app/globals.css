@@ -19,10 +19,10 @@
   --border-strong: #d1d6db;
   --muted: #6c757d;
 
-  /* azul do Astrea nas ações; --navy-2 continua escuro (painéis, dicas) */
-  --navy: #1e88e5;
+  /* azul escuro do escritório nas ações (o visual do Astrea, com a cor da MC) */
+  --navy: #0b2545;
   --navy-2: #0a1b31;
-  --navy-3: #1769c2;
+  --navy-3: #13325a;
   --navy-foreground: #ffffff;
   --gold: #c6a24f;
   --gold-2: #e1cd93;
@@ -36,8 +36,8 @@
   --status-pending-bg: #fdf5e6;
   --status-danger: #c81e1e;
   --status-danger-bg: #fdeeee;
-  --status-info: #1769c2;
-  --status-info-bg: #e8f1fc;
+  --status-info: #1a4a8a;
+  --status-info-bg: #e8eef7;
 
   --shadow-sm: none;
   --shadow-md: 0 1px 2px rgba(15, 26, 42, 0.04), 0 6px 16px -6px rgba(15, 26, 42, 0.1);
@@ -63,9 +63,9 @@
   --wa-fundo: #efeae2;
   --wa-entrada: #ffffff;
   --wa-entrada-ink: #111b21;
-  --focus-ring: rgba(30, 136, 229, 0.18);
+  --focus-ring: rgba(19, 50, 90, 0.16);
   --tip-bg: var(--navy-2);
-  --btn-hover: #1976d2;
+  --btn-hover: var(--navy-3);
 
   /* formulário de onboarding (paleta própria) */
   --ob-paper: #f7f4ee;
