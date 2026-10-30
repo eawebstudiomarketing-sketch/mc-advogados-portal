@@ -331,9 +331,9 @@ export function ActivitiesView({
                               />
                             </td>
                             <td colSpan={6} className="px-2 py-2.5">
+                              {/* o clique sobe até a linha, que alterna o grupo (por isso o botão não tem onClick) */}
                               <button
                                 type="button"
-                                onClick={() => alternarGrupo(g.chave)}
                                 aria-expanded={abertoAgora}
                                 className="flex w-full items-center gap-2 text-left"
                               >
