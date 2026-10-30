@@ -148,12 +148,12 @@ export default async function AdminClientsPage({
         <table className="ui-table">
           <thead>
             <tr>
-              <th className="px-5 py-2.5 font-medium">Cliente</th>
-              <th className="px-5 py-2.5 font-medium">Em aberto</th>
-              <th className="px-5 py-2.5 font-medium">{tipo === "PF" ? "Telefone" : "Tipo"}</th>
-              <th className="px-5 py-2.5 font-medium">{tipo === "PF" ? "Processos" : "Etapa"}</th>
-              <th className="px-5 py-2.5 font-medium">Cadastrado em</th>
-              <th className="px-5 py-2.5 font-medium">Status</th>
+              <th className="px-3 py-2.5 font-medium">Cliente</th>
+              <th className="px-3 py-2.5 font-medium">Em aberto</th>
+              <th className="px-3 py-2.5 font-medium">{tipo === "PF" ? "Telefone" : "Tipo"}</th>
+              <th className="px-3 py-2.5 font-medium">{tipo === "PF" ? "Processos" : "Etapa"}</th>
+              <th className="px-3 py-2.5 font-medium whitespace-nowrap">Cadastro</th>
+              <th className="px-3 py-2.5 font-medium">Status</th>
             </tr>
           </thead>
           <tbody className="divide-y divide-border">
@@ -166,7 +166,7 @@ export default async function AdminClientsPage({
             )}
             {clients.map((c) => (
               <tr key={c.id}>
-                <td className="px-5 py-3">
+                <td className="px-3 py-3">
                   <Link href={`/admin/clients/${c.id}`} className="group flex items-center gap-3">
                     <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-navy text-[11px] font-semibold text-gold-2">
                       {c.name.replace(/[^A-Za-zÀ-ú0-9 ]/g, "").trim().slice(0, 2).toUpperCase()}
@@ -177,7 +177,7 @@ export default async function AdminClientsPage({
                     </span>
                   </Link>
                 </td>
-                <td className="px-5 py-3 text-sm whitespace-nowrap">
+                <td className="px-3 py-3 text-sm whitespace-nowrap">
                   {(() => {
                     const x = abertasPorCliente.get(c.id);
                     if (!x) return <span className="text-muted">—</span>;
@@ -189,8 +189,8 @@ export default async function AdminClientsPage({
                     );
                   })()}
                 </td>
-                <td className="px-5 py-3 text-foreground/70">{tipo === "PF" ? (formatarTelefone(c.telefones?.[0]) || "—") : c.tipo_pessoa}</td>
-                <td className="px-5 py-3 text-xs whitespace-nowrap text-foreground/75">
+                <td className="px-3 py-3 text-foreground/70">{tipo === "PF" ? (formatarTelefone(c.telefones?.[0]) || "—") : c.tipo_pessoa}</td>
+                <td className="px-3 py-3 text-xs whitespace-nowrap text-foreground/75">
                   {tipo === "PF" ? (
                     processosPorCliente.get(c.id) ?? 0
                   ) : etapaDe.get(c.id) ? (
@@ -202,10 +202,10 @@ export default async function AdminClientsPage({
                     "—"
                   )}
                 </td>
-                <td className="px-5 py-3 text-foreground/70">
+                <td className="px-3 py-3 text-foreground/70">
                   {new Date(c.created_at).toLocaleDateString("pt-BR")}
                 </td>
-                <td className="px-5 py-3">
+                <td className="px-3 py-3">
                   <StatusBadge status={c.active ? "ativo" : "inativo"} />
                 </td>
               </tr>
