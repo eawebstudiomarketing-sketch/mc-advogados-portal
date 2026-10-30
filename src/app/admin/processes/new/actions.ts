@@ -2,6 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 import { requireRole, temPermissao } from "@/lib/dal";
+import type { SupabaseClient } from "@supabase/supabase-js";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { PROCESS_AREAS, type ProcessArea } from "@/lib/process-area";
 import { djenPorNome, djenPorOab, mascaraCnj, nomePeloCnpj, type ProcessoAchado } from "@/lib/processos-busca/fontes";
@@ -28,7 +29,8 @@ const msg = (e: unknown) => (e instanceof Error ? e.message : String(e));
 /** Marca, em cada achado, se o processo já está no portal ou aguardando aprovação. */
 async function situacao(itens: ProcessoAchado[]): Promise<Achado[]> {
   if (!itens.length) return [];
-  const db = createAdminClient();
+  // processos_candidatos ainda não está nos tipos gerados (migration 0057)
+  const db = createAdminClient() as unknown as SupabaseClient;
   const dig = itens.map((i) => i.digitos);
   const [{ data: procs }, { data: cands }] = await Promise.all([
     db.from("processes").select("id, numero_digitos").in("numero_digitos", dig),

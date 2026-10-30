@@ -28,7 +28,7 @@ export function areaDe(classe: string | null, tribunal: string | null, numero: s
 }
 
 /** Título a partir das partes (autor x réu) ou da classe. */
-export function tituloDe(partes: { nome?: string; polo?: string }[], classe: string | null): string | null {
+export function tituloDe(partes: { nome?: string; polo?: string | null }[], classe: string | null): string | null {
   const nomes = (partes ?? []).map((p) => p.nome).filter(Boolean) as string[];
   if (nomes.length >= 2) return `${nomes[0]} x ${nomes[1]}`.slice(0, 300);
   if (nomes.length === 1) return nomes[0].slice(0, 300);
