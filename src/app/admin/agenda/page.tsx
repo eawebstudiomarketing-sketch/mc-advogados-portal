@@ -7,6 +7,7 @@ import { listPessoas } from "@/lib/data/escritorio";
 import { responsavelDoPerfil } from "@/lib/data/responsaveis";
 import { BarraFiltros } from "@/components/ui/barra-filtros";
 import { MeuDia } from "./meu-dia";
+import { DiaAlvo, ItemArrastavel } from "./arrastar";
 import { QuemFiltro } from "./quem-filtro";
 import { PeriodoFiltro } from "@/components/ui/periodo-filtro";
 import { lerPeriodo } from "@/lib/periodo";
@@ -318,6 +319,7 @@ export default async function AgendaPage({ searchParams }: { searchParams: Promi
               </Link>
             </div>
             <div className="flex flex-wrap items-center gap-3 text-[11px] text-muted">
+              <span className="hidden lg:inline">Arraste um item para outro dia para remarcar ·</span>
               {Object.entries(ROTULO).map(([k, v]) => (
                 <span key={k} className="flex items-center gap-1.5">
                   <span className={`h-2.5 w-2.5 rounded-sm border-l-2 ${COR[k]}`} aria-hidden /> {v}
@@ -341,7 +343,7 @@ export default async function AgendaPage({ searchParams }: { searchParams: Promi
               const doMes = d.slice(0, 7) === `${ano}-${pad(m)}`;
               const lista = porDia.get(d) ?? [];
               return (
-                <div key={d} className={`group/dia relative min-h-24 border-r border-b border-border p-1.5 [&:nth-child(7n)]:border-r-0 ${doMes ? "" : "bg-surface-2/60"}`}>
+                <DiaAlvo key={d} dia={d} className={`group/dia relative min-h-24 border-r border-b border-border p-1.5 [&:nth-child(7n)]:border-r-0 ${doMes ? "" : "bg-surface-2/60"}`}>
                   <div className="mb-1 flex items-center justify-between">
                     <Link
                       href={`/admin/agenda/compromisso/novo?dia=${d}`}
@@ -362,6 +364,7 @@ export default async function AgendaPage({ searchParams }: { searchParams: Promi
                   <ul className="space-y-1">
                     {lista.slice(0, 3).map((it) => (
                       <li key={`${it.categoria}-${it.id}`}>
+                        <ItemArrastavel carga={{ tipo: it.categoria === "compromisso" ? "compromisso" : "atividade", id: it.id, dia: it.dia }}>
                         <Link
                           href={it.href}
                           title={`${ROTULO[it.categoria] ?? "Tarefa"}${it.hora ? ` às ${it.hora}` : ""}: ${it.titulo}${it.cliente ? ` · ${it.cliente}` : ""}`}
@@ -372,6 +375,7 @@ export default async function AgendaPage({ searchParams }: { searchParams: Promi
                           {it.hora ? <strong className="font-semibold">{it.hora} </strong> : null}
                           {it.titulo}
                         </Link>
+                        </ItemArrastavel>
                       </li>
                     ))}
                     {lista.length > 3 && (
@@ -382,7 +386,7 @@ export default async function AgendaPage({ searchParams }: { searchParams: Promi
                       </li>
                     )}
                   </ul>
-                </div>
+                </DiaAlvo>
               );
             })}
           </div>

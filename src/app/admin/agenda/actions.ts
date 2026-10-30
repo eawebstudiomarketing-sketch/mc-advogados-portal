@@ -5,7 +5,7 @@ import { destinoDeVolta } from "@/lib/voltar";
 import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
 import { exigirPermissao } from "@/lib/dal";
-import { reagendarLembretes, cancelarLembretes } from "@/lib/zap/lembretes";
+import { reagendarLembretes, cancelarLembretes, reagendarAudienciaDaAtividade } from "@/lib/zap/lembretes";
 import { criarAvisos } from "@/lib/avisos";
 import { createAdminClient } from "@/lib/supabase/admin";
 
@@ -97,4 +97,34 @@ export async function excluirCompromissoAction(formData: FormData): Promise<void
   if (!error) await cancelarLembretes(id);
   revalidatePath("/admin/agenda");
   redirect("/admin/agenda");
+}
+
+/**
+ * Arrastar na agenda do mês (item 23 da auditoria, 30/10/2026): muda o dia de
+ * uma atividade (prazo) ou de um compromisso (mantém o horário). Os lembretes
+ * do WhatsApp são refeitos como numa edição normal.
+ */
+export async function remarcarNaAgendaAction(tipo: "atividade" | "compromisso", id: string, dia: string): Promise<{ ok: true } | { ok: false; error: string }> {
+  const { profile } = await exigirPermissao("agenda");
+  if (!/^[0-9a-f-]{36}$/i.test(id) || !/^\d{4}-\d{2}-\d{2}$/.test(dia)) return { ok: false, error: "Dados inválidos." };
+  const supabase = await createClient();
+
+  if (tipo === "atividade") {
+    const { data, error } = await supabase.from("activities").update({ deadline: dia }).eq("id", id).select("id");
+    if (error || !data?.length) return { ok: false, error: "Não foi possível remarcar a atividade." };
+    await reagendarAudienciaDaAtividade(id).catch(() => undefined);
+    revalidatePath("/admin/activities");
+  } else {
+    const { data: c } = await supabase.from("compromissos").select("id, tipo, titulo, inicio, fim, local, client_id, lembrar_cliente").eq("id", id).maybeSingle();
+    if (!c) return { ok: false, error: "Compromisso não encontrado." };
+    const hora = (iso: string) => new Date(iso).toLocaleTimeString("pt-BR", { timeZone: "America/Bahia", hour: "2-digit", minute: "2-digit", hourCycle: "h23" });
+    const inicio = new Date(`${dia}T${hora(c.inicio)}:00-03:00`).toISOString();
+    const fim = c.fim ? new Date(Date.parse(c.fim) + (Date.parse(inicio) - Date.parse(c.inicio))).toISOString() : null;
+    const { error } = await supabase.from("compromissos").update({ inicio, fim, updated_at: new Date().toISOString() }).eq("id", id);
+    if (error) return { ok: false, error: "Não foi possível remarcar o compromisso." };
+    await reagendarLembretes({ id, tipo: c.tipo, criacao: false, titulo: c.titulo, inicio, local: c.local, client_id: c.client_id, lembrar_cliente: c.lembrar_cliente }, profile.id).catch(() => undefined);
+  }
+  revalidatePath("/admin/agenda");
+  revalidatePath("/admin");
+  return { ok: true };
 }
