@@ -186,9 +186,13 @@ async function rotinaDaPessoa({
   atribuidos: Map<string, string>;
 }) {
   const href = (a: string, extra = "") => `${ROTAS}?pessoa=${alvo.id}&aba=${a}${extra}`;
+  // a própria rotina aparece igual para todos (inclusive o admin máximo): só o dia, sem configuração;
+  // a configuração da própria rotina só abre quando pedida (vindo de "Nova rotina")
+  const propria = alvo.id === eu;
+  const mostrarConfig = souSuper && (!propria || aba !== "hoje");
   const abas = [
     ["hoje", "Hoje"],
-    ...(souSuper ? ([["config", "Tarefas fixas"], ["perguntas", "Perguntas do relatório"]] as const) : []),
+    ...(mostrarConfig ? ([["config", "Tarefas fixas"], ["perguntas", "Perguntas do relatório"]] as const) : []),
   ] as readonly (readonly [string, string])[];
 
   const cabecalho = <Avatar nome={alvo.nome} foto={alvo.foto} tamanho={40} />;
@@ -392,11 +396,12 @@ async function rotinaDaPessoa({
 
   return (
     <ModalRotina titulo={alvo.nome} subtitulo={alvo.id === eu ? "Sua rotina" : "Rotina"} fecharHref={ROTAS} cabecalho={cabecalho}>
-      {souSuper && (comItens.has(alvo.id) || atribuidos.has(alvo.id)) && (
+      {souSuper && !propria && (comItens.has(alvo.id) || atribuidos.has(alvo.id)) && (
         <div className="-mt-1 mb-4 flex justify-end">
           <ExcluirRotina responsavelId={alvo.id} nome={alvo.nome} />
         </div>
       )}
+      {abas.length > 1 && (
       <nav className="-mt-1 mb-5 flex gap-5 border-b border-border" aria-label="Seções da rotina">
         {abas.map(([id, rotulo]) => (
           <Link
@@ -410,6 +415,7 @@ async function rotinaDaPessoa({
           </Link>
         ))}
       </nav>
+      )}
       {corpo}
     </ModalRotina>
   );
