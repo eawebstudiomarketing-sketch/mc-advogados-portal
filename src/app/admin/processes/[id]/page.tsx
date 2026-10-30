@@ -2,6 +2,7 @@ import { Fragment } from "react";
 import { Download, Star } from "lucide-react";
 import { DriveIcon } from "@/components/ui/drive-icon";
 import Link from "next/link";
+import { CopiarNumero } from "@/components/ui/copiar-numero";
 import { EtiquetasAstrea, TextoAstrea } from "@/components/ui/texto-astrea";
 import { notFound } from "next/navigation";
 import { getProcess } from "@/lib/data/processes";
@@ -60,8 +61,10 @@ export default async function ProcessDetailPage({ params, searchParams }: { para
 
       <div className="mt-3 mb-6 flex flex-wrap items-start justify-between gap-3">
         <div className="min-w-0">
-          <p className="eyebrow mb-1">Processo {process.numero_processo}</p>
           <h1 className="page-title">{process.titulo ?? process.numero_processo}</h1>
+          <p className="mt-1 text-sm text-muted">
+            Processo nº <CopiarNumero numero={process.numero_processo} />
+          </p>
           <p className="mt-1 text-sm text-muted">
             {process.client_id ? (
               <Link href={`/admin/clients/${process.client_id}`} className="font-medium text-navy-3 underline-offset-2 hover:underline">

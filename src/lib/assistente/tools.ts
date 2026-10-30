@@ -19,6 +19,7 @@ import { TOOLS_TRANSCRICAO } from "./tools-transcricao";
 import { TOOLS_ATAS } from "./tools-atas";
 import { TOOLS_INDICADORES } from "./tools-indicadores";
 import { TOOLS_ROTINAS } from "./tools-rotinas";
+import { TOOLS_PROCESSOS_BUSCA } from "./tools-processos-busca";
 import { toolsRedesenho } from "./tools-redesenho";
 import { TOOLS_PAINEL } from "./tools-painel";
 import { toolsOperacao } from "./tools-operacao";
@@ -845,6 +846,7 @@ export const TOOLS: ToolDef[] = [
   ...TOOLS_ATAS,
   ...TOOLS_INDICADORES,
   ...TOOLS_ROTINAS,
+  ...TOOLS_PROCESSOS_BUSCA,
   ...TOOLS_PAINEL,
   ...toolsOperacao(db),
   ...toolsSistema(db),
