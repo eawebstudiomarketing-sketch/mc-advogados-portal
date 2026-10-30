@@ -1,7 +1,7 @@
 import "server-only";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { createAdminClient } from "@/lib/supabase/admin";
-import { datajudResumo, mascaraCnj, tribunalDoNumero } from "@/lib/processos-busca/fontes";
+import { classeLegivel, datajudResumo, mascaraCnj, tribunalDoNumero } from "@/lib/processos-busca/fontes";
 
 // Criar processo a partir do DJEN (30/10/2026). Peça que substitui o Astrea na DESCOBERTA de caso
 // novo: quando chega uma publicação (pela OAB do escritório) de um número CNJ que o portal ainda não
@@ -76,7 +76,7 @@ export async function criarProcessosDoDJEN(db: Db = createAdminClient(), janelaD
     const resumo = {
       tribunal: dj?.tribunal ?? p!.tribunal ?? tribunalDoNumero(numero),
       grau: dj?.grau ?? null,
-      classe: dj?.classe ?? p!.classe ?? null,
+      classe: dj?.classe ?? classeLegivel(p!.classe),
       assuntos: dj?.assuntos ?? [],
       orgao: dj?.orgao ?? p!.orgao ?? null,
       sistema: dj?.sistema ?? null,

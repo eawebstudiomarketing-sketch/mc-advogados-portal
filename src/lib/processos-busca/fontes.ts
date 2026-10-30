@@ -71,6 +71,22 @@ async function djen(params: Record<string, string>, paginas = 2): Promise<Comuni
   return todas;
 }
 
+const MINUSCULAS = new Set(["de", "da", "do", "das", "dos", "e", "em", "a", "o", "ao", "à", "na", "no", "por", "com", "para"]);
+
+/** O DJEN manda a classe em maiúsculas com acento minúsculo ("AçãO TRABALHISTA"): vira "Ação Trabalhista". */
+export function classeLegivel(classe: string | null | undefined): string | null {
+  if (!classe) return null;
+  const letras = classe.replace(/[^\p{L}]/gu, "");
+  const maiusculas = letras.replace(/[^\p{Lu}]/gu, "").length;
+  if (maiusculas < letras.length * 0.6) return classe.trim(); // já está normal
+  return classe
+    .toLocaleLowerCase("pt-BR")
+    .trim()
+    .split(/(\s+|-|\/)/)
+    .map((w, i) => (i > 0 && MINUSCULAS.has(w) ? w : w.charAt(0).toLocaleUpperCase("pt-BR") + w.slice(1)))
+    .join("");
+}
+
 const POLO: Record<string, string> = { A: "Ativo", P: "Passivo", T: "Terceiro", D: "Destinatário" };
 
 /** Junta as publicações por processo (mais recente primeiro). */
@@ -87,7 +103,7 @@ export function agruparPorProcesso(itens: ComunicacaoDJEN[]): ProcessoAchado[] {
         digitos,
         tribunal: it.siglaTribunal ?? tribunalDoNumero(digitos),
         orgao: it.nomeOrgao ?? null,
-        classe: it.nomeClasse ?? null,
+        classe: classeLegivel(it.nomeClasse),
         partes: [],
         advogados: [],
         publicacoes: 0,

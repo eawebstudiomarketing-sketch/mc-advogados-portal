@@ -123,6 +123,7 @@ export async function getCandidato(id: string, db: Db = createAdminClient()): Pr
   return (data as Candidato) ?? null;
 }
 
+const ordemPolo = (polo: string | null) => (polo === "Ativo" ? 0 : polo === "Passivo" ? 1 : 2);
 const POLO_PORTAL = (polo: string | null): "ativo" | "passivo" | "outro" => (polo === "Ativo" ? "ativo" : polo === "Passivo" ? "passivo" : "outro");
 
 export type OpcoesAprovar = { clientId: string | null; area: ProcessArea | null; responsibleId: string | null };
@@ -150,7 +151,8 @@ export async function aprovarCandidato(id: string, opcoes: OpcoesAprovar, decidi
         client_id: opcoes.clientId,
         area: opcoes.area ?? areaDe(r.classe ?? null, r.tribunal ?? null, c.numero_processo),
         status: "ativo",
-        titulo: tituloDe(r.partes ?? [], r.classe ?? null),
+        // título = polo ativo x polo passivo
+        titulo: tituloDe([...(r.partes ?? [])].sort((a, b) => ordemPolo(a.polo) - ordemPolo(b.polo)), r.classe ?? null),
         classe: r.classe ?? null,
         vara_tribunal: [r.orgao, r.tribunal].filter(Boolean).join(" · ") || null,
         partes,
