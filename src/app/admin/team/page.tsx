@@ -128,7 +128,15 @@ export default async function AdminTeamPage({ searchParams }: { searchParams: Pr
                 {t.full_name.replace(/^(Dr\.?|Dra\.?)\s+/i, "").slice(0, 2).toUpperCase()}
               </span>
               <div className="min-w-0 flex-1">
-                <p className="font-medium text-foreground">{t.full_name}</p>
+                <p className="font-medium text-foreground">
+                  {souSuper ? (
+                    <Link href={`/admin/team/${t.id}`} className="underline-offset-2 hover:underline">
+                      {t.full_name}
+                    </Link>
+                  ) : (
+                    t.full_name
+                  )}
+                </p>
                 <p className="truncate text-xs text-muted">{t.email}</p>
               </div>
               <span className="inline-flex items-center gap-1.5 rounded-full bg-gold-soft px-2.5 py-1 text-xs font-medium text-gold-ink">

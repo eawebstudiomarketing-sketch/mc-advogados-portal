@@ -1,6 +1,7 @@
 "use client";
 
 import { useMemo, useState, useTransition } from "react";
+import Link from "next/link";
 import { ChevronDown, Search, ShieldCheck, Users } from "lucide-react";
 import { toast } from "sonner";
 import { PERMISSOES, type Permissoes } from "@/lib/permissoes";
@@ -124,7 +125,14 @@ export function MembroCard({
         </span>
         <div className="min-w-0 flex-1">
           <p className="font-medium text-foreground">
-            {membro.nome} {!ativo && <span className="ml-1 rounded-full bg-surface-2 px-2 py-0.5 text-[11px] font-medium text-muted">Desativado</span>}
+            {podeEditar ? (
+              <Link href={`/admin/team/${membro.id}`} className="underline-offset-2 hover:underline" title="Abrir a página da pessoa">
+                {membro.nome}
+              </Link>
+            ) : (
+              membro.nome
+            )}{" "}
+            {!ativo && <span className="ml-1 rounded-full bg-surface-2 px-2 py-0.5 text-[11px] font-medium text-muted">Desativado</span>}
           </p>
           <p className="truncate text-xs text-muted">
             {membro.email} · {papel === "admin" ? "Administrador(a)" : "Advogado(a)"} ·{" "}

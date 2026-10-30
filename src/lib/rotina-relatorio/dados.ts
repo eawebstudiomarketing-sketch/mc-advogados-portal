@@ -269,3 +269,9 @@ export async function notasDeRotina(ini: string, fim: string): Promise<Map<strin
   }
   return new Map([...soma].map(([id, x]) => [id, { media: Math.round((x.s / x.n) * 10) / 10, relatorios: x.n }]));
 }
+
+/** Histórico de relatórios de uma pessoa (do mais novo para o mais antigo). */
+export async function historicoDaPessoa(responsavelId: string, limite = 60): Promise<RelatorioDoDia[]> {
+  const { data } = await db().from("rotina_relatorios").select("*").eq("responsavel_id", responsavelId).order("dia", { ascending: false }).limit(limite);
+  return ((data ?? []) as Linha[]).map(paraRelatorio);
+}
