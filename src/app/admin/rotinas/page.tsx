@@ -13,6 +13,7 @@ import { ModalRotina } from "@/components/rotina/modal-rotina";
 import { RelatorioDoDia } from "@/components/rotina/relatorio-do-dia";
 import { AprovarRelatorio } from "@/components/rotina/aprovar-relatorio";
 import { ExcluirRotina } from "@/components/rotina/excluir-rotina";
+import { MenuRotina } from "@/components/rotina/menu-rotina";
 import { concluidasNoDia } from "@/lib/rotina-relatorio/dia";
 import { carregarModelos, demandasVencidas, equipeDe, lerRelatorio, modelosAtribuidos, modeloDaPessoa, relatoriosDoDia } from "@/lib/rotina-relatorio/dados";
 import { RelatorioLeitura } from "@/components/rotina/relatorio-leitura";
@@ -79,9 +80,14 @@ export default async function RotinasPage({ searchParams }: { searchParams: Prom
             const venc = vencidas.get(p.id) ?? 0;
             const temModelo = atribuidos.has(p.id);
             return (
-              <li key={p.id}>
+              <li key={p.id} className="relative">
+                {souSuper && (
+                  <div className="absolute top-3 right-3 z-10">
+                    <MenuRotina responsavelId={p.id} nome={p.nome} />
+                  </div>
+                )}
                 <Link href={`${ROTAS}?pessoa=${p.id}`} scroll={false} className="ui-card block p-4 transition-colors hover:bg-hover">
-                  <div className="flex items-center gap-3">
+                  <div className={`flex items-center gap-3 ${souSuper ? "pr-9" : ""}`}>
                     <Avatar nome={p.nome} foto={p.foto} tamanho={40} />
                     <div className="min-w-0 flex-1">
                       <p className="truncate font-medium text-foreground">{p.nome}</p>
