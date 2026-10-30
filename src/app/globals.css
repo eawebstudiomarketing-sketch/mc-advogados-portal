@@ -11,17 +11,18 @@
 
 :root {
   color-scheme: light;
-  --background: #fafaf8;
-  --foreground: #0d1117;
+  --background: #ffffff;
+  --foreground: #202124;
   --surface: #ffffff;
-  --surface-2: #f6f6f3;
-  --border: #e8e8e4;
-  --border-strong: #d6d6d0;
-  --muted: #6b6f76;
+  --surface-2: #f1f3f4;
+  --border: #e3e6e9;
+  --border-strong: #d1d6db;
+  --muted: #6c757d;
 
-  --navy: #0b2545;
+  /* azul do Astrea nas ações; --navy-2 continua escuro (painéis, dicas) */
+  --navy: #1e88e5;
   --navy-2: #0a1b31;
-  --navy-3: #13325a;
+  --navy-3: #1769c2;
   --navy-foreground: #ffffff;
   --gold: #c6a24f;
   --gold-2: #e1cd93;
@@ -35,18 +36,18 @@
   --status-pending-bg: #fdf5e6;
   --status-danger: #c81e1e;
   --status-danger-bg: #fdeeee;
-  --status-info: #1d4ed8;
-  --status-info-bg: #ebf1fe;
+  --status-info: #1769c2;
+  --status-info-bg: #e8f1fc;
 
-  --shadow-sm: 0 1px 1px rgba(13, 17, 23, 0.03);
+  --shadow-sm: none;
   --shadow-md: 0 1px 2px rgba(15, 26, 42, 0.04), 0 6px 16px -6px rgba(15, 26, 42, 0.1);
   --shadow-lg: 0 2px 4px rgba(15, 26, 42, 0.04), 0 18px 40px -12px rgba(15, 26, 42, 0.22);
   --ease-out: cubic-bezier(0.16, 1, 0.3, 1);
 
   /* tons de apoio (antes eram cores fixas nas telas) */
-  --hover: #f7f7f4;
-  --track: #eceef2;
-  --label: #2b3038;
+  --hover: #f6f8f9;
+  --track: #eceff1;
+  --label: #3c4043;
   --placeholder: #98a2b3;
   --input-hover: #b9c0cc;
   --btn2-hover-border: #bdbdb6;
@@ -62,9 +63,9 @@
   --wa-fundo: #efeae2;
   --wa-entrada: #ffffff;
   --wa-entrada-ink: #111b21;
-  --focus-ring: rgba(19, 50, 90, 0.14);
+  --focus-ring: rgba(30, 136, 229, 0.18);
   --tip-bg: var(--navy-2);
-  --btn-hover: var(--navy-3);
+  --btn-hover: #1976d2;
 
   /* formulário de onboarding (paleta própria) */
   --ob-paper: #f7f4ee;
@@ -202,9 +203,9 @@
   --shadow-lg: var(--shadow-lg);
   --ease-out: var(--ease-out);
 
-  --font-sans: var(--font-geist-sans);
+  --font-sans: var(--font-nunito);
   --font-mono: var(--font-geist-mono);
-  --font-display: var(--font-inter-tight);
+  --font-display: var(--font-nunito);
 
   --animate-enter: enter 220ms var(--ease-out) both;
   --animate-page: page-in 200ms var(--ease-out) both;
@@ -244,7 +245,7 @@ html {
 body {
   background: var(--background);
   color: var(--foreground);
-  font-feature-settings: "cv11", "ss01";
+  font-family: var(--font-nunito), system-ui, sans-serif;
 }
 
 ::selection {
@@ -283,27 +284,21 @@ select {
 
 /* título de página */
 @utility page-title {
-  font-family: var(--font-inter-tight), var(--font-geist-sans), sans-serif;
-  font-size: 2rem;
-  line-height: 2.25rem;
-  font-weight: 700;
-  letter-spacing: -0.028em;
-  word-spacing: 0.06em;
+  font-family: var(--font-nunito), sans-serif;
+  font-size: 1.5rem;
+  line-height: 2rem;
+  font-weight: 400;
+  letter-spacing: 0;
   color: var(--foreground);
-  @media (max-width: 640px) {
-    font-size: 1.625rem;
-    line-height: 1.875rem;
-  }
 }
 
 /* título de seção dentro de cartão */
 @utility section-title {
-  font-family: var(--font-inter-tight), var(--font-geist-sans), sans-serif;
-  font-size: 1rem;
-  line-height: 1.375rem;
-  font-weight: 700;
-  letter-spacing: -0.012em;
-  word-spacing: 0.04em;
+  font-family: var(--font-nunito), sans-serif;
+  font-size: 1.0625rem;
+  line-height: 1.5rem;
+  font-weight: 500;
+  letter-spacing: 0;
   color: var(--foreground);
 }
 
@@ -311,25 +306,25 @@ select {
 @utility ui-card {
   background: var(--surface);
   border: 1px solid var(--border);
-  border-radius: 16px;
+  border-radius: 8px;
 }
 
 /* rótulo técnico pequeno (data, categoria, cabeçalho de lista) */
 @utility eyebrow {
-  font-family: var(--font-geist-mono), monospace;
-  font-size: 0.625rem;
+  font-family: var(--font-nunito), sans-serif;
+  font-size: 0.75rem;
   line-height: 1rem;
-  font-weight: 500;
-  letter-spacing: 0.16em;
+  font-weight: 600;
+  letter-spacing: 0.06em;
   text-transform: uppercase;
   color: var(--muted);
 }
 
 /* número grande de destaque (contadores) */
 @utility numero-grande {
-  font-family: var(--font-inter-tight), var(--font-geist-sans), sans-serif;
-  font-weight: 700;
-  letter-spacing: -0.04em;
+  font-family: var(--font-nunito), sans-serif;
+  font-weight: 600;
+  letter-spacing: 0;
   font-variant-numeric: tabular-nums;
 }
 
@@ -351,21 +346,21 @@ select {
   display: block;
   margin-bottom: 0.375rem;
   font-size: 0.8125rem;
-  font-weight: 600;
+  font-weight: 500;
   color: var(--label);
 }
 
 /* campo de formulário */
 @utility ui-input {
   width: 100%;
-  border-radius: 10px;
+  border-radius: 6px;
   border: 1px solid var(--border-strong);
   background: var(--surface);
   padding: 0.5rem 0.75rem;
   font-size: 0.875rem;
   line-height: 1.375rem;
   color: var(--foreground);
-  box-shadow: var(--shadow-sm);
+  box-shadow: none;
   transition:
     border-color 150ms var(--ease-out),
     box-shadow 150ms var(--ease-out);
@@ -392,11 +387,13 @@ select {
   align-items: center;
   justify-content: center;
   gap: 0.5rem;
-  border-radius: 999px;
+  border-radius: 8px;
   background: var(--navy);
-  padding: 0.5rem 1.125rem;
-  font-size: 0.8125rem;
-  font-weight: 600;
+  padding: 0.625rem 1.125rem;
+  font-size: 0.75rem;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
   color: #fff;
   transition:
     background-color 150ms var(--ease-out),
@@ -420,19 +417,21 @@ select {
   align-items: center;
   justify-content: center;
   gap: 0.5rem;
-  border-radius: 999px;
-  border: 1px solid var(--border-strong);
-  background: var(--surface);
-  padding: 0.4375rem 1rem;
-  font-size: 0.8125rem;
-  font-weight: 600;
-  color: var(--foreground);
+  border-radius: 8px;
+  border: 1px solid transparent;
+  background: var(--surface-2);
+  padding: 0.625rem 1rem;
+  font-size: 0.75rem;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--muted);
   transition:
     background-color 150ms var(--ease-out),
     border-color 150ms var(--ease-out);
   &:hover {
-    background: var(--surface-2);
-    border-color: var(--btn2-hover-border);
+    background: var(--track);
+    color: var(--foreground);
   }
   &:disabled {
     opacity: 0.5;
@@ -465,10 +464,10 @@ select {
     border-bottom: 1px solid var(--border);
   }
   & th {
-    font-family: var(--font-geist-mono), monospace;
-    font-size: 0.625rem;
-    font-weight: 500;
-    letter-spacing: 0.16em;
+    font-family: var(--font-nunito), sans-serif;
+    font-size: 0.75rem;
+    font-weight: 600;
+    letter-spacing: 0.06em;
     text-transform: uppercase;
     color: var(--muted);
     padding-top: 0.875rem;
@@ -601,4 +600,9 @@ html.trocando-tema * {
 .wa-entrada {
   background-color: var(--wa-entrada);
   color: var(--wa-entrada-ink);
+}
+
+/* Astrea: o título da página vem sozinho, sem a linha de contexto em maiúsculas acima dele */
+p.eyebrow:has(+ .page-title) {
+  display: none;
 }

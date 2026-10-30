@@ -169,15 +169,14 @@ export default async function AdminOverviewPage({
       {/* abertura: saudação grande, resumo do dia numa frase e o número que mais importa */}
       <section className="mb-10 grid items-start gap-6 lg:grid-cols-[1fr_320px]">
         <div>
-          <p className="eyebrow flex items-center gap-2">
+          <h1 className="page-title">Área de trabalho</h1>
+          <p className="eyebrow mt-1 flex items-center gap-2">
             <span className="h-1.5 w-1.5 rounded-full bg-status-success" aria-hidden /> {dataCurta} · atualizado {horaAgora}
           </p>
-          <h1 className="page-title mt-3 !text-[2.6rem] !leading-[1.02] sm:!text-[3.25rem]">
-            {saudacao()},
-            <br />
-            <span className="text-foreground/30">{primeiroNome || "equipe"}.</span>
-          </h1>
-          <p className="mt-5 max-w-xl text-[15px] leading-relaxed text-foreground/70">
+          <p className="mt-4 text-lg font-medium text-foreground">
+            {saudacao()}, {primeiroNome || "equipe"}.
+          </p>
+          <p className="mt-1 max-w-xl text-[15px] leading-relaxed text-foreground/70">
             {resumo.map((parte, i) => (
               <span key={i}>
                 {i > 0 ? " " : ""}
@@ -199,16 +198,14 @@ export default async function AdminOverviewPage({
 
         <Link
           href={atrasadas.length ? "/admin/activities?prazo=atrasadas" : "/admin/agenda"}
-          className="group relative overflow-hidden rounded-2xl bg-navy p-6 text-white transition-transform duration-200 hover:-translate-y-0.5"
+          className="group ui-card p-5 transition-colors hover:bg-hover"
         >
-          <span className="pointer-events-none absolute -top-16 -right-16 h-48 w-48 rounded-full border border-white/10" aria-hidden />
-          <span className="pointer-events-none absolute -top-8 -right-8 h-32 w-32 rounded-full border border-white/10" aria-hidden />
-          <p className="eyebrow flex items-center gap-2 !text-white/55">
-            <span className={`h-1.5 w-1.5 rounded-full ${atrasadas.length ? "bg-[#ff6b6b]" : "bg-gold"}`} aria-hidden />
+          <p className="eyebrow flex items-center gap-2">
+            <span className={`h-1.5 w-1.5 rounded-full ${atrasadas.length ? "bg-status-danger" : "bg-gold"}`} aria-hidden />
             {atrasadas.length ? "Atrasadas" : "Prazos · hoje"}
           </p>
-          <p className="numero-grande mt-3 text-[5.5rem] leading-none text-white">{atrasadas.length || deHoje.length}</p>
-          <p className="font-display mt-2 text-lg leading-tight font-bold">
+          <p className={`numero-grande mt-2 text-6xl leading-none ${atrasadas.length ? "text-status-danger" : "text-navy-3"}`}>{atrasadas.length || deHoje.length}</p>
+          <p className="mt-2 text-base leading-tight font-medium text-foreground">
             {atrasadas.length
               ? atrasadas.length === 1
                 ? "atividade sua está atrasada."
@@ -217,10 +214,10 @@ export default async function AdminOverviewPage({
                 ? "atividade vence hoje."
                 : "atividades vencem hoje."}
           </p>
-          <p className="mt-2 text-xs leading-relaxed text-white/60">
+          <p className="mt-2 text-xs leading-relaxed text-muted">
             {daSemana.length} nos próximos 7 dias{atrasadas.length && deHoje.length ? ` · ${deHoje.length} vence(m) hoje` : ""}.
           </p>
-          <p className="eyebrow mt-5 flex items-center justify-between !text-gold-2">
+          <p className="eyebrow mt-4 flex items-center justify-between !text-navy-3">
             <span>{atrasadas.length ? "Ver atrasadas" : "Abrir agenda"}</span>
             <ArrowRight className="h-3.5 w-3.5 transition-transform group-hover:translate-x-0.5" aria-hidden />
           </p>
@@ -244,13 +241,11 @@ export default async function AdminOverviewPage({
       {/* agora: o que precisa de atenção, numerado */}
       {agora.length > 0 && (
         <section className="mb-10">
-          <p className="eyebrow">Agora</p>
-          <h2 className="page-title mt-1 !text-2xl">Precisa de você.</h2>
+          <h2 className="section-title">Precisa de você</h2>
           <ol className="mt-4 border-b border-border">
-            {agora.map((item, i) => (
+            {agora.map((item) => (
               <li key={item.chave}>
                 <Link href={item.href} className="lista-linha group">
-                  <span className="eyebrow w-6 shrink-0 !text-[11px]">{String(i + 1).padStart(2, "0")}</span>
                   <span className={`h-2 w-2 shrink-0 rounded-full ${item.cor}`} aria-hidden />
                   <span className="min-w-0 flex-1">
                     <span className="block truncate text-sm font-medium text-foreground">{item.titulo}</span>
@@ -279,7 +274,7 @@ export default async function AdminOverviewPage({
             href={c.href}
             className={`px-1 py-5 transition-colors hover:bg-hover md:px-6 ${i > 0 ? "md:border-l md:border-border" : ""} ${i % 2 ? "border-l border-border md:border-l" : ""} ${i > 1 ? "border-t border-border md:border-t-0" : ""}`}
           >
-            <p className={`numero-grande text-4xl ${c.cor}`}>{c.n}</p>
+            <p className={`numero-grande text-3xl ${c.cor}`}>{c.n}</p>
             <p className="eyebrow mt-1">{c.rotulo}</p>
           </Link>
         ))}

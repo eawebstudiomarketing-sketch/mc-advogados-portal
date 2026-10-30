@@ -25,14 +25,14 @@ type NavItem = { href: string; label: string; icon: LucideIcon; todos?: boolean;
 // Menu em 3 grandes áreas que abrem as subopções ao clicar (a Visão geral
 // fica solta no topo). Cada pessoa vê só as telas liberadas para ela
 // (PERM_DA_TELA); o admin máximo vê tudo.
-const INICIO: NavItem = { href: "/admin", label: "Visão geral", icon: LayoutDashboard };
+const INICIO: NavItem = { href: "/admin", label: "Área de trabalho", icon: LayoutDashboard };
 const NAV_GROUPS: { id: string; label: string; icon: LucideIcon; items: NavItem[] }[] = [
   {
     id: "comercial",
     label: "Comercial",
     icon: Briefcase,
     items: [
-      { href: "/admin/clients", label: "Clientes", icon: Users },
+      { href: "/admin/clients", label: "Contatos", icon: Users },
       { href: "/admin/contracts", label: "Contratos", icon: FileSignature },
       { href: "/admin/whatsapp", label: "WhatsApp", icon: MessageCircle },
     ],
@@ -49,7 +49,7 @@ const NAV_GROUPS: { id: string; label: string; icon: LucideIcon; items: NavItem[
       { href: "/admin/rotinas", label: "Rotinas", icon: CalendarCheck, todos: true },
       { href: "/admin/publicacoes", label: "Publicações", icon: Newspaper },
       { href: "/admin/alertas", label: "Alertas", icon: BellRing },
-      { href: "/admin/processes", label: "Processos", icon: Gavel },
+      { href: "/admin/processes", label: "Processos e casos", icon: Gavel },
       { href: "/admin/documents", label: "Documentos", icon: FileText },
     ],
   },
@@ -235,11 +235,11 @@ export function AdminShell({
           href={item.href}
           aria-current={on ? "page" : undefined}
           aria-label={item.label}
-          className={`relative flex h-10 items-center gap-3 rounded-xl px-[11px] text-sm whitespace-nowrap transition-colors duration-150 ${
-            on ? "bg-navy text-white" : "text-foreground/60 hover:bg-hover hover:text-foreground"
+          className={`relative flex h-10 items-center gap-3 rounded-lg px-[11px] text-sm whitespace-nowrap transition-colors duration-150 ${
+            on ? "bg-navy/10 text-navy-3" : "text-muted hover:bg-hover hover:text-foreground"
           }`}
         >
-          <Icone className={`h-[18px] w-[18px] shrink-0 ${on ? "text-gold-2" : ""}`} aria-hidden />
+          <Icone className="h-[18px] w-[18px] shrink-0" aria-hidden />
           <span className={`flex-1 truncate font-medium ${rotulo}`}>{item.label}</span>
           {n > 0 && (
             <>
