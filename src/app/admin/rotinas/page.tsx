@@ -1,6 +1,6 @@
 import Link from "next/link";
 import type { SupabaseClient } from "@supabase/supabase-js";
-import { Plus } from "lucide-react";
+import { FileText, Plus } from "lucide-react";
 import { ehSuperAdmin, requireRole } from "@/lib/dal";
 import { listPessoas } from "@/lib/data/escritorio";
 import { responsavelDoPerfil } from "@/lib/data/responsaveis";
@@ -28,7 +28,7 @@ const ROTAS = "/admin/rotinas";
 const horaDe = (iso: string) => new Date(iso).toLocaleTimeString("pt-BR", { timeZone: "America/Bahia", hour: "2-digit", minute: "2-digit" });
 const dataBr = (dia: string) => dia.split("-").reverse().join("/");
 
-export default async function RotinasPage({ searchParams }: { searchParams: Promise<{ pessoa?: string; aba?: string; dia?: string; nova?: string }> }) {
+export default async function RotinasPage({ searchParams }: { searchParams: Promise<{ pessoa?: string; aba?: string; dia?: string; nova?: string; modelos?: string }> }) {
   const profile = await requireRole(["admin", "advogado"]);
   const souSuper = ehSuperAdmin(profile);
   const verEquipe = souSuper || profile.role === "admin";
@@ -56,9 +56,14 @@ export default async function RotinasPage({ searchParams }: { searchParams: Prom
           <p className="mt-1 text-sm text-muted">Uma rotina por pessoa: tarefas fixas do dia e o relatório de fim de expediente.</p>
         </div>
         {souSuper && (
-          <Link href={`${ROTAS}?nova=1`} scroll={false} className="ui-btn">
-            <Plus className="h-4 w-4" aria-hidden /> Nova rotina
-          </Link>
+          <div className="flex flex-wrap items-center gap-2">
+            <Link href={`${ROTAS}?modelos=1`} scroll={false} className="ui-btn-secondary">
+              <FileText className="h-4 w-4" aria-hidden /> Modelos
+            </Link>
+            <Link href={`${ROTAS}?nova=1`} scroll={false} className="ui-btn">
+              <Plus className="h-4 w-4" aria-hidden /> Nova rotina
+            </Link>
+          </div>
         )}
       </div>
 
@@ -130,6 +135,17 @@ export default async function RotinasPage({ searchParams }: { searchParams: Prom
                 </li>
               ))}
           </ul>
+        </ModalRotina>
+      )}
+
+      {/* MODELOS DE RELATÓRIO: monta as perguntas, escolhe o aprovador e quem usa cada modelo */}
+      {souSuper && sp.modelos === "1" && !alvo && (
+        <ModalRotina titulo="Modelos de relatório" subtitulo="Monte as perguntas (da pessoa e da equipe), escolha quem aprova e quem usa cada modelo." fecharHref={ROTAS}>
+          <EditorModelos
+            modelos={await carregarModelos()}
+            pessoas={pessoas.filter((p) => p.profileId).map((p) => ({ id: p.id, nome: p.nome, foto: p.foto, modeloId: atribuidos.get(p.id) ?? null }))}
+            aprovadores={pessoas.filter((p) => p.profileId).map((p) => ({ id: p.id, nome: p.nome }))}
+          />
         </ModalRotina>
       )}
 
