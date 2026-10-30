@@ -15,6 +15,8 @@ import { ConfirmSubmitButton } from "@/components/ui/confirm-submit-button";
 import { PROCESS_AREA_LABEL } from "@/lib/process-area";
 import { BackButton } from "@/components/nav/back-button";
 import { exigirPermissao } from "@/lib/dal";
+import { getHistorico } from "@/lib/data/historico";
+import { HistoricoRegistro } from "@/components/ui/historico-registro";
 import { listPublicacoesDoProcesso, STATUS_PUBLICACAO, type PublicacaoStatus } from "@/lib/data/publicacoes";
 
 type Parte = { nome: string; papel: string; polo: "ativo" | "passivo" | "outro" };
@@ -269,6 +271,8 @@ export default async function ProcessDetailPage({ params, searchParams }: { para
           </ol>
         )}
       </div>
+
+      <HistoricoRegistro eventos={await getHistorico("processes", process.id)} className="mt-4 bg-surface" />
     </div>
   );
 }

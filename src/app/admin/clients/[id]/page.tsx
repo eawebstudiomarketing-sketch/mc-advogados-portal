@@ -45,6 +45,8 @@ import { EquipeDoCliente } from "./equipe-do-cliente";
 import { WhatsappCard } from "./whatsapp-card";
 import type { PermChave } from "@/lib/permissoes";
 import { listResponsaveis, responsavelDoPerfil } from "@/lib/data/responsaveis";
+import { getHistorico } from "@/lib/data/historico";
+import { HistoricoRegistro } from "@/components/ui/historico-registro";
 
 const DOCS_PER_PAGE = 10;
 
@@ -95,6 +97,7 @@ export default async function AdminClientDetailPage({
   ]);
   const [processos, etiquetas] = await Promise.all([perm.processos ? listProcesses({ clientId: id }) : Promise.resolve([]), listEtiquetas()]);
   const [equipe, designados] = isAdmin ? await Promise.all([listStaff(), listDesignados(id)]) : [[], []];
+  const historico = isAdmin && (!abaParam || abaParam === "geral") ? await getHistorico("clients", id) : [];
   if (!client) notFound();
   // responsável das demandas (aba Demandas): qualquer pessoa da equipe
   const [responsaveis, meuResponsavel] =
@@ -292,6 +295,7 @@ export default async function AdminClientDetailPage({
                 </Link>
               ))}
             </div>
+            <HistoricoRegistro eventos={historico} />
           </div>
         )}
 

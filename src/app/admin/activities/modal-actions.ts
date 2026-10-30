@@ -2,7 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
-import { exigirPermissao, getPermissoes, requireRole } from "@/lib/dal";
+import { ehSuperAdmin, exigirPermissao, getPermissoes, requireRole } from "@/lib/dal";
 import { getActivity } from "@/lib/data/activities";
 import { nomeResponsavel } from "@/lib/responsavel-nome";
 import { listEtiquetas, type Etiqueta } from "@/lib/data/etiquetas";
@@ -10,6 +10,7 @@ import { listDocuments } from "@/lib/data/documents";
 import { listResponsaveis, type Responsavel } from "@/lib/data/responsaveis";
 import type { Database } from "@/lib/supabase/types";
 import { lerChecklist, type ItemChecklist } from "@/lib/checklist";
+import { getHistorico, type EventoHistorico } from "@/lib/data/historico";
 
 // Ações da mini tela da atividade (abre por cima de qualquer lista/quadro).
 
@@ -31,6 +32,7 @@ export type AtividadeDetalhe = {
   envolvidos: string[];
   etiquetas: string[];
   checklist: ItemChecklist[];
+  historico: EventoHistorico[];
   etiquetasTodas: Etiqueta[];
   documentos: { id: string; title: string; created_at: string; downloadUrl: string | null; drive_file_id: string | null }[];
   /** Documentos do cliente que ainda não estão nesta atividade (para anexar). */
@@ -46,7 +48,7 @@ export async function getActivityDetailAction(id: string): Promise<{ ok: true; d
 
   const supabase = await createClient();
   const perms = await getPermissoes();
-  const [etiquetasTodas, documentos, responsaveis, { data: docsCliente }] = await Promise.all([
+  const [etiquetasTodas, documentos, responsaveis, { data: docsCliente }, historico] = await Promise.all([
     listEtiquetas(),
     listDocuments({ activityId: id }),
     listResponsaveis(),
@@ -57,6 +59,7 @@ export async function getActivityDetailAction(id: string): Promise<{ ok: true; d
       .or(`activity_id.is.null,activity_id.neq.${id}`)
       .order("created_at", { ascending: false })
       .limit(300),
+    ehSuperAdmin(profile) ? getHistorico("activities", id, 20) : Promise.resolve([]),
   ]);
 
   return {
@@ -79,6 +82,7 @@ export async function getActivityDetailAction(id: string): Promise<{ ok: true; d
       envolvidos: a.envolvidos ?? [],
       etiquetas: a.etiquetas ?? [],
       checklist: lerChecklist(a.checklist),
+      historico,
       etiquetasTodas,
       documentos: documentos.map((d) => ({
         id: d.id,

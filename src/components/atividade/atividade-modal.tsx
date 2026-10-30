@@ -1,6 +1,7 @@
 "use client";
 
 import { ChecklistAtividade } from "./checklist";
+import { HistoricoRegistro } from "@/components/ui/historico-registro";
 import { createContext, useCallback, useContext, useEffect, useRef, useState, useTransition } from "react";
 import { createPortal } from "react-dom";
 import Link from "next/link";
@@ -362,6 +363,7 @@ function AtividadeModal({ id, editarAoAbrir, onClose }: { id: string; editarAoAb
               <div className="mt-4">
                 <Comentarios activityId={d.id} />
               </div>
+              <HistoricoRegistro eventos={d.historico} className="mt-4" />
             </>
           )}
 
