@@ -114,3 +114,20 @@ export async function editarRelatorioAction(responsavelId: string, dia: string, 
     return { ok: false, error: msg(e) };
   }
 }
+
+/** Exclui a rotina de uma pessoa: desativa as tarefas fixas e tira o modelo de relatório (o histórico fica). */
+export async function excluirRotinaAction(responsavelId: string): Promise<Resultado> {
+  try {
+    await exigirSuper();
+    const db = createAdminClient() as unknown as import("@supabase/supabase-js").SupabaseClient;
+    const [a, b] = await Promise.all([
+      db.from("rotina_itens").update({ ativo: false }).eq("responsavel_id", responsavelId),
+      db.from("responsaveis").update({ rotina_modelo_id: null }).eq("id", responsavelId),
+    ]);
+    if (a.error || b.error) throw new Error("Não foi possível excluir a rotina. Tente de novo.");
+    revalidatePath("/admin/rotinas");
+    return { ok: true };
+  } catch (e) {
+    return { ok: false, error: msg(e) };
+  }
+}

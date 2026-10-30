@@ -12,6 +12,7 @@ import { MinhaRotina } from "@/components/rotina/minha-rotina";
 import { ModalRotina } from "@/components/rotina/modal-rotina";
 import { RelatorioDoDia } from "@/components/rotina/relatorio-do-dia";
 import { AprovarRelatorio } from "@/components/rotina/aprovar-relatorio";
+import { ExcluirRotina } from "@/components/rotina/excluir-rotina";
 import { concluidasNoDia } from "@/lib/rotina-relatorio/dia";
 import { carregarModelos, demandasVencidas, equipeDe, lerRelatorio, modelosAtribuidos, modeloDaPessoa, relatoriosDoDia } from "@/lib/rotina-relatorio/dados";
 import { RelatorioLeitura } from "@/components/rotina/relatorio-leitura";
@@ -391,6 +392,11 @@ async function rotinaDaPessoa({
 
   return (
     <ModalRotina titulo={alvo.nome} subtitulo={alvo.id === eu ? "Sua rotina" : "Rotina"} fecharHref={ROTAS} cabecalho={cabecalho}>
+      {souSuper && (comItens.has(alvo.id) || atribuidos.has(alvo.id)) && (
+        <div className="-mt-1 mb-4 flex justify-end">
+          <ExcluirRotina responsavelId={alvo.id} nome={alvo.nome} />
+        </div>
+      )}
       <nav className="-mt-1 mb-5 flex gap-5 border-b border-border" aria-label="Seções da rotina">
         {abas.map(([id, rotulo]) => (
           <Link
