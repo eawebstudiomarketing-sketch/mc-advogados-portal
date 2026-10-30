@@ -61,7 +61,7 @@ export type DocumentsPage = {
 // ajustada se pedirem uma que não existe (ex.: depois de apagar documentos).
 export async function listDocumentsPage(
   filter: { clientId?: string; activityId?: string; processId?: string; semAtas?: boolean; busca?: string; categoria?: string },
-  paging: { page: number; pageSize: number }
+  paging: { page: number; pageSize: number; ordem?: "titulo" | "antigos" }
 ): Promise<DocumentsPage> {
   const supabase = await createClient();
   const size = Math.max(1, paging.pageSize);
@@ -70,7 +70,7 @@ export async function listDocumentsPage(
     let query = supabase
       .from("documents")
       .select("*, clients(name), profiles(full_name)", { count: "exact" })
-      .order("created_at", { ascending: false })
+      .order(paging.ordem === "titulo" ? "title" : "created_at", { ascending: paging.ordem === "titulo" || paging.ordem === "antigos" })
       .order("id", { ascending: true }) // desempate: importações em lote têm a mesma data
       .range((page - 1) * size, page * size - 1);
     if (filter.clientId) query = query.eq("client_id", filter.clientId);

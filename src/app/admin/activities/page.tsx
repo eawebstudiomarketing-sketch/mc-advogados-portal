@@ -9,6 +9,8 @@ import { grupoDoPrazo, hojeBahia } from "@/lib/data/painel";
 import { ACTIVITY_TYPE_LABEL } from "@/lib/activity-type";
 import { ACTIVITY_STATUS_LABEL } from "@/lib/activity-status";
 import { listEtiquetas } from "@/lib/data/etiquetas";
+import { ordenar, dataPlanilha } from "@/lib/ordenar";
+import { nomeResponsavel } from "@/lib/responsavel-nome";
 
 const COR_STATUS: Record<string, string> = {
   aberta: "bg-status-pending",
@@ -17,7 +19,7 @@ const COR_STATUS: Record<string, string> = {
   cancelada: "bg-border-strong",
 };
 
-type Filtros = { etiqueta?: string; arquivadas?: string; busca?: string; status?: string; cliente?: string; responsavel?: string; tipo?: string; area?: string; prazo?: string; categoria?: string };
+type Filtros = { etiqueta?: string; arquivadas?: string; busca?: string; status?: string; cliente?: string; responsavel?: string; tipo?: string; area?: string; prazo?: string; categoria?: string; ordem?: string };
 
 export default async function AdminActivitiesPage({ searchParams }: { searchParams: Promise<Filtros> }) {
   const { profile, permissoes } = await exigirPermissao("atividades");
@@ -28,7 +30,7 @@ export default async function AdminActivitiesPage({ searchParams }: { searchPara
   const [todas, pessoas, config, etiquetas] = await Promise.all([listActivities({ arquivadas }), listPessoas(), getEscritorioConfig(), listEtiquetas()]);
   const hoje = hojeBahia();
   const termo = (f.busca ?? "").trim().toLowerCase();
-  const activities = todas.filter(
+  const filtradas = todas.filter(
     (a) =>
       (!termo || a.title.toLowerCase().includes(termo) || (a.description ?? "").toLowerCase().includes(termo) || (a.clients?.name ?? "").toLowerCase().includes(termo)) &&
       (!f.status || a.status === f.status) &&
@@ -40,6 +42,12 @@ export default async function AdminActivitiesPage({ searchParams }: { searchPara
       (!f.categoria || a.categoria === f.categoria) &&
       (!f.prazo || grupoDoPrazo(a.deadline, hoje) === f.prazo)
   );
+  const activities = ordenar(filtradas, f.ordem, {
+    prazo: (a) => a.deadline,
+    criada: (a) => a.created_at,
+    nome: (a) => a.title,
+    cliente: (a) => a.clients?.name,
+  });
   const clientes = [...new Map(todas.filter((a) => a.client_id).map((a) => [a.client_id, a.clients?.name ?? "Cliente"])).entries()].sort((a, b) => a[1].localeCompare(b[1]));
 
   return (
@@ -114,9 +122,33 @@ export default async function AdminActivitiesPage({ searchParams }: { searchPara
           { tipo: "select", nome: "area", rotulo: "Área", todos: "Todas as áreas", opcoes: config.areas.map((a) => ({ valor: a, rotulo: a })) },
           { tipo: "select", nome: "etiqueta", rotulo: "Etiqueta", todos: "Todas as etiquetas", opcoes: etiquetas.map((e) => ({ valor: e.id, rotulo: e.nome })) },
         ]}
+        ordenacao={{
+          opcoes: [
+            { valor: "prazo", rotulo: "Prazo mais perto" },
+            { valor: "-prazo", rotulo: "Prazo mais longe" },
+            { valor: "-criada", rotulo: "Criadas mais recentes" },
+            { valor: "criada", rotulo: "Criadas mais antigas" },
+            { valor: "nome", rotulo: "Nome (A a Z)" },
+            { valor: "cliente", rotulo: "Cliente (A a Z)" },
+          ],
+        }}
+        exportar={{
+          arquivo: arquivadas ? "atividades-arquivadas" : "atividades",
+          colunas: ["Atividade", "Cliente", "Responsável", "Status", "Prazo", "Tipo", "Área", "Criada em"],
+          linhas: activities.map((a) => [
+            a.title,
+            a.clients?.name,
+            nomeResponsavel(a),
+            ACTIVITY_STATUS_LABEL[a.status as keyof typeof ACTIVITY_STATUS_LABEL] ?? a.status,
+            dataPlanilha(a.deadline),
+            ACTIVITY_TYPE_LABEL[a.type as keyof typeof ACTIVITY_TYPE_LABEL] ?? a.type,
+            a.area,
+            dataPlanilha(a.created_at),
+          ]),
+        }}
       />
 
-      <ActivitiesView etiquetas={etiquetas} activities={activities} arquivadas={arquivadas} podeExcluir={permissoes.excluir} />
+      <ActivitiesView etiquetas={etiquetas} activities={activities} arquivadas={arquivadas} podeExcluir={permissoes.excluir} filtrado={filtradas.length !== todas.length} />
     </div>
   );
 }

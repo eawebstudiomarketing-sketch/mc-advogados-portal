@@ -1,6 +1,8 @@
 import { BarraFiltros } from "@/components/ui/barra-filtros";
 import Link from "next/link";
-import { Pencil, Plus } from "lucide-react";
+import { Gavel, Pencil, Plus } from "lucide-react";
+import { ordenar, dataPlanilha } from "@/lib/ordenar";
+import { ListaVazia } from "@/components/ui/empty-state";
 import { listProcesses } from "@/lib/data/processes";
 import { PROCESS_AREA_LABEL } from "@/lib/process-area";
 import { StatusBadge } from "@/components/ui/status-badge";
@@ -8,7 +10,7 @@ import { deleteProcessAction } from "./actions";
 import { ConfirmSubmitButton } from "@/components/ui/confirm-submit-button";
 import { exigirPermissao } from "@/lib/dal";
 
-type F = { busca?: string; cliente?: string; area?: string; status?: string };
+type F = { busca?: string; cliente?: string; area?: string; status?: string; ordem?: string };
 
 export default async function AdminProcessesPage({ searchParams }: { searchParams: Promise<F> }) {
   await exigirPermissao("processos");
@@ -16,7 +18,7 @@ export default async function AdminProcessesPage({ searchParams }: { searchParam
   const todos = await listProcesses();
   const termo = (f.busca ?? "").trim().toLowerCase();
   const digitos = termo.replace(/\D/g, "");
-  const processes = todos.filter(
+  const filtrados = todos.filter(
     (p) =>
       (!termo ||
         p.numero_processo.toLowerCase().includes(termo) ||
@@ -30,6 +32,12 @@ export default async function AdminProcessesPage({ searchParams }: { searchParam
       (!f.area || p.area === f.area) &&
       (!f.status || p.status === f.status)
   );
+  const processes = ordenar(filtrados, f.ordem, {
+    mov: (p) => p.ultimo_andamento_em,
+    numero: (p) => p.numero_processo,
+    cliente: (p) => p.clients?.name ?? p.cliente_nome,
+    criado: (p) => p.created_at,
+  });
   const statuses = [...new Set(todos.map((p) => p.status))].sort();
 
   return (
@@ -60,6 +68,31 @@ export default async function AdminProcessesPage({ searchParams }: { searchParam
           { tipo: "select", nome: "area", rotulo: "Área", todos: "Todas as áreas", opcoes: Object.entries(PROCESS_AREA_LABEL).map(([valor, rotulo]) => ({ valor, rotulo })) },
           { tipo: "select", nome: "status", rotulo: "Situação", todos: "Todas as situações", opcoes: statuses.map((s) => ({ valor: s, rotulo: s.replace(/_/g, " ") })) },
         ]}
+        ordenacao={{
+          opcoes: [
+            { valor: "", rotulo: "Padrão" },
+            { valor: "-mov", rotulo: "Movimentação mais recente" },
+            { valor: "mov", rotulo: "Movimentação mais antiga" },
+            { valor: "numero", rotulo: "Número do processo" },
+            { valor: "cliente", rotulo: "Cliente (A a Z)" },
+            { valor: "-criado", rotulo: "Cadastrados mais recentes" },
+          ],
+        }}
+        exportar={{
+          arquivo: "processos",
+          colunas: ["Número", "Título", "Cliente", "Área", "Vara/tribunal", "Fase", "Última movimentação", "Responsável", "Situação"],
+          linhas: processes.map((p) => [
+            p.numero_processo,
+            p.titulo,
+            p.clients?.name ?? p.cliente_nome,
+            PROCESS_AREA_LABEL[p.area],
+            p.vara_tribunal,
+            p.fase,
+            dataPlanilha(p.ultimo_andamento_em),
+            p.profiles?.full_name ?? p.responsavel_nome,
+            p.status.replace(/_/g, " "),
+          ]),
+        }}
       />
 
       <div className="overflow-x-auto ui-card">
@@ -78,8 +111,14 @@ export default async function AdminProcessesPage({ searchParams }: { searchParam
           <tbody className="divide-y divide-border">
             {processes.length === 0 && (
               <tr>
-                <td colSpan={7} className="px-5 py-12 text-center text-sm text-muted">
-                  Nenhum processo cadastrado ainda.
+                <td colSpan={7}>
+                  <ListaVazia
+                    icon={Gavel}
+                    filtrado={todos.length > 0}
+                    titulo="Nenhum processo cadastrado ainda"
+                    dica="Cadastre o primeiro processo e os robôs passam a acompanhar os andamentos dele."
+                    acao={{ href: "/admin/processes/new", rotulo: "Novo processo" }}
+                  />
                 </td>
               </tr>
             )}

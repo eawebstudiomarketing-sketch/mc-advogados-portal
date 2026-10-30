@@ -1,6 +1,6 @@
 import { BarraFiltros } from "@/components/ui/barra-filtros";
 import Link from "next/link";
-import { Download, Pencil, Plus } from "lucide-react";
+import { Download, FileText, Pencil, Plus } from "lucide-react";
 import { DriveIcon } from "@/components/ui/drive-icon";
 import { DriveSyncSection } from "@/components/drive/drive-sync-section";
 import { listClients } from "@/lib/data/clients";
@@ -10,23 +10,24 @@ import { DOCUMENT_CATEGORY_LABEL } from "@/lib/document-category";
 import { deleteDocumentAction } from "./actions";
 import { ConfirmSubmitButton } from "@/components/ui/confirm-submit-button";
 import { exigirPermissao } from "@/lib/dal";
+import { ListaVazia } from "@/components/ui/empty-state";
 
 const DOCS_PER_PAGE = 25;
 
 export default async function AdminDocumentsPage({
   searchParams,
 }: {
-  searchParams: Promise<{ page?: string; busca?: string; categoria?: string; cliente?: string }>;
+  searchParams: Promise<{ page?: string; busca?: string; categoria?: string; cliente?: string; ordem?: string }>;
 }) {
   const { permissoes } = await exigirPermissao("documentos");
-  const { page: pageParam, busca, categoria, cliente } = await searchParams;
+  const { page: pageParam, busca, categoria, cliente, ordem } = await searchParams;
   const docsPage = await listDocumentsPage(
     { semAtas: !permissoes.atas, busca, categoria: categoria === "ata" && !permissoes.atas ? undefined : categoria, clientId: cliente },
-    { page: Number(pageParam) || 1, pageSize: DOCS_PER_PAGE }
+    { page: Number(pageParam) || 1, pageSize: DOCS_PER_PAGE, ordem: ordem === "titulo" || ordem === "antigos" ? ordem : undefined }
   );
   const documents = docsPage.items;
   const clients = (await listClients()).map((c) => ({ id: c.id, name: c.name }));
-  const filtrosQs = new URLSearchParams(Object.entries({ busca, categoria, cliente }).filter(([, v]) => v) as [string, string][]);
+  const filtrosQs = new URLSearchParams(Object.entries({ busca, categoria, cliente, ordem }).filter(([, v]) => v) as [string, string][]);
 
   return (
     <div>
@@ -62,6 +63,13 @@ export default async function AdminDocumentsPage({
               .map(([valor, rotulo]) => ({ valor, rotulo })),
           },
         ]}
+        ordenacao={{
+          opcoes: [
+            { valor: "", rotulo: "Mais recentes" },
+            { valor: "antigos", rotulo: "Mais antigos" },
+            { valor: "titulo", rotulo: "Nome (A a Z)" },
+          ],
+        }}
       />
 
       <div className="overflow-x-auto ui-card">
@@ -79,8 +87,14 @@ export default async function AdminDocumentsPage({
           <tbody className="divide-y divide-border">
             {documents.length === 0 && (
               <tr>
-                <td colSpan={6} className="px-5 py-12 text-center text-sm text-muted">
-                  Nenhum documento armazenado ainda.
+                <td colSpan={6}>
+                  <ListaVazia
+                    icon={FileText}
+                    filtrado={!!(busca || categoria || cliente)}
+                    titulo="Nenhum documento armazenado ainda"
+                    dica="Envie o primeiro documento ou ligue a pasta do cliente no Google Drive logo acima."
+                    acao={{ href: "/admin/documents/new", rotulo: "Enviar documento" }}
+                  />
                 </td>
               </tr>
             )}

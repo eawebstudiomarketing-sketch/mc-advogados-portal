@@ -7,8 +7,11 @@ import { markAsPaidAction } from "./actions";
 import { ReminderButton } from "./reminder-button";
 import { exigirPermissao } from "@/lib/dal";
 import { formatCurrency, formatDate } from "@/lib/mock-data";
+import { ordenar, dataPlanilha } from "@/lib/ordenar";
+import { ListaVazia } from "@/components/ui/empty-state";
+import { Wallet } from "lucide-react";
 
-type F = { busca?: string; cliente?: string; status?: string; de?: string; ate?: string };
+type F = { busca?: string; cliente?: string; status?: string; de?: string; ate?: string; ordem?: string };
 
 export default async function AdminFinancialPage({ searchParams }: { searchParams: Promise<F> }) {
   // Financeiro é a única área sem acesso de advogado — sem isso, um
@@ -18,7 +21,7 @@ export default async function AdminFinancialPage({ searchParams }: { searchParam
   const f = await searchParams;
   const todos = await listFinancialRecords();
   const termo = (f.busca ?? "").trim().toLowerCase();
-  const records = todos.filter(
+  const filtrados = todos.filter(
     (r) =>
       (!termo || r.description.toLowerCase().includes(termo) || (r.clients?.name ?? "").toLowerCase().includes(termo)) &&
       (!f.cliente || r.client_id === f.cliente) &&
@@ -27,6 +30,11 @@ export default async function AdminFinancialPage({ searchParams }: { searchParam
       (!f.ate || r.due_date <= f.ate)
   );
 
+  const records = ordenar(filtrados, f.ordem, {
+    venc: (r) => r.due_date,
+    valor: (r) => Number(r.amount),
+    cliente: (r) => r.clients?.name,
+  });
   const recebido = records.filter((f) => f.status === "paid").reduce((s, f) => s + Number(f.amount), 0);
   const pendente = records.filter((f) => f.status === "pending").reduce((s, f) => s + Number(f.amount), 0);
   const atrasado = records.filter((f) => f.status === "overdue").reduce((s, f) => s + Number(f.amount), 0);
@@ -64,6 +72,27 @@ export default async function AdminFinancialPage({ searchParams }: { searchParam
             { tipo: "data", nome: "de", rotulo: "Vence de" },
             { tipo: "data", nome: "ate", rotulo: "até" },
           ]}
+          ordenacao={{
+            opcoes: [
+              { valor: "", rotulo: "Padrão" },
+              { valor: "venc", rotulo: "Vencimento mais perto" },
+              { valor: "-venc", rotulo: "Vencimento mais longe" },
+              { valor: "-valor", rotulo: "Maior valor" },
+              { valor: "valor", rotulo: "Menor valor" },
+              { valor: "cliente", rotulo: "Cliente (A a Z)" },
+            ],
+          }}
+          exportar={{
+            arquivo: "financeiro",
+            colunas: ["Cliente", "Descrição", "Vencimento", "Valor (R$)", "Status"],
+            linhas: records.map((r) => [
+              r.clients?.name,
+              r.description,
+              dataPlanilha(r.due_date),
+              Number(r.amount).toFixed(2).replace(".", ","),
+              r.status === "paid" ? "Pago" : r.status === "overdue" ? "Em atraso" : "A receber",
+            ]),
+          }}
         />
       </div>
 
@@ -82,8 +111,14 @@ export default async function AdminFinancialPage({ searchParams }: { searchParam
           <tbody className="divide-y divide-border">
             {records.length === 0 && (
               <tr>
-                <td colSpan={6} className="px-5 py-12 text-center text-sm text-muted">
-                  Nenhum lançamento financeiro ainda.
+                <td colSpan={6}>
+                  <ListaVazia
+                    icon={Wallet}
+                    filtrado={todos.length > 0}
+                    titulo="Nenhum lançamento ainda"
+                    dica="Lance o primeiro honorário ou cobrança para acompanhar o que entra e o que está em atraso."
+                    acao={{ href: "/admin/financial/new", rotulo: "Novo lançamento" }}
+                  />
                 </td>
               </tr>
             )}

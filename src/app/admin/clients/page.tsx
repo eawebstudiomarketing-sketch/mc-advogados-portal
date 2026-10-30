@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { formatarDocumento, formatarTelefone } from "@/lib/formatar";
-import { Plus, Archive, ArrowLeft, List, Columns3 } from "lucide-react";
+import { Plus, Archive, ArrowLeft, List, Columns3, Users } from "lucide-react";
 import { BarraFiltros } from "@/components/ui/barra-filtros";
 import { PipelineBoard } from "@/components/cliente/pipeline-board";
 import { pipelineDosClientes, ETAPAS } from "@/lib/data/pipeline";
@@ -9,6 +9,8 @@ import { listClients } from "@/lib/data/clients";
 import { exigirPermissao } from "@/lib/dal";
 import { createClient } from "@/lib/supabase/server";
 import { hojeBahia } from "@/lib/data/painel";
+import { ordenar, dataPlanilha } from "@/lib/ordenar";
+import { ListaVazia } from "@/components/ui/empty-state";
 
 const COR_ETAPA: Record<string, string> = {
   ficha_incompleta: "bg-status-danger",
@@ -22,7 +24,7 @@ const COR_ETAPA: Record<string, string> = {
 export default async function AdminClientsPage({
   searchParams,
 }: {
-  searchParams: Promise<{ arquivados?: string; ver?: string; busca?: string; tipo?: string; status?: string; etapa?: string; aba?: string }>;
+  searchParams: Promise<{ arquivados?: string; ver?: string; busca?: string; tipo?: string; status?: string; etapa?: string; aba?: string; ordem?: string }>;
 }) {
   const { permissoes } = await exigirPermissao("clientes");
   const sp = await searchParams;
@@ -65,6 +67,11 @@ export default async function AdminClientsPage({
       (!sp.etapa || etapaDe.get(c.id) === sp.etapa)
   );
   clients.sort((a, b) => (abertasPorCliente.get(b.id)?.n ?? 0) - (abertasPorCliente.get(a.id)?.n ?? 0) || (abertasPorCliente.get(b.id)?.atrasadas ?? 0) - (abertasPorCliente.get(a.id)?.atrasadas ?? 0) || a.name.localeCompare(b.name, "pt-BR"));
+  const lista = ordenar(clients, sp.ordem, {
+    nome: (c) => c.name,
+    abertas: (c) => abertasPorCliente.get(c.id)?.n ?? 0,
+    cadastro: (c) => c.created_at,
+  });
   const ids = new Set(clients.map((c) => c.id));
   const alternar = (ver: "lista" | "pipeline") => {
     const q = new URLSearchParams(Object.entries(sp).filter(([k, v]) => v && k !== "ver") as [string, string][]);
@@ -139,6 +146,31 @@ export default async function AdminClientsPage({
           { tipo: "select", nome: "status", rotulo: "Situação", todos: "Ativos e inativos", opcoes: [{ valor: "ativo", rotulo: "Ativos" }, { valor: "inativo", rotulo: "Inativos" }] },
           ...(arquivados || tipo === "PF" ? [] : [{ tipo: "select" as const, nome: "etapa", rotulo: "Etapa", todos: "Todas as etapas", opcoes: ETAPAS.map((e) => ({ valor: e.id, rotulo: e.rotulo })) }]),
         ]}
+        ordenacao={{
+          opcoes: [
+            { valor: "", rotulo: "Mais demandas em aberto" },
+            { valor: "nome", rotulo: "Nome (A a Z)" },
+            { valor: "-nome", rotulo: "Nome (Z a A)" },
+            { valor: "-cadastro", rotulo: "Cadastro mais recente" },
+            { valor: "cadastro", rotulo: "Cadastro mais antigo" },
+          ],
+        }}
+        exportar={{
+          arquivo: tipo === "PF" ? "clientes-pessoas" : "clientes-empresas",
+          colunas: ["Nome", "Apelido", tipo === "PF" ? "CPF" : "CNPJ", "E-mail", "Telefone", "Demandas em aberto", "Atrasadas", tipo === "PF" ? "Processos" : "Etapa", "Cadastro", "Situação"],
+          linhas: lista.map((c) => [
+            c.name,
+            c.apelido,
+            formatarDocumento(c.documento),
+            c.email_contact,
+            formatarTelefone(c.telefones?.[0]),
+            abertasPorCliente.get(c.id)?.n ?? 0,
+            abertasPorCliente.get(c.id)?.atrasadas ?? 0,
+            tipo === "PF" ? (processosPorCliente.get(c.id) ?? 0) : ETAPAS.find((e) => e.id === etapaDe.get(c.id))?.rotulo,
+            dataPlanilha(c.created_at),
+            c.active ? "Ativo" : "Inativo",
+          ]),
+        }}
       />
 
       {verPipeline ? (
@@ -159,12 +191,22 @@ export default async function AdminClientsPage({
           <tbody className="divide-y divide-border">
             {clients.length === 0 && (
               <tr>
-                <td colSpan={6} className="px-5 py-12 text-center text-sm text-muted">
-                  {todos.length && !clients.length ? "Nenhum cliente com esses filtros." : arquivados ? "Nenhum cliente arquivado." : "Nenhum cliente cadastrado ainda."}
+                <td colSpan={6}>
+                  {arquivados && !todos.length ? (
+                    <ListaVazia icon={Users} filtrado={false} titulo="Nenhum cliente arquivado" dica="Os clientes que você arquivar aparecem aqui." />
+                  ) : (
+                    <ListaVazia
+                      icon={Users}
+                      filtrado={todos.length > 0}
+                      titulo={tipo === "PF" ? "Nenhuma pessoa cadastrada ainda" : "Nenhuma empresa cadastrada ainda"}
+                      dica="Cadastre o primeiro cliente para começar a lançar processos, demandas e documentos dele."
+                      acao={{ href: `/admin/clients/new${tipo === "PF" ? "?tipo=PF" : ""}`, rotulo: tipo === "PF" ? "Nova pessoa" : "Nova empresa" }}
+                    />
+                  )}
                 </td>
               </tr>
             )}
-            {clients.map((c) => (
+            {lista.map((c) => (
               <tr key={c.id}>
                 <td className="px-3 py-3">
                   <Link href={`/admin/clients/${c.id}`} className="group flex items-center gap-3">

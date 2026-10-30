@@ -1,7 +1,7 @@
 "use client";
 
 import { Fragment, useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
-import { ChevronRight, Columns3, List, Pencil } from "lucide-react";
+import { ChevronRight, Columns3, List, ListChecks, Pencil } from "lucide-react";
 import type { Activity } from "@/lib/data/activities";
 import { ACTIVITY_TYPE_LABEL } from "@/lib/activity-type";
 import { StatusSelect } from "./status-select";
@@ -15,6 +15,7 @@ import { BulkBar } from "./bulk-bar";
 import { AtividadeLink, useAbrirAtividade } from "@/components/atividade/atividade-modal";
 import { nomeResponsavel } from "@/lib/responsavel-nome";
 import { Avatar } from "@/components/ui/avatar";
+import { ListaVazia } from "@/components/ui/empty-state";
 
 const CHAVE_MODO = "mc:atividades:modo";
 type Modo = "list" | "kanban";
@@ -130,8 +131,11 @@ export function ActivitiesView({
   arquivadas = false,
   podeExcluir = true,
   etiquetas = [],
+  filtrado = false,
 }: {
   etiquetas?: Etiqueta[];
+  /** Há filtro ligado (a lista vazia diz "nada com esses filtros"). */
+  filtrado?: boolean;
   activities: Activity[];
   arquivadas?: boolean;
   podeExcluir?: boolean;
@@ -288,8 +292,18 @@ export function ActivitiesView({
               <tbody className="divide-y divide-border">
                 {todasAtividades.length === 0 && (
                   <tr>
-                    <td colSpan={5} className="px-5 py-12 text-center text-sm text-muted">
-                      {arquivadas ? "Nenhuma atividade arquivada." : "Nenhuma atividade registrada ainda."}
+                    <td colSpan={5}>
+                      {arquivadas && !filtrado ? (
+                        <ListaVazia icon={ListChecks} filtrado={false} titulo="Nenhuma atividade arquivada" dica="As atividades que você arquivar aparecem aqui." />
+                      ) : (
+                        <ListaVazia
+                          icon={ListChecks}
+                          filtrado={filtrado}
+                          titulo="Nenhuma atividade ainda"
+                          dica="Cadastre a primeira demanda do escritório e ela aparece aqui, com prazo e responsável."
+                          acao={{ href: "/admin/activities/new", rotulo: "Nova atividade" }}
+                        />
+                      )}
                     </td>
                   </tr>
                 )}
