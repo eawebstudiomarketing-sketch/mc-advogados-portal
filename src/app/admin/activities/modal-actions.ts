@@ -22,6 +22,7 @@ export type AtividadeDetalhe = {
   hora: string | null;
   created_at: string;
   archived_at: string | null;
+  cliente_avisado_em: string | null;
   client_id: string;
   cliente: string | null;
   responsavel_id: string | null;
@@ -33,11 +34,11 @@ export type AtividadeDetalhe = {
   /** Documentos do cliente que ainda não estão nesta atividade (para anexar). */
   docsDoCliente: { id: string; title: string }[];
   responsaveis: Responsavel[];
-  pode: { excluir: boolean; verCliente: boolean; documentos: boolean };
+  pode: { excluir: boolean; verCliente: boolean; documentos: boolean; salvarModeloAviso: boolean };
 };
 
 export async function getActivityDetailAction(id: string): Promise<{ ok: true; data: AtividadeDetalhe } | { ok: false; error: string }> {
-  await requireRole(["admin", "advogado"]);
+  const profile = await requireRole(["admin", "advogado"]);
   const a = await getActivity(id);
   if (!a) return { ok: false, error: "Atividade não encontrada (pode ter sido excluída)." };
 
@@ -68,6 +69,7 @@ export async function getActivityDetailAction(id: string): Promise<{ ok: true; d
       hora: a.hora,
       created_at: a.created_at,
       archived_at: a.archived_at,
+      cliente_avisado_em: a.cliente_avisado_em,
       client_id: a.client_id,
       cliente: a.clients?.name ?? null,
       responsavel_id: a.responsavel_id,
@@ -84,7 +86,7 @@ export async function getActivityDetailAction(id: string): Promise<{ ok: true; d
       })),
       docsDoCliente: docsCliente ?? [],
       responsaveis,
-      pode: { excluir: !!perms?.excluir, verCliente: !!perms?.clientes, documentos: !!perms?.documentos },
+      pode: { excluir: !!perms?.excluir, verCliente: !!perms?.clientes, documentos: !!perms?.documentos, salvarModeloAviso: profile.role === "admin" },
     },
   };
 }

@@ -123,6 +123,7 @@ export type Database = {
           lembrete_1h: string
           lembretes_ativos: boolean
           rotina_ativa: boolean
+          aviso_concluida: string
           updated_at: string
         }
         Insert: {
@@ -132,6 +133,7 @@ export type Database = {
           lembrete_1h?: string
           lembretes_ativos?: boolean
           rotina_ativa?: boolean
+          aviso_concluida?: string
           updated_at?: string
         }
         Update: {
@@ -141,6 +143,7 @@ export type Database = {
           lembrete_1h?: string
           lembretes_ativos?: boolean
           rotina_ativa?: boolean
+          aviso_concluida?: string
           updated_at?: string
         }
         Relationships: [
@@ -896,6 +899,8 @@ export type Database = {
         Row: {
           area: string | null
           concluida_em: string | null
+          cliente_avisado_em: string | null
+          cliente_avisado_por: string | null
           client_id: string
           created_at: string
           deadline: string | null
@@ -916,6 +921,8 @@ export type Database = {
         Insert: {
           area?: string | null
           concluida_em?: string | null
+          cliente_avisado_em?: string | null
+          cliente_avisado_por?: string | null
           client_id?: string | null // opcional: tarefa interna (migration 0004)
           created_at?: string
           deadline?: string | null
@@ -936,6 +943,8 @@ export type Database = {
         Update: {
           area?: string | null
           concluida_em?: string | null
+          cliente_avisado_em?: string | null
+          cliente_avisado_por?: string | null
           client_id?: string
           created_at?: string
           deadline?: string | null

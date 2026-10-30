@@ -10,6 +10,8 @@ export type EscritorioConfig = {
   lembrete_1h: string;
   lembretes_ativos: boolean;
   rotina_ativa: boolean;
+  /** texto do aviso "demanda concluída" ao cliente; {titulo} e {cliente} são preenchidos no envio */
+  aviso_concluida: string;
 };
 
 const PADRAO: EscritorioConfig = {
@@ -18,12 +20,13 @@ const PADRAO: EscritorioConfig = {
   lembrete_1h: "Olá! Daqui a 1 hora, às {hora}, temos {titulo} com a MC Advogados.{local} Até já!",
   lembretes_ativos: true,
   rotina_ativa: true,
+  aviso_concluida: 'Olá! Informamos que a demanda "{titulo}" foi concluída. Qualquer dúvida, estamos à disposição.\nMC Advogados',
 };
 
 export async function getEscritorioConfig(): Promise<EscritorioConfig> {
   const { data } = await createAdminClient()
     .from("escritorio_config")
-    .select("areas, lembrete_24h, lembrete_1h, lembretes_ativos, rotina_ativa")
+    .select("areas, lembrete_24h, lembrete_1h, lembretes_ativos, rotina_ativa, aviso_concluida")
     .eq("id", 1)
     .maybeSingle();
   return data ?? PADRAO;

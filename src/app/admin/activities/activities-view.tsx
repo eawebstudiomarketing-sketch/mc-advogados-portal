@@ -1,7 +1,7 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
-import { Columns3, List, Pencil } from "lucide-react";
+import { Fragment, useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
+import { ChevronRight, Columns3, List, Pencil } from "lucide-react";
 import type { Activity } from "@/lib/data/activities";
 import { ACTIVITY_TYPE_LABEL } from "@/lib/activity-type";
 import { StatusSelect } from "./status-select";
@@ -33,6 +33,45 @@ function gravarModo(m: Modo) {
     sessionStorage.setItem(CHAVE_MODO, m);
   } catch {}
   ouvintesModo.forEach((f) => f());
+}
+
+// Agrupamento da lista (29/10): por cliente de primeira, ou por responsável, ou sem grupos.
+const CHAVE_AGRUPAR = "mc:atividades:agrupar";
+type Agrupar = "cliente" | "responsavel" | "nenhum";
+const ouvintesAgrupar = new Set<() => void>();
+function lerAgrupar(): Agrupar {
+  try {
+    const v = sessionStorage.getItem(CHAVE_AGRUPAR);
+    return v === "responsavel" || v === "nenhum" ? v : "cliente";
+  } catch {
+    return "cliente";
+  }
+}
+function gravarAgrupar(m: Agrupar) {
+  try {
+    sessionStorage.setItem(CHAVE_AGRUPAR, m);
+  } catch {}
+  ouvintesAgrupar.forEach((f) => f());
+}
+
+type Grupo = { chave: string; titulo: string; foto?: string | null; itens: Activity[] };
+
+function agruparPor(lista: Activity[], como: Agrupar): Grupo[] {
+  if (como === "nenhum") return [{ chave: "todas", titulo: "", itens: lista }];
+  const mapa = new Map<string, Grupo>();
+  for (const a of lista) {
+    const chave = como === "cliente" ? a.client_id ?? "sem" : a.responsavel_id ?? "sem";
+    const titulo = como === "cliente" ? a.clients?.name ?? "Sem cliente" : nomeResponsavel(a) ?? "Sem responsável";
+    const g = mapa.get(chave) ?? { chave, titulo, foto: como === "responsavel" ? a.responsaveis?.foto_url : null, itens: [] };
+    g.itens.push(a);
+    mapa.set(chave, g);
+  }
+  // quem tem mais atrasadas vem primeiro; "sem ..." vai para o fim; depois ordem alfabética
+  const atrasadas = (g: Grupo) => g.itens.filter((a) => a.deadline && a.status !== "concluida" && a.status !== "cancelada" && diasAte(a.deadline) < 0).length;
+  return [...mapa.values()].sort((x, y) => {
+    if ((x.chave === "sem") !== (y.chave === "sem")) return x.chave === "sem" ? 1 : -1;
+    return atrasadas(y) - atrasadas(x) || x.titulo.localeCompare(y.titulo, "pt-BR");
+  });
 }
 
 function Caixa({
@@ -111,12 +150,42 @@ export function ActivitiesView({
   const abrir = useAbrirAtividade();
 
 
-  const activities = todasAtividades;
+  const agrupar = useSyncExternalStore(
+    (f) => {
+      ouvintesAgrupar.add(f);
+      return () => ouvintesAgrupar.delete(f);
+    },
+    lerAgrupar,
+    () => "cliente" as Agrupar
+  );
+  // grupos começam fechados (um só grupo, como num filtro por cliente, já vem aberto); "invertidos" guarda o que a pessoa abriu/fechou
+  const [invertidos, setInvertidos] = useState<Set<string>>(new Set());
+
+  const grupos = useMemo(() => agruparPor(todasAtividades, agrupar), [todasAtividades, agrupar]);
+  const agrupado = agrupar !== "nenhum";
+  const abertoPorPadrao = grupos.length === 1;
+  const aberto = (g: Grupo) => !agrupado || abertoPorPadrao !== invertidos.has(g.chave);
+  // ordem em que as linhas aparecem (a seleção com Shift segue essa ordem); só conta o que está à vista
+  const activities = useMemo(
+    () => grupos.flatMap((g) => (!agrupado || abertoPorPadrao !== invertidos.has(g.chave) ? g.itens : [])),
+    [grupos, invertidos, agrupado, abertoPorPadrao]
+  );
+
+  function alternarGrupo(chave: string) {
+    setInvertidos((atual) => {
+      const novo = new Set(atual);
+      if (!novo.delete(chave)) novo.add(chave);
+      return novo;
+    });
+  }
+  function abrirTodos(abrir: boolean) {
+    setInvertidos(new Set(abrir === abertoPorPadrao ? [] : grupos.map((g) => g.chave)));
+  }
 
   // some da seleção o que não existe mais (excluído, por exemplo)
-  const idsAtuais = useMemo(() => new Set(activities.map((a) => a.id)), [activities]);
+  const idsAtuais = useMemo(() => new Set(todasAtividades.map((a) => a.id)), [todasAtividades]);
   const selecionadas = [...sel].filter((id) => idsAtuais.has(id));
-  const todas = activities.length > 0 && selecionadas.length === activities.length;
+  const todas = todasAtividades.length > 0 && selecionadas.length === todasAtividades.length;
   const algumas = selecionadas.length > 0 && !todas;
 
   function alternar(index: number, shift: boolean) {
@@ -160,10 +229,42 @@ export function ActivitiesView({
           </button>
         ))}
       </div>
+      {mode === "list" && (
+        <div className="flex flex-wrap items-center gap-2">
+          <span className="eyebrow">Agrupar por</span>
+          <div role="tablist" aria-label="Agrupar a lista" className="inline-flex items-center gap-0.5 rounded-full border border-border bg-surface p-1">
+            {([
+              ["cliente", "Cliente"],
+              ["responsavel", "Responsável"],
+              ["nenhum", "Sem grupos"],
+            ] as const).map(([m, rotulo]) => (
+              <button
+                key={m}
+                role="tab"
+                aria-selected={agrupar === m}
+                onClick={() => {
+                  setInvertidos(new Set());
+                  gravarAgrupar(m);
+                }}
+                className={`rounded-full px-3 py-1.5 text-xs font-semibold transition-[background-color,color] duration-150 ${
+                  agrupar === m ? "bg-navy text-white" : "text-muted hover:text-foreground"
+                }`}
+              >
+                {rotulo}
+              </button>
+            ))}
+          </div>
+          {agrupado && grupos.length > 1 && (
+            <button type="button" onClick={() => abrirTodos(grupos.some((g) => !aberto(g)))} className="ui-btn-secondary px-3 py-1.5 text-xs">
+              {grupos.some((g) => !aberto(g)) ? "Abrir todos" : "Fechar todos"}
+            </button>
+          )}
+        </div>
+      )}
       </div>
 
       {mode === "kanban" ? (
-        <ActivitiesKanban etiquetas={etiquetas} activities={activities} />
+        <ActivitiesKanban etiquetas={etiquetas} activities={todasAtividades} />
       ) : (
         <>
           <div className="overflow-x-auto ui-card">
@@ -175,7 +276,7 @@ export function ActivitiesView({
                       checked={todas}
                       indeterminate={algumas}
                       label={todas ? "Desmarcar todas" : "Selecionar todas"}
-                      onChange={() => setSel(todas ? new Set() : new Set(activities.map((a) => a.id)))}
+                      onChange={() => setSel(todas ? new Set() : new Set(todasAtividades.map((a) => a.id)))}
                     />
                   </th>
                   <th className="w-10 px-2">Nº</th>
@@ -187,14 +288,74 @@ export function ActivitiesView({
                 </tr>
               </thead>
               <tbody className="divide-y divide-border">
-                {activities.length === 0 && (
+                {todasAtividades.length === 0 && (
                   <tr>
                     <td colSpan={7} className="px-5 py-12 text-center text-sm text-muted">
                       {arquivadas ? "Nenhuma atividade arquivada." : "Nenhuma atividade registrada ainda."}
                     </td>
                   </tr>
                 )}
-                {activities.map((a, i) => {
+                {(() => {
+                  let corrente = 0; // posição da linha na ordem em que aparecem (para o Shift+clique)
+                  return grupos.map((g) => {
+                    const abertoAgora = aberto(g);
+                    const ids = g.itens.map((x) => x.id);
+                    const marcadas = ids.filter((id) => sel.has(id)).length;
+                    const abertas = g.itens.filter((x) => x.status === "aberta" || x.status === "em_andamento");
+                    const atrasadas = abertas.filter((x) => x.deadline && diasAte(x.deadline) < 0).length;
+                    return (
+                      <Fragment key={g.chave}>
+                        {agrupado && (
+                          <tr
+                            onClick={(e) => {
+                              if ((e.target as HTMLElement).closest("input")) return;
+                              alternarGrupo(g.chave);
+                            }}
+                            className="cursor-pointer bg-surface-2/60 hover:bg-surface-2"
+                          >
+                            <td className="pr-0 pl-5">
+                              <Caixa
+                                checked={marcadas === ids.length}
+                                indeterminate={marcadas > 0 && marcadas < ids.length}
+                                label={`Selecionar todas de ${g.titulo}`}
+                                onChange={() =>
+                                  setSel((atual) => {
+                                    const novo = new Set(atual);
+                                    for (const id of ids) {
+                                      if (marcadas === ids.length) novo.delete(id);
+                                      else novo.add(id);
+                                    }
+                                    return novo;
+                                  })
+                                }
+                              />
+                            </td>
+                            <td colSpan={6} className="px-2 py-2.5">
+                              <button
+                                type="button"
+                                onClick={() => alternarGrupo(g.chave)}
+                                aria-expanded={abertoAgora}
+                                className="flex w-full items-center gap-2 text-left"
+                              >
+                                <ChevronRight className={`h-4 w-4 shrink-0 text-muted transition-transform duration-150 ${abertoAgora ? "rotate-90" : ""}`} aria-hidden />
+                                {agrupar === "responsavel" && g.chave !== "sem" && <Avatar nome={g.titulo} foto={g.foto} tamanho={22} />}
+                                <span className="truncate text-sm font-semibold text-foreground">{g.titulo}</span>
+                                <span className="ml-1 text-xs whitespace-nowrap text-muted">
+                                  {abertas.length} {abertas.length === 1 ? "aberta" : "abertas"}
+                                  {g.itens.length > abertas.length ? ` · ${g.itens.length} no total` : ""}
+                                </span>
+                                {atrasadas > 0 && (
+                                  <span className="rounded-full bg-status-danger-bg px-2 py-0.5 text-[11px] font-semibold whitespace-nowrap text-status-danger">
+                                    {atrasadas} {atrasadas === 1 ? "atrasada" : "atrasadas"}
+                                  </span>
+                                )}
+                              </button>
+                            </td>
+                          </tr>
+                        )}
+                        {abertoAgora &&
+                          g.itens.map((a, n) => {
+                  const i = corrente++;
                   const marcada = sel.has(a.id);
                   return (
                     <tr
@@ -210,7 +371,7 @@ export function ActivitiesView({
                         <Caixa checked={marcada} label={`Selecionar "${a.title}"`} onChange={(e) => alternar(i, e.shiftKey)} />
                       </td>
                       <td className="px-2 align-middle">
-                        <span className="eyebrow !text-[11px] tabular-nums">{String(i + 1).padStart(2, "0")}</span>
+                        <span className="eyebrow !text-[11px] tabular-nums">{String(n + 1).padStart(2, "0")}</span>
                       </td>
                       <td className="max-w-[420px] px-4">
                         <AtividadeLink id={a.id} className="block truncate font-medium text-foreground underline-offset-2 hover:underline">
@@ -273,7 +434,11 @@ export function ActivitiesView({
                       </td>
                     </tr>
                   );
-                })}
+                          })}
+                      </Fragment>
+                    );
+                  });
+                })()}
               </tbody>
             </table>
           </div>

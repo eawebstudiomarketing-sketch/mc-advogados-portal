@@ -6,6 +6,7 @@ import { getEscritorioConfig, listPessoas, sugerirResponsavel } from "@/lib/data
 import { lerConversasDoZap } from "@/lib/distribuicao/ler-zap";
 import { diaDaPessoa } from "@/lib/data/rotina";
 import { reagendarLembretes, cancelarLembretes } from "@/lib/zap/lembretes";
+import { destinoDoCliente, enfileirarMensagem } from "@/lib/zap/fila";
 import { ACTIVITY_TYPES } from "@/lib/activity-type";
 import type { Ctx, ToolDef } from "./tools";
 
@@ -323,5 +324,43 @@ export function toolsOperacao(db: () => Db): ToolDef[] {
         return { excluido: true };
       },
     },
+    // ───────── Aviso ao cliente ─────────
+    {
+      name: "avisar_cliente_atividade_concluida",
+      kind: "confirm",
+      soAdmin: true,
+      label: "Avisou o cliente no WhatsApp",
+      description:
+        "Avisa o cliente, no WhatsApp dele, que uma atividade CONCLUÍDA foi concluída (mesmo botão 'Avisar no Zap' da atividade). Sem 'texto', usa o texto padrão do escritório. Pede confirmação e marca a atividade como 'cliente avisado'.",
+      parameters: obj({ id: { type: "string", description: "id da atividade" }, texto: { type: "string", description: "texto opcional; vazio = padrão do escritório" } }, ["id"]),
+      descrever: async (a) => {
+        try {
+          const r = await montarAviso(db(), String(a.id), a.texto);
+          return `Para ${r.destino.rotulo}:\n“${r.texto}”${r.avisadoEm ? "\n⚠ O cliente já foi avisado desta atividade antes." : ""}`;
+        } catch (e) {
+          return `⚠ ${(e as Error).message}`;
+        }
+      },
+      run: async (a, ctx) => {
+        const r = await montarAviso(db(), String(a.id), a.texto);
+        const job = await enfileirarMensagem({ para: r.destino.para, texto: r.texto, origemRef: `aviso-concluida:${r.id}:${Date.now()}`, expiraEm: new Date(Date.now() + 24 * 3_600_000), criadoPor: ctx.profileId });
+        if (!job) throw new Error("Não consegui colocar a mensagem na fila do WhatsApp.");
+        await db().from("activities").update({ cliente_avisado_em: new Date().toISOString(), cliente_avisado_por: ctx.profileId }).eq("id", r.id);
+        return { avisado: true, para: r.destino.rotulo };
+      },
+    },
   ];
+}
+
+/** Texto + destino do aviso "atividade concluída" (valida tudo; lança erro em português). */
+async function montarAviso(db: Db, id: string, textoLivre: unknown) {
+  const { data: at } = await db.from("activities").select("id, title, status, client_id, cliente_avisado_em, clients(name)").eq("id", id).maybeSingle();
+  if (!at) throw new Error("Atividade não encontrada.");
+  if (at.status !== "concluida") throw new Error("A atividade ainda não está concluída.");
+  if (!at.client_id) throw new Error("A atividade não tem cliente.");
+  const destino = await destinoDoCliente(at.client_id);
+  if (!destino) throw new Error("O cliente não tem WhatsApp vinculado.");
+  const nomeCliente = (at.clients as unknown as { name: string } | null)?.name ?? "";
+  const texto = (String(textoLivre ?? "").trim() || (await getEscritorioConfig()).aviso_concluida).replaceAll("{titulo}", at.title).replaceAll("{cliente}", nomeCliente);
+  return { id: at.id, texto, destino, avisadoEm: at.cliente_avisado_em };
 }

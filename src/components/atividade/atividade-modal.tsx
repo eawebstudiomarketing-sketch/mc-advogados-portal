@@ -33,6 +33,7 @@ import { ResponsavelSelect } from "./responsavel-select";
 import { EnvolvidosSelect } from "./envolvidos-select";
 import { EtiquetasEditor } from "./etiquetas";
 import { Comentarios } from "./comentarios";
+import { AvisarCliente } from "./avisar-cliente";
 
 // Mini tela da atividade: abre no meio da tela, por cima de qualquer lista ou
 // quadro, sem trocar de página. Fecha com Esc, clique fora ou no X.
@@ -283,6 +284,16 @@ function AtividadeModal({ id, editarAoAbrir, onClose }: { id: string; editarAoAb
                   {new Date(d.created_at).toLocaleDateString("pt-BR")}
                 </Campo>
               </div>
+
+              {d.status === "concluida" && d.client_id && (
+                <AvisarCliente
+                  key={d.id}
+                  atividadeId={d.id}
+                  avisadoEm={d.cliente_avisado_em}
+                  podeSalvarModelo={d.pode.salvarModeloAviso}
+                  onAvisou={(iso) => setD((x) => (x ? { ...x, cliente_avisado_em: iso } : x))}
+                />
+              )}
 
               <div className="mt-5">
                 <p className="text-[11px] font-medium tracking-wide text-muted uppercase">Descrição</p>
