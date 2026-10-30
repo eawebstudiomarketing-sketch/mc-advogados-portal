@@ -183,7 +183,7 @@ export async function executarMonitor(origem: "cron" | "manual"): Promise<Result
     erros.push(`INPI: ${e instanceof Error ? e.message : String(e)}`);
   }
 
-  // 3) manutenção: cria processo novo descoberto pelo DJEN (substitui o Astrea nisso),
+  // 3) manutenção: número novo descoberto pelo DJEN vai para "Aguardando aprovação" (Novo processo),
   //    liga ao processo, completa estado e sugestões das antigas
   try {
     const nov = await criarProcessosDoDJEN(db);
