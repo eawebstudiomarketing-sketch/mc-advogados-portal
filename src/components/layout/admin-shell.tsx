@@ -3,11 +3,13 @@
 import Image from "next/image";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { Suspense, useEffect, useMemo, useState, useSyncExternalStore } from "react";
-import { Clock, Activity, LayoutDashboard, Users, ListChecks, Gavel, FileText, FileSignature, Wallet, ClipboardList, BarChart3, UserCog, Plug, Trash2, Search, Menu, X, LogOut, UserRound, type LucideIcon, Briefcase, Layers, Settings2, ChevronDown, Newspaper, Bell, CalendarDays, MessageCircle, MessagesSquare, Inbox, CalendarCheck, BellRing, AudioLines, NotebookPen, Sparkles, Wrench, Gauge } from "lucide-react";
+import { Suspense, useEffect, useMemo, useState } from "react";
+import { Clock, Search, Menu, X, LogOut, UserRound, Bell, MessagesSquare } from "lucide-react";
 import { logout } from "@/app/logout/actions";
 import { CommandPalette, type PaletteItem } from "./command-palette";
-import { PERM_DA_TELA, type Permissoes } from "@/lib/permissoes";
+import type { Permissoes } from "@/lib/permissoes";
+import { secoesVisiveis, rotaAtiva, type Secao } from "./secoes";
+import { AbasSecao } from "./abas-secao";
 import { TemaBotao } from "@/components/ui/tema-botao";
 import { NavTrail } from "@/components/nav/nav-trail";
 import { AtividadeModalProvider } from "@/components/atividade/atividade-modal";
@@ -19,87 +21,6 @@ const ROLE_LABEL: Record<string, string> = {
   admin: "Administrador",
   advogado: "Advogado",
 };
-
-type NavItem = { href: string; label: string; icon: LucideIcon; todos?: boolean; soSuper?: boolean };
-
-// Menu em 3 grandes áreas que abrem as subopções ao clicar (a Visão geral
-// fica solta no topo). Cada pessoa vê só as telas liberadas para ela
-// (PERM_DA_TELA); o admin máximo vê tudo.
-const INICIO: NavItem = { href: "/admin", label: "Área de trabalho", icon: LayoutDashboard };
-const NAV_GROUPS: { id: string; label: string; icon: LucideIcon; items: NavItem[] }[] = [
-  {
-    id: "comercial",
-    label: "Comercial",
-    icon: Briefcase,
-    items: [
-      { href: "/admin/clients", label: "Contatos", icon: Users },
-      { href: "/admin/contracts", label: "Contratos", icon: FileSignature },
-      { href: "/admin/whatsapp", label: "WhatsApp", icon: MessageCircle },
-    ],
-  },
-  {
-    id: "operacional",
-    label: "Operacional",
-    icon: Layers,
-    items: [
-      { href: "/admin/agenda", label: "Agenda", icon: CalendarDays },
-      { href: "/admin/distribuicao", label: "Distribuição", icon: Inbox },
-      { href: "/admin/onboarding", label: "Onboarding", icon: ClipboardList },
-      { href: "/admin/activities", label: "Atividades", icon: ListChecks },
-      { href: "/admin/rotinas", label: "Rotinas", icon: CalendarCheck, todos: true },
-      { href: "/admin/publicacoes", label: "Publicações", icon: Newspaper },
-      { href: "/admin/alertas", label: "Alertas", icon: BellRing },
-      { href: "/admin/processes", label: "Processos e casos", icon: Gavel },
-      { href: "/admin/documents", label: "Documentos", icon: FileText },
-    ],
-  },
-  {
-    // ferramentas do dia a dia (23/10/2026): IA em tela grande, transcrição, atas
-    // e as próximas que forem criadas
-    id: "ferramentas",
-    label: "Ferramentas",
-    icon: Wrench,
-    items: [
-      { href: "/admin/ia", label: "IA", icon: Sparkles },
-      { href: "/admin/transcricao", label: "Transcrição", icon: AudioLines, todos: true },
-      { href: "/admin/atas", label: "Reuniões", icon: NotebookPen },
-    ],
-  },
-  {
-    id: "gestao",
-    label: "Gestão",
-    icon: Settings2,
-    items: [
-      { href: "/admin/painel", label: "Painel do Dono", icon: Gauge, soSuper: true },
-      { href: "/admin/indicadores", label: "Indicadores", icon: Activity, todos: true },
-      { href: "/admin/reports", label: "Relatórios", icon: BarChart3 },
-      { href: "/admin/financial", label: "Financeiro", icon: Wallet },
-      { href: "/admin/team", label: "Equipe", icon: UserCog },
-      { href: "/admin/mensagens", label: "Mensagens", icon: MessagesSquare, todos: true },
-      { href: "/admin/integracoes", label: "Integrações", icon: Plug },
-      { href: "/admin/lixeira", label: "Lixeira", icon: Trash2 },
-    ],
-  },
-];
-
-// grupos abertos no menu (lembrado no navegador; texto JSON para o
-// useSyncExternalStore comparar sem recriar o array a cada leitura)
-const CHAVE_GRUPOS = "mc:menu-grupos-v2"; // v2: grupo Ferramentas (abre aberto pra todos)
-const PADRAO_GRUPOS = JSON.stringify(["comercial", "operacional", "ferramentas", "gestao"]);
-const ouvintesGrupos = new Set<() => void>();
-function lerGruposCru(): string {
-  try {
-    return localStorage.getItem(CHAVE_GRUPOS) ?? PADRAO_GRUPOS;
-  } catch {
-    return PADRAO_GRUPOS;
-  }
-}
-function gravarGrupos(v: string[]) {
-  try {
-    localStorage.setItem(CHAVE_GRUPOS, JSON.stringify(v));
-  } catch {}
-  ouvintesGrupos.forEach((f) => f());
-}
 
 const iniciais = (nome: string) =>
   nome
@@ -168,39 +89,16 @@ export function AdminShell({
   const [menuMobile, setMenuMobile] = useState(false);
   const [busca, setBusca] = useState(false);
 
-  const grupos = NAV_GROUPS.map((g) => ({
-    ...g,
-    items: g.items.filter((i) => {
-      if (i.soSuper) return superAdmin;
-      if (i.todos) return true;
-      const chave = PERM_DA_TELA[i.href];
-      return !!chave && permissoes[chave];
-    }),
-  })).filter((g) => g.items.length > 0);
-
-  const ativo = (href: string) => (href === "/admin" ? pathname === "/admin" : pathname.startsWith(href));
-  const grupoAtivo = grupos.find((g) => g.items.some((i) => ativo(i.href)))?.id;
-  // grupos abertos: o que a pessoa deixou aberto (o grupo da tela atual
-  // fechado mostra uma bolinha no ícone)
-  const abertosSalvos = useSyncExternalStore(
-    (f) => {
-      ouvintesGrupos.add(f);
-      return () => ouvintesGrupos.delete(f);
-    },
-    () => lerGruposCru(),
-    () => PADRAO_GRUPOS
-  );
-  const abertos: string[] = JSON.parse(abertosSalvos);
-  const alternarGrupo = (id: string) => gravarGrupos(abertos.includes(id) ? abertos.filter((x) => x !== id) : [...abertos, id]);
+  const secoes = secoesVisiveis(permissoes, superAdmin);
+  const secaoAtual = secoes.find((sc) => sc.abas.some((a) => rotaAtiva(pathname, a.href)));
 
   const itensBusca = useMemo<PaletteItem[]>(
     () => [
-      { href: INICIO.href, label: INICIO.label, group: "Telas", icon: INICIO.icon },
-      ...grupos.flatMap((g) => g.items.map((i) => ({ href: i.href, label: i.label, group: "Telas", icon: i.icon }))),
+      ...secoes.flatMap((sc) => sc.abas.map((i) => ({ href: i.href, label: i.label, group: "Telas", icon: i.icon }))),
       ...clients.map((c) => ({ href: `/admin/clients/${c.id}`, label: c.name, group: "Clientes" })),
       { href: "/account", label: "Minha conta", group: "Conta", icon: UserRound },
     ],
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- grupos deriva só de userRole
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- secoes deriva só das permissões
     [clients, userRole]
   );
 
@@ -225,37 +123,30 @@ export function AdminShell({
   const badge = (href: string) =>
     href === "/admin/mensagens" ? naoLidas : href === "/admin/distribuicao" ? distribuicaoPendentes : href === "/admin/publicacoes" ? publicacoesPendentes : 0;
 
-  // item do menu. "sempre" = gaveta do celular (nomes sempre à mostra);
-  // "hover" = trilho fino do computador (nome aparece quando o menu abre).
-  const itemNav = (item: NavItem, modo: "hover" | "sempre") => {
-    const on = ativo(item.href);
-    const Icone = item.icon;
-    const n = badge(item.href);
-    const rotulo = modo === "hover" ? "opacity-0 transition-opacity duration-150 group-hover/menu:opacity-100 group-focus-within/menu:opacity-100" : "";
+  // item do menu = uma seção; leva à primeira tela dela que a pessoa pode ver.
+  // O número somado das telas da seção aparece ao lado do nome.
+  const itemNav = (secao: Secao) => {
+    const on = secao.id === secaoAtual?.id;
+    const Icone = secao.icon;
+    const n = secao.abas.reduce((soma, a) => soma + badge(a.href), 0);
     return (
-      <li key={item.href}>
+      <li key={secao.id}>
         <Link
-          href={item.href}
+          href={secao.abas[0].href}
           aria-current={on ? "page" : undefined}
-          aria-label={item.label}
           className={`relative flex h-10 items-center gap-3 rounded-lg px-[11px] text-sm whitespace-nowrap transition-colors duration-150 ${
             on ? "bg-navy/10 text-navy-3" : "text-muted hover:bg-hover hover:text-foreground"
           }`}
         >
           <Icone className="h-[18px] w-[18px] shrink-0" aria-hidden />
-          <span className={`flex-1 truncate font-medium ${rotulo}`}>{item.label}</span>
+          <span className="flex-1 truncate font-medium">{secao.label}</span>
           {n > 0 && (
-            <>
-              <span
-                className={`rounded-full px-1.5 text-[10px] leading-4 font-semibold tabular-nums ${on ? "bg-gold text-navy-2" : "bg-navy text-white"} ${rotulo}`}
-                aria-label={`${n} pendentes`}
-              >
-                {n > 99 ? "99+" : n}
-              </span>
-              {modo === "hover" && (
-                <span className="absolute top-2 left-7 h-2 w-2 rounded-full bg-gold ring-2 ring-white transition-opacity group-hover/menu:opacity-0" aria-hidden />
-              )}
-            </>
+            <span
+              className={`rounded-full px-1.5 text-[10px] leading-4 font-semibold tabular-nums ${on ? "bg-gold text-navy-2" : "bg-navy text-white"}`}
+              aria-label={`${n} pendentes`}
+            >
+              {n > 99 ? "99+" : n}
+            </span>
           )}
         </Link>
       </li>
@@ -280,38 +171,7 @@ export function AdminShell({
       </div>
 
       <nav className="flex-1 space-y-1 overflow-x-hidden overflow-y-auto px-[10px] pt-2 pb-4" aria-label="Menu principal">
-        <ul>{itemNav(INICIO, modo)}</ul>
-        {grupos.map((g) => {
-          const aberto = abertos.includes(g.id);
-          const IconeGrupo = g.icon;
-          const pendentes = g.items.reduce((s, i) => s + badge(i.href), 0);
-          const temAtivo = g.id === grupoAtivo;
-          const rotulo = modo === "hover" ? "opacity-0 transition-opacity duration-150 group-hover/menu:opacity-100 group-focus-within/menu:opacity-100" : "";
-          return (
-            <div key={g.id}>
-              <button
-                type="button"
-                onClick={() => alternarGrupo(g.id)}
-                aria-expanded={aberto}
-                className={`relative flex h-10 w-full items-center gap-3 rounded-xl px-[11px] text-left text-sm whitespace-nowrap transition-colors hover:bg-hover ${
-                  temAtivo && !aberto ? "text-foreground" : "text-foreground/70"
-                }`}
-              >
-                <IconeGrupo className="h-[18px] w-[18px] shrink-0" aria-hidden />
-                <span className={`flex-1 font-display text-[14px] font-bold tracking-tight ${rotulo}`}>{g.label}</span>
-                <ChevronDown className={`h-4 w-4 shrink-0 text-muted transition-transform ${aberto ? "" : "-rotate-90"} ${rotulo}`} aria-hidden />
-                {!aberto && (pendentes > 0 || temAtivo) && (
-                  <span className={`absolute top-2 left-7 h-2 w-2 rounded-full ring-2 ring-white ${temAtivo ? "bg-navy" : "bg-gold"}`} aria-hidden />
-                )}
-              </button>
-              {aberto && (
-                <ul className={`mt-0.5 space-y-0.5 ${modo === "hover" ? "group-hover/menu:ml-3 group-hover/menu:border-l group-hover/menu:border-border group-hover/menu:pl-2" : "ml-3 border-l border-border pl-2"}`}>
-                  {g.items.map((i) => itemNav(i, modo))}
-                </ul>
-              )}
-            </div>
-          );
-        })}
+        <ul className="space-y-0.5">{secoes.map(itemNav)}</ul>
       </nav>
 
       <div className="border-t border-border px-[10px] py-3">
@@ -417,6 +277,7 @@ export function AdminShell({
 
         <main className="flex-1">
           <div key={pathname} className="mx-auto w-full max-w-[1240px] px-4 py-7 animate-page sm:px-6 lg:px-10 lg:py-10">
+            {secaoAtual && <AbasSecao secao={secaoAtual} pathname={pathname} badge={badge} />}
             {children}
           </div>
         </main>
