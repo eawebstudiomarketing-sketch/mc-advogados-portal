@@ -4,6 +4,7 @@ import { createAdminClient } from "@/lib/supabase/admin";
 import { agenteLigado } from "@/lib/whatsapp";
 import { equipeNoZap } from "./equipe-zap";
 import { DIA, arred, dentro, dias, hojeBahia as hoje, media, notaPorTempo, periodoDe, type Periodo } from "./base";
+import { memo } from "./memo";
 
 export { periodoDe, notaPorTempo, type Periodo };
 
@@ -49,9 +50,14 @@ type Atividade = {
 type Dist = { id: string; origem: string; status: string; created_at: string; tratado_em: string | null; activity_id: string | null; client_id: string | null; tratado_por: string | null };
 type Msg = { chat_jid: string; from_me: boolean; wa_timestamp: string; quem: string; job_id: string | null; sender_jid: string | null };
 
-export type Metricas = Awaited<ReturnType<typeof calcularMetricas>>;
+export type Metricas = Awaited<ReturnType<typeof calcularMetricasAgora>>;
 
-export async function calcularMetricas(p: Periodo) {
+/** Métricas do período, guardadas por 2 minutos (Painel do Dono e Indicadores abrem bem mais rápido). */
+export function calcularMetricas(p: Periodo): Promise<Metricas> {
+  return memo(`metricas|${p.id}|${p.ini}|${p.fim}`, 120_000, () => calcularMetricasAgora(p));
+}
+
+async function calcularMetricasAgora(p: Periodo) {
   const h = hoje();
   const agora = new Date().toISOString();
   const [atividades, dist, clientes, responsaveis, perfis, chats] = await Promise.all([

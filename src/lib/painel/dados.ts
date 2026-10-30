@@ -3,13 +3,19 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { tudo } from "./metricas";
 import type { LinhaAtividade, LinhaCliente, LinhaResp } from "./base";
+import { memo } from "./memo";
 
 // Linhas enxutas para os quadros do painel filtrarem no navegador.
 const db = () => createAdminClient() as unknown as SupabaseClient;
 
 export type Base = { atividades: LinhaAtividade[]; clientes: LinhaCliente[]; responsaveis: LinhaResp[] };
 
-export async function carregarBase(): Promise<Base> {
+/** Base do Painel (atividades, clientes e responsáveis), guardada por 2 minutos. */
+export function carregarBase(): Promise<Base> {
+  return memo("painel-base", 120_000, carregarBaseAgora);
+}
+
+async function carregarBaseAgora(): Promise<Base> {
   type A = { id: string; title: string; status: string; type: string; area: string | null; categoria: string | null; created_at: string; concluida_em: string | null; deadline: string | null; hora: string | null; updated_at: string; client_id: string | null; responsavel_id: string | null; envolvidos: string[] | null };
   const [ats, dist, cls, rs] = await Promise.all([
     tudo<A>((a, b) => db().from("activities").select("id, title, status, type, area, categoria, created_at, concluida_em, deadline, hora, updated_at, client_id, responsavel_id, envolvidos").is("archived_at", null).range(a, b)),
