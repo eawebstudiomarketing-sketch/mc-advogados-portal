@@ -903,6 +903,7 @@ export type Database = {
       }
       activities: {
         Row: {
+          checklist: Json
           area: string | null
           concluida_em: string | null
           cliente_avisado_em: string | null
@@ -925,6 +926,7 @@ export type Database = {
           hora: string | null
         }
         Insert: {
+          checklist?: Json
           area?: string | null
           concluida_em?: string | null
           cliente_avisado_em?: string | null
@@ -947,6 +949,7 @@ export type Database = {
           hora?: string | null
         }
         Update: {
+          checklist?: Json
           area?: string | null
           concluida_em?: string | null
           cliente_avisado_em?: string | null

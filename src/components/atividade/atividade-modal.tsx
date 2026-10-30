@@ -1,5 +1,6 @@
 "use client";
 
+import { ChecklistAtividade } from "./checklist";
 import { createContext, useCallback, useContext, useEffect, useRef, useState, useTransition } from "react";
 import { createPortal } from "react-dom";
 import Link from "next/link";
@@ -303,6 +304,8 @@ function AtividadeModal({ id, editarAoAbrir, onClose }: { id: string; editarAoAb
                   <p className="mt-1 text-sm text-muted">Sem descrição.</p>
                 )}
               </div>
+
+              <ChecklistAtividade key={`ck-${d.id}`} atividadeId={d.id} inicial={d.checklist} />
 
               {d.pode.documentos && (
               <div className="mt-5 rounded-xl border border-border">

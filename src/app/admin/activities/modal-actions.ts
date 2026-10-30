@@ -9,6 +9,7 @@ import { listEtiquetas, type Etiqueta } from "@/lib/data/etiquetas";
 import { listDocuments } from "@/lib/data/documents";
 import { listResponsaveis, type Responsavel } from "@/lib/data/responsaveis";
 import type { Database } from "@/lib/supabase/types";
+import { lerChecklist, type ItemChecklist } from "@/lib/checklist";
 
 // Ações da mini tela da atividade (abre por cima de qualquer lista/quadro).
 
@@ -29,6 +30,7 @@ export type AtividadeDetalhe = {
   responsavel: string | null;
   envolvidos: string[];
   etiquetas: string[];
+  checklist: ItemChecklist[];
   etiquetasTodas: Etiqueta[];
   documentos: { id: string; title: string; created_at: string; downloadUrl: string | null; drive_file_id: string | null }[];
   /** Documentos do cliente que ainda não estão nesta atividade (para anexar). */
@@ -76,6 +78,7 @@ export async function getActivityDetailAction(id: string): Promise<{ ok: true; d
       responsavel: nomeResponsavel(a),
       envolvidos: a.envolvidos ?? [],
       etiquetas: a.etiquetas ?? [],
+      checklist: lerChecklist(a.checklist),
       etiquetasTodas,
       documentos: documentos.map((d) => ({
         id: d.id,
@@ -140,4 +143,16 @@ export async function createResponsavelAction(
     .single();
   if (error || !data) return { ok: false, error: "Não foi possível cadastrar. Tente novamente." };
   return { ok: true, responsavel: { id: data.id, nome: data.nome, email: data.email, temLogin: !!data.profile_id, clientes: null } };
+}
+
+/** Grava o checklist inteiro da atividade (marcar, incluir, tirar subtarefa). */
+export async function salvarChecklistAction(id: string, itens: ItemChecklist[]): Promise<string | null> {
+  await requireRole(["admin", "advogado"]);
+  const lista = lerChecklist(itens).filter((x) => x.texto.trim());
+  const supabase = await createClient();
+  const { data, error } = await supabase.from("activities").update({ checklist: lista }).eq("id", id).select("id");
+  if (error) return "Não foi possível salvar o checklist (a atualização do banco 0059 ainda não foi aplicada?).";
+  if (!data?.length) return "Atividade não encontrada.";
+  revalidatePath("/admin/activities");
+  return null;
 }

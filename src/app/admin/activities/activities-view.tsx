@@ -1,7 +1,8 @@
 "use client";
 
 import { Fragment, useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
-import { ChevronRight, Columns3, List, ListChecks, Pencil } from "lucide-react";
+import { ChevronRight, Columns3, List, ListChecks, ListTodo, Pencil } from "lucide-react";
+import { lerChecklist } from "@/lib/checklist";
 import type { Activity } from "@/lib/data/activities";
 import { ACTIVITY_TYPE_LABEL } from "@/lib/activity-type";
 import { StatusSelect } from "./status-select";
@@ -397,6 +398,16 @@ export function ActivitiesView({
                           <span className="rounded bg-surface-2 px-1.5 py-0.5 text-xs font-semibold text-foreground/75">{ACTIVITY_TYPE_LABEL[a.type]}</span>
                           {a.area && <span className="rounded bg-surface-2 px-1.5 py-0.5 text-xs font-semibold text-foreground/75">{a.area}</span>}
                           {a.cliente_avisado_em && <span className="rounded bg-status-success-bg px-1.5 py-0.5 text-xs font-semibold text-status-success">Cliente avisado</span>}
+                          {(() => {
+                            const ck = lerChecklist(a.checklist);
+                            if (!ck.length) return null;
+                            const feitos = ck.filter((x) => x.feito).length;
+                            return (
+                              <span title="Checklist" className={`inline-flex items-center gap-1 rounded px-1.5 py-0.5 text-xs font-semibold tabular-nums ${feitos === ck.length ? "bg-status-success-bg text-status-success" : "bg-surface-2 text-foreground/75"}`}>
+                                <ListTodo className="h-3 w-3" aria-hidden /> {feitos}/{ck.length}
+                              </span>
+                            );
+                          })()}
                           {(a.etiquetas ?? []).length > 0 && <EtiquetasLinha ids={a.etiquetas ?? []} todas={etiquetas} />}
                         </div>
                       </td>
