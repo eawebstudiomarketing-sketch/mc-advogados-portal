@@ -16,7 +16,10 @@ export async function GET(request: Request) {
   }
   const origem = new URL(request.url).searchParams.get("origem") === "manual" ? "manual" : "cron";
   const r = await executarMonitor(origem);
+  // a saúde do robô é só sobre o DJEN (que gera prazo). O INPI é um extra; se ele cair (503, comum),
+  // não derruba o card de publicações — só o erro com prefixo "DJEN:" conta como falha aqui.
+  const djenErro = /\bDJEN:/.test(r.erro ?? "") ? r.erro! : null;
   // a cada 2 h das 06h às 22h: 6 h sem sinal (1,5 × 6 h = 9 h) cobre a noite sem alarme falso
-  await registrarRobo({ robo: "publicacoes-djen", nome: "Publicações (DJEN)", grupo: "publicacoes", ok: !r.erro, motivo: r.erro ? classificarErro(r.erro) : null, detalhe: r.erro ? String(r.erro) : null, intervaloMin: 360 });
+  await registrarRobo({ robo: "publicacoes-djen", nome: "Publicações (DJEN)", grupo: "publicacoes", ok: !djenErro, motivo: djenErro ? classificarErro(djenErro) : null, detalhe: djenErro ?? null, intervaloMin: 360 });
   return NextResponse.json({ ok: !r.erro, ...r }, { status: r.erro ? 500 : 200 });
 }
