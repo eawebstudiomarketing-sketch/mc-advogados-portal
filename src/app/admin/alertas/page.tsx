@@ -73,7 +73,7 @@ export default async function AlertasPage({ searchParams }: { searchParams: Prom
     <div>
       <div className="mb-5 flex flex-wrap items-end justify-between gap-3">
         <div>
-          <p className="eyebrow mb-2">Operacional</p>
+          <p className="eyebrow mb-2">Caixa de entrada</p>
           <h1 className="page-title">Alertas</h1>
           {ultima && (
             <p className="text-sm text-muted">

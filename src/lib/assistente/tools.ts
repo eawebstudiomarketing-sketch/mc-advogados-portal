@@ -500,7 +500,7 @@ export const TOOLS: ToolDef[] = [
       const c = await porId<{ id: string; name: string }>("clients", a.client_id, "Cliente");
       const r = await gerarRelatorioMensal(db(), { clientId: c.id, clientName: c.name, mes: Number(a.mes), ano: Number(a.ano), profileId: ctx.profileId });
       if (!r.ok) throw new Error(r.error);
-      return { gerado: `${MESES[Number(a.mes)]} de ${a.ano}`, cliente: c.name, link_no_portal: `/admin/clients/${c.id}?aba=relatorios` };
+      return { gerado: `${MESES[Number(a.mes)]} de ${a.ano}`, cliente: c.name, link_no_portal: `/admin/clients/${c.id}?aba=arquivos` };
     },
   },
   {
@@ -727,7 +727,7 @@ export const TOOLS: ToolDef[] = [
         .select("id, title")
         .single();
       if (error) throw error;
-      return { trazido: data.title, cliente: c.name, document_id: data.id, link_no_portal: `/admin/clients/${c.id}?aba=documentos` };
+      return { trazido: data.title, cliente: c.name, document_id: data.id, link_no_portal: `/admin/clients/${c.id}?aba=arquivos` };
     },
   },
 

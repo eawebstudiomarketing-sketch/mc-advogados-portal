@@ -36,7 +36,7 @@ import { Archive, ArchiveRestore } from "lucide-react";
 import { GerarDemandas } from "./gerar-demandas";
 import { ReportsTab } from "./reports-tab";
 import { listReports } from "@/lib/data/reports";
-import { BarChart3, IdCard, Phone } from "lucide-react";
+import { Phone } from "lucide-react";
 import { CadastroPF } from "./cadastro-pf";
 import { DemandsSection } from "@/app/admin/onboarding/[id]/demands-section";
 import { listClientDemandDrafts } from "@/lib/data/onboarding-demand-drafts";
@@ -50,17 +50,17 @@ const DOCS_PER_PAGE = 10;
 
 const ABAS = [
   { id: "geral", label: "Visão geral", icon: LayoutGrid },
-  { id: "cadastro", label: "Cadastro", icon: IdCard },
   { id: "atividades", label: "Atividades", icon: ListChecks },
   { id: "processos", label: "Processos", icon: Gavel },
-  { id: "documentos", label: "Documentos", icon: FileText },
-  { id: "atas", label: "ATAs", icon: NotebookPen },
+  { id: "arquivos", label: "Arquivos", icon: FileText },
   { id: "onboarding", label: "Onboarding", icon: ClipboardList },
   { id: "demandas", label: "Demandas", icon: Lightbulb },
-  { id: "relatorios", label: "Relatórios", icon: BarChart3 },
   { id: "acesso", label: "Acesso", icon: KeyRound },
 ] as const;
 type Aba = (typeof ABAS)[number]["id"];
+// abas antigas (antes de 30/10/2026) que viraram parte de outra: links de
+// e-mail e do Assistente continuam abrindo no lugar certo
+const ABA_ANTIGA: Record<string, Aba> = { cadastro: "geral", documentos: "arquivos", atas: "arquivos", relatorios: "arquivos" };
 
 const dataBR = (iso: string) => new Date(iso.length === 10 ? iso + "T00:00:00" : iso).toLocaleDateString("pt-BR");
 
@@ -104,30 +104,30 @@ export default async function AdminClientDetailPage({
   const PERM_DA_ABA: Partial<Record<Aba, PermChave>> = {
     atividades: "atividades",
     processos: "processos",
-    documentos: "documentos",
-    atas: "atas",
     onboarding: "onboarding",
     demandas: "demandas",
-    relatorios: "relatorios",
     acesso: "acesso_portal",
   };
   // pessoa física: aba Cadastro (como no Astrea); onboarding, demandas da IA e relatório mensal são de empresa
   const pf = client.tipo_pessoa === "PF";
-  const SO_PJ: Aba[] = ["onboarding", "demandas", "relatorios"];
-  const abas = ABAS.filter((a) => (!PERM_DA_ABA[a.id] || perm[PERM_DA_ABA[a.id]!]) && (pf ? !SO_PJ.includes(a.id) : a.id !== "cadastro"));
-  const pedida = abas.find((a) => a.id === abaParam)?.id;
-  const aba: Aba = pedida ?? (docsParam && abas.some((a) => a.id === "documentos") ? "documentos" : "geral");
+  const SO_PJ: Aba[] = ["onboarding", "demandas"];
+  // Arquivos junta documentos e contratos, ATAs e relatórios mensais (este só de empresa)
+  const verDocs = !!perm.documentos;
+  const verAtas = !!perm.atas;
+  const verRelatorios = !!perm.relatorios && !pf;
+  const abas = ABAS.filter((a) => (a.id === "arquivos" ? verDocs || verAtas || verRelatorios : !PERM_DA_ABA[a.id] || perm[PERM_DA_ABA[a.id]!]) && !(pf && SO_PJ.includes(a.id)));
+  const abaPedida = abaParam ? (ABA_ANTIGA[abaParam] ?? abaParam) : undefined;
+  const pedida = abas.find((a) => a.id === abaPedida)?.id;
+  const aba: Aba = pedida ?? (docsParam && abas.some((a) => a.id === "arquivos") ? "arquivos" : "geral");
   const documents = docsPage.items;
   const contar = (status: string) => activities.filter((a) => a.status === status).length;
   const pendentes = drafts.filter((d) => d.status === "rascunho").length;
   const contagem: Partial<Record<Aba, number>> = {
     atividades: activities.length,
     processos: processos.length,
-    documentos: docsPage.total + contracts.length,
-    atas: atas.length,
+    arquivos: (verDocs ? docsPage.total + contracts.length : 0) + (verAtas ? atas.length : 0) + (verRelatorios ? relatorios.length : 0),
     onboarding: onboardings.length,
     demandas: pendentes,
-    relatorios: relatorios.length,
   };
   const hrefAba = (a: Aba) => `/admin/clients/${client.id}${a === "geral" ? "" : `?aba=${a}`}`;
   const temBase = handoffPreenchido(ficha.handoff) || !!ficha.triagem?.trim();
@@ -247,9 +247,10 @@ export default async function AdminClientDetailPage({
         </ul>
       </nav>
 
-      <div key={aba} className="mt-6 animate-page">
+      <div key={aba} className="mt-6 space-y-6 animate-page">
         {aba === "geral" && (
           <div className="space-y-6">
+            {pf && <CadastroPF c={client} podeEditar={!!perm.editar_cliente} />}
             <div className="grid grid-cols-3 gap-3">
               <StatCard label="A fazer" value={String(contar("aberta"))} tone="pending" href={hrefAba("atividades")} />
               <StatCard label="Em andamento" value={String(contar("em_andamento"))} tone="info" href={hrefAba("atividades")} />
@@ -268,10 +269,10 @@ export default async function AdminClientDetailPage({
             )}
             <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
               {[
-                { a: "atas" as Aba, t: "ATAs", n: atas.length, d: atas[0] ? `Última: ${atas[0].title}` : "Nenhuma ainda", icon: NotebookPen },
+                { a: "arquivos" as Aba, t: "ATAs", n: atas.length, d: atas[0] ? `Última: ${atas[0].title}` : "Nenhuma ainda", icon: NotebookPen },
                 { a: "onboarding" as Aba, t: "Onboarding", n: onboardings.length, d: onboardings[0] ? `Feito em ${dataBR(onboardings[0].created_at)}` : "Ainda não feito", icon: ClipboardList },
                 { a: "demandas" as Aba, t: "Demandas para revisar", n: pendentes, d: pendentes ? "Rascunhos da IA aguardando você" : "Nada pendente", icon: Lightbulb },
-              ].filter((c) => abas.some((x) => x.id === c.a)).map((c) => (
+              ].filter((c) => abas.some((x) => x.id === c.a) && (c.a !== "arquivos" || verAtas)).map((c) => (
                 <Link
                   key={c.a}
                   href={hrefAba(c.a)}
@@ -306,7 +307,6 @@ export default async function AdminClientDetailPage({
           </section>
         )}
 
-        {aba === "cadastro" && <CadastroPF c={client} podeEditar={!!perm.editar_cliente} />}
 
         {aba === "processos" && (
           <section>
@@ -343,7 +343,7 @@ export default async function AdminClientDetailPage({
           </section>
         )}
 
-        {aba === "documentos" && (
+        {aba === "arquivos" && verDocs && (
           <section className="ui-card p-5">
             <div className="flex items-center justify-between">
               <h2 className="section-title">Documentos e contratos</h2>
@@ -418,12 +418,12 @@ export default async function AdminClientDetailPage({
               totalPages={docsPage.totalPages}
               total={docsPage.total}
               pageSize={DOCS_PER_PAGE}
-              hrefFor={(n) => `/admin/clients/${client.id}?aba=documentos&docs=${n}`}
+              hrefFor={(n) => `/admin/clients/${client.id}?aba=arquivos&docs=${n}`}
             />
           </section>
         )}
 
-        {aba === "atas" && (
+        {aba === "arquivos" && verAtas && (
           <AtasCard
             clientId={client.id}
             atas={atas.map((a) => ({
@@ -507,7 +507,7 @@ export default async function AdminClientDetailPage({
           </div>
         )}
 
-        {aba === "relatorios" && (
+        {aba === "arquivos" && verRelatorios && (
           <ReportsTab
             podeZap={perm.whatsapp}
             clientId={client.id}

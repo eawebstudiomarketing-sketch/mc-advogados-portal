@@ -36,7 +36,7 @@ export function ReportsTab({ clientId, relatorios, podeZap = false }: { clientId
 
         <form action={formAction} className="mt-4 space-y-4">
           <input type="hidden" name="client_id" value={clientId} />
-          <input type="hidden" name="return_to" value={`/admin/clients/${clientId}?aba=relatorios`} />
+          <input type="hidden" name="return_to" value={`/admin/clients/${clientId}?aba=arquivos`} />
           <div className="grid grid-cols-[1fr_110px] gap-3">
             <div>
               <label htmlFor="rel-mes" className="ui-label">

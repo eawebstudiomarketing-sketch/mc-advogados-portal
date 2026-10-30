@@ -48,7 +48,7 @@ export default async function AtasPage() {
     <div>
       <div className="mb-8 flex flex-wrap items-end justify-between gap-4">
         <div>
-          <p className="eyebrow mb-2">Operacional · Reuniões</p>
+          <p className="eyebrow mb-2">Arquivos · Reuniões</p>
           <h1 className="page-title">Reuniões</h1>
           <p className="mt-1 max-w-2xl text-sm text-muted">Grave a reunião (pode deixar a aba em segundo plano) ou envie o arquivo. Você recebe a transcrição fiel e o resumo com IA, para baixar em PDF, TXT ou Word. Se precisar de ata, é só clicar em “Gerar ata” dentro da reunião: a IA monta no modelo do escritório, você revisa e aprova, e o portal colhe as assinaturas.</p>
         </div>

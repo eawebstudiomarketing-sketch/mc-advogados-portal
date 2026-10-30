@@ -26,7 +26,7 @@ export default async function AdminReportsPage({ searchParams }: { searchParams:
     <div>
       <div className="mb-7 flex flex-wrap items-end justify-between gap-3">
         <div>
-          <p className="eyebrow mb-2">Gestão · Relatórios</p>
+          <p className="eyebrow mb-2">Arquivos · Relatórios</p>
           <h1 className="page-title">Relatórios mensais</h1>
           <p className="text-sm text-muted">Relatórios em PDF gerados pro cliente acompanhar o trabalho prestado</p>
         </div>

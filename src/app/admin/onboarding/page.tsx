@@ -27,7 +27,7 @@ export default async function AdminOnboardingPage({ searchParams }: { searchPara
     <div>
       <div className="mb-7 flex flex-wrap items-end justify-between gap-3">
         <div>
-          <p className="eyebrow mb-2">Operacional · Onboarding</p>
+          <p className="eyebrow mb-2">Contatos · Onboarding</p>
           <h1 className="page-title">Onboarding</h1>
           <p className="text-sm text-muted">Onboarding de clientes novos — perguntas, ações e PDF salvos por cliente</p>
         </div>

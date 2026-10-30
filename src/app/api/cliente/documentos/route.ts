@@ -63,7 +63,7 @@ export async function POST(request: Request) {
         from: resend.from,
         to: para,
         subject: `${cliente?.name ?? "Cliente"} enviou: ${titulo}`,
-        html: `<p><strong>${cliente?.name ?? "Um cliente"}</strong> enviou <strong>${titulo}</strong> pelo portal${itemPedido ? " (documento pedido na ficha de handoff)" : ""}.</p><p><a href="${site()}/admin/clients/${clientId}?aba=documentos">Abrir os documentos do cliente</a></p>`,
+        html: `<p><strong>${cliente?.name ?? "Um cliente"}</strong> enviou <strong>${titulo}</strong> pelo portal${itemPedido ? " (documento pedido na ficha de handoff)" : ""}.</p><p><a href="${site()}/admin/clients/${clientId}?aba=arquivos">Abrir os documentos do cliente</a></p>`,
       });
     }
   } catch (e) {

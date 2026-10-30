@@ -77,7 +77,7 @@ export default async function AdminClientsPage({
     <div>
       <div className="mb-7 flex flex-wrap items-end justify-between gap-3">
         <div>
-          <p className="eyebrow mb-2">Comercial · Carteira</p>
+          <p className="eyebrow mb-2">Contatos · Carteira</p>
           <h1 className="page-title">{arquivados ? "Clientes arquivados" : "Clientes"}</h1>
           <p className="text-sm text-muted">
             {clients.length} {clients.length === 1 ? "cliente" : "clientes"}

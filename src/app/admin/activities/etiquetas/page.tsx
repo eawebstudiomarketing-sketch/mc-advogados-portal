@@ -17,7 +17,7 @@ export default async function EtiquetasPage() {
   return (
     <div className="max-w-3xl">
       <BackButton fallback="/admin/activities" />
-      <p className="eyebrow mt-5">Operacional · Atividades</p>
+      <p className="eyebrow mt-5">Demandas · Atividades</p>
       <h1 className="page-title mt-2">Etiquetas</h1>
       <p className="mt-1 text-sm text-muted">
         {etiquetas.length} etiquetas. Elas aparecem nas atividades e servem de filtro. Para pôr ou tirar de uma atividade, abra a atividade.

@@ -24,7 +24,7 @@ export default async function TranscricaoPage({ searchParams }: { searchParams: 
   return (
     <div>
       <div className="mb-8">
-        <p className="eyebrow mb-2">Operacional · Transcrição</p>
+        <p className="eyebrow mb-2">Ferramentas · Transcrição</p>
         <h1 className="page-title">Transcrição de áudio</h1>
         <p className="mt-1 text-sm text-muted">Mande, grave ou puxe do WhatsApp um áudio: sai o texto palavra por palavra, o resumo com IA ou os dois. Dá para editar e baixar em TXT, PDF, Word ou abrir no Google Docs.</p>
       </div>

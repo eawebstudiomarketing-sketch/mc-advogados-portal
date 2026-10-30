@@ -16,7 +16,7 @@ export default async function NovaAtaPage({ searchParams }: { searchParams: Prom
   return (
     <div>
       <div className="mb-8">
-        <p className="eyebrow mb-2">Operacional · Reuniões</p>
+        <p className="eyebrow mb-2">Arquivos · Reuniões</p>
         <h1 className="page-title">Nova reunião</h1>
         <p className="mt-1 text-sm text-muted">Preencha a reunião, avise que vai gravar e clique em Começar. Pode trocar de aba ou minimizar: a gravação continua e é salva a cada 30 segundos.</p>
       </div>

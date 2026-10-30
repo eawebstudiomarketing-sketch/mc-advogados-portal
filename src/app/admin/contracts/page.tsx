@@ -27,7 +27,7 @@ export default async function AdminContractsPage({ searchParams }: { searchParam
     <div>
       <div className="mb-7 flex flex-wrap items-end justify-between gap-3">
         <div>
-          <p className="eyebrow mb-2">Comercial · Contratos</p>
+          <p className="eyebrow mb-2">Arquivos · Contratos</p>
           <h1 className="page-title">Contratos</h1>
           <p className="text-sm text-muted">
             {contracts.length} {contracts.length === 1 ? "contrato cadastrado" : "contratos cadastrados"}

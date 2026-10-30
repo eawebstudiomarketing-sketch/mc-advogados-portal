@@ -80,7 +80,7 @@ export default async function DistribuicaoPage({
       <DistribuicaoAoVivo />
       <div className="mb-7 flex flex-wrap items-end justify-between gap-3">
         <div>
-          <p className="eyebrow mb-2">Operacional · Entrada de demandas</p>
+          <p className="eyebrow mb-2">Distribuição · Entrada de demandas</p>
           <h1 className="page-title">Distribuição</h1>
           <p className="mt-1 text-sm text-muted">Tudo o que chega de fora, já com responsável. Confira, troque se quiser e crie a atividade.</p>
         </div>

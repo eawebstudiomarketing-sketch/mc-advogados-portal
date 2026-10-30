@@ -89,7 +89,7 @@ export default async function AgendaPage({ searchParams }: { searchParams: Promi
   const cabecalho = (
     <div className="mb-5 flex flex-wrap items-end justify-between gap-3">
       <div>
-        <p className="eyebrow mb-2">Operacional · Agenda</p>
+        <p className="eyebrow mb-2">Demandas · Agenda</p>
         <h1 className="page-title">Agenda</h1>
       </div>
       <div className="flex flex-wrap gap-2">
