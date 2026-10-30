@@ -1,6 +1,8 @@
 import { BarraFiltros } from "@/components/ui/barra-filtros";
 import Link from "next/link";
-import { Gavel, Pencil, Plus } from "lucide-react";
+import { Columns3, Gavel, History, List, Pencil, Plus } from "lucide-react";
+import { QuadroProcessos } from "./quadro-processos";
+import { hojeBahia } from "@/lib/data/painel";
 import { ordenar, dataPlanilha } from "@/lib/ordenar";
 import { ListaVazia } from "@/components/ui/empty-state";
 import { listProcesses } from "@/lib/data/processes";
@@ -13,7 +15,7 @@ import { EditarNaLinha } from "@/components/ui/editar-na-linha";
 import { ConfirmSubmitButton } from "@/components/ui/confirm-submit-button";
 import { exigirPermissao } from "@/lib/dal";
 
-type F = { busca?: string; cliente?: string; area?: string; status?: string; ordem?: string };
+type F = { busca?: string; cliente?: string; area?: string; status?: string; ordem?: string; ver?: string };
 
 export default async function AdminProcessesPage({ searchParams }: { searchParams: Promise<F> }) {
   await exigirPermissao("processos");
@@ -43,6 +45,13 @@ export default async function AdminProcessesPage({ searchParams }: { searchParam
   });
   const opcoesResponsavel = [...equipe.filter((e) => e.ativo !== false).map((e) => ({ valor: e.id, rotulo: e.full_name })), { valor: "nenhum", rotulo: "Sem responsável" }];
   const statuses = [...new Set(todos.map((p) => p.status))].sort();
+  // três jeitos de ver (item 17): lista, colunas por área e pela última movimentação
+  const ver = f.ver === "area" || f.ver === "movimento" ? f.ver : "lista";
+  const hrefVer = (v: string) => {
+    const q = new URLSearchParams(Object.entries(f).filter(([k, x]) => x && k !== "ver") as [string, string][]);
+    if (v !== "lista") q.set("ver", v);
+    return `/admin/processes${q.size ? `?${q}` : ""}`;
+  };
 
   return (
     <div>
@@ -54,12 +63,28 @@ export default async function AdminProcessesPage({ searchParams }: { searchParam
             {processes.length} {processes.length === 1 ? "processo cadastrado" : "processos cadastrados"}
           </p>
         </div>
-        <Link
-          href="/admin/processes/new"
-          className="ui-btn"
-        >
-          <Plus className="h-4 w-4" aria-hidden /> Novo processo
-        </Link>
+        <div className="flex flex-wrap items-center gap-2">
+          <div className="inline-flex items-center gap-0.5 rounded-full border border-border bg-surface p-1" role="tablist" aria-label="Como ver">
+            {([
+              ["lista", "Lista", List],
+              ["area", "Por área", Columns3],
+              ["movimento", "Por movimentação", History],
+            ] as const).map(([id, rotulo, Icone]) => (
+              <Link
+                key={id}
+                href={hrefVer(id)}
+                role="tab"
+                aria-selected={ver === id}
+                className={`inline-flex items-center gap-1.5 rounded-full px-3 py-1.5 text-xs font-semibold ${ver === id ? "bg-navy text-white" : "text-muted hover:text-foreground"}`}
+              >
+                <Icone className="h-3.5 w-3.5" aria-hidden /> {rotulo}
+              </Link>
+            ))}
+          </div>
+          <Link href="/admin/processes/new" className="ui-btn">
+            <Plus className="h-4 w-4" aria-hidden /> Novo processo
+          </Link>
+        </div>
       </div>
 
       <BarraFiltros
@@ -99,6 +124,9 @@ export default async function AdminProcessesPage({ searchParams }: { searchParam
         }}
       />
 
+      {ver !== "lista" ? (
+        <QuadroProcessos processos={processes} como={ver} agora={Date.parse(`${hojeBahia()}T12:00:00-03:00`)} />
+      ) : (
       <SelecaoLista
         ids={processes.map((p) => p.id)}
         nome={["processo", "processos"]}
@@ -182,6 +210,7 @@ export default async function AdminProcessesPage({ searchParams }: { searchParam
         </table>
       </div>
       </SelecaoLista>
+      )}
     </div>
   );
 }
