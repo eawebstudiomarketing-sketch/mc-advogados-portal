@@ -71,10 +71,10 @@ export function AprovarRelatorio({
           </button>
         ))}
       </div>
-      <label htmlFor="aprov-comentario" className="sr-only">
+      <label htmlFor={`aprov-comentario-${responsavelId}`} className="sr-only">
         Comentário
       </label>
-      <textarea id="aprov-comentario" value={comentario} onChange={(e) => setComentario(e.target.value)} rows={2} maxLength={1000} placeholder="Comentário para a pessoa (opcional)" className="ui-input w-full resize-y text-sm" />
+      <textarea id={`aprov-comentario-${responsavelId}`} value={comentario} onChange={(e) => setComentario(e.target.value)} rows={2} maxLength={1000} placeholder="Comentário para a pessoa (opcional)" className="ui-input w-full resize-y text-sm" />
       <div className="flex flex-wrap items-center gap-3">
         <button type="button" onClick={aprovar} disabled={pending} className="ui-btn">
           {pending ? "Salvando…" : aprovado ? "Atualizar nota" : "Aprovar relatório"}

@@ -14,6 +14,7 @@ import { RelatorioDoDia } from "@/components/rotina/relatorio-do-dia";
 import { AprovarRelatorio } from "@/components/rotina/aprovar-relatorio";
 import { concluidasNoDia } from "@/lib/rotina-relatorio/dia";
 import { carregarModelos, demandasVencidas, equipeDe, lerRelatorio, modelosAtribuidos, modeloDaPessoa, relatoriosDoDia } from "@/lib/rotina-relatorio/dados";
+import { RelatorioLeitura } from "@/components/rotina/relatorio-leitura";
 import { EditorRotina } from "./editor";
 import { EditorModelos } from "./modelos";
 
@@ -204,6 +205,8 @@ async function rotinaDaPessoa({
     ]);
     const [equipe, venc] = editavel && modelo ? await Promise.all([equipeDe(alvo.id), demandasVencidas(alvo.id, hoje)]) : [[], []];
     const concluidas = editavel ? await concluidasNoDia(alvo.id, dia) : [];
+    const relsEquipe = souSuper && meu ? (await relatoriosDoDia(dia)).filter((r) => r.responsavel_id !== alvo.id) : [];
+    const daEquipe = souSuper && meu ? pessoas.filter((x) => x.id !== alvo.id && (atribuidos.has(x.id) || relsEquipe.some((r) => r.responsavel_id === x.id))) : [];
     const aprovadorNome = pessoas.find((x) => x.id === modelo?.aprovador_id)?.nome ?? "Maurício";
     corpo = (
       <div className="space-y-6">
@@ -219,6 +222,53 @@ async function rotinaDaPessoa({
           </button>
           {dia !== hoje && <span className="text-sm text-muted">Mostrando {dataBr(dia)} (só leitura).</span>}
         </form>
+
+        {souSuper && meu && (
+          <section aria-label="Relatórios da equipe" className="space-y-3">
+            <div>
+              <h3 className="section-title">Relatórios da equipe</h3>
+              <p className="text-sm text-muted">
+                {relsEquipe.filter((r) => r.status === "enviado").length} de {daEquipe.length} enviados · {relsEquipe.filter((r) => r.aprovado_em).length} aprovados. Leia cada um, dê a nota e aprove; depois responda a sua rotina abaixo.
+              </p>
+            </div>
+            {daEquipe.length === 0 ? (
+              <p className="text-sm text-muted">Ninguém da equipe tem relatório ainda. Monte os modelos em “Modelos” e atribua às pessoas.</p>
+            ) : (
+              <ul className="space-y-2">
+                {daEquipe.map((x) => {
+                  const r = relsEquipe.find((y) => y.responsavel_id === x.id);
+                  const enviado = r?.status === "enviado";
+                  return (
+                    <li key={x.id}>
+                      <details className="ui-card p-3.5" open={enviado && !r?.aprovado_em}>
+                        <summary className="flex cursor-pointer list-none items-center gap-3">
+                          <Avatar nome={x.nome} foto={x.foto} tamanho={32} />
+                          <span className="min-w-0 flex-1 truncate text-sm font-medium text-foreground">{x.nome}</span>
+                          {enviado && r?.aprovado_em ? (
+                            <span className="rounded bg-status-success-bg px-1.5 py-0.5 text-xs font-semibold text-status-success">Aprovado · nota {r.nota}</span>
+                          ) : enviado ? (
+                            <span className="rounded bg-status-info-bg px-1.5 py-0.5 text-xs font-semibold text-status-info">Para aprovar · enviado às {horaDe(r!.enviado_em!)}</span>
+                          ) : (
+                            <span className="rounded bg-surface-2 px-1.5 py-0.5 text-xs font-semibold text-muted">{r ? "Em rascunho" : dia < hoje ? "Não enviou" : "Ainda não enviou"}</span>
+                          )}
+                        </summary>
+                        {enviado && r && (
+                          <div className="mt-4 space-y-4 border-t border-border pt-4">
+                            <RelatorioLeitura relatorio={r} />
+                            <AprovarRelatorio responsavelId={x.id} dia={dia} nota={r.nota} comentario={r.comentario} aprovadoEm={r.aprovado_em} aprovador={aprovadorNome} />
+                            <Link href={`${ROTAS}?pessoa=${x.id}&dia=${dia}`} scroll={false} className="ui-link">
+                              Abrir a rotina de {x.nome.replace(/^(Dr\.?|Dra\.?)\s+/i, "").split(" ")[0]} (para corrigir o relatório)
+                            </Link>
+                          </div>
+                        )}
+                      </details>
+                    </li>
+                  );
+                })}
+              </ul>
+            )}
+          </section>
+        )}
 
         {editavel ? (
           <>
@@ -296,7 +346,7 @@ async function rotinaDaPessoa({
               )}
             </section>
 
-            {!modelo ? (
+            {!modelo && rel?.status !== "enviado" ? (
               <p className="text-sm text-muted">{meu ? "Você não tem relatório do dia." : "Esta pessoa não tem relatório do dia."}</p>
             ) : rel?.status === "enviado" ? (
               souSuper && rel.snapshot ? (
