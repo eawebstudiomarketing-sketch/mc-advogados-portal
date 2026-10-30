@@ -4,7 +4,7 @@ import { createContext, useContext, useEffect, useMemo, useRef, useState, useTra
 import { createPortal } from "react-dom";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
-import { Check, ChevronDown, Loader2, UserRound, X, CircleCheck } from "lucide-react";
+import { Check, ChevronDown, Loader2, UserRound, X, CircleCheck, Tag } from "lucide-react";
 
 // Seleção de várias linhas numa tabela feita no servidor (item 6 da auditoria,
 // 30/10/2026). A página envolve a tabela em <SelecaoLista> e põe <MarcarTodos>
@@ -14,7 +14,7 @@ import { Check, ChevronDown, Loader2, UserRound, X, CircleCheck } from "lucide-r
 
 export type ResultadoLote = { ok: true; count: number } | { ok: false; error: string };
 
-const ICONES = { pago: CircleCheck, pessoa: UserRound } as const;
+const ICONES = { pago: CircleCheck, pessoa: UserRound, etiqueta: Tag } as const;
 
 export type AcaoLote =
   | { tipo: "simples"; rotulo: string; icone: keyof typeof ICONES; acao: (ids: string[]) => Promise<ResultadoLote>; sucesso: string; confirmar?: string }

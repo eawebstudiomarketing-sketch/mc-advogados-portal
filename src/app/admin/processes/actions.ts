@@ -147,3 +147,26 @@ export async function trocarResponsavelEmLoteAction(ids: string[], responsavel: 
   revalidatePath("/admin/processes");
   return { ok: true, count: data?.length ?? 0 };
 }
+
+/** Ações em massa: põe ou tira uma etiqueta de vários processos (valor = "+id" ou "-id"). */
+export async function etiquetaEmLoteAction(ids: string[], valor: string): Promise<ResultadoLote> {
+  await exigirPermissao("processos");
+  const lista = idsDoLote(ids);
+  if (!lista) return { ok: false, error: "Nenhum processo selecionado." };
+  const pondo = valor.startsWith("+");
+  const etiqueta = valor.slice(1);
+  if (!/^[0-9a-f-]{36}$/i.test(etiqueta)) return { ok: false, error: "Etiqueta inválida." };
+  const supabase = await createClient();
+  const { data: atuais, error } = await supabase.from("processes").select("id, etiquetas").in("id", lista);
+  if (error) return { ok: false, error: "Não foi possível mudar as etiquetas (a atualização do banco 0060 ainda não foi aplicada?)." };
+  let n = 0;
+  for (const p of atuais ?? []) {
+    const tem = (p.etiquetas ?? []).includes(etiqueta);
+    if (pondo === tem) continue;
+    const novas = pondo ? [...(p.etiquetas ?? []), etiqueta] : (p.etiquetas ?? []).filter((e) => e !== etiqueta);
+    const { error: e2 } = await supabase.from("processes").update({ etiquetas: novas }).eq("id", p.id);
+    if (!e2) n++;
+  }
+  revalidatePath("/admin/processes");
+  return { ok: true, count: n };
+}

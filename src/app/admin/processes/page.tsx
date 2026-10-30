@@ -8,19 +8,21 @@ import { ListaVazia } from "@/components/ui/empty-state";
 import { listProcesses } from "@/lib/data/processes";
 import { PROCESS_AREA_LABEL } from "@/lib/process-area";
 import { StatusBadge } from "@/components/ui/status-badge";
-import { deleteProcessAction, trocarResponsavelEmLoteAction } from "./actions";
+import { deleteProcessAction, trocarResponsavelEmLoteAction, etiquetaEmLoteAction } from "./actions";
+import { listEtiquetas } from "@/lib/data/etiquetas";
+import { EtiquetasLinha } from "@/components/atividade/etiquetas";
 import { SelecaoLista, MarcarTodos, MarcarLinha } from "@/components/ui/selecao-lista";
 import { listStaff } from "@/lib/data/team";
 import { EditarNaLinha } from "@/components/ui/editar-na-linha";
 import { ConfirmSubmitButton } from "@/components/ui/confirm-submit-button";
 import { exigirPermissao } from "@/lib/dal";
 
-type F = { busca?: string; cliente?: string; area?: string; status?: string; ordem?: string; ver?: string };
+type F = { busca?: string; cliente?: string; area?: string; status?: string; ordem?: string; ver?: string; etiqueta?: string };
 
 export default async function AdminProcessesPage({ searchParams }: { searchParams: Promise<F> }) {
   await exigirPermissao("processos");
   const f = await searchParams;
-  const [todos, equipe] = await Promise.all([listProcesses(), listStaff()]);
+  const [todos, equipe, etiquetas] = await Promise.all([listProcesses(), listStaff(), listEtiquetas()]);
   const termo = (f.busca ?? "").trim().toLowerCase();
   const digitos = termo.replace(/\D/g, "");
   const filtrados = todos.filter(
@@ -35,7 +37,8 @@ export default async function AdminProcessesPage({ searchParams }: { searchParam
         (p.cliente_nome ?? "").toLowerCase().includes(termo)) &&
       (!f.cliente || (f.cliente === "sem" ? !p.client_id : p.client_id === f.cliente)) &&
       (!f.area || p.area === f.area) &&
-      (!f.status || p.status === f.status)
+      (!f.status || p.status === f.status) &&
+      (!f.etiqueta || (p.etiquetas ?? []).includes(f.etiqueta))
   );
   const processes = ordenar(filtrados, f.ordem, {
     mov: (p) => p.ultimo_andamento_em,
@@ -96,6 +99,7 @@ export default async function AdminProcessesPage({ searchParams }: { searchParam
           ] },
           { tipo: "select", nome: "area", rotulo: "Área", todos: "Todas as áreas", opcoes: Object.entries(PROCESS_AREA_LABEL).map(([valor, rotulo]) => ({ valor, rotulo })) },
           { tipo: "select", nome: "status", rotulo: "Situação", todos: "Todas as situações", opcoes: statuses.map((s) => ({ valor: s, rotulo: s.replace(/_/g, " ") })) },
+          ...(etiquetas.length ? [{ tipo: "select" as const, nome: "etiqueta", rotulo: "Etiqueta", todos: "Todas as etiquetas", opcoes: etiquetas.map((e) => ({ valor: e.id, rotulo: e.nome })) }] : []),
         ]}
         ordenacao={{
           opcoes: [
@@ -139,6 +143,12 @@ export default async function AdminProcessesPage({ searchParams }: { searchParam
             acao: trocarResponsavelEmLoteAction,
             sucesso: "Responsável trocado em {n} processo(s)",
           },
+          ...(etiquetas.length
+            ? [
+                { tipo: "escolha" as const, rotulo: "Pôr etiqueta", icone: "etiqueta" as const, opcoes: etiquetas.map((e) => ({ valor: `+${e.id}`, rotulo: e.nome })), acao: etiquetaEmLoteAction, sucesso: "Etiqueta posta em {n} processo(s)" },
+                { tipo: "escolha" as const, rotulo: "Tirar etiqueta", icone: "etiqueta" as const, opcoes: etiquetas.map((e) => ({ valor: `-${e.id}`, rotulo: e.nome })), acao: etiquetaEmLoteAction, sucesso: "Etiqueta tirada de {n} processo(s)" },
+              ]
+            : []),
         ]}
       >
       <div className="overflow-x-auto ui-card">
@@ -177,6 +187,11 @@ export default async function AdminProcessesPage({ searchParams }: { searchParam
                     {p.numero_processo}
                   </Link>
                   {p.titulo && <p className="max-w-xs truncate text-xs font-normal text-muted" title={p.titulo}>{p.titulo}</p>}
+                  {(p.etiquetas ?? []).length > 0 && (
+                    <div className="mt-1">
+                      <EtiquetasLinha ids={p.etiquetas ?? []} todas={etiquetas} />
+                    </div>
+                  )}
                 </td>
                 <td className="px-5 py-3 text-foreground/70">{p.clients?.name ?? (p.cliente_nome ? <span title="Sem ficha no portal">{p.cliente_nome} <span className="text-xs text-muted">(sem ficha)</span></span> : "—")}</td>
                 <td className="px-5 py-3 text-foreground/80">

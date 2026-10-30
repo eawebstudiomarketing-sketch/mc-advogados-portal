@@ -1745,6 +1745,7 @@ export type Database = {
       }
       processes: {
         Row: {
+          etiquetas: string[]
           area: Database["public"]["Enums"]["process_area"]
           client_id: string | null
           created_at: string
@@ -1769,6 +1770,7 @@ export type Database = {
           vara_tribunal: string | null
         }
         Insert: {
+          etiquetas?: string[]
           area: Database["public"]["Enums"]["process_area"]
           client_id?: string | null
           created_at?: string
@@ -1792,6 +1794,7 @@ export type Database = {
           vara_tribunal?: string | null
         }
         Update: {
+          etiquetas?: string[]
           area?: Database["public"]["Enums"]["process_area"]
           client_id?: string | null
           created_at?: string
