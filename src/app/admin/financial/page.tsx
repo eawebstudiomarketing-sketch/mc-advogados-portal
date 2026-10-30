@@ -4,10 +4,11 @@ import { StatCard } from "@/components/ui/stat-card";
 import { StatusBadge } from "@/components/ui/status-badge";
 import { listFinancialRecords } from "@/lib/data/financial";
 import { markAsPaidAction, marcarPagosEmLoteAction } from "./actions";
+import { ChipPrazo } from "@/components/ui/chip-prazo";
 import { SelecaoLista, MarcarTodos, MarcarLinha } from "@/components/ui/selecao-lista";
 import { ReminderButton } from "./reminder-button";
 import { exigirPermissao } from "@/lib/dal";
-import { formatCurrency, formatDate } from "@/lib/mock-data";
+import { formatCurrency } from "@/lib/mock-data";
 import { ordenar, dataPlanilha } from "@/lib/ordenar";
 import { ListaVazia } from "@/components/ui/empty-state";
 import { Wallet } from "lucide-react";
@@ -134,7 +135,7 @@ export default async function AdminFinancialPage({ searchParams }: { searchParam
                 <td className="w-10 py-3 pr-0 pl-5">{f.status !== "paid" && <MarcarLinha id={f.id} rotulo={f.description} />}</td>
                 <td className="px-5 py-3 font-medium text-foreground">{f.clients?.name}</td>
                 <td className="px-5 py-3 text-foreground/70">{f.description}</td>
-                <td className="px-5 py-3 text-foreground/70">{formatDate(f.due_date)}</td>
+                <td className="px-5 py-3"><ChipPrazo data={f.due_date} encerrado={f.status === "paid"} /></td>
                 <td className="px-5 py-3 tabular-nums text-foreground/70">{formatCurrency(Number(f.amount))}</td>
                 <td className="px-5 py-3">
                   <StatusBadge status={f.status} />
