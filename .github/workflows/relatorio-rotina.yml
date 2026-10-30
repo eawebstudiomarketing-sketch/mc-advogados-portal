@@ -1,0 +1,18 @@
+# Fim do dia: manda ao Maurício o HTML das rotinas e demandas do dia que fechou (00:05 da Bahia = 03:05 UTC).
+name: Relatório de rotinas do dia
+
+on:
+  schedule:
+    - cron: "5 3 * * *"
+  workflow_dispatch:
+
+jobs:
+  enviar:
+    runs-on: ubuntu-latest
+    timeout-minutes: 3
+    steps:
+      - name: Gerar e enviar
+        run: |
+          curl -fsS -m 90 \
+            -H "Authorization: Bearer ${{ secrets.CRON_SECRET }}" \
+            "https://mcadvogados.app.br/api/cron/relatorio-rotina"

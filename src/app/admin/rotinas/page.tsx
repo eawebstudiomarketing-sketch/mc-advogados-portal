@@ -7,6 +7,10 @@ import { hojeBahia, somaDias } from "@/lib/periodo";
 import { Avatar } from "@/components/ui/avatar";
 import { MinhaRotina } from "@/components/rotina/minha-rotina";
 import { EditorRotina } from "./editor";
+import { EditorModelos } from "./modelos";
+import { RelatorioDoDia } from "@/components/rotina/relatorio-do-dia";
+import { RelatorioLeitura } from "@/components/rotina/relatorio-leitura";
+import { carregarModelos, demandasVencidas, equipeDe, lerRelatorio, modelosAtribuidos, modeloDaPessoa, relatoriosDoDia } from "@/lib/rotina-relatorio/dados";
 
 // Rotinas: a rotina de quem está logado (marca a de hoje, vê a da semana);
 // para o admin, o cumprimento e o que cada um fez; para o admin máximo, o
@@ -33,6 +37,17 @@ export default async function RotinasPage({ searchParams }: { searchParams: Prom
     verEquipe ? cumprimento(somaDias(hoje, -29), hoje) : Promise.resolve(new Map()),
     verEquipe ? relatorioDoDia(diaRelatorio) : Promise.resolve(new Map<string, LinhaRelatorio[]>()),
   ]);
+  // Rotinas v2: relatório do dia (o meu, o estado de cada um e, para o admin máximo, os modelos)
+  const meuModelo = eu ? await modeloDaPessoa(eu) : null;
+  const [meuRelatorio, minhaEquipe, minhasVencidas, relatoriosDia, modelos, atribuidos] = await Promise.all([
+    eu && meuModelo ? lerRelatorio(eu, hoje) : Promise.resolve(null),
+    eu && meuModelo ? equipeDe(eu) : Promise.resolve([]),
+    eu && meuModelo ? demandasVencidas(eu, hoje) : Promise.resolve([]),
+    verEquipe ? relatoriosDoDia(diaRelatorio) : Promise.resolve([]),
+    souSuper ? carregarModelos() : Promise.resolve([]),
+    souSuper ? modelosAtribuidos() : Promise.resolve(new Map<string, string>()),
+  ]);
+  const relatorioDe = new Map(relatoriosDia.map((r) => [r.responsavel_id, r]));
   const horaDe = (iso: string) => new Date(iso).toLocaleTimeString("pt-BR", { timeZone: "America/Bahia", hour: "2-digit", minute: "2-digit" });
   const temMinha = minha.length > 0 || minhaOutros.length > 0;
   const comRotina = new Set(itens.map((i) => i.responsavel_id));
@@ -48,6 +63,17 @@ export default async function RotinasPage({ searchParams }: { searchParams: Prom
 
       <div className={`grid grid-cols-1 gap-6 ${temMinha && verEquipe ? "xl:grid-cols-[1fr_420px]" : ""}`}>
         <div className="min-w-0 space-y-8">
+          {/* relatório do dia da própria pessoa */}
+          {eu && meuModelo && (
+            <RelatorioDoDia
+              key={meuModelo.id}
+              perguntas={meuModelo.perguntas.filter((q) => q.ativa).map((q) => ({ id: q.id, secao: q.secao, texto: q.texto, tipo: q.tipo, opcoes: q.opcoes, obrigatoria: q.obrigatoria }))}
+              equipe={minhaEquipe}
+              demandas={meuRelatorio?.status === "enviado" && meuRelatorio.snapshot ? meuRelatorio.snapshot.demandas : minhasVencidas}
+              inicial={{ respostas: meuRelatorio?.respostas ?? {}, justificativas: meuRelatorio?.justificativas ?? {}, enviadoEm: meuRelatorio?.status === "enviado" ? meuRelatorio.enviado_em : null }}
+            />
+          )}
+
           {/* cumprimento da equipe */}
           {verEquipe && (
             <section>
@@ -126,6 +152,25 @@ export default async function RotinasPage({ searchParams }: { searchParams: Prom
                               {feitos}/{linhas.length}
                             </span>
                           </div>
+                          {(() => {
+                            const rel = relatorioDe.get(p.id);
+                            if (!atribuidos.has(p.id) && !rel && !souSuper) return null;
+                            const situacao = rel?.status === "enviado" ? `Relatório enviado às ${horaDe(rel.enviado_em!)}` : rel ? "Relatório em rascunho" : diaRelatorio < hoje ? "Relatório não enviado" : "Relatório ainda não enviado";
+                            if (!rel && !atribuidos.has(p.id)) return null;
+                            return (
+                              <div className="mb-2 rounded-lg bg-surface-2/60 px-2.5 py-1.5 text-xs">
+                                <p className={rel?.status === "enviado" ? "font-semibold text-status-success" : diaRelatorio < hoje ? "font-semibold text-status-danger" : "text-muted"}>{situacao}</p>
+                                {souSuper && rel?.status === "enviado" && (
+                                  <details className="mt-1">
+                                    <summary className="cursor-pointer text-foreground/80 hover:underline">Ler relatório</summary>
+                                    <div className="mt-2">
+                                      <RelatorioLeitura relatorio={rel} />
+                                    </div>
+                                  </details>
+                                )}
+                              </div>
+                            );
+                          })()}
                           <ul className="divide-y divide-border">
                             {linhas.map(({ item, feitoEm, noHorario, passou }) => (
                               <li key={item.id} className="flex items-center gap-2.5 py-1.5 text-sm">
@@ -145,6 +190,18 @@ export default async function RotinasPage({ searchParams }: { searchParams: Prom
                     })}
                 </div>
               )}
+            </section>
+          )}
+
+          {/* modelos de pergunta do relatório do dia (admin máximo) */}
+          {souSuper && (
+            <section>
+              <h2 className="section-title mb-1">Modelos do relatório do dia</h2>
+              <p className="mb-3 text-sm text-muted">As perguntas que cada pessoa responde no fim do dia. Você monta, escolhe quem usa e lê as respostas em “O que cada um fez”.</p>
+              <EditorModelos
+                modelos={modelos}
+                pessoas={pessoas.filter((p) => p.profileId).map((p) => ({ id: p.id, nome: p.nome, foto: p.foto, modeloId: atribuidos.get(p.id) ?? null }))}
+              />
             </section>
           )}
 

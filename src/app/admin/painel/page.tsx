@@ -17,6 +17,7 @@ import { PainelBase } from "@/components/painel/contexto";
 import { GerentePainel } from "@/components/painel/gerente";
 import { LateralGerente, type CompromissoLateral } from "@/components/painel/lateral";
 import { QuadroAbertasAntigas, QuadroCarga, QuadroCriadasConcluidas, QuadroPorTipo } from "@/components/painel/quadros";
+import { RotinasDoDia } from "@/components/painel/rotinas-do-dia";
 import { CartoesResponsaveis, FichaPessoa, type EventoLinha } from "@/components/painel/responsaveis";
 
 export const metadata = { title: "Painel do Dono" };
@@ -29,6 +30,7 @@ export const maxDuration = 60;
 const ABAS = [
   { id: "resumo", rotulo: "Resumo" },
   { id: "responsaveis", rotulo: "Responsáveis" },
+  { id: "rotinas", rotulo: "Rotinas" },
   { id: "clientes", rotulo: "Clientes" },
   { id: "prazos", rotulo: "Prazos e Agenda" },
   { id: "processos", rotulo: "Processos e Publicações" },
@@ -174,7 +176,7 @@ async function linhaDoTempo(pessoaId: string, p: Periodo, base: Awaited<ReturnTy
   return { eventos: eventos.sort((a, b) => b.quando.localeCompare(a.quando)).slice(0, 60), extras };
 }
 
-export default async function PainelPage({ searchParams }: { searchParams: Promise<{ p?: string; aba?: string; pessoa?: string; cliente?: string }> }) {
+export default async function PainelPage({ searchParams }: { searchParams: Promise<{ p?: string; aba?: string; pessoa?: string; cliente?: string; dia?: string }> }) {
   const perfil = await exigirSuperAdmin();
   const sp = await searchParams;
   const aba = ABAS.some((a) => a.id === sp.aba) ? sp.aba! : "resumo";
@@ -862,6 +864,8 @@ export default async function PainelPage({ searchParams }: { searchParams: Promi
             </div>
           </div>
         )}
+
+        {aba === "rotinas" && <RotinasDoDia dia={sp.dia} />}
 
         {aba === "financeiro" && fin && (
           <div className="space-y-4">
