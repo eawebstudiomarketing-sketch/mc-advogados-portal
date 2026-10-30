@@ -181,7 +181,7 @@ export function RelatorioDoDia({
       </div>
 
       {demandas.length > 0 && (
-        <div className="ui-card border-l-4 !border-l-status-danger p-4">
+        <div className="ui-card !border-status-danger/40 bg-status-danger-bg/30 p-4">
           <h3 className="text-sm font-semibold text-foreground">
             Demandas vencidas: justifique cada uma ({demandas.length})
           </h3>
