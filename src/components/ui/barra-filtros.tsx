@@ -2,29 +2,92 @@
 
 import { useEffect, useRef, useState, useTransition } from "react";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
-import { Check, ChevronDown, Search, X } from "lucide-react";
+import { ArrowLeft, Check, ChevronRight, ListFilter, Search, X } from "lucide-react";
 
-// Barra de filtros padrão das listas do portal: busca em pílula + botões de
-// filtro que abrem um menu. Cada filtro vira um parâmetro na URL
-// (?status=...&busca=...): a tela filtra no servidor, o link pode ser
-// compartilhado e o "voltar" do navegador desfaz o filtro.
+// Barra de filtros padrão das listas do portal: busca em pílula + UM ícone de
+// filtro. Ao clicar nele aparece a lista dos tipos de filtro; escolhendo um,
+// aparecem as opções dele. O que está ligado vira uma etiqueta ao lado (com X
+// para tirar). Cada filtro vira um parâmetro na URL (?status=...&busca=...): a
+// tela filtra no servidor, o link pode ser compartilhado e o "voltar" do
+// navegador desfaz o filtro.
 
 export type Filtro =
   | { tipo: "busca"; nome: string; rotulo: string }
   | { tipo: "select"; nome: string; rotulo: string; opcoes: { valor: string; rotulo: string; cor?: string }[]; todos?: string }
   | { tipo: "data"; nome: string; rotulo: string };
 
-function Pilula({
-  filtro,
-  valor,
+type FiltroEscolha = Extract<Filtro, { tipo: "select" | "data" }>;
+
+const dataBr = (v: string) => v.split("-").reverse().join("/");
+/** Como o valor ligado aparece escrito ("Atrasadas", "11/10/2026"). */
+const textoDoValor = (f: FiltroEscolha, v: string) => (f.tipo === "select" ? (f.opcoes.find((o) => o.valor === v)?.rotulo ?? v) : dataBr(v));
+
+function Opcoes({ filtro, valor, aoEscolher }: { filtro: FiltroEscolha; valor: string; aoEscolher: (v: string) => void }) {
+  const [termo, setTermo] = useState("");
+  if (filtro.tipo === "data") {
+    return (
+      <div className="p-3">
+        <input type="date" value={valor} onChange={(e) => aoEscolher(e.target.value)} className="ui-input" autoFocus />
+      </div>
+    );
+  }
+  const opcoes = termo.trim() ? filtro.opcoes.filter((o) => o.rotulo.toLowerCase().includes(termo.trim().toLowerCase())) : filtro.opcoes;
+  return (
+    <>
+      {filtro.opcoes.length > 8 && (
+        <div className="border-b border-border p-2">
+          <input value={termo} onChange={(e) => setTermo(e.target.value)} placeholder="Procurar…" className="ui-input py-1.5 text-sm" autoFocus />
+        </div>
+      )}
+      <ul role="listbox" className="max-h-72 overflow-y-auto p-1.5">
+        <li>
+          <button
+            type="button"
+            role="option"
+            aria-selected={!valor}
+            onClick={() => aoEscolher("")}
+            className="flex w-full items-center gap-2 rounded-xl px-2.5 py-2 text-left text-sm text-muted hover:bg-surface-2 hover:text-foreground"
+          >
+            <span className="w-4">{!valor && <Check className="h-4 w-4 text-navy" aria-hidden />}</span>
+            {filtro.todos ?? "Todos"}
+          </button>
+        </li>
+        {opcoes.map((o) => (
+          <li key={o.valor}>
+            <button
+              type="button"
+              role="option"
+              aria-selected={valor === o.valor}
+              onClick={() => aoEscolher(o.valor)}
+              className={`flex w-full items-center gap-2 rounded-xl px-2.5 py-2 text-left text-sm hover:bg-surface-2 ${
+                valor === o.valor ? "font-semibold text-foreground" : "text-foreground/80"
+              }`}
+            >
+              <span className="w-4">{valor === o.valor && <Check className="h-4 w-4 text-navy" aria-hidden />}</span>
+              {o.cor && <span className={`h-2 w-2 shrink-0 rounded-full ${o.cor}`} aria-hidden />}
+              <span className="truncate">{o.rotulo}</span>
+            </button>
+          </li>
+        ))}
+        {opcoes.length === 0 && <li className="px-3 py-2 text-xs text-muted">Nada encontrado.</li>}
+      </ul>
+    </>
+  );
+}
+
+function MenuFiltros({
+  filtros,
+  valorDe,
   aoMudar,
+  ativos,
 }: {
-  filtro: Extract<Filtro, { tipo: "select" | "data" }>;
-  valor: string;
-  aoMudar: (v: string) => void;
+  filtros: FiltroEscolha[];
+  valorDe: (nome: string) => string;
+  aoMudar: (nome: string, v: string) => void;
+  ativos: number;
 }) {
   const [aberto, setAberto] = useState(false);
-  const [termo, setTermo] = useState("");
+  const [etapa, setEtapa] = useState<string | null>(null); // nome do filtro aberto; null = lista dos tipos
   const caixa = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -41,113 +104,71 @@ function Pilula({
     };
   }, [aberto]);
 
-  const escolhida = filtro.tipo === "select" ? filtro.opcoes.find((o) => o.valor === valor) : null;
-  const texto = filtro.tipo === "select" ? (escolhida?.rotulo ?? filtro.rotulo) : valor ? `${filtro.rotulo} ${valor.split("-").reverse().join("/")}` : filtro.rotulo;
-  const opcoes =
-    filtro.tipo === "select" && termo.trim()
-      ? filtro.opcoes.filter((o) => o.rotulo.toLowerCase().includes(termo.trim().toLowerCase()))
-      : filtro.tipo === "select"
-        ? filtro.opcoes
-        : [];
+  const atual = filtros.find((f) => f.nome === etapa) ?? null;
 
   return (
     <div ref={caixa} className="relative">
       <button
         type="button"
-        onClick={() => setAberto((a) => !a)}
-        aria-haspopup="listbox"
+        onClick={() => {
+          setEtapa(null);
+          setAberto((a) => !a);
+        }}
+        aria-haspopup="menu"
         aria-expanded={aberto}
-        className={`inline-flex h-9 max-w-[240px] items-center gap-1.5 rounded-full border px-3.5 text-[13px] font-medium transition-colors ${
-          valor ? "border-navy bg-navy text-white" : "border-border bg-surface text-foreground/80 hover:border-border-strong hover:text-foreground"
+        aria-label={ativos ? `Filtros (${ativos} ligados)` : "Filtros"}
+        data-tip="Filtros"
+        className={`relative inline-flex h-9 w-9 items-center justify-center rounded-full border transition-colors ${
+          ativos ? "border-navy bg-navy text-white" : "border-border bg-surface text-foreground/80 hover:border-border-strong hover:text-foreground"
         }`}
       >
-        {escolhida?.cor && <span className={`h-2 w-2 shrink-0 rounded-full ${escolhida.cor}`} aria-hidden />}
-        <span className="truncate">{texto}</span>
-        {valor ? (
-          <span
-            role="button"
-            tabIndex={0}
-            aria-label={`Tirar filtro ${filtro.rotulo}`}
-            onClick={(e) => {
-              e.stopPropagation();
-              aoMudar("");
-              setAberto(false);
-            }}
-            onKeyDown={(e) => {
-              if (e.key === "Enter") {
-                e.stopPropagation();
-                aoMudar("");
-              }
-            }}
-            className="-mr-1 rounded-full p-0.5 hover:bg-white/15"
-          >
-            <X className="h-3.5 w-3.5" aria-hidden />
-          </span>
-        ) : (
-          <ChevronDown className="h-3.5 w-3.5 shrink-0 opacity-60" aria-hidden />
+        <ListFilter className="h-4 w-4" aria-hidden />
+        {ativos > 0 && (
+          <span className="absolute -top-1.5 -right-1.5 flex h-4 min-w-4 items-center justify-center rounded-full bg-gold px-1 text-[10px] font-bold text-navy tabular-nums">{ativos}</span>
         )}
       </button>
 
       {aberto && (
-        <div className="absolute top-[calc(100%+6px)] left-0 z-50 w-64 overflow-hidden rounded-2xl border border-border bg-surface shadow-[0_18px_40px_-12px_rgba(15,26,42,0.25)] animate-[enter_160ms_var(--ease-out)_both]">
-          <p className="eyebrow border-b border-border px-3.5 py-2">{filtro.rotulo}</p>
-          {filtro.tipo === "data" ? (
-            <div className="p-3">
-              <input
-                type="date"
-                value={valor}
-                onChange={(e) => {
-                  aoMudar(e.target.value);
+        <div className="absolute top-[calc(100%+6px)] left-0 z-50 w-72 overflow-hidden rounded-2xl border border-border bg-surface shadow-[0_18px_40px_-12px_rgba(15,26,42,0.25)] animate-[enter_160ms_var(--ease-out)_both]">
+          {atual ? (
+            <>
+              <button
+                type="button"
+                onClick={() => setEtapa(null)}
+                className="eyebrow flex w-full items-center gap-2 border-b border-border px-3.5 py-2 text-left hover:bg-surface-2"
+              >
+                <ArrowLeft className="h-3.5 w-3.5" aria-hidden /> {atual.rotulo}
+              </button>
+              <Opcoes
+                filtro={atual}
+                valor={valorDe(atual.nome)}
+                aoEscolher={(v) => {
+                  aoMudar(atual.nome, v);
                   setAberto(false);
                 }}
-                className="ui-input"
-                autoFocus
               />
-            </div>
+            </>
           ) : (
             <>
-              {filtro.opcoes.length > 8 && (
-                <div className="border-b border-border p-2">
-                  <input value={termo} onChange={(e) => setTermo(e.target.value)} placeholder="Procurar…" className="ui-input py-1.5 text-sm" autoFocus />
-                </div>
-              )}
-              <ul role="listbox" className="max-h-72 overflow-y-auto p-1.5">
-                <li>
-                  <button
-                    type="button"
-                    role="option"
-                    aria-selected={!valor}
-                    onClick={() => {
-                      aoMudar("");
-                      setAberto(false);
-                    }}
-                    className="flex w-full items-center gap-2 rounded-xl px-2.5 py-2 text-left text-sm text-muted hover:bg-surface-2 hover:text-foreground"
-                  >
-                    <span className="w-4">{!valor && <Check className="h-4 w-4 text-navy" aria-hidden />}</span>
-                    {filtro.todos ?? "Todos"}
-                  </button>
-                </li>
-                {opcoes.map((o) => (
-                  <li key={o.valor}>
-                    <button
-                      type="button"
-                      role="option"
-                      aria-selected={valor === o.valor}
-                      onClick={() => {
-                        aoMudar(o.valor);
-                        setAberto(false);
-                      }}
-                      className={`flex w-full items-center gap-2 rounded-xl px-2.5 py-2 text-left text-sm hover:bg-surface-2 ${
-                        valor === o.valor ? "font-semibold text-foreground" : "text-foreground/80"
-                      }`}
-                    >
-                      <span className="w-4">{valor === o.valor && <Check className="h-4 w-4 text-navy" aria-hidden />}</span>
-                      {o.cor && <span className={`h-2 w-2 shrink-0 rounded-full ${o.cor}`} aria-hidden />}
-                      <span className="truncate">{o.rotulo}</span>
-                    </button>
-                  </li>
-                ))}
-                {opcoes.length === 0 && <li className="px-3 py-2 text-xs text-muted">Nada encontrado.</li>}
+              <p className="eyebrow border-b border-border px-3.5 py-2">Filtrar por</p>
+              <ul role="menu" className="max-h-80 overflow-y-auto p-1.5">
+                {filtros.map((f) => {
+                  const v = valorDe(f.nome);
+                  return (
+                    <li key={f.nome}>
+                      <button
+                        type="button"
+                        role="menuitem"
+                        onClick={() => setEtapa(f.nome)}
+                        className="flex w-full items-center gap-2 rounded-xl px-2.5 py-2 text-left text-sm text-foreground/90 hover:bg-surface-2"
+                      >
+                        <span className="min-w-0 flex-1 truncate">{f.rotulo}</span>
+                        {v && <span className="max-w-[110px] truncate rounded-full bg-navy px-2 py-0.5 text-[11px] font-medium text-white">{textoDoValor(f, v)}</span>}
+                        <ChevronRight className="h-3.5 w-3.5 shrink-0 opacity-50" aria-hidden />
+                      </button>
+                    </li>
+                  );
+                })}
               </ul>
             </>
           )}
@@ -163,6 +184,7 @@ export function BarraFiltros({ filtros, extra }: { filtros: Filtro[]; extra?: Re
   const params = useSearchParams();
   const [pending, start] = useTransition();
   const busca = filtros.find((f) => f.tipo === "busca");
+  const escolhas = filtros.filter((f): f is FiltroEscolha => f.tipo !== "busca");
   const [texto, setTexto] = useState(busca ? (params.get(busca.nome) ?? "") : "");
   const primeira = useRef(true);
 
@@ -187,6 +209,7 @@ export function BarraFiltros({ filtros, extra }: { filtros: Filtro[]; extra?: Re
     // eslint-disable-next-line react-hooks/exhaustive-deps -- só reage ao texto
   }, [texto]);
 
+  const ligados = escolhas.filter((f) => params.get(f.nome));
   const ativos = filtros.filter((f) => params.get(f.nome)).length;
   const limpar = () => {
     const q = new URLSearchParams(params.toString());
@@ -209,9 +232,18 @@ export function BarraFiltros({ filtros, extra }: { filtros: Filtro[]; extra?: Re
           />
         </div>
       )}
-      {filtros.map((f) =>
-        f.tipo === "busca" ? null : <Pilula key={f.nome} filtro={f} valor={params.get(f.nome) ?? ""} aoMudar={(v) => aplicar(f.nome, v)} />
-      )}
+      {escolhas.length > 0 && <MenuFiltros filtros={escolhas} valorDe={(n) => params.get(n) ?? ""} aoMudar={aplicar} ativos={ligados.length} />}
+      {ligados.map((f) => (
+        <span key={f.nome} className="inline-flex h-9 max-w-[260px] items-center gap-1.5 rounded-full border border-navy bg-navy pr-1.5 pl-3.5 text-[13px] font-medium text-white">
+          <span className="truncate">
+            <span className="opacity-70">{f.rotulo}: </span>
+            {textoDoValor(f, params.get(f.nome)!)}
+          </span>
+          <button type="button" onClick={() => aplicar(f.nome, "")} aria-label={`Tirar filtro ${f.rotulo}`} className="rounded-full p-1 hover:bg-white/15">
+            <X className="h-3.5 w-3.5" aria-hidden />
+          </button>
+        </span>
+      ))}
       {extra}
       {ativos > 0 && (
         <button type="button" onClick={limpar} className="inline-flex h-9 items-center gap-1 rounded-full px-3 text-[13px] font-medium text-muted hover:bg-surface-2 hover:text-foreground">
