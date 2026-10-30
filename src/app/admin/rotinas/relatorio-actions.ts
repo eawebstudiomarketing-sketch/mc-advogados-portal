@@ -1,9 +1,12 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
+import { after } from "next/server";
+import { createAdminClient } from "@/lib/supabase/admin";
 import { ehSuperAdmin, requireRole } from "@/lib/dal";
 import { responsavelDoPerfil } from "@/lib/data/responsaveis";
-import { atribuirModelo, enviarRelatorio, excluirModelo, hojeBahia, salvarModelo, salvarRascunho, type PerguntaEditavel } from "@/lib/rotina-relatorio/dados";
+import { aprovarRelatorio, atribuirModelo, editarRelatorioEnviado, enviarRelatorio, excluirModelo, hojeBahia, salvarModelo, salvarRascunho, type PerguntaEditavel } from "@/lib/rotina-relatorio/dados";
+import { enviarRelatorioDoDia, MAURICIO } from "@/lib/rotina-relatorio/dia";
 import type { Valor } from "@/lib/rotina-relatorio/tipos";
 
 // Ações do relatório do dia (Rotinas v2). Modelos: só o admin máximo.
@@ -17,7 +20,7 @@ async function exigirSuper() {
   if (!ehSuperAdmin(profile)) throw new Error("Só o administrador máximo monta os modelos.");
 }
 
-export async function salvarModeloAction(input: { id?: string | null; nome: string; perguntas: PerguntaEditavel[] }): Promise<Resultado & { id?: string }> {
+export async function salvarModeloAction(input: { id?: string | null; nome: string; aprovadorId?: string | null; perguntas: PerguntaEditavel[] }): Promise<Resultado & { id?: string }> {
   try {
     await exigirSuper();
     const id = await salvarModelo(input);
@@ -68,8 +71,43 @@ export async function salvarRascunhoAction(respostas: Record<string, Valor>, jus
 
 export async function enviarRelatorioAction(respostas: Record<string, Valor>, justificativas: Record<string, string>): Promise<Resultado & { faltas?: string[] }> {
   try {
-    const faltas = await enviarRelatorio(await minhaPessoa(), hojeBahia(), respostas, justificativas);
+    const eu = await minhaPessoa();
+    const dia = hojeBahia();
+    const faltas = await enviarRelatorio(eu, dia, respostas, justificativas);
     if (faltas.length) return { ok: false, error: `Ainda falta: ${faltas.join("; ")}.`, faltas };
+    // o relatório de dono: quando o Maurício envia o dele, o resumo do dia (HTML) vai para o Zap dele
+    after(async () => {
+      const { data } = await (createAdminClient() as unknown as import("@supabase/supabase-js").SupabaseClient).from("responsaveis").select("profile_id").eq("id", eu).maybeSingle();
+      if (data?.profile_id === MAURICIO) await enviarRelatorioDoDia(dia, { forcar: true }).catch(() => undefined);
+    });
+    revalidatePath("/admin/rotinas");
+    return { ok: true };
+  } catch (e) {
+    return { ok: false, error: msg(e) };
+  }
+}
+
+/** O admin máximo aprova o relatório de uma pessoa: nota de 0 a 10 e comentário opcional. */
+export async function aprovarRelatorioAction(responsavelId: string, dia: string, nota: number, comentario: string): Promise<Resultado> {
+  try {
+    const profile = await requireRole(["admin"]);
+    if (!ehSuperAdmin(profile)) throw new Error("Só o administrador máximo aprova os relatórios.");
+    await aprovarRelatorio(responsavelId, dia, nota, comentario, profile.id);
+    revalidatePath("/admin/rotinas");
+    revalidatePath("/admin/painel");
+    revalidatePath("/admin/indicadores");
+    return { ok: true };
+  } catch (e) {
+    return { ok: false, error: msg(e) };
+  }
+}
+
+/** Só o admin máximo pode corrigir um relatório já enviado (se a pessoa explicar algo depois). */
+export async function editarRelatorioAction(responsavelId: string, dia: string, respostas: Record<string, Valor>, justificativas: Record<string, string>): Promise<Resultado> {
+  try {
+    const profile = await requireRole(["admin"]);
+    if (!ehSuperAdmin(profile)) throw new Error("Só o administrador máximo edita um relatório enviado.");
+    await editarRelatorioEnviado(responsavelId, dia, respostas, justificativas, profile.id);
     revalidatePath("/admin/rotinas");
     return { ok: true };
   } catch (e) {

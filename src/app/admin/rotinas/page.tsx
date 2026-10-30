@@ -11,7 +11,8 @@ import { Avatar } from "@/components/ui/avatar";
 import { MinhaRotina } from "@/components/rotina/minha-rotina";
 import { ModalRotina } from "@/components/rotina/modal-rotina";
 import { RelatorioDoDia } from "@/components/rotina/relatorio-do-dia";
-import { RelatorioLeitura } from "@/components/rotina/relatorio-leitura";
+import { AprovarRelatorio } from "@/components/rotina/aprovar-relatorio";
+import { concluidasNoDia } from "@/lib/rotina-relatorio/dia";
 import { carregarModelos, demandasVencidas, equipeDe, lerRelatorio, modelosAtribuidos, modeloDaPessoa, relatoriosDoDia } from "@/lib/rotina-relatorio/dados";
 import { EditorRotina } from "./editor";
 import { EditorModelos } from "./modelos";
@@ -90,8 +91,10 @@ export default async function RotinasPage({ searchParams }: { searchParams: Prom
                       <dd className="text-right">
                         {!temModelo ? (
                           <span className="text-muted">—</span>
+                        ) : rel?.status === "enviado" && rel.aprovado_em ? (
+                          <span className="rounded bg-status-success-bg px-1.5 py-0.5 text-xs font-semibold text-status-success">Aprovado · nota {rel.nota}</span>
                         ) : rel?.status === "enviado" ? (
-                          <span className="rounded bg-status-success-bg px-1.5 py-0.5 text-xs font-semibold text-status-success">Enviado às {horaDe(rel.enviado_em!)}</span>
+                          <span className="rounded bg-status-info-bg px-1.5 py-0.5 text-xs font-semibold text-status-info">Enviado às {horaDe(rel.enviado_em!)} · aguarda aprovação</span>
                         ) : rel ? (
                           <span className="rounded bg-status-pending-bg px-1.5 py-0.5 text-xs font-semibold text-status-pending">Em rascunho</span>
                         ) : (
@@ -184,6 +187,8 @@ async function rotinaDaPessoa({
       lerRelatorio(alvo.id, dia),
     ]);
     const [equipe, venc] = editavel && modelo ? await Promise.all([equipeDe(alvo.id), demandasVencidas(alvo.id, hoje)]) : [[], []];
+    const concluidas = editavel ? await concluidasNoDia(alvo.id, dia) : [];
+    const aprovadorNome = pessoas.find((x) => x.id === modelo?.aprovador_id)?.nome ?? "Maurício";
     corpo = (
       <div className="space-y-6">
         <form method="get" className="flex flex-wrap items-center gap-1.5">
@@ -200,56 +205,105 @@ async function rotinaDaPessoa({
         </form>
 
         {editavel ? (
-          <MinhaRotina
-            linkTela={false}
-            podeMarcar
-            compacto
-            titulo="Minha rotina de hoje"
-            itens={itensDia.map((i) => ({ id: i.id, titulo: i.titulo, feito: i.feito, feitoEm: i.feitoEm, hora_inicio: i.hora_inicio, hora_fim: i.hora_fim, observacao: i.observacao, situacao: i.situacao }))}
-            outrosDias={outros.map((i) => ({ id: i.id, titulo: i.titulo, dias: i.dias, hora_inicio: i.hora_inicio, hora_fim: i.hora_fim }))}
-          />
+          <>
+            {/* a própria pessoa: com relatório a enviar, o resumo do dia é a 1ª etapa; sem relatório (ou já enviado), só a rotina */}
+            {(() => {
+              const rotinaDoDiaNode = (
+                <MinhaRotina
+                  linkTela={false}
+                  podeMarcar
+                  compacto
+                  titulo="Minha rotina de hoje"
+                  itens={itensDia.map((i) => ({ id: i.id, titulo: i.titulo, feito: i.feito, feitoEm: i.feitoEm, hora_inicio: i.hora_inicio, hora_fim: i.hora_fim, observacao: i.observacao, situacao: i.situacao }))}
+                  outrosDias={outros.map((i) => ({ id: i.id, titulo: i.titulo, dias: i.dias, hora_inicio: i.hora_inicio, hora_fim: i.hora_fim }))}
+                />
+              );
+              const resumoNode = (
+                <div className="space-y-4">
+                  {rotinaDoDiaNode}
+                  <section className="ui-card p-4">
+                    <h3 className="section-title mb-1">Demandas de hoje</h3>
+                    <p className="text-sm text-muted">
+                      {concluidas.length} {concluidas.length === 1 ? "concluída" : "concluídas"} · <span className={venc.length ? "font-semibold text-status-danger" : ""}>{venc.length} vencidas em aberto</span>
+                    </p>
+                    {concluidas.length > 0 && (
+                      <ul className="mt-2 space-y-0.5 text-sm text-foreground/80">
+                        {concluidas.slice(0, 8).map((c, k) => (
+                          <li key={k} className="truncate">
+                            ✅ {c.titulo} <span className="text-xs text-muted">· {c.cliente ?? "Sem cliente"}</span>
+                          </li>
+                        ))}
+                      </ul>
+                    )}
+                  </section>
+                </div>
+              );
+              if (!modelo) return rotinaDoDiaNode;
+              const enviado = rel?.status === "enviado";
+              return (
+                <>
+                  {enviado && rotinaDoDiaNode}
+                  <RelatorioDoDia
+                    key={modelo.id}
+                    perguntas={modelo.perguntas.filter((q) => q.ativa).map((q) => ({ id: q.id, secao: q.secao, texto: q.texto, tipo: q.tipo, opcoes: q.opcoes, obrigatoria: q.obrigatoria }))}
+                    equipe={equipe}
+                    demandas={enviado && rel.snapshot ? rel.snapshot.demandas : venc}
+                    resumo={enviado ? undefined : resumoNode}
+                    inicial={{ respostas: rel?.respostas ?? {}, justificativas: rel?.justificativas ?? {}, enviadoEm: enviado ? rel.enviado_em : null }}
+                  />
+                  {enviado && (
+                    <p className="text-sm text-muted">
+                      {rel.aprovado_em ? `Aprovado por ${aprovadorNome} · nota ${rel.nota}${rel.comentario ? ` · “${rel.comentario}”` : ""}` : `Aguardando a aprovação de ${aprovadorNome}.`}
+                    </p>
+                  )}
+                </>
+              );
+            })()}
+          </>
         ) : (
-          <section>
-            <h3 className="section-title mb-2">Tarefas fixas {dia === hoje ? "de hoje" : `de ${dataBr(dia)}`}</h3>
-            {itensDia.length === 0 ? (
-              <p className="text-sm text-muted">Nenhuma tarefa fixa neste dia.</p>
-            ) : (
-              <ul className="divide-y divide-border rounded-lg border border-border">
-                {itensDia.map((i) => (
-                  <li key={i.id} className="flex items-center gap-3 px-3 py-2 text-sm">
-                    <span className="w-12 shrink-0 text-right text-xs tabular-nums text-muted">{i.hora_inicio?.slice(0, 5) ?? "—"}</span>
-                    <span aria-hidden>{i.feito ? "✅" : dia < hoje ? "❌" : "⬜"}</span>
-                    <span className="min-w-0 flex-1 truncate text-foreground">{i.titulo}</span>
-                    <span className="shrink-0 text-xs text-muted">{i.feito && i.feitoEm ? `feito às ${horaDe(i.feitoEm)}` : dia < hoje ? "não fez" : "ainda não"}</span>
-                  </li>
-                ))}
-              </ul>
-            )}
-          </section>
-        )}
+          <>
+            <section>
+              <h3 className="section-title mb-2">Tarefas fixas {dia === hoje ? "de hoje" : `de ${dataBr(dia)}`}</h3>
+              {itensDia.length === 0 ? (
+                <p className="text-sm text-muted">Nenhuma tarefa fixa neste dia.</p>
+              ) : (
+                <ul className="divide-y divide-border rounded-lg border border-border">
+                  {itensDia.map((i) => (
+                    <li key={i.id} className="flex items-center gap-3 px-3 py-2 text-sm">
+                      <span className="w-12 shrink-0 text-right text-xs tabular-nums text-muted">{i.hora_inicio?.slice(0, 5) ?? "—"}</span>
+                      <span aria-hidden>{i.feito ? "✅" : dia < hoje ? "❌" : "⬜"}</span>
+                      <span className="min-w-0 flex-1 truncate text-foreground">{i.titulo}</span>
+                      <span className="shrink-0 text-xs text-muted">{i.feito && i.feitoEm ? `feito às ${horaDe(i.feitoEm)}` : dia < hoje ? "não fez" : "ainda não"}</span>
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </section>
 
-        {!modelo ? (
-          <p className="text-sm text-muted">{meu ? "Você não tem relatório do dia." : "Esta pessoa não tem relatório do dia."}</p>
-        ) : editavel ? (
-          <RelatorioDoDia
-            key={modelo.id}
-            perguntas={modelo.perguntas.filter((q) => q.ativa).map((q) => ({ id: q.id, secao: q.secao, texto: q.texto, tipo: q.tipo, opcoes: q.opcoes, obrigatoria: q.obrigatoria }))}
-            equipe={equipe}
-            demandas={rel?.status === "enviado" && rel.snapshot ? rel.snapshot.demandas : venc}
-            inicial={{ respostas: rel?.respostas ?? {}, justificativas: rel?.justificativas ?? {}, enviadoEm: rel?.status === "enviado" ? rel.enviado_em : null }}
-          />
-        ) : (
-          <section>
-            <h3 className="section-title mb-2">Relatório do dia</h3>
-            {rel?.status === "enviado" ? (
-              <>
-                <p className="mb-3 text-sm font-semibold text-status-success">Enviado às {horaDe(rel.enviado_em!)}</p>
-                {souSuper ? <RelatorioLeitura relatorio={rel} /> : <p className="text-sm text-muted">Só o administrador máximo lê as respostas.</p>}
-              </>
+            {!modelo ? (
+              <p className="text-sm text-muted">{meu ? "Você não tem relatório do dia." : "Esta pessoa não tem relatório do dia."}</p>
+            ) : rel?.status === "enviado" ? (
+              souSuper && rel.snapshot ? (
+                <div className="space-y-5">
+                  {/* o admin máximo lê, dá a nota, aprova e (se quiser) corrige */}
+                  <AprovarRelatorio responsavelId={alvo.id} dia={dia} nota={rel.nota} comentario={rel.comentario} aprovadoEm={rel.aprovado_em} aprovador={aprovadorNome} />
+                  <RelatorioDoDia
+                    key={`${alvo.id}-${dia}-${rel.editado_em ?? ""}`}
+                    perguntas={rel.snapshot.perguntas.map((q) => ({ ...q }))}
+                    equipe={rel.snapshot.equipe}
+                    demandas={rel.snapshot.demandas}
+                    edicao={{ responsavelId: alvo.id, dia }}
+                    inicial={{ respostas: rel.respostas, justificativas: rel.justificativas, enviadoEm: rel.enviado_em }}
+                  />
+                  {rel.editado_em && <p className="text-xs text-muted">Corrigido pelo administrador em {dataBr(rel.editado_em.slice(0, 10))} às {horaDe(rel.editado_em)}.</p>}
+                </div>
+              ) : (
+                <p className="text-sm font-semibold text-status-success">Relatório enviado às {horaDe(rel.enviado_em!)}.{rel.aprovado_em ? ` Aprovado · nota ${rel.nota}.` : " Aguardando aprovação."}</p>
+              )
             ) : (
-              <p className="text-sm text-muted">{rel ? "Em rascunho, ainda não enviado." : dia < hoje ? "Não foi enviado." : "Ainda não foi enviado."}</p>
+              <p className="text-sm text-muted">{rel ? "Relatório em rascunho, ainda não enviado." : dia < hoje ? "O relatório não foi enviado." : "O relatório ainda não foi enviado."}</p>
             )}
-          </section>
+          </>
         )}
       </div>
     );
@@ -266,7 +320,7 @@ async function rotinaDaPessoa({
     );
   } else {
     const modelos = await carregarModelos();
-    corpo = <EditorModelos modelos={modelos} pessoas={[{ id: alvo.id, nome: alvo.nome, foto: alvo.foto, modeloId: atribuidos.get(alvo.id) ?? null }]} />;
+    corpo = <EditorModelos modelos={modelos} pessoas={[{ id: alvo.id, nome: alvo.nome, foto: alvo.foto, modeloId: atribuidos.get(alvo.id) ?? null }]} aprovadores={pessoas.filter((p) => p.profileId).map((p) => ({ id: p.id, nome: p.nome }))} />;
   }
 
   return (

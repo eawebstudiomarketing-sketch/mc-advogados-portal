@@ -97,7 +97,7 @@ export function CartoesResponsaveis({ equipe }: { equipe: string[] }) {
 export type EventoLinha = { quando: string; texto: string; href?: string };
 
 /** Ficha de uma pessoa: nota, atividades, clientes, entregas por semana e linha do tempo. */
-export function FichaPessoa({ pessoaId, linhaDoTempo, extras }: { pessoaId: string; linhaDoTempo: EventoLinha[]; extras: { mensagens: number; comentarios: number; horas: number } }) {
+export function FichaPessoa({ pessoaId, linhaDoTempo, extras }: { pessoaId: string; linhaDoTempo: EventoLinha[]; extras: { mensagens: number; comentarios: number; horas: number; notaRotina?: { media: number; relatorios: number } | null } }) {
   const { responsaveis, clientes, atividades } = usePainel();
   const r = responsaveis.find((x) => x.id === pessoaId);
   const { filtro, setFiltro, linhas, periodo } = useFiltro({ resp: pessoaId });
@@ -166,6 +166,11 @@ export function FichaPessoa({ pessoaId, linhaDoTempo, extras }: { pessoaId: stri
             <p className="mt-1 text-xs text-muted">
               {diferenca === null ? "sem atividades no período" : diferenca === 0 ? "igual à média" : `${diferenca > 0 ? "+" : ""}${diferenca} vs média da equipe (${mediaEquipe})`}
             </p>
+            {extras.notaRotina && (
+              <p className="mt-1 text-xs font-semibold text-foreground">
+                Rotinas (nota do Maurício): {String(extras.notaRotina.media).replace(".", ",")} de 10 · {extras.notaRotina.relatorios} {extras.notaRotina.relatorios === 1 ? "relatório" : "relatórios"}
+              </p>
+            )}
           </div>
         </div>
         <div className="mt-5 grid grid-cols-3 gap-4 border-t border-border pt-4 sm:grid-cols-5 lg:grid-cols-9">

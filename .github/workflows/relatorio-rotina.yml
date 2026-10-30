@@ -1,9 +1,8 @@
-# Fim do dia: manda ao Maurício o HTML das rotinas e demandas do dia que fechou (00:05 da Bahia = 03:05 UTC).
+# Resumo das rotinas do dia em HTML para o Zap do Maurício. Desde 30/10 o envio é feito pelo próprio portal
+# quando o Maurício envia o relatório dele (de dono); este fluxo só roda se for chamado à mão.
 name: Relatório de rotinas do dia
 
 on:
-  schedule:
-    - cron: "5 3 * * *"
   workflow_dispatch:
 
 jobs:

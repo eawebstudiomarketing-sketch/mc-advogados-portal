@@ -13,7 +13,7 @@ import { chaveResposta, SECAO_ROTULO, SECOES, type DemandaVencida, type Relatori
 // (Bahia) para o dia que acabou de fechar; uma vez só por dia (rotina_relatorio_dia).
 
 const db = () => createAdminClient() as unknown as SupabaseClient;
-const MAURICIO = "ee479af5-6a30-4741-880a-c9e96ea0079b"; // profile do Maurício (igual a lib/saude.ts)
+export const MAURICIO = "ee479af5-6a30-4741-880a-c9e96ea0079b"; // profile do Maurício (igual a lib/saude.ts)
 const SITE = process.env.NEXT_PUBLIC_SITE_URL ?? "https://mcadvogados.app.br";
 
 const esc = (s: unknown) =>
@@ -38,7 +38,7 @@ type PessoaDia = {
   vencidas: DemandaVencida[];
 };
 
-async function concluidasNoDia(responsavelId: string, dia: string): Promise<Concluida[]> {
+export async function concluidasNoDia(responsavelId: string, dia: string): Promise<Concluida[]> {
   const { data } = await db()
     .from("activities")
     .select("title, clients(name)")

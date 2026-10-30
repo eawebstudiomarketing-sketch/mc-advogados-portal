@@ -5,7 +5,7 @@ import { createAdminClient } from "@/lib/supabase/admin";
 import { jidsDoFone } from "@/lib/painel/equipe-zap";
 import { calcularMetricas } from "@/lib/painel/metricas";
 import { carregarBase } from "@/lib/painel/dados";
-import { PERIODOS, aberta, atrasada, hojeBahia, somaDias, dentro, dias as diasEntre, media, notaPorTempo, noPrazo, periodoDe, seriesAtividades, type LinhaAtividade, type Periodo } from "@/lib/painel/base";
+import { PERIODOS, dataBahia, aberta, atrasada, hojeBahia, somaDias, dentro, dias as diasEntre, media, notaPorTempo, noPrazo, periodoDe, seriesAtividades, type LinhaAtividade, type Periodo } from "@/lib/painel/base";
 import { StatCard } from "@/components/ui/stat-card";
 import { Barras, BarrasH, LinhaCriadasConcluidas } from "@/components/painel/graficos";
 import { Anel, KpiCard, Medidor, Ranking, Rosca } from "@/components/painel/graficos2";
@@ -18,6 +18,7 @@ import { GerentePainel } from "@/components/painel/gerente";
 import { LateralGerente, type CompromissoLateral } from "@/components/painel/lateral";
 import { QuadroAbertasAntigas, QuadroCarga, QuadroCriadasConcluidas, QuadroPorTipo } from "@/components/painel/quadros";
 import { RotinasDoDia } from "@/components/painel/rotinas-do-dia";
+import { notasDeRotina } from "@/lib/rotina-relatorio/dados";
 import { CartoesResponsaveis, FichaPessoa, type EventoLinha } from "@/components/painel/responsaveis";
 
 export const metadata = { title: "Painel do Dono" };
@@ -144,7 +145,8 @@ async function linhaDoTempo(pessoaId: string, p: Periodo, base: Awaited<ReturnTy
   const eventos: EventoLinha[] = base.atividades
     .filter((a) => a.respId === pessoaId && a.status === "concluida" && dentro(a.concluida, p.ini, p.fim))
     .map((a) => ({ quando: a.concluida!, texto: `Concluiu "${a.titulo}"${a.clienteId ? ` · ${nomeCli(a.clienteId)}` : ""}`, href: `/admin/activities/${a.id}` }));
-  const extras = { mensagens: 0, comentarios: 0, horas: 0 };
+  const extras: { mensagens: number; comentarios: number; horas: number; notaRotina: { media: number; relatorios: number } | null } = { mensagens: 0, comentarios: 0, horas: 0, notaRotina: null };
+  extras.notaRotina = (await notasDeRotina(dataBahia(p.ini), dataBahia(p.fim))).get(pessoaId) ?? null;
   if (r?.profileId) {
     const [aud, com, jobs, noGrupo, hrs] = await Promise.all([
       db.from("auditoria").select("quando, tabela, acao, resumo, registro_id, campos").eq("profile_id", r.profileId).gte("quando", p.ini).lt("quando", p.fim).order("quando", { ascending: false }).limit(80),

@@ -4,7 +4,7 @@ import Image from "next/image";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { Suspense, useEffect, useMemo, useState, useSyncExternalStore } from "react";
-import { Activity, LayoutDashboard, Users, ListChecks, Gavel, FileText, FileSignature, Wallet, ClipboardList, BarChart3, UserCog, Plug, Trash2, Search, Menu, X, LogOut, UserRound, type LucideIcon, Briefcase, Layers, Settings2, ChevronDown, Newspaper, Bell, CalendarDays, MessageCircle, MessagesSquare, Inbox, CalendarCheck, BellRing, AudioLines, NotebookPen, Sparkles, Wrench, Gauge } from "lucide-react";
+import { Clock, Activity, LayoutDashboard, Users, ListChecks, Gavel, FileText, FileSignature, Wallet, ClipboardList, BarChart3, UserCog, Plug, Trash2, Search, Menu, X, LogOut, UserRound, type LucideIcon, Briefcase, Layers, Settings2, ChevronDown, Newspaper, Bell, CalendarDays, MessageCircle, MessagesSquare, Inbox, CalendarCheck, BellRing, AudioLines, NotebookPen, Sparkles, Wrench, Gauge } from "lucide-react";
 import { logout } from "@/app/logout/actions";
 import { CommandPalette, type PaletteItem } from "./command-palette";
 import { PERM_DA_TELA, type Permissoes } from "@/lib/permissoes";
@@ -118,6 +118,7 @@ export function AdminShell({
   publicacoesPendentes = 0,
   mensagensNaoLidas = 0,
   distribuicaoPendentes = 0,
+  alertaRotina = null,
   superAdmin = false,
 }: {
   children: React.ReactNode;
@@ -131,6 +132,8 @@ export function AdminShell({
   mensagensNaoLidas?: number;
   /** Demandas que chegaram de fora e ainda não foram distribuídas. */
   distribuicaoPendentes?: number;
+  /** Relógio da rotina: leva à rotina da pessoa e avisa quando há tarefa atrasada ou relatório por enviar. */
+  alertaRotina?: { href: string; atrasadas: number; relatorioPendente: boolean } | null;
   /** Admin máximo (Maurício e João): vê o Painel do Dono. */
   superAdmin?: boolean;
 }) {
@@ -368,6 +371,17 @@ export function AdminShell({
           </button>
           <div className="ml-auto flex shrink-0 items-center gap-0.5 sm:gap-1">
             <TemaBotao />
+            {alertaRotina && (
+              <Link
+                href={alertaRotina.href}
+                aria-label={alertaRotina.atrasadas || alertaRotina.relatorioPendente ? `Sua rotina: ${[alertaRotina.atrasadas ? `${alertaRotina.atrasadas} tarefa(s) atrasada(s)` : "", alertaRotina.relatorioPendente ? "relatório por enviar" : ""].filter(Boolean).join(" e ")}` : "Sua rotina"}
+                data-tip={alertaRotina.atrasadas || alertaRotina.relatorioPendente ? "Sua rotina precisa de você" : "Sua rotina"}
+                className="relative rounded-full p-2 text-muted transition-colors hover:bg-surface-2 hover:text-foreground"
+              >
+                <Clock className="h-[18px] w-[18px]" />
+                {(alertaRotina.atrasadas > 0 || alertaRotina.relatorioPendente) && <span className="absolute top-1.5 right-1.5 h-2.5 w-2.5 rounded-full bg-status-danger ring-2 ring-surface" aria-hidden />}
+              </Link>
+            )}
             {publicacoesPendentes > 0 && (
               <Link
                 href="/admin/publicacoes"

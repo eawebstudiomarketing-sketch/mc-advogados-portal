@@ -18,18 +18,20 @@ const nova = (secao: Secao = "pessoal"): Linha => ({ chave: crypto.randomUUID(),
 const deModelo = (m: Modelo): Linha[] =>
   m.perguntas.filter((p) => p.ativa).map((p) => ({ chave: p.id, id: p.id, secao: p.secao, tipo: p.tipo, texto: p.texto, opcoes: p.opcoes.join("\n"), obrigatoria: p.obrigatoria }));
 
-export function EditorModelos({ modelos, pessoas }: { modelos: Modelo[]; pessoas: Pessoa[] }) {
+export function EditorModelos({ modelos, pessoas, aprovadores }: { modelos: Modelo[]; pessoas: Pessoa[]; aprovadores: { id: string; nome: string }[] }) {
   const router = useRouter();
   const [pending, start] = useTransition();
   const [escolhido, setEscolhido] = useState<string | "novo">(modelos[0]?.id ?? "novo");
   const atual = modelos.find((m) => m.id === escolhido) ?? null;
   const [nome, setNome] = useState(atual?.nome ?? "");
+  const [aprovador, setAprovador] = useState(atual?.aprovador_id ?? "");
   const [linhas, setLinhas] = useState<Linha[]>(atual ? deModelo(atual) : [nova()]);
 
   function abrir(id: string | "novo") {
     setEscolhido(id);
     const m = modelos.find((x) => x.id === id);
     setNome(m?.nome ?? "");
+    setAprovador(m?.aprovador_id ?? "");
     setLinhas(m ? deModelo(m) : [nova()]);
   }
   const mudar = (chave: string, parte: Partial<Linha>) => setLinhas((ls) => ls.map((l) => (l.chave === chave ? { ...l, ...parte } : l)));
@@ -47,6 +49,7 @@ export function EditorModelos({ modelos, pessoas }: { modelos: Modelo[]; pessoas
       const r = await salvarModeloAction({
         id: atual?.id ?? null,
         nome,
+        aprovadorId: aprovador || null,
         perguntas: linhas.map((l) => ({
           id: l.id ?? undefined,
           secao: l.secao,
@@ -137,6 +140,19 @@ export function EditorModelos({ modelos, pessoas }: { modelos: Modelo[]; pessoas
             Nome do modelo
           </label>
           <input id="modelo-nome" value={nome} onChange={(e) => setNome(e.target.value)} maxLength={80} placeholder="Ex.: Equipe jurídica, Maurício…" className="ui-input" />
+        </div>
+        <div>
+          <label htmlFor="modelo-aprovador" className="ui-label">
+            Quem aprova este relatório
+          </label>
+          <select id="modelo-aprovador" value={aprovador} onChange={(e) => setAprovador(e.target.value)} className="ui-input">
+            <option value="">Administrador máximo (Maurício)</option>
+            {aprovadores.map((a) => (
+              <option key={a.id} value={a.id}>
+                {a.nome}
+              </option>
+            ))}
+          </select>
         </div>
 
         {SECOES.map((s) => {

@@ -31,7 +31,7 @@ export type Pergunta = {
   obrigatoria: boolean;
   ativa: boolean;
 };
-export type Modelo = { id: string; nome: string; ativo: boolean; perguntas: Pergunta[] };
+export type Modelo = { id: string; nome: string; ativo: boolean; aprovador_id: string | null; perguntas: Pergunta[] };
 
 /** Resposta: texto, número ou lista (várias opções). */
 export type Valor = string | number | string[];
@@ -55,6 +55,11 @@ export type RelatorioDoDia = {
   justificativas: Record<string, string>;
   snapshot: Snapshot | null;
   enviado_em: string | null;
+  /** aprovação (Rotinas v2, 30/10): nota de 0 a 10 dada por quem aprova */
+  nota: number | null;
+  comentario: string | null;
+  aprovado_em: string | null;
+  editado_em: string | null;
 };
 
 const vazio = (v: Valor | undefined) => v === undefined || v === null || (typeof v === "string" && !v.trim()) || (Array.isArray(v) && v.length === 0);

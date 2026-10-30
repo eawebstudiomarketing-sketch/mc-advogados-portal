@@ -23,7 +23,7 @@ export const hojeBahia = () => new Intl.DateTimeFormat("en-CA", { timeZone: "Ame
 
 export async function carregarModelos(): Promise<Modelo[]> {
   const [{ data: modelos }, { data: perguntas }] = await Promise.all([
-    db().from("rotina_modelos").select("id, nome, ativo").eq("ativo", true).order("nome"),
+    db().from("rotina_modelos").select("id, nome, ativo, aprovador_id").eq("ativo", true).order("nome"),
     db().from("rotina_perguntas").select("*").order("ordem").order("created_at"),
   ]);
   return (modelos ?? []).map((m) => ({ ...m, perguntas: ((perguntas ?? []) as Pergunta[]).filter((p) => p.modelo_id === m.id) })) as Modelo[];
@@ -43,15 +43,15 @@ export async function modelosAtribuidos(): Promise<Map<string, string>> {
 
 export type PerguntaEditavel = Partial<Pick<Pergunta, "id" | "secao" | "tipo" | "opcoes" | "obrigatoria" | "ativa">> & { texto: string };
 
-export async function salvarModelo(m: { id?: string | null; nome: string; perguntas: PerguntaEditavel[] }): Promise<string> {
+export async function salvarModelo(m: { id?: string | null; nome: string; aprovadorId?: string | null; perguntas: PerguntaEditavel[] }): Promise<string> {
   const nome = m.nome.trim();
   if (!nome) throw new Error("Dê um nome ao modelo.");
   let id = m.id ?? null;
   if (id) {
-    const { error } = await db().from("rotina_modelos").update({ nome, updated_at: new Date().toISOString() }).eq("id", id);
+    const { error } = await db().from("rotina_modelos").update({ nome, aprovador_id: m.aprovadorId ?? null, updated_at: new Date().toISOString() }).eq("id", id);
     if (error) throw new Error(error.message);
   } else {
-    const { data, error } = await db().from("rotina_modelos").insert({ nome }).select("id").single();
+    const { data, error } = await db().from("rotina_modelos").insert({ nome, aprovador_id: m.aprovadorId ?? null }).select("id").single();
     if (error || !data) throw new Error(error?.message ?? "Não foi possível criar o modelo.");
     id = data.id as string;
   }
@@ -136,6 +136,10 @@ type Linha = {
   justificativas: Record<string, string>;
   perguntas_snap: Snapshot | null;
   enviado_em: string | null;
+  nota: number | null;
+  comentario: string | null;
+  aprovado_em: string | null;
+  editado_em: string | null;
 };
 const paraRelatorio = (l: Linha): RelatorioDoDia => ({
   id: l.id,
@@ -147,6 +151,10 @@ const paraRelatorio = (l: Linha): RelatorioDoDia => ({
   justificativas: l.justificativas ?? {},
   snapshot: l.perguntas_snap,
   enviado_em: l.enviado_em,
+  nota: l.nota ?? null,
+  comentario: l.comentario ?? null,
+  aprovado_em: l.aprovado_em ?? null,
+  editado_em: l.editado_em ?? null,
 });
 
 export async function lerRelatorio(responsavelId: string, dia: string): Promise<RelatorioDoDia | null> {
@@ -213,4 +221,44 @@ export async function enviarRelatorio(responsavelId: string, dia: string, respos
     );
   if (error) throw new Error(error.message);
   return [];
+}
+
+// ───────── aprovação e edição (só o admin máximo) ─────────
+
+/** Aprova um relatório enviado: nota de 0 a 10 e comentário opcional. */
+export async function aprovarRelatorio(responsavelId: string, dia: string, nota: number, comentario: string | null, porProfileId: string) {
+  if (!Number.isInteger(nota) || nota < 0 || nota > 10) throw new Error("A nota vai de 0 a 10.");
+  const atual = await lerRelatorio(responsavelId, dia);
+  if (!atual || atual.status !== "enviado") throw new Error("Só dá para aprovar um relatório já enviado.");
+  const { error } = await db()
+    .from("rotina_relatorios")
+    .update({ nota, comentario: comentario?.trim() || null, aprovado_em: new Date().toISOString(), aprovado_por: porProfileId, updated_at: new Date().toISOString() })
+    .eq("responsavel_id", responsavelId)
+    .eq("dia", dia);
+  if (error) throw new Error(error.message);
+}
+
+/** Corrige as respostas de um relatório já enviado (só o admin máximo, se quiser). */
+export async function editarRelatorioEnviado(responsavelId: string, dia: string, respostas: Record<string, Valor>, justificativas: Record<string, string>, porProfileId: string) {
+  const atual = await lerRelatorio(responsavelId, dia);
+  if (!atual || atual.status !== "enviado") throw new Error("O relatório ainda não foi enviado.");
+  const { error } = await db()
+    .from("rotina_relatorios")
+    .update({ respostas, justificativas, editado_em: new Date().toISOString(), editado_por: porProfileId, updated_at: new Date().toISOString() })
+    .eq("responsavel_id", responsavelId)
+    .eq("dia", dia);
+  if (error) throw new Error(error.message);
+}
+
+/** Notas de rotina (aprovadas pelo Maurício) de cada pessoa no período: média de 0 a 10 e quantos relatórios. */
+export async function notasDeRotina(ini: string, fim: string): Promise<Map<string, { media: number; relatorios: number }>> {
+  const { data } = await db().from("rotina_relatorios").select("responsavel_id, nota").not("nota", "is", null).gte("dia", ini).lt("dia", fim);
+  const soma = new Map<string, { s: number; n: number }>();
+  for (const r of data ?? []) {
+    const x = soma.get(r.responsavel_id as string) ?? { s: 0, n: 0 };
+    x.s += Number(r.nota);
+    x.n++;
+    soma.set(r.responsavel_id as string, x);
+  }
+  return new Map([...soma].map(([id, x]) => [id, { media: Math.round((x.s / x.n) * 10) / 10, relatorios: x.n }]));
 }

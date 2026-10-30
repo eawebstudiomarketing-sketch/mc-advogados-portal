@@ -4,6 +4,7 @@ import { listClients } from "@/lib/data/clients";
 import { contarNaoTratadas } from "@/lib/data/publicacoes";
 import { contarNaoLidas } from "@/lib/data/mensagens";
 import { contarDistribuicaoPendentes } from "@/lib/data/distribuicao";
+import { alertaDaRotina } from "@/lib/rotina-relatorio/alerta";
 
 export default async function AdminLayout({ children }: { children: React.ReactNode }) {
   const profile = await requireRole(["admin", "advogado"]);
@@ -11,10 +12,11 @@ export default async function AdminLayout({ children }: { children: React.ReactN
   // lista leve para a busca rápida (Ctrl+K): só os clientes que a pessoa pode ver
   const clients = permissoes.clientes ? await listClients().catch(() => []) : [];
   // sininho de publicações: por enquanto só para o admin
-  const [publicacoesPendentes, mensagensNaoLidas, distribuicaoPendentes] = await Promise.all([
+  const [publicacoesPendentes, mensagensNaoLidas, distribuicaoPendentes, alertaRotina] = await Promise.all([
     profile.role === "admin" ? contarNaoTratadas().catch(() => 0) : 0,
     contarNaoLidas(profile.id).catch(() => 0),
     permissoes.distribuicao ? contarDistribuicaoPendentes().catch(() => 0) : 0,
+    alertaDaRotina(profile.id).catch(() => null),
   ]);
 
   return (
@@ -26,6 +28,7 @@ export default async function AdminLayout({ children }: { children: React.ReactN
       publicacoesPendentes={publicacoesPendentes}
       mensagensNaoLidas={mensagensNaoLidas}
       distribuicaoPendentes={distribuicaoPendentes}
+      alertaRotina={alertaRotina}
       superAdmin={ehSuperAdmin(profile)}
     >
       {children}

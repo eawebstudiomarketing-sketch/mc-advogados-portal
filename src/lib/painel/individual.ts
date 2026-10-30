@@ -3,6 +3,7 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { calcularMetricas, tudo } from "./metricas";
 import { carregarBase } from "./dados";
+import { notasDeRotina } from "@/lib/rotina-relatorio/dados";
 import { aberta, arred, atrasada, DIA, dentro, dias, hojeBahia, media, notaPessoa, periodoDe, dataBahia, type Periodo } from "./base";
 
 // Indicadores individuais (28/10/2026): o mesmo retrato do Painel do Dono, mas só
@@ -41,6 +42,7 @@ export type Indicadores = {
   };
   whatsapp: { respostas: number; respondidas: number; medianaHoras: number | null };
   trabalho: { horas: number; comentarios: number; atas: number; transcricoes: number; acoes: number };
+  rotina: { media: number | null; relatorios: number };
   processos: {
     sob: number;
     andamentosNovos: number;
@@ -142,6 +144,7 @@ export async function indicadoresDe(profileId: string, periodoId: string): Promi
   }
 
   const extras = await andamentosEPublicacoes(profileId, nome, p);
+  const notaRot = resp ? (await notasDeRotina(dataBahia(p.ini), dataBahia(p.fim))).get(resp.id) : undefined;
   const zap = m.atendimento.tempoPorPessoa.find((x) => x.id === profileId);
   const respostas = m.atendimento.respostasPorPessoa.find((x) => x.id === profileId);
 
@@ -176,6 +179,7 @@ export async function indicadoresDe(profileId: string, periodoId: string): Promi
     },
     whatsapp: { respostas: respostas?.n ?? eq?.mensagens ?? 0, respondidas: zap?.respondidas ?? 0, medianaHoras: zap?.medianaHoras ?? null },
     trabalho: { horas: eq?.horas ?? 0, comentarios: eq?.comentarios ?? 0, atas: eq?.atas ?? 0, transcricoes: eq?.transcricoes ?? 0, acoes: eq?.acoes ?? 0 },
+    rotina: { media: notaRot?.media ?? null, relatorios: notaRot?.relatorios ?? 0 },
     processos: extras,
   };
 }

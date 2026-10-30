@@ -91,6 +91,7 @@ export default async function IndicadoresPage({ searchParams }: { searchParams: 
             <h2 className="section-title">Atividades designadas a {meu ? "você" : ind.pessoa.nome.split(" ")[0]}</h2>
             <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
               <KpiCard rotulo="Nota" valor={ind.nota === null ? "—" : String(ind.nota)} apoio={ind.nota === null ? "sem atividades para avaliar" : "de 0 a 100"} />
+              <KpiCard rotulo="Nota das rotinas" valor={ind.rotina.media === null ? "—" : String(ind.rotina.media).replace(".", ",")} apoio={ind.rotina.media === null ? "nenhum relatório aprovado no período" : `de 10 · ${ind.rotina.relatorios} ${ind.rotina.relatorios === 1 ? "relatório aprovado" : "relatórios aprovados"}`} />
               <KpiCard rotulo="Designadas" valor={String(ind.atividades.designadas)} apoio={dif(ind.atividades.designadas, ind.atividades.designadasAnt)} />
               <KpiCard rotulo="Entregues" valor={String(ind.atividades.entregues)} apoio={dif(ind.atividades.entregues, ind.atividades.entreguesAnt)} tom="success" />
               <KpiCard rotulo="No prazo" valor={ind.atividades.noPrazoPct === null ? "—" : `${ind.atividades.noPrazoPct}%`} apoio="das entregues do período" />

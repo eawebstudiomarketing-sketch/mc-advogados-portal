@@ -32,6 +32,17 @@ const hora = (t?: string | null) => (t ? t.slice(0, 5) : null);
 const horaFeito = (iso?: string | null) =>
   iso ? new Date(iso).toLocaleTimeString("pt-BR", { timeZone: "America/Bahia", hour: "2-digit", minute: "2-digit" }) : null;
 
+/** Agrupa as tarefas do dia em Manhã (antes das 12h), Tarde e as sem horário. */
+function gruposDoDia(itens: ItemRotinaTela[]): [string, ItemRotinaTela[]][] {
+  const h = (i: ItemRotinaTela) => i.hora_inicio?.slice(0, 5) ?? null;
+  const grupos: [string, ItemRotinaTela[]][] = [
+    ["Manhã", itens.filter((i) => h(i) && h(i)! < "12:00")],
+    ["Tarde", itens.filter((i) => h(i) && h(i)! >= "12:00")],
+    ["Durante o dia", itens.filter((i) => !h(i))],
+  ];
+  return grupos.filter(([, lista]) => lista.length > 0);
+}
+
 /** Rotina do dia em ordem de horário. Cada item marcado vale 1 ponto no ranking. */
 export function MinhaRotina({
   itens: inicial,
@@ -95,8 +106,11 @@ export function MinhaRotina({
       ) : (
         <p className="mt-2 text-sm text-muted">Nada da sua rotina para hoje.</p>
       )}
-      <ul className="mt-3 space-y-0.5">
-        {itens.map((i) => {
+      {gruposDoDia(itens).map(([rotuloGrupo, lista]) => (
+      <div key={rotuloGrupo} className="mt-3">
+      <p className="eyebrow mb-1">{rotuloGrupo}</p>
+      <ul className="space-y-0.5">
+        {lista.map((i) => {
           const ini = hora(i.hora_inicio);
           const fim = hora(i.hora_fim);
           const etq = !i.feito ? ETIQUETA[i.situacao ?? ""] : undefined;
@@ -137,6 +151,8 @@ export function MinhaRotina({
           );
         })}
       </ul>
+      </div>
+      ))}
       {outrosDias.length > 0 && (
         <div className="mt-3 border-t border-border pt-3">
           <p className="eyebrow mb-1">Nos outros dias</p>

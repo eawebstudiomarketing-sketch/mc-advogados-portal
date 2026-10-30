@@ -2,6 +2,8 @@ import "server-only";
 import { coletarDia } from "@/lib/rotina-relatorio/dia";
 import { hojeBahia } from "@/lib/rotina-relatorio/dados";
 import { chaveResposta, type Valor } from "@/lib/rotina-relatorio/tipos";
+import { aprovarRelatorio } from "@/lib/rotina-relatorio/dados";
+import { listPessoas } from "@/lib/data/escritorio";
 import type { ToolDef } from "./tools";
 
 // Relatório do dia das Rotinas v2: só o admin máximo lê o conteúdo das respostas
@@ -65,6 +67,25 @@ export const TOOLS_ROTINAS: ToolDef[] = [
             : [{ secao: q.secao, pergunta: q.texto, sobre: null as string | null, resposta: texto(r.respostas[chaveResposta(q.id)]) }]
         ),
       };
+    },
+  },
+  {
+    name: "aprovar_relatorio_rotina",
+    kind: "confirm",
+    soSuper: true,
+    label: "Aprovou um relatório de rotina",
+    description:
+      "Aprova o relatório de rotina ENVIADO por uma pessoa em um dia, com nota de 0 a 10 e comentário opcional. A nota entra na avaliação da pessoa (Indicadores e Painel do Dono). Pede confirmação.",
+    parameters: obj({ pessoa: { type: "string", description: "nome da pessoa" }, nota: { type: "integer", description: "de 0 a 10" }, comentario: { type: "string" }, dia: DIA }, ["pessoa", "nota"]),
+    resumo: (a) => `Aprovar o relatório de ${a.pessoa} com nota ${a.nota}${a.comentario ? ` ("${a.comentario}")` : ""}`,
+    run: async (a, ctx) => {
+      const dia = diaValido(a.dia);
+      const alvo = String(a.pessoa ?? "").toLowerCase().trim();
+      const achadas = (await listPessoas()).filter((p) => p.nome.toLowerCase().includes(alvo));
+      if (!achadas.length) throw new Error(`Não achei "${a.pessoa}" na equipe.`);
+      if (achadas.length > 1) throw new Error(`Há mais de uma pessoa parecida: ${achadas.map((p) => p.nome).join(", ")}. Diga qual.`);
+      await aprovarRelatorio(achadas[0].id, dia, Number(a.nota), a.comentario ? String(a.comentario) : null, ctx.profileId);
+      return { aprovado: true, pessoa: achadas[0].nome, dia, nota: Number(a.nota) };
     },
   },
 ];
