@@ -66,22 +66,29 @@ export async function pesquisarAction(tipo: TipoBusca, termo: string, uf?: strin
       return { tipo: "lista", itens: await situacao(await djenPorOab(num, u)), buscouPor: `OAB ${num}/${u}` };
     }
 
-    // CPF/CNPJ: o diário oficial só busca por nome. Acha o nome pelo cadastro do portal (CPF ou CNPJ)
-    // ou, para CNPJ, pela Receita (BrasilAPI), e pesquisa por esse nome.
+    // CPF/CNPJ: o diário oficial só busca por nome. Junta os nomes conhecidos do documento — o do
+    // cadastro do cliente no portal e, no CNPJ, a razão social da Receita (é o nome que vai no processo)
+    // — e pesquisa por cada um.
     const dig = t.replace(/\D/g, "");
     if (dig.length !== 11 && dig.length !== 14) return { erro: "CPF tem 11 dígitos e CNPJ tem 14." };
     const { data: clientes } = await createAdminClient().from("clients").select("name, documento").not("documento", "is", null).limit(5000);
-    let nome = (clientes ?? []).find((c) => (c.documento ?? "").replace(/\D/g, "") === dig)?.name ?? null;
-    if (!nome && dig.length === 14) nome = await nomePeloCnpj(dig);
-    if (!nome) {
+    const doCadastro = (clientes ?? []).find((c) => (c.documento ?? "").replace(/\D/g, "") === dig)?.name ?? null;
+    const daReceita = dig.length === 14 ? await nomePeloCnpj(dig) : null;
+    // o nome no cadastro às vezes leva o próprio CNPJ junto ("EMPRESA - 00.000.000/0001-00")
+    const limpo = (n: string) => n.replace(/[-–·|]?\s*\d{2}\.?\d{3}\.?\d{3}\/?\d{4}-?\d{2}\s*$/, "").trim();
+    const nomes = [...new Set([daReceita, doCadastro].filter(Boolean).map((n) => limpo(n!)).filter((n) => n.length >= 4))];
+    if (!nomes.length) {
       return {
         erro:
           dig.length === 11
             ? "Esse CPF não está no cadastro de nenhum cliente do portal, e os tribunais não deixam pesquisar CPF de fora. Pesquise pelo nome da pessoa."
-            : "Não achei a empresa desse CNPJ. Pesquise pelo nome da empresa.",
+            : "Não achei a empresa desse CNPJ na Receita nem no cadastro. Pesquise pelo nome da empresa.",
       };
     }
-    return { tipo: "lista", itens: await situacao(await djenPorNome(nome)), buscouPor: `${nome} (${dig.length === 11 ? "CPF" : "CNPJ"} ${t})` };
+    const porNumero = new Map<string, ProcessoAchado>();
+    for (const n of nomes) for (const p of await djenPorNome(n)) if (!porNumero.has(p.digitos)) porNumero.set(p.digitos, p);
+    const itens = [...porNumero.values()].sort((a, b) => (b.ultimaPublicacao ?? "").localeCompare(a.ultimaPublicacao ?? ""));
+    return { tipo: "lista", itens: await situacao(itens), buscouPor: `${nomes.join(" / ")} (${dig.length === 11 ? "CPF" : "CNPJ"} ${t})` };
   } catch (e) {
     return { erro: msg(e) };
   }

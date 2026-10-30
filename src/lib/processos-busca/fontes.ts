@@ -56,11 +56,17 @@ export type ProcessoAchado = {
 async function djen(params: Record<string, string>, paginas = 2): Promise<ComunicacaoDJEN[]> {
   const todas: ComunicacaoDJEN[] = [];
   for (let pagina = 1; pagina <= paginas; pagina++) {
-    const url = new URL(DJEN);
+    // o DJEN recusa (403) acesso de fora do Brasil: na Vercel fora de São Paulo, passa pela ponte /api/djen (gru1)
+    const viaPonte = !!process.env.VERCEL && process.env.VERCEL_REGION !== "gru1";
+    const url = viaPonte ? new URL("/api/djen", (process.env.NEXT_PUBLIC_SITE_URL ?? "https://mcadvogados.app.br").replace(/\/$/, "")) : new URL(DJEN);
     for (const [k, v] of Object.entries(params)) url.searchParams.set(k, v);
     url.searchParams.set("itensPorPagina", "100");
     url.searchParams.set("pagina", String(pagina));
-    const resp = await fetch(url, { cache: "no-store", signal: AbortSignal.timeout(25_000) });
+    const resp = await fetch(url, {
+      cache: "no-store",
+      signal: AbortSignal.timeout(28_000),
+      headers: viaPonte ? { authorization: `Bearer ${process.env.CRON_SECRET}` } : undefined,
+    });
     if (resp.status === 429) throw new Error("O diário oficial (DJEN) pediu um tempo: muitas pesquisas em 1 minuto. Tente de novo daqui a pouco.");
     if (!resp.ok) throw new Error(`O diário oficial (DJEN) respondeu ${resp.status}.`);
     const corpo = (await resp.json()) as { count?: number; items?: ComunicacaoDJEN[] };
@@ -134,7 +140,8 @@ export async function djenPorNumero(numero: string): Promise<ProcessoAchado | nu
 }
 
 export async function djenPorNome(nome: string): Promise<ProcessoAchado[]> {
-  return agruparPorProcesso(await djen({ nomeParte: nome.trim() }, 3));
+  // até 500 publicações: empresa com muito processo pode ter mais (o DJEN guarda desde 2023)
+  return agruparPorProcesso(await djen({ nomeParte: nome.trim() }, 5));
 }
 
 export async function djenPorOab(numero: string, uf: string): Promise<ProcessoAchado[]> {
@@ -207,12 +214,15 @@ export async function datajudResumo(numero: string, ms = 40_000): Promise<Resumo
   };
 }
 
-/** Razão social pelo CNPJ (BrasilAPI). */
+/** Razão social pelo CNPJ (BrasilAPI; se ela não responder, Minha Receita — as duas leem a base aberta da Receita). */
 export async function nomePeloCnpj(cnpj: string): Promise<string | null> {
   const dig = cnpj.replace(/\D/g, "");
   if (dig.length !== 14) return null;
-  const resp = await fetch(`https://brasilapi.com.br/api/cnpj/v1/${dig}`, { cache: "no-store", signal: AbortSignal.timeout(15_000) }).catch(() => null);
-  if (!resp?.ok) return null;
-  const d = (await resp.json()) as { razao_social?: string };
-  return d.razao_social?.trim() || null;
+  for (const url of [`https://brasilapi.com.br/api/cnpj/v1/${dig}`, `https://minhareceita.org/${dig}`]) {
+    const resp = await fetch(url, { cache: "no-store", signal: AbortSignal.timeout(12_000), headers: { "user-agent": "Mozilla/5.0 (portal MC Advogados)" } }).catch(() => null);
+    if (!resp?.ok) continue;
+    const d = (await resp.json().catch(() => ({}))) as { razao_social?: string };
+    if (d.razao_social?.trim()) return d.razao_social.trim();
+  }
+  return null;
 }

@@ -30,6 +30,11 @@
       "regions": [
         "gru1"
       ]
+    },
+    "src/app/api/djen/route.ts": {
+      "regions": [
+        "gru1"
+      ]
     }
   }
 }
