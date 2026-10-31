@@ -105,7 +105,7 @@ export function semelhanca(a: string, b: string): number {
 }
 // palavras de ramo/descrição que aparecem em milhares de marcas e sozinhas não são colidência
 const COMUNS = new Set(
-  "SAUDE CASA CONSTRUCAO CONSULTORIA ENGENHARIA MELHORIA CONTINUA ESCOLA SUPERIOR AVANCADA INSTITUTO BELEZA CLINIC CLINICA ACADEMY ACADEMIA ESTRUTURA PARA EVENTOS TRANSPORTES TRANSPORTE GROUP GRUPO BRASIL BRASILEIRA SERVICOS SOLUCOES COMERCIO DISTRIBUIDORA ATACADO VAREJO STORE LOJA MODA BURGER BURGUER FOOD FOODS PIZZA PIZZARIA CAFE RESTAURANTE BAR PRODUCOES ASSESSORIA ADVOCACIA ADVOGADOS DIGITAL MARKETING TECH TECNOLOGIA EDUCACAO CURSOS STUDIO ESTUDIO CENTRO AUTOMOTIVO HOME SPORT SPORTS FITNESS PET SHOP MAIS NOVA NOVO PRIME PREMIUM ODONTOLOGIA ESTETICA IMOVEIS IMOBILIARIA SEGUROS INVESTIMENTOS NEGOCIOS GESTAO EMPRESARIAL ALIMENTOS BEBIDAS TERAPIA THERAPY SONGS MUSIC MUSICA VIAGENS TURISMO".split(" ")
+  "SAUDE CASA CONSTRUCAO CONSULTORIA ENGENHARIA MELHORIA CONTINUA ESCOLA SUPERIOR AVANCADA INSTITUTO BELEZA CLINIC CLINICA ACADEMY ACADEMIA ESTRUTURA PARA EVENTOS TRANSPORTES TRANSPORTE GROUP GRUPO BRASIL BRASILEIRA SERVICOS SOLUCOES COMERCIO DISTRIBUIDORA ATACADO VAREJO STORE LOJA MODA BURGER BURGUER FOOD FOODS PIZZA PIZZARIA CAFE RESTAURANTE BAR PRODUCOES ASSESSORIA ADVOCACIA ADVOGADOS DIGITAL MARKETING TECH TECNOLOGIA EDUCACAO CURSOS STUDIO ESTUDIO CENTRO AUTOMOTIVO HOME SPORT SPORTS FITNESS PET SHOP MAIS NOVA NOVO PRIME PREMIUM ODONTOLOGIA ESTETICA IMOVEIS IMOBILIARIA SEGUROS INVESTIMENTOS NEGOCIOS GESTAO EMPRESARIAL ALIMENTOS BEBIDAS TERAPIA THERAPY SONGS MUSIC MUSICA VIAGENS TURISMO CONSTRUTORA COSMETICOS COSMETICO DISTRIBUIDORA AGRO DESIGN EDUCACIONAL LATICINIO LATICINIOS LOCACOES CLOTHING OUTLET VIACAO COMUNICACAO VISUAL ESCOLA COLEGIO".split(" ")
 );
 const LIMIAR: Record<number, number> = { 1: 0.7, 2: 0.85, 3: 0.95 };
 const classeNum = (c: string | null) => c?.match(/(\d{1,2})\s*$/)?.[1]?.replace(/^0/, "") ?? null;
@@ -121,7 +121,9 @@ function avaliar(m: MarcaColid, p: ProcessoRevista): { score: number; risco: "al
   const nossos = norm(m.nome).split(" ").filter((t) => t.length >= 3 && !ignorar.has(t));
   // termo de importância alta (ou extra) presente na marca de terceiro = alerta. No automático,
   // só o termo que distingue a marca (o 1º que não é palavra comum: SAÚDE, CASA, CONSULTORIA…)
-  const distintivos = nossos.filter((t) => t.length >= 4 && !COMUNS.has(t));
+  // (sigla curta como "GL" no começo = sem termo forte; vale só a semelhança do nome inteiro)
+  const primeiro = norm(m.nome).split(" ")[0] ?? "";
+  const distintivos = primeiro.length >= 4 && !COMUNS.has(primeiro) && !ignorar.has(primeiro) ? [primeiro] : [];
   const altos = [...(m.colid_auto ? distintivos.slice(0, 1) : nossos.filter((t) => (m.colid_termos[t] ?? 3) === 3 && !COMUNS.has(t))), ...m.colid_extras.map(norm)];
   const termoAlto = altos.some((t) => deles.some((d) => d === t || (t.length >= 5 && semelhanca(d, t) >= 0.9)));
   const score = Math.max(semelhanca(m.nome, deles.join(" ")), termoAlto ? 0.9 : 0);
