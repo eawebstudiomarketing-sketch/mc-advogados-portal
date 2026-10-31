@@ -113,11 +113,13 @@ export async function buscarCadastroAction(tipo: "processo" | "nome" | "titular"
 /** Acompanhar um ou vários processos: lê a ficha no INPI e entra na carteira. */
 export async function acompanharAction(processos: string[]): Promise<{ ok: true; feitos: number; erros: string[] } | { ok: false; error: string }> {
   const { profile } = await exigirPermissao("marcas");
-  const lista = [...new Set(processos.map((p) => p.replace(/\D/g, "")).filter((p) => p.length === 9))].slice(0, 40);
+  const lista = [...new Set(processos.map((p) => p.replace(/\D/g, "")).filter((p) => p.length === 9))].slice(0, 10);
   if (!lista.length) return { ok: false, error: "Nenhum processo válido (são 9 dígitos)." };
   const erros: string[] = [];
   let feitos = 0;
-  for (const p of lista) {
+  for (const [i, p] of lista.entries()) {
+    // o pePI bloqueia consultas em sequência (31/10/2026): 8 s entre um processo e outro
+    if (i > 0) await new Promise((r) => setTimeout(r, 8_000));
     // já estava na carteira e foi desacompanhada: volta
     await db().from("marcas").update({ acompanhando: true }).eq("processo", p);
     const r = await sincronizarProcesso(p, { criado_por: profile.id, comLogo: true }).catch((e) => ({ ok: false as const, error: (e as Error).message }));

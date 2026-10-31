@@ -7,6 +7,7 @@ import { etapasDaPrevisao } from "@/lib/marcas/previsao";
 import { BotoesFicha } from "./botoes-ficha";
 import { PeticoesProcesso } from "./peticoes";
 import { MostrarEspecificacao } from "./mostrar-especificacao";
+import { FichaPatente } from "./ficha-patente";
 
 // Marcas → ficha do processo ("Detalhes da marca" no Marca Acompanhada, mesmo
 // desenho). Ctrl+P / botão Imprimir nesta página gera o PDF que vai para o
@@ -22,6 +23,7 @@ export default async function FichaMarcaPage({ params }: { params: Promise<{ pro
   const r = await getMarca(processo);
   if (!r) notFound();
   const { marca: m, publicacoes, prazos, colidencias } = r;
+  if (m.tipo === "patente") return <FichaPatente m={m} publicacoes={publicacoes} prazos={prazos} />;
   const nome = nomeDaMarca(m);
   const etapas = etapasDaPrevisao(m.previsao);
   // prazo administrativo em aberto também aparece na previsão (como no MA)

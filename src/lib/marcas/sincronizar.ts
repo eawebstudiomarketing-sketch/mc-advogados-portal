@@ -125,7 +125,11 @@ export async function sincronizarLote(limite = 12, prazoMs = 240_000, pausaMs = 
       const r = await sincronizarProcesso(m.processo);
       seguidos = 0;
       if (r.ok) feitas++;
-      else erros.push(r.error);
+      else {
+        erros.push(r.error);
+        // o INPI respondeu mas não achou: marca a tentativa para a fila andar
+        await db().from("marcas").update({ sincronizado_em: new Date().toISOString() }).eq("processo", m.processo);
+      }
     } catch (e) {
       erros.push(`${m.processo}: ${(e as Error).message}`);
       if (++seguidos >= 2) {

@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { formatarProcesso } from "@/lib/marcas/formato";
 import { Bell, CalendarDays, ChevronRight, CircleCheck, Database, Info, PlusCircle, Shield } from "lucide-react";
 import { exigirPermissao } from "@/lib/dal";
 import { despachosDaRevista, listColidencias, listMarcas, listPrazos, listRevistas, nomeDaMarca } from "@/lib/marcas/dados";
@@ -212,7 +213,7 @@ export default async function MarcasPrincipalPage() {
                 </Link>
                 <p className="mt-0.5 flex items-center gap-2 text-sm text-muted">
                   <span className="selo-ma rounded px-1.5 py-0.5 text-[10px] font-semibold tracking-wide uppercase">{p.tipo}</span>
-                  {p.processo}
+                  {formatarProcesso(p.processo)}
                 </p>
               </div>
               <p className="text-sm text-foreground/75">{p.etapa}</p>

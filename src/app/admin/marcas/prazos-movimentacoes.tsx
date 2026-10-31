@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { formatarProcesso } from "@/lib/marcas/formato";
 import { useState } from "react";
 
 // Principal → "Movimentações": caixa Prazos (N itens para atenção) com o filtro
@@ -56,7 +57,7 @@ export function PrazosMovimentacoes({ prazos, colidencias, hoje }: { prazos: Pra
                   </Link>
                   <p className="mt-0.5 flex items-center gap-2 text-sm text-muted">
                     <span className="selo-ma rounded px-1.5 py-0.5 text-[10px] font-semibold tracking-wide uppercase">{p.tipo}</span>
-                    {p.processo}
+                    {formatarProcesso(p.processo)}
                   </p>
                 </div>
                 <p className="text-sm text-foreground/80">{p.acao}</p>

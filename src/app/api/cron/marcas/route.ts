@@ -2,12 +2,11 @@ import { NextResponse } from "next/server";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { cronAutorizado } from "@/lib/seguranca";
 import { createAdminClient } from "@/lib/supabase/admin";
-import { processarRevista, revistasRecentesINPI } from "@/lib/marcas/revista";
-import { sincronizarLote } from "@/lib/marcas/sincronizar";
+import { processarRevista, processarRevistaPatentes, revistasRecentesINPI } from "@/lib/marcas/revista";
 import { enviarMarca, getConfigEnvio, listMarcasZap, listModelos, modeloPara, montarMensagem, statusDaMensagem } from "@/lib/marcas/zap";
 
 // Marcas (INPI), todo dia às 07h da Bahia: lê a revista nova assim que sai
-// (terça), atualiza no pePI as marcas conferidas há mais tempo e, se o envio
+// (terça) e, se o envio
 // estiver no automático, manda o informativo do WhatsApp no dia do mês escolhido.
 export const dynamic = "force-dynamic";
 export const maxDuration = 300;
@@ -17,17 +16,20 @@ const hojeBahia = () => new Intl.DateTimeFormat("en-CA", { timeZone: "America/Ba
 
 export async function GET(request: Request) {
   if (!cronAutorizado(request)) return NextResponse.json({ error: "unauthorized" }, { status: 401 });
-  const inicio = Date.now();
   const saida: Record<string, unknown> = {};
   try {
     const recentes = await revistasRecentesINPI();
     const ultima = recentes.sort((a, b) => b.numero - a.numero)[0];
-    if (ultima) saida.revista = await processarRevista(ultima.numero, { prazoMs: 150_000, pdfs: ultima.pdfs });
+    if (ultima) {
+      const lida = await processarRevista(ultima.numero, { prazoMs: 150_000, pdfs: ultima.pdfs });
+      saida.revista = lida;
+      // patentes: só na primeira leitura da revista (depois ela vem marcada como pulada)
+      if (!("pulada" in lida)) saida.patentes = await processarRevistaPatentes(ultima.numero, ultima.data).catch((e: Error) => ({ erro: e.message }));
+    }
   } catch (e) {
     saida.erroRevista = (e as Error).message;
   }
-  // o tempo que sobrar vai para conferir a situação no INPI
-  saida.sincronia = await sincronizarLote(12, Math.max(20_000, 250_000 - (Date.now() - inicio)));
+  // a conferência marca a marca no pePI roda de madrugada pela VPS (/api/cron/marcas/sincronizar)
 
   const config = await getConfigEnvio();
   const hoje = hojeBahia();

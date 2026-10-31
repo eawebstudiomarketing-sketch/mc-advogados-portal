@@ -164,3 +164,24 @@ export async function logoNoInpi(processo: string, codPedido: string): Promise<s
   if (!r.corpoBase64 || !/image\//.test(r.tipo) || r.corpoBase64.length < 200) return null;
   return `data:${r.tipo.split(";")[0]};base64,${r.corpoBase64}`;
 }
+
+/** Busca de marca pelo nome (Busca Integrada / Busca com IA): exata ou radical, com classe opcional. */
+export async function buscarNomeNoInpi(termo: string, radical: boolean, classe?: string | null): Promise<{ resultados: ResultadoBusca[]; total: number }> {
+  const passo: Passo = {
+    url: `${PEPI}/servlet/MarcasServletController`,
+    metodo: "POST",
+    form: {
+      buscaExata: radical ? "nao" : "sim",
+      txt: radical ? "Pesquisa Radical" : "Pesquisa Exata",
+      marca: termo.trim().slice(0, 40),
+      classeInter: (classe ?? "").replace(/\D/g, ""),
+      registerPerPage: "100",
+      Action: "searchMarca",
+      tipoPesquisa: "BY_MARCA_CLASSIF_BASICA",
+    },
+  };
+  const r = await ponte([{ url: `${PEPI}/` }, login(), passo]);
+  const html = r.corpo ?? "";
+  const total = Number(texto(html).match(/Foram encontrados (\d+) processos/)?.[1] ?? 0);
+  return { resultados: lerResultados(html), total };
+}

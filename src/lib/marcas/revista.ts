@@ -186,3 +186,41 @@ export async function processarRevista(numero: number, op: { forcar?: boolean; p
   });
   return { numero, data, total: processos.length, despachos: pubs.length, colidencias: colid.length, sincronizadas, pendentesSync: tocadas.size - sincronizadas };
 }
+
+// ───────────── patentes ─────────────
+// Revista de patentes (P<n>.zip → XML com <despacho><codigo/><titulo/>…<processo-patente><numero>BR 20 2023 016773-5</numero>…).
+// Só os despachos dos processos acompanhados entram; o número é comparado só pelos dígitos.
+
+const digitos = (s: string) => s.replace(/\D/g, "");
+
+/** Lê a revista de patentes (se ainda não foi lida) e grava os despachos das patentes da carteira. */
+export async function processarRevistaPatentes(numero: number, data: string) {
+  const banco = db();
+  const { data: carteira } = await banco.from("marcas").select("id, processo").eq("tipo", "patente").eq("acompanhando", true);
+  if (!carteira?.length) return { numero, patentes: 0 };
+  const porDigitos = new Map(carteira.map((m) => [digitos(m.processo as string), m.id as string]));
+  const { corpo } = await ponteBin(`${REVISTAS}/txt/P${numero}.zip`);
+  if (!corpo) throw new Error(`Revista de patentes ${numero} não veio.`);
+  const arquivos = unzipSync(new Uint8Array(corpo));
+  const nomeXml = Object.keys(arquivos).find((n) => n.toLowerCase().endsWith(".xml"));
+  if (!nomeXml) throw new Error(`Revista de patentes ${numero} sem XML.`);
+  const xml = strFromU8(arquivos[nomeXml]);
+  const pubs: Record<string, unknown>[] = [];
+  for (const m of xml.matchAll(/<despacho>([\s\S]*?)<\/despacho>/g)) {
+    const bloco = m[1];
+    const num = bloco.match(/<numero[^>]*>([\s\S]*?)<\/numero>/)?.[1];
+    const id = num ? porDigitos.get(digitos(num)) : undefined;
+    if (!id) continue;
+    const codigo = bloco.match(/<codigo>([\s\S]*?)<\/codigo>/)?.[1]?.trim() ?? "";
+    const titulo = des(bloco.match(/<titulo>([\s\S]*?)<\/titulo>/)?.[1] ?? "").trim();
+    const comentario = bloco.match(/<comentario>([\s\S]*?)<\/comentario>/)?.[1];
+    pubs.push({ marca_id: id, rpi: numero, data, codigo, despacho: titulo || codigo, info: comentario ? des(comentario).trim() : null });
+  }
+  if (pubs.length) {
+    await banco.from("marca_publicacoes").upsert(pubs, { onConflict: "marca_id,rpi,despacho" });
+    for (const p of pubs) {
+      await banco.from("marcas").update({ ultimo_despacho: p.despacho, ultimo_despacho_codigo: p.codigo, ultimo_despacho_data: data, ultima_rpi: numero }).eq("id", p.marca_id as string);
+    }
+  }
+  return { numero, patentes: pubs.length };
+}
