@@ -606,3 +606,37 @@ html.trocando-tema * {
 p.eyebrow:has(+ .page-title) {
   display: none;
 }
+
+/* Marcas (INPI), 30/10/2026: as telas de /admin/marcas com o visual do Marca
+   Acompanhada (verde-petróleo, Inter, cantos de 10px), para quem já usa não
+   estranhar. Só troca as cores do portal dentro da seção. */
+.tema-marcas {
+  --navy: #01727d;
+  --navy-2: #0c4f57;
+  --navy-3: #01727d;
+  --gold: #01727d;
+  --gold-2: #ffffff;
+  --gold-soft: #e6f2f3;
+  --gold-ink: #01727d;
+  font-family: var(--font-inter), var(--font-nunito), system-ui, sans-serif;
+}
+:root:not([data-theme="dark"]) .tema-marcas {
+  --foreground: #1f2430;
+  --muted: #6f7787;
+  --border: #e3e6ec;
+  --surface-2: #f7f8fa;
+  --status-danger: #c0392f;
+  --status-pending: #a8670c;
+}
+:root[data-theme="dark"] .tema-marcas {
+  --navy: #2fb3be;
+  --navy-2: #1d8c95;
+  --navy-3: #5cc8d1;
+  --gold: #2fb3be;
+  --gold-2: #0b1d20;
+  --gold-soft: #10363a;
+  --gold-ink: #7fd6dd;
+}
+.tema-marcas .ui-card {
+  border-radius: 10px;
+}
