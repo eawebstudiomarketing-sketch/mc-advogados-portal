@@ -205,8 +205,8 @@ begin
   end if;
 end $$;
 
--- imagens das marcas (logo) no Storage, privado
-insert into storage.buckets (id, name, public) values ('marcas', 'marcas', false) on conflict (id) do nothing;
+-- logos das marcas no Storage (público: são dados públicos do INPI; a marca guarda só o endereço)
+insert into storage.buckets (id, name, public) values ('marcas', 'marcas', true) on conflict (id) do update set public = true;
 
 -- modelos iniciais (a advogada edita na aba WhatsApp)
 insert into public.marca_modelos (status, ordem, texto) values

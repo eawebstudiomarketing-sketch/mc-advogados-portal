@@ -87,11 +87,24 @@ export async function gravarFicha(f: FichaINPI, extra: { criado_por?: string | n
   return id!;
 }
 
+/** Sobe o logo (data URL) para o Storage público "marcas" e devolve o endereço. */
+async function guardarLogo(processo: string, dataUrl: string): Promise<string | null> {
+  const m = dataUrl.match(/^data:(image\/[a-z+]+);base64,(.+)$/);
+  if (!m) return null;
+  const ext = m[1].includes("png") ? "png" : "jpg";
+  const caminho = `${processo}.${ext}`;
+  const sb = createAdminClient();
+  const { error } = await sb.storage.from("marcas").upload(caminho, Buffer.from(m[2], "base64"), { contentType: m[1], upsert: true });
+  if (error) return null;
+  return sb.storage.from("marcas").getPublicUrl(caminho).data.publicUrl;
+}
+
 /** Busca no INPI e grava (cadastrar processo / atualizar uma marca). */
 export async function sincronizarProcesso(processo: string, extra: { criado_por?: string | null; client_id?: string | null; origem?: string; comLogo?: boolean } = {}) {
   const f = await fichaNoInpi(processo);
   if (!f) return { ok: false as const, error: `Processo ${processo} não encontrado no INPI.` };
-  const imagem = extra.comLogo ? await logoNoInpi(f.processo, f.codPedido).catch(() => null) : null;
+  const logo = extra.comLogo ? await logoNoInpi(f.processo, f.codPedido).catch(() => null) : null;
+  const imagem = logo ? await guardarLogo(f.processo, logo) : null;
   const id = await gravarFicha(f, { ...extra, imagem });
   return { ok: true as const, id, ficha: f };
 }
