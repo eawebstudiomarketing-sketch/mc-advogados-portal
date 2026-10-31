@@ -100,7 +100,7 @@ export type FichaINPI = {
   concessao: string | null;
   vigencia: string | null;
   publicacoes: { rpi: number; data: string; despacho: string; complemento: string | null }[];
-  peticoes: { protocolo: string; data: string | null; servico: string; descricao: string; cliente: string | null }[];
+  peticoes: { protocolo: string; data: string | null; servico: string; descricao: string; cliente: string | null; pagamento: string | null }[];
 };
 
 const campo = (t: string, rotulo: string, ate: string) => t.match(new RegExp(`${rotulo}\\s*(.*?)\\s*(?:${ate})`))?.[1]?.trim() || null;
@@ -119,11 +119,14 @@ function lerFicha(html: string, processo: string, codPedido: string): FichaINPI 
     }
   }
   // petições: tabelas aninhadas no HTML, então lê pelo texto da seção
-  // ("<protocolo> <data> <serviço> Descrição do Serviço <serviço> <descrição> <cliente> - Informações do Banco")
+  // ("<protocolo> <data> <serviço> Descrição do Serviço <serviço> <descrição> <cliente> - Informações do Banco: <banco> Data: … Valor: …")
   const peticoes: FichaINPI["peticoes"] = [];
   const secao = t.slice(t.indexOf("Petições"), t.indexOf("Publicações Leia-me") > 0 ? t.indexOf("Publicações Leia-me") : undefined);
-  for (const m of secao.matchAll(/(\d{12}) (\d{2}\/\d{2}\/\d{4}) (\d+) Descrição do Serviço \d+ (.*?) - (?:Informações do Banco|$)/g)) {
-    peticoes.push({ protocolo: m[1], data: dataIso(m[2]), servico: m[3], descricao: m[4].trim(), cliente: null });
+  // o pagamento ("Informações do Banco: <banco> Data: … Valor: …") vem ANTES da linha a que pertence
+  for (const m of secao.matchAll(/(\d{12}) (\d{2}\/\d{2}\/\d{4}) (\d+) Descrição do Serviço \d+ (.*?) -(?= Informações do Banco:|\s*$)/g)) {
+    const antes = secao.slice(0, m.index);
+    const banco = antes.slice(antes.lastIndexOf("Informações do Banco:") + "Informações do Banco:".length).trim();
+    peticoes.push({ protocolo: m[1], data: dataIso(m[2]), servico: m[3], descricao: m[4].trim(), cliente: null, pagamento: antes.includes("Informações do Banco:") && banco ? banco : null });
   }
   return {
     processo,

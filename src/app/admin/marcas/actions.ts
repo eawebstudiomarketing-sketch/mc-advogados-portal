@@ -4,7 +4,7 @@ import { revalidatePath } from "next/cache";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { exigirPermissao } from "@/lib/dal";
 import { createAdminClient } from "@/lib/supabase/admin";
-import { buscarNoInpi, type ResultadoBusca } from "@/lib/marcas/inpi";
+import { buscarNoInpi, fichaNoInpi, type FichaINPI, type ResultadoBusca } from "@/lib/marcas/inpi";
 import { sincronizarProcesso } from "@/lib/marcas/sincronizar";
 import { enviarMarca, listMarcasZap, listModelos, modeloPara, montarMensagem, statusDaMensagem } from "@/lib/marcas/zap";
 
@@ -220,4 +220,16 @@ export async function configColidenciaLoteAction(processos: string[], escopo: nu
   if (error) return { ok: false, error: "Não foi possível salvar." };
   recarregar();
   return { ok: true };
+}
+
+/** Ficha → "Petições do processo": lidas na hora no pePI (como o Marca Acompanhada faz ao abrir a ficha). */
+export async function peticoesAction(processo: string): Promise<{ ok: true; peticoes: FichaINPI["peticoes"] } | { ok: false; error: string }> {
+  await exigirPermissao("marcas");
+  try {
+    const f = await fichaNoInpi(processo);
+    if (!f) return { ok: false, error: "Processo não encontrado no INPI." };
+    return { ok: true, peticoes: f.peticoes };
+  } catch (e) {
+    return { ok: false, error: (e as Error).message };
+  }
 }

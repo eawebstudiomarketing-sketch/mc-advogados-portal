@@ -205,7 +205,7 @@ export function AdminShell({
     <AtividadeModalProvider>
     <div className="flex min-h-screen w-full bg-background">
       {/* computador: menu fixo com os nomes sempre à vista (como no Astrea) */}
-      <div className="sticky top-0 z-40 hidden h-screen w-[232px] shrink-0 lg:block">
+      <div className="sticky top-0 z-40 hidden h-screen w-[232px] shrink-0 lg:block print:hidden">
         <aside className="absolute inset-y-0 left-0 z-40 w-[232px] overflow-hidden border-r border-border bg-surface">
           {menu("sempre")}
         </aside>
@@ -220,7 +220,7 @@ export function AdminShell({
       )}
 
       <div className="flex min-w-0 flex-1 flex-col">
-        <header className="sticky top-0 z-30 flex h-14 items-center gap-2 border-b border-border bg-surface/85 px-4 backdrop-blur-md sm:px-6 lg:px-10">
+        <header className="sticky top-0 z-30 flex h-14 print:hidden items-center gap-2 border-b border-border bg-surface/85 px-4 backdrop-blur-md sm:px-6 lg:px-10">
           <button type="button" onClick={() => setMenuMobile(true)} aria-label="Abrir menu" className="rounded-lg p-1.5 text-foreground hover:bg-surface-2 lg:hidden">
             <Menu className="h-5 w-5" />
           </button>
@@ -275,7 +275,11 @@ export function AdminShell({
 
         <main className="flex-1">
           <div key={pathname} className="mx-auto w-full max-w-[1240px] px-4 py-7 animate-page sm:px-6 lg:px-10 lg:py-10">
-            {secaoAtual && <AbasSecao secao={secaoAtual} pathname={pathname} badge={badge} />}
+            {secaoAtual && (
+              <div className="print:hidden">
+                <AbasSecao secao={secaoAtual} pathname={pathname} badge={badge} />
+              </div>
+            )}
             {children}
           </div>
         </main>
@@ -283,7 +287,11 @@ export function AdminShell({
 
       <CommandPalette open={busca} onOpenChange={setBusca} items={itensBusca} />
       {/* na tela IA (Ferramentas) o assistente já está aberto em tela grande */}
-      {(userRole === "admin" || userRole === "advogado") && permissoes.assistente && pathname !== "/admin/ia" && <Assistente nome={userName.split(" ")[0] ?? ""} />}
+      {(userRole === "admin" || userRole === "advogado") && permissoes.assistente && pathname !== "/admin/ia" && (
+        <div className="print:hidden">
+          <Assistente nome={userName.split(" ")[0] ?? ""} />
+        </div>
+      )}
       <Suspense fallback={null}>
         <NavTrail />
       </Suspense>

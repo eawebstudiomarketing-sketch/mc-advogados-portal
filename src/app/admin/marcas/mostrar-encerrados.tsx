@@ -3,33 +3,29 @@
 import Link from "next/link";
 import { useState } from "react";
 
-// Principal → "Marcas por estágio": barras por estágio; os encerrados
-// (indeferido, arquivado, extinto) ficam escondidos até clicar.
+// Principal → "Marcas por estágio · N no total": rótulo e contador azul por estágio;
+// os encerrados (indeferido, arquivado, extinto) ficam escondidos até clicar.
 
 type Linha = { id: string; rotulo: string; cor: string; encerrado: boolean; n: number };
 
 export function MostrarEncerrados({ titulo, estagios, encerrados, semSituacao }: { titulo: string; estagios: Linha[]; encerrados: number; semSituacao: number }) {
   const [ver, setVer] = useState(false);
-  const total = estagios.reduce((s, e) => s + e.n, 0) || 1;
-  const lista = estagios.filter((e) => (ver || !e.encerrado) && (e.n > 0 || !e.encerrado));
+  const lista = estagios.filter((e) => e.n > 0 && (ver || !e.encerrado));
   return (
     <div>
-      <h2 className="section-title">{titulo}</h2>
-      <ul className="mt-3 space-y-2">
+      <h3 className="text-sm font-semibold text-foreground/80">{titulo}</h3>
+      <ul className="mt-4 space-y-2.5">
         {lista.map((e) => (
           <li key={e.id}>
-            <Link href={`/admin/marcas/processos?estagio=${e.id}`} className="group flex items-center gap-3 text-sm">
-              <span className="w-40 shrink-0 text-foreground/85 group-hover:underline">{e.rotulo}</span>
-              <span className="h-2 flex-1 overflow-hidden rounded-full bg-track">
-                <span className={`block h-full rounded-full ${e.cor}`} style={{ width: `${(e.n / total) * 100}%` }} />
-              </span>
-              <span className="w-8 text-right font-semibold tabular-nums">{e.n}</span>
+            <Link href={`/admin/marcas/processos?estagio=${e.id}`} className="flex items-center justify-between gap-3 text-sm text-foreground hover:underline">
+              {e.rotulo}
+              <span className="contador-ma min-w-7 rounded px-1.5 py-0.5 text-center text-sm font-semibold tabular-nums">{e.n}</span>
             </Link>
           </li>
         ))}
       </ul>
       {encerrados > 0 && (
-        <button type="button" onClick={() => setVer((v) => !v)} className="ui-link mt-3 text-sm">
+        <button type="button" onClick={() => setVer((v) => !v)} className="mt-3 text-sm font-semibold text-navy-3 hover:underline">
           {ver ? "Esconder encerrados" : `Mostrar encerrados (${encerrados})`}
         </button>
       )}
