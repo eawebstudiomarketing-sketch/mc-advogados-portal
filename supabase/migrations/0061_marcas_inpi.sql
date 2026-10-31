@@ -52,6 +52,7 @@ create table if not exists public.marcas (
   contato_nome text,
   contato_numero text,
   status_mensagem text,
+  sincronizado_em timestamptz,  -- última leitura da ficha no INPI (pePI)
   origem text not null default 'portal' check (origem in ('portal', 'marca_acompanhada', 'rpi')),
   criado_por uuid,
   created_at timestamptz not null default now(),
@@ -70,7 +71,7 @@ create table if not exists public.marca_publicacoes (
   info text,
   avisado_em timestamptz,       -- quando o cliente foi avisado deste despacho
   created_at timestamptz not null default now(),
-  unique (marca_id, rpi, codigo, despacho)
+  unique (marca_id, rpi, despacho)
 );
 create index if not exists marca_publicacoes_rpi_idx on public.marca_publicacoes (rpi desc);
 
@@ -206,3 +207,15 @@ end $$;
 
 -- imagens das marcas (logo) no Storage, privado
 insert into storage.buckets (id, name, public) values ('marcas', 'marcas', false) on conflict (id) do nothing;
+
+-- modelos iniciais (a advogada edita na aba WhatsApp)
+insert into public.marca_modelos (status, ordem, texto) values
+  ('Padrão', 0, E'Olá, {cliente}! Segue a atualização da sua marca *{marca}* (processo {processo}) no INPI.\nSituação: {status}\nÚltimo despacho: {despacho} ({data_despacho}).\nQualquer dúvida, estamos à disposição.\nMC Advogados'),
+  ('Registro de marca em vigor', 1, E'Olá, {cliente}! Sua marca *{marca}* (processo {processo}) está registrada e em vigor no INPI. A próxima renovação (decênio) vence em {data}.\nMC Advogados'),
+  ('Aguardando exame de mérito', 2, E'Olá, {cliente}! Sua marca *{marca}* (processo {processo}) segue aguardando o exame de mérito do INPI. Previsão: {proxima_etapa}.\nSeguimos acompanhando toda semana.\nMC Advogados'),
+  ('Aguardando prazo de apresentação de oposição', 3, E'Olá, {cliente}! O pedido da sua marca *{marca}* (processo {processo}) foi publicado na revista do INPI e está no prazo de oposição, que termina em {data}.\nMC Advogados'),
+  ('Aguardando processamento da concessão do registro de marca', 4, E'Olá, {cliente}! Boa notícia: o pedido da sua marca *{marca}* (processo {processo}) foi deferido pelo INPI. Agora aguardamos a concessão do registro.\nMC Advogados'),
+  ('Pedido de registro de marca indeferido', 5, E'Olá, {cliente}! O INPI indeferiu o pedido da sua marca *{marca}* (processo {processo}). O prazo para recurso vai até {data}. Vamos conversar sobre o próximo passo?\nMC Advogados'),
+  ('Aguardando apresentação e exame de recurso contra o indeferimento', 6, E'Olá, {cliente}! O recurso da sua marca *{marca}* (processo {processo}) está em análise no INPI. Seguimos acompanhando.\nMC Advogados'),
+  ('Aguardando manifestação sobre oposição', 7, E'Olá, {cliente}! Houve oposição ao pedido da sua marca *{marca}* (processo {processo}). O prazo para manifestação vai até {data}.\nMC Advogados')
+on conflict (status) do nothing;

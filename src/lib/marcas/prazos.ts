@@ -18,6 +18,18 @@ export const PRAZO_DO_DESPACHO: Record<string, RegraPrazo> = {
 
 const soCodigo = (c: string) => c.replace(/^IPAS/i, "").replace(/^0+/, "");
 
+// o pePI não traz o código do despacho, só o nome: mesmo mapa pelo nome
+const CODIGO_DO_NOME: [RegExp, string][] = [
+  [/^publicação de pedido de registro para oposição/i, "9"],
+  [/^indeferimento do pedido/i, "24"],
+  [/^deferimento do pedido/i, "29"],
+  [/^exigência de mérito/i, "136"],
+  [/^notificação de oposição/i, "423"],
+  [/^notificação de recurso/i, "360"],
+  [/^arquivamento definitivo de pedido de registro por falta de cumprimento de exigência/i, "157"],
+];
+export const codigoDoDespacho = (codigo: string | null | undefined, nome: string) => (codigo ? soCodigo(codigo) : (CODIGO_DO_NOME.find(([r]) => r.test(nome.trim()))?.[1] ?? ""));
+
 export function somaDias(iso: string, dias: number): string {
   const d = new Date(`${iso.slice(0, 10)}T12:00:00Z`);
   d.setUTCDate(d.getUTCDate() + dias);
@@ -31,8 +43,8 @@ export function somaAnos(iso: string, anos: number): string {
 }
 
 /** Prazo que um despacho abre (ou null). */
-export function prazoDoDespacho(codigo: string, dataRevista: string): { acao: string; vence: string } | null {
-  const r = PRAZO_DO_DESPACHO[soCodigo(codigo)];
+export function prazoDoDespacho(codigo: string, dataRevista: string, nome = ""): { acao: string; vence: string } | null {
+  const r = PRAZO_DO_DESPACHO[codigoDoDespacho(codigo, nome)];
   return r ? { acao: r.acao, vence: somaDias(dataRevista, r.dias) } : null;
 }
 
