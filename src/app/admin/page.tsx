@@ -193,6 +193,46 @@ export default async function AdminOverviewPage({
               </Link>
             )}
           </div>
+          {/* faixa de números: logo abaixo da saudação, ocupa o espaço ao lado da coluna da rotina */}
+          <section className="mt-8 grid grid-cols-2 border-y border-border md:grid-cols-4">
+            {[
+              { n: atrasadas.length, rotulo: "Suas atrasadas", href: "/admin/activities?prazo=atrasadas", cor: atrasadas.length ? "text-status-danger" : "" },
+              { n: deHoje.length, rotulo: "Vencem hoje", href: "/admin/agenda", cor: "" },
+              { n: daSemana.length, rotulo: "Próximos 7 dias", href: "/admin/activities?prazo=semana", cor: "" },
+              permissoes.distribuicao
+                ? { n: pendentesDistribuicao, rotulo: "Para distribuir", href: "/admin/distribuicao", cor: pendentesDistribuicao ? "text-gold-ink" : "" }
+                : { n: abertasMinhas.length, rotulo: "Em aberto", href: "/admin/activities", cor: "" },
+            ].map((c, i) => (
+              <Link
+                key={c.rotulo}
+                href={c.href}
+                className={`px-1 py-5 transition-colors hover:bg-hover md:px-6 ${i > 0 ? "md:border-l md:border-border" : ""} ${i % 2 ? "border-l border-border md:border-l" : ""} ${i > 1 ? "border-t border-border md:border-t-0" : ""}`}
+              >
+                <p className={`numero-grande text-3xl ${c.cor}`}>{c.n}</p>
+                <p className="eyebrow mt-1">{c.rotulo}</p>
+              </Link>
+            ))}
+          </section>
+          {/* agora: o que precisa de atenção, numerado */}
+          {agora.length > 0 && (
+            <section className="mt-8">
+              <h2 className="section-title">Precisa de você</h2>
+              <ol className="mt-4 border-b border-border">
+                {agora.map((item) => (
+                  <li key={item.chave}>
+                    <Link href={item.href} className="lista-linha group">
+                      <span className={`h-2 w-2 shrink-0 rounded-full ${item.cor}`} aria-hidden />
+                      <span className="min-w-0 flex-1">
+                        <span className="block truncate text-sm font-medium text-foreground">{item.titulo}</span>
+                        <span className="block truncate text-xs text-muted">{item.detalhe}</span>
+                      </span>
+                      <span className="eyebrow shrink-0 transition-colors group-hover:!text-foreground">Abrir ›</span>
+                    </Link>
+                  </li>
+                ))}
+              </ol>
+            </section>
+          )}
         </div>
 
         <div className="space-y-4">
@@ -238,47 +278,7 @@ export default async function AdminOverviewPage({
         <MiniIndicadores profileId={profile.id} nome={profile.full_name} />
       </Suspense>
 
-      {/* agora: o que precisa de atenção, numerado */}
-      {agora.length > 0 && (
-        <section className="mb-10">
-          <h2 className="section-title">Precisa de você</h2>
-          <ol className="mt-4 border-b border-border">
-            {agora.map((item) => (
-              <li key={item.chave}>
-                <Link href={item.href} className="lista-linha group">
-                  <span className={`h-2 w-2 shrink-0 rounded-full ${item.cor}`} aria-hidden />
-                  <span className="min-w-0 flex-1">
-                    <span className="block truncate text-sm font-medium text-foreground">{item.titulo}</span>
-                    <span className="block truncate text-xs text-muted">{item.detalhe}</span>
-                  </span>
-                  <span className="eyebrow shrink-0 transition-colors group-hover:!text-foreground">Abrir ›</span>
-                </Link>
-              </li>
-            ))}
-          </ol>
-        </section>
-      )}
 
-      {/* faixa de números */}
-      <section className="mb-10 grid grid-cols-2 border-y border-border md:grid-cols-4">
-        {[
-          { n: atrasadas.length, rotulo: "Suas atrasadas", href: "/admin/activities?prazo=atrasadas", cor: atrasadas.length ? "text-status-danger" : "" },
-          { n: deHoje.length, rotulo: "Vencem hoje", href: "/admin/agenda", cor: "" },
-          { n: daSemana.length, rotulo: "Próximos 7 dias", href: "/admin/activities?prazo=semana", cor: "" },
-          permissoes.distribuicao
-            ? { n: pendentesDistribuicao, rotulo: "Para distribuir", href: "/admin/distribuicao", cor: pendentesDistribuicao ? "text-gold-ink" : "" }
-            : { n: abertasMinhas.length, rotulo: "Em aberto", href: "/admin/activities", cor: "" },
-        ].map((c, i) => (
-          <Link
-            key={c.rotulo}
-            href={c.href}
-            className={`px-1 py-5 transition-colors hover:bg-hover md:px-6 ${i > 0 ? "md:border-l md:border-border" : ""} ${i % 2 ? "border-l border-border md:border-l" : ""} ${i > 1 ? "border-t border-border md:border-t-0" : ""}`}
-          >
-            <p className={`numero-grande text-3xl ${c.cor}`}>{c.n}</p>
-            <p className="eyebrow mt-1">{c.rotulo}</p>
-          </Link>
-        ))}
-      </section>
 
       {permissoes.financeiro && inadimplentes.length > 0 && (
         <Link
