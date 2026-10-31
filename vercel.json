@@ -43,6 +43,11 @@
       "regions": [
         "gru1"
       ]
+    },
+    "src/app/api/inpi/route.ts": {
+      "regions": [
+        "gru1"
+      ]
     }
   }
 }

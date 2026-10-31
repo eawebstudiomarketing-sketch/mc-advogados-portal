@@ -53,7 +53,8 @@ export async function POST(request: Request) {
       if (i < passos.length - 1 && ultima) await ultima.arrayBuffer();
     }
   } catch (e) {
-    return NextResponse.json({ error: e instanceof Error ? e.message : String(e) }, { status: 504 });
+    const causa = (e as { cause?: { code?: string; message?: string } }).cause;
+    return NextResponse.json({ error: e instanceof Error ? e.message : String(e), causa: causa?.code ?? causa?.message ?? null, regiao: process.env.VERCEL_REGION ?? null }, { status: 504 });
   }
   if (!ultima) return NextResponse.json({ error: "sem resposta" }, { status: 502 });
   const tipo = ultima.headers.get("content-type") ?? "";
