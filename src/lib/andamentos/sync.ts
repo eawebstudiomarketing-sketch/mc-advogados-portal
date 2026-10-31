@@ -182,6 +182,15 @@ export async function sincronizarAstrea(op: { completo?: boolean; arquivados?: b
       ...(await listarCasos(s, { ate: desde, status: "Active" })),
       ...(op.completo && op.arquivados ? await listarCasos(s, { status: "Archived" }) : []),
     ];
+    // processo que entrou (ou voltou) como ativo no Astrea com movimentação antiga nunca
+    // aparece no incremental: confere a lista toda e traz o que o portal ainda não tem (30/10/2026)
+    if (desde) {
+      const ja = new Set(casos.map((c) => c.id));
+      for (const c of await listarCasos(s, { status: "Active" })) {
+        const dig = (c.number ?? "").replace(/\D/g, "");
+        if (!ja.has(c.id) && !porAstrea.has(c.id) && !(dig && porNumero.has(dig))) casos.push(c);
+      }
+    }
     log(`${casos.length} processo(s) para ler${desde ? ` (mexidos desde ${desde})` : ""}`);
 
     const avisos: { processId: string; titulo: string; n: number; imp: number; baixado: boolean }[] = [];
