@@ -24,6 +24,7 @@ import {
   Search,
   ShieldAlert,
   Stamp,
+  BookCheck,
   Lightbulb,
   FilePlus,
   Cake,
@@ -78,6 +79,7 @@ export const SECOES: Secao[] = [
     abas: [
       { href: "/admin/clients", label: "Contatos", icon: Users },
       { href: "/admin/onboarding", label: "Onboarding", icon: ClipboardList },
+      { href: "/admin/regimentos", label: "Regimento Interno", icon: BookCheck, perm: "onboarding" },
       { href: "/admin/clients/aniversarios", label: "Aniversários", icon: Cake, perm: "clientes" },
     ],
   },

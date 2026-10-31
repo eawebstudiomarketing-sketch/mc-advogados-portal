@@ -1,27 +1,42 @@
 import "server-only";
 
-// Consulta ao pePI do INPI (busca e ficha de marca) pela ponte da VPS: o INPI
-// recusa pedidos que saem da Vercel, então o portal manda os passos para
-// WA_MIDIA_URL/inpi, que faz o login do escritório (INPI_LOGIN/INPI_SENHA) e
-// a consulta com os mesmos cookies. Só leitura no INPI.
+// Consulta ao pePI do INPI (busca e ficha de marca) por uma ponte que faz o
+// login do escritório (INPI_LOGIN/INPI_SENHA) e a consulta com os mesmos
+// cookies: /api/inpi (Vercel em São Paulo) e, de reserva, WA_MIDIA_URL/inpi
+// (VPS, bloqueada pelo pePI desde 31/10/2026). Só leitura no INPI.
 
 const PEPI = "https://busca.inpi.gov.br/pePI";
 type Passo = { url: string; metodo?: "GET" | "POST"; form?: Record<string, string> };
 type RespostaPonte = { status: number; url: string; tipo: string; corpo?: string; corpoBase64?: string };
 
-async function ponte(passos: Passo[]): Promise<RespostaPonte> {
-  const base = process.env.WA_MIDIA_URL;
-  const segredo = process.env.WA_MIDIA_SEGREDO;
-  if (!base || !segredo) throw new Error("Ponte do INPI não configurada (WA_MIDIA_URL / WA_MIDIA_SEGREDO).");
-  const r = await fetch(`${base}/inpi`, {
+async function chamar(url: string, segredo: string, passos: Passo[], ms: number): Promise<RespostaPonte> {
+  const r = await fetch(url, {
     method: "POST",
     headers: { Authorization: `Bearer ${segredo}`, "Content-Type": "application/json" },
     body: JSON.stringify({ latin1: true, passos }),
-    signal: AbortSignal.timeout(110_000),
+    signal: AbortSignal.timeout(ms),
     cache: "no-store",
   });
   if (!r.ok) throw new Error(`Ponte do INPI respondeu ${r.status}.`);
   return r.json();
+}
+
+/** Primeiro a ponte da própria Vercel em São Paulo (/api/inpi, gru1); se falhar, a da VPS (reserva). */
+async function ponte(passos: Passo[]): Promise<RespostaPonte> {
+  const site = process.env.NEXT_PUBLIC_SITE_URL;
+  const cron = process.env.CRON_SECRET;
+  let erro: Error | null = null;
+  if (site && cron) {
+    try {
+      return await chamar(`${site}/api/inpi`, cron, passos, 110_000);
+    } catch (e) {
+      erro = e as Error;
+    }
+  }
+  const base = process.env.WA_MIDIA_URL;
+  const segredo = process.env.WA_MIDIA_SEGREDO;
+  if (!base || !segredo) throw erro ?? new Error("Ponte do INPI não configurada (WA_MIDIA_URL / WA_MIDIA_SEGREDO).");
+  return chamar(`${base}/inpi`, segredo, passos, 110_000);
 }
 
 function login(): Passo {

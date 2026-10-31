@@ -4,7 +4,7 @@ import { listProcesses } from "@/lib/data/processes";
 import { listEtiquetas } from "@/lib/data/etiquetas";
 import { PROCESS_AREA_LABEL } from "@/lib/process-area";
 import { notFound } from "next/navigation";
-import { ArrowRight, ClipboardList, Download, Eye, FileSignature, FileText, Hash, KeyRound, LayoutGrid, Lightbulb, ListChecks, Mail, NotebookPen, Pencil, Sparkles, Gavel } from "lucide-react";
+import { ArrowRight, BookCheck, ClipboardList, Download, Eye, FileSignature, FileText, Hash, KeyRound, LayoutGrid, Lightbulb, ListChecks, Mail, NotebookPen, Pencil, Sparkles, Gavel } from "lucide-react";
 import { StatusBadge } from "@/components/ui/status-badge";
 import { DriveIcon } from "@/components/ui/drive-icon";
 import { StatCard } from "@/components/ui/stat-card";
@@ -43,6 +43,8 @@ import { listClientDemandDrafts } from "@/lib/data/onboarding-demand-drafts";
 import { BackButton } from "@/components/nav/back-button";
 import { EquipeDoCliente } from "./equipe-do-cliente";
 import { WhatsappCard } from "./whatsapp-card";
+import { listRegimentos } from "@/lib/regimentos/dados";
+import { ListaRegimentos } from "@/components/regimentos/lista-regimentos";
 import type { PermChave } from "@/lib/permissoes";
 import { listResponsaveis, responsavelDoPerfil } from "@/lib/data/responsaveis";
 import { getHistorico } from "@/lib/data/historico";
@@ -56,6 +58,7 @@ const ABAS = [
   { id: "processos", label: "Processos", icon: Gavel },
   { id: "arquivos", label: "Arquivos", icon: FileText },
   { id: "onboarding", label: "Onboarding", icon: ClipboardList },
+  { id: "regimento", label: "Regimento", icon: BookCheck },
   { id: "demandas", label: "Demandas", icon: Lightbulb },
   { id: "acesso", label: "Acesso", icon: KeyRound },
 ] as const;
@@ -108,12 +111,13 @@ export default async function AdminClientDetailPage({
     atividades: "atividades",
     processos: "processos",
     onboarding: "onboarding",
+    regimento: "onboarding",
     demandas: "demandas",
     acesso: "acesso_portal",
   };
   // pessoa física: aba Cadastro (como no Astrea); onboarding, demandas da IA e relatório mensal são de empresa
   const pf = client.tipo_pessoa === "PF";
-  const SO_PJ: Aba[] = ["onboarding", "demandas"];
+  const SO_PJ: Aba[] = ["onboarding", "regimento", "demandas"];
   // Arquivos junta documentos e contratos, ATAs e relatórios mensais (este só de empresa)
   const verDocs = !!perm.documentos;
   const verAtas = !!perm.atas;
@@ -438,6 +442,21 @@ export default async function AdminClientDetailPage({
               downloadUrl: a.downloadUrl,
             }))}
           />
+        )}
+
+        {aba === "regimento" && (
+          <section className="ui-card overflow-hidden">
+            <div className="flex flex-wrap items-center justify-between gap-3 border-b border-border px-5 py-4">
+              <div>
+                <h2 className="section-title">Regimento Interno</h2>
+                <p className="text-xs text-muted">Questionário que a empresa responde pelo link, sem login. As respostas chegam aqui.</p>
+              </div>
+              <Link href={`/admin/regimentos/novo?clientId=${client.id}`} className="ui-btn">
+                <Sparkles className="h-4 w-4" aria-hidden /> Novo regimento
+              </Link>
+            </div>
+            <ListaRegimentos regimentos={await listRegimentos(client.id)} mostrarCliente={false} />
+          </section>
         )}
 
         {aba === "onboarding" && (
