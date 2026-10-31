@@ -5,6 +5,9 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import { createClient } from "@/lib/supabase/server";
 import { exigirSuperAdmin, requireRole } from "@/lib/dal";
 import { hojeBahia } from "@/lib/periodo";
+import { responsavelDoPerfil } from "@/lib/data/responsaveis";
+import { rotinaDoDia } from "@/lib/data/rotina-diaria";
+import type { ItemRotinaTela } from "@/components/rotina/minha-rotina";
 
 // Rotina diária: a pessoa marca o que fez hoje (vale ponto no ranking); o
 // admin máximo define os itens de cada pessoa. As regras do banco (0030)
@@ -89,4 +92,13 @@ export async function copiarRotinaAction(de: string, para: string): Promise<{ ok
   if (error) return { ok: false, erro: "Não foi possível copiar." };
   revalidatePath("/admin/rotinas");
   return { ok: true, copiados: itens.length };
+}
+
+/** Rotina de hoje de quem está logado (cartão do reloginho do topo, em qualquer tela). */
+export async function minhaRotinaHojeAction(): Promise<ItemRotinaTela[]> {
+  const profile = await requireRole(["admin", "advogado"]);
+  const eu = await responsavelDoPerfil(profile.id);
+  if (!eu) return [];
+  const itens = await rotinaDoDia(eu, hojeBahia());
+  return itens.map((i) => ({ id: i.id, titulo: i.titulo, feito: i.feito, feitoEm: i.feitoEm, hora_inicio: i.hora_inicio, hora_fim: i.hora_fim, observacao: i.observacao, situacao: i.situacao }));
 }

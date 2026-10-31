@@ -4,7 +4,7 @@ import Image from "next/image";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { Suspense, useEffect, useMemo, useState } from "react";
-import { Clock, Search, Menu, X, LogOut, UserRound, Bell, MessagesSquare } from "lucide-react";
+import { Search, Menu, X, LogOut, UserRound, Bell, MessagesSquare } from "lucide-react";
 import { logout } from "@/app/logout/actions";
 import { CommandPalette, type PaletteItem } from "./command-palette";
 import type { Permissoes } from "@/lib/permissoes";
@@ -12,6 +12,7 @@ import { secoesVisiveis, rotaAtiva, type Secao } from "./secoes";
 import { AbasSecao } from "./abas-secao";
 import { NovoMenu, AtalhosMenu } from "./atalhos-topo";
 import { InstalarApp } from "./instalar-app";
+import { RotinaRelogio } from "./rotina-relogio";
 import { TemaBotao } from "@/components/ui/tema-botao";
 import { NavTrail } from "@/components/nav/nav-trail";
 import { AtividadeModalProvider } from "@/components/atividade/atividade-modal";
@@ -238,17 +239,7 @@ export function AdminShell({
               <AtalhosMenu />
             </Suspense>
             <TemaBotao />
-            {alertaRotina && (
-              <Link
-                href={alertaRotina.href}
-                aria-label={alertaRotina.atrasadas || alertaRotina.relatorioPendente ? `Sua rotina: ${[alertaRotina.atrasadas ? `${alertaRotina.atrasadas} tarefa(s) atrasada(s)` : "", alertaRotina.relatorioPendente ? "relatório por enviar" : ""].filter(Boolean).join(" e ")}` : "Sua rotina"}
-                data-tip={alertaRotina.atrasadas || alertaRotina.relatorioPendente ? "Sua rotina precisa de você" : "Sua rotina"}
-                className="relative rounded-full p-2 text-muted transition-colors hover:bg-surface-2 hover:text-foreground"
-              >
-                <Clock className="h-[18px] w-[18px]" />
-                {(alertaRotina.atrasadas > 0 || alertaRotina.relatorioPendente) && <span className="absolute top-1.5 right-1.5 h-2.5 w-2.5 rounded-full bg-status-danger ring-2 ring-surface" aria-hidden />}
-              </Link>
-            )}
+            {alertaRotina && <RotinaRelogio alerta={alertaRotina} />}
             {publicacoesPendentes > 0 && (
               <Link
                 href="/admin/publicacoes"
