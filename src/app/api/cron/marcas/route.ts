@@ -27,7 +27,7 @@ export async function GET(request: Request) {
     saida.erroRevista = (e as Error).message;
   }
   // o tempo que sobrar vai para conferir a situação no INPI
-  saida.sincronia = await sincronizarLote(40, Math.max(20_000, 260_000 - (Date.now() - inicio)));
+  saida.sincronia = await sincronizarLote(12, Math.max(20_000, 250_000 - (Date.now() - inicio)));
 
   const config = await getConfigEnvio();
   const hoje = hojeBahia();

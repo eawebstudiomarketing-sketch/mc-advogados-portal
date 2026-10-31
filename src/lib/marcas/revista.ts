@@ -103,6 +103,10 @@ export function semelhanca(a: string, b: string): number {
   for (const n of y.values()) total += n;
   return total ? (2 * comum) / total : 0;
 }
+// palavras de ramo/descrição que aparecem em milhares de marcas e sozinhas não são colidência
+const COMUNS = new Set(
+  "SAUDE CASA CONSTRUCAO CONSULTORIA ENGENHARIA MELHORIA CONTINUA ESCOLA SUPERIOR AVANCADA INSTITUTO BELEZA CLINIC CLINICA ACADEMY ACADEMIA ESTRUTURA PARA EVENTOS TRANSPORTES TRANSPORTE GROUP GRUPO BRASIL BRASILEIRA SERVICOS SOLUCOES COMERCIO DISTRIBUIDORA ATACADO VAREJO STORE LOJA MODA BURGER BURGUER FOOD FOODS PIZZA PIZZARIA CAFE RESTAURANTE BAR PRODUCOES ASSESSORIA ADVOCACIA ADVOGADOS DIGITAL MARKETING TECH TECNOLOGIA EDUCACAO CURSOS STUDIO ESTUDIO CENTRO AUTOMOTIVO HOME SPORT SPORTS FITNESS PET SHOP MAIS NOVA NOVO PRIME PREMIUM ODONTOLOGIA ESTETICA IMOVEIS IMOBILIARIA SEGUROS INVESTIMENTOS NEGOCIOS GESTAO EMPRESARIAL ALIMENTOS BEBIDAS TERAPIA THERAPY SONGS MUSIC MUSICA VIAGENS TURISMO".split(" ")
+);
 const LIMIAR: Record<number, number> = { 1: 0.7, 2: 0.85, 3: 0.95 };
 const classeNum = (c: string | null) => c?.match(/(\d{1,2})\s*$/)?.[1]?.replace(/^0/, "") ?? null;
 
@@ -115,8 +119,10 @@ function avaliar(m: MarcaColid, p: ProcessoRevista): { score: number; risco: "al
   const ignorar = new Set(m.colid_ignorar.map(norm));
   const deles = norm(p.marca).split(" ").filter((t) => !ignorar.has(t));
   const nossos = norm(m.nome).split(" ").filter((t) => t.length >= 3 && !ignorar.has(t));
-  // termo de importância alta (ou extra) presente na marca de terceiro = alerta
-  const altos = [...nossos.filter((t) => (m.colid_auto ? t.length >= 4 : (m.colid_termos[t] ?? 3) === 3)), ...m.colid_extras.map(norm)];
+  // termo de importância alta (ou extra) presente na marca de terceiro = alerta. No automático,
+  // só o termo que distingue a marca (o 1º que não é palavra comum: SAÚDE, CASA, CONSULTORIA…)
+  const distintivos = nossos.filter((t) => t.length >= 4 && !COMUNS.has(t));
+  const altos = [...(m.colid_auto ? distintivos.slice(0, 1) : nossos.filter((t) => (m.colid_termos[t] ?? 3) === 3 && !COMUNS.has(t))), ...m.colid_extras.map(norm)];
   const termoAlto = altos.some((t) => deles.some((d) => d === t || (t.length >= 5 && semelhanca(d, t) >= 0.9)));
   const score = Math.max(semelhanca(m.nome, deles.join(" ")), termoAlto ? 0.9 : 0);
   if (score < (LIMIAR[m.colid_auto ? 2 : m.colid_sensibilidade] ?? 0.85)) return null;

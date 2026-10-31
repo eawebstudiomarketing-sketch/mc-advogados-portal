@@ -109,20 +109,29 @@ export async function sincronizarProcesso(processo: string, extra: { criado_por?
   return { ok: true as const, id, ficha: f };
 }
 
-/** Robô diário: atualiza as marcas sincronizadas há mais tempo (em lotes, por causa do tempo da função). */
-export async function sincronizarLote(limite = 30, prazoMs = 240_000): Promise<{ feitas: number; erros: string[] }> {
+/** Robô diário: atualiza as marcas sincronizadas há mais tempo, devagar (o pePI
+ *  bloqueia o IP da VPS quando recebe consultas em sequência, visto em 31/10/2026):
+ *  pausa entre uma marca e outra e para no 2º erro seguido da ponte. */
+export async function sincronizarLote(limite = 12, prazoMs = 240_000, pausaMs = 15_000): Promise<{ feitas: number; erros: string[] }> {
   const inicio = Date.now();
   const { data } = await db().from("marcas").select("processo").eq("acompanhando", true).eq("tipo", "marca").order("sincronizado_em", { ascending: true, nullsFirst: true }).limit(limite);
   let feitas = 0;
+  let seguidos = 0;
   const erros: string[] = [];
-  for (const m of data ?? []) {
+  for (const [i, m] of (data ?? []).entries()) {
     if (Date.now() - inicio > prazoMs) break;
+    if (i > 0) await new Promise((r) => setTimeout(r, pausaMs));
     try {
       const r = await sincronizarProcesso(m.processo);
+      seguidos = 0;
       if (r.ok) feitas++;
       else erros.push(r.error);
     } catch (e) {
       erros.push(`${m.processo}: ${(e as Error).message}`);
+      if (++seguidos >= 2) {
+        erros.push("Parei: o INPI não está respondendo agora (tento de novo amanhã).");
+        break;
+      }
     }
   }
   return { feitas, erros };
