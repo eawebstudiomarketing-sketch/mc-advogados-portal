@@ -17,6 +17,7 @@ export const PERMISSOES = [
   { chave: "documentos", grupo: "Telas", rotulo: "Documentos", padrao: true },
   { chave: "contratos", grupo: "Telas", rotulo: "Contratos", padrao: true },
   { chave: "processos", grupo: "Telas", rotulo: "Processos", padrao: true },
+  { chave: "marcas", grupo: "Telas", rotulo: "Marcas (INPI)", padrao: true },
   { chave: "publicacoes", grupo: "Telas", rotulo: "Publicações (diário oficial)", padrao: true },
   { chave: "relatorios", grupo: "Telas", rotulo: "Relatórios", padrao: true },
   // telas de gestão (antes só de admin)
@@ -74,6 +75,7 @@ export const PERM_DA_TELA: Record<string, PermChave> = {
   "/admin/documents": "documentos",
   "/admin/contracts": "contratos",
   "/admin/processes": "processos",
+  "/admin/marcas": "marcas",
   "/admin/alertas": "publicacoes",
   "/admin/andamentos": "processos",
   "/admin/publicacoes": "publicacoes",

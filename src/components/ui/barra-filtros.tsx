@@ -257,7 +257,7 @@ function MenuOrdem({ ordenacao, valor, aoMudar }: { ordenacao: Ordenacao; valor:
 }
 
 /** Planilha CSV que o Excel abre direto (ponto e vírgula, acentos certos). */
-function baixarPlanilha({ arquivo, colunas, linhas }: Exportacao) {
+export function baixarPlanilha({ arquivo, colunas, linhas }: Exportacao) {
   const celula = (v: string | number | null | undefined) => {
     const t = v == null ? "" : String(v);
     return /[";\n\r]/.test(t) ? `"${t.replace(/"/g, '""')}"` : t;

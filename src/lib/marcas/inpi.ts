@@ -1,0 +1,166 @@
+import "server-only";
+
+// Consulta ao pePI do INPI (busca e ficha de marca) pela ponte da VPS: o INPI
+// recusa pedidos que saem da Vercel, então o portal manda os passos para
+// WA_MIDIA_URL/inpi, que faz o login do escritório (INPI_LOGIN/INPI_SENHA) e
+// a consulta com os mesmos cookies. Só leitura no INPI.
+
+const PEPI = "https://busca.inpi.gov.br/pePI";
+type Passo = { url: string; metodo?: "GET" | "POST"; form?: Record<string, string> };
+type RespostaPonte = { status: number; url: string; tipo: string; corpo?: string; corpoBase64?: string };
+
+async function ponte(passos: Passo[]): Promise<RespostaPonte> {
+  const base = process.env.WA_MIDIA_URL;
+  const segredo = process.env.WA_MIDIA_SEGREDO;
+  if (!base || !segredo) throw new Error("Ponte do INPI não configurada (WA_MIDIA_URL / WA_MIDIA_SEGREDO).");
+  const r = await fetch(`${base}/inpi`, {
+    method: "POST",
+    headers: { Authorization: `Bearer ${segredo}`, "Content-Type": "application/json" },
+    body: JSON.stringify({ latin1: true, passos }),
+    signal: AbortSignal.timeout(110_000),
+    cache: "no-store",
+  });
+  if (!r.ok) throw new Error(`Ponte do INPI respondeu ${r.status}.`);
+  return r.json();
+}
+
+function login(): Passo {
+  const T_Login = process.env.INPI_LOGIN;
+  const T_Senha = process.env.INPI_SENHA;
+  if (!T_Login || !T_Senha) throw new Error("Login do INPI não configurado (INPI_LOGIN / INPI_SENHA).");
+  return { url: `${PEPI}/servlet/LoginController`, metodo: "POST", form: { T_Login, T_Senha, action: "login", Usuario: "" } };
+}
+
+const ENT: Record<string, string> = { amp: "&", lt: "<", gt: ">", quot: '"', apos: "'", nbsp: " " };
+const texto = (h: string) =>
+  h
+    .replace(/<script[\s\S]*?<\/script>|<style[\s\S]*?<\/style>/gi, " ")
+    .replace(/<[^>]+>/g, " ")
+    .replace(/&(amp|lt|gt|quot|apos|nbsp);/g, (_, e) => ENT[e])
+    .replace(/&#(\d+);/g, (_, n) => String.fromCharCode(Number(n)))
+    .replace(/\s+/g, " ")
+    .trim();
+const dataIso = (br: string | null | undefined) => {
+  const m = br?.match(/(\d{2})\/(\d{2})\/(\d{4})/);
+  return m ? `${m[3]}-${m[2]}-${m[1]}` : null;
+};
+
+export type ResultadoBusca = { processo: string; codPedido: string; marca: string; situacao: string; titular: string; classes: string; deposito: string | null };
+
+/** Linhas da tabela de resultados do pePI. */
+function lerResultados(html: string): ResultadoBusca[] {
+  const out: ResultadoBusca[] = [];
+  for (const m of html.matchAll(/<tr[^>]*>([\s\S]*?)<\/tr>/gi)) {
+    const linha = m[1];
+    const cod = linha.match(/CodPedido=(\d+)/);
+    if (!cod) continue;
+    const cels = [...linha.matchAll(/<td[^>]*>([\s\S]*?)<\/td>/gi)].map((c) => texto(c[1]));
+    // checkbox · número · prioridade · apresentação(img) · marca · situação(img) · situação · titular · classe
+    const numero = cels.find((c) => /^\d{9}$/.test(c));
+    if (!numero) continue;
+    const i = cels.indexOf(numero);
+    const resto = cels.slice(i + 1).filter((c) => c !== "");
+    out.push({ processo: numero, codPedido: cod[1], deposito: dataIso(resto[0]), marca: resto[1] ?? "", situacao: resto[2] ?? "", titular: resto[3] ?? "", classes: resto[4] ?? "" });
+  }
+  return out;
+}
+
+function passoBusca(tipo: "processo" | "nome" | "titular", termo: string): Passo {
+  const t = termo.trim();
+  return (
+    tipo === "processo"
+      ? { url: `${PEPI}/servlet/MarcasServletController`, metodo: "POST", form: { NumPedido: t.replace(/\D/g, ""), Action: "searchMarca", tipoPesquisa: "BY_NUM_PROC" } }
+      : tipo === "nome"
+        ? { url: `${PEPI}/servlet/MarcasServletController`, metodo: "POST", form: { buscaExata: "sim", txt: "Pesquisa Exata", marca: t.slice(0, 40), classeInter: "", registerPerPage: "100", Action: "searchMarca", tipoPesquisa: "BY_MARCA_CLASSIF_BASICA" } }
+        : { url: `${PEPI}/servlet/MarcasServletController`, metodo: "POST", form: { cpf_cgc_numINPI: /^\d{11,14}$/.test(t.replace(/\D/g, "")) && !/[a-z]/i.test(t) ? t.replace(/\D/g, "") : "", nomeTitular: /[a-z]/i.test(t) ? t.slice(0, 60) : "", registerPerPage: "100", Action: "searchNome", precisao: "aproximacao", tipoPesquisa: "BY_CNPJ_NOME" } }
+  );
+}
+
+/** Busca no INPI como a tela Cadastrar processos: nº do processo, nome exato da marca ou titular. */
+export async function buscarNoInpi(tipo: "processo" | "nome" | "titular", termo: string): Promise<{ resultados: ResultadoBusca[]; total: number }> {
+  const r = await ponte([{ url: `${PEPI}/` }, login(), passoBusca(tipo, termo)]);
+  const html = r.corpo ?? "";
+  const total = Number(texto(html).match(/Foram encontrados (\d+) processos/)?.[1] ?? 0);
+  return { resultados: lerResultados(html), total };
+}
+
+export type FichaINPI = {
+  processo: string;
+  codPedido: string;
+  marca: string | null;
+  situacao: string | null;
+  apresentacao: string | null;
+  natureza: string | null;
+  classe: string | null;
+  especificacao: string | null;
+  cfe: string | null;
+  titular: string | null;
+  procurador: string | null;
+  deposito: string | null;
+  concessao: string | null;
+  vigencia: string | null;
+  publicacoes: { rpi: number; data: string; despacho: string; complemento: string | null }[];
+  peticoes: { protocolo: string; data: string | null; servico: string; descricao: string; cliente: string | null; pagamento: string | null }[];
+};
+
+const campo = (t: string, rotulo: string, ate: string) => t.match(new RegExp(`${rotulo}\\s*(.*?)\\s*(?:${ate})`))?.[1]?.trim() || null;
+
+function lerFicha(html: string, processo: string, codPedido: string): FichaINPI {
+  const t = texto(html);
+  const datas = t.match(/Data de Depósito Data de Concessão Data de Vigência .*?(\d{2}\/\d{2}\/\d{4})(?:\s+(\d{2}\/\d{2}\/\d{4}))?(?:\s+(\d{2}\/\d{2}\/\d{4}))?\s+Petições/);
+  const publicacoes: FichaINPI["publicacoes"] = [];
+  const pubIni = html.indexOf("Complemento do Despacho");
+  if (pubIni > 0) {
+    for (const m of html.slice(pubIni).matchAll(/<tr[^>]*>([\s\S]*?)<\/tr>/gi)) {
+      const c = [...m[1].matchAll(/<td[^>]*>([\s\S]*?)<\/td>/gi)].map((x) => texto(x[1]));
+      if (c.length >= 3 && /^\d{4}$/.test(c[0]) && dataIso(c[1])) {
+        publicacoes.push({ rpi: Number(c[0]), data: dataIso(c[1])!, despacho: c[2], complemento: c[c.length - 1] && c[c.length - 1] !== "-" ? c[c.length - 1] : null });
+      }
+    }
+  }
+  // petições: tabelas aninhadas no HTML, então lê pelo texto da seção
+  // ("<protocolo> <data> <serviço> Descrição do Serviço <serviço> <descrição> <cliente> - Informações do Banco: <banco> Data: … Valor: …")
+  const peticoes: FichaINPI["peticoes"] = [];
+  const secao = t.slice(t.indexOf("Petições"), t.indexOf("Publicações Leia-me") > 0 ? t.indexOf("Publicações Leia-me") : undefined);
+  // o pagamento ("Informações do Banco: <banco> Data: … Valor: …") vem ANTES da linha a que pertence
+  for (const m of secao.matchAll(/(\d{12}) (\d{2}\/\d{2}\/\d{4}) (\d+) Descrição do Serviço \d+ (.*?) -(?= Informações do Banco:|\s*$)/g)) {
+    const antes = secao.slice(0, m.index);
+    const banco = antes.slice(antes.lastIndexOf("Informações do Banco:") + "Informações do Banco:".length).trim();
+    peticoes.push({ protocolo: m[1], data: dataIso(m[2]), servico: m[3], descricao: m[4].trim(), cliente: null, pagamento: antes.includes("Informações do Banco:") && banco ? banco : null });
+  }
+  return {
+    processo,
+    codPedido,
+    marca: campo(t, "Marca:", "Situação:"),
+    situacao: campo(t, "Situação:", "Apresentação:"),
+    apresentacao: campo(t, "Apresentação:", "Natureza:"),
+    natureza: campo(t, "Natureza:", "Classificação"),
+    classe: t.match(/NCL\(\d+\)\s*\d+/)?.[0] ?? null,
+    especificacao: campo(t, "Vide Situação do Processo", "Classificação Internacional de Viena|Titulares"),
+    cfe: campo(t, "Edição Código Descrição", "Titulares"),
+    titular: campo(t, "Titular\\(1\\):", "Titular\\(2\\)|Representante Legal|Datas"),
+    procurador: campo(t, "Nome Procurador:", "Datas"),
+    deposito: dataIso(datas?.[1]),
+    concessao: dataIso(datas?.[2]),
+    vigencia: dataIso(datas?.[3]),
+    publicacoes,
+    peticoes,
+  };
+}
+
+/** Ficha completa do processo no INPI (situação real, publicações e petições). */
+export async function fichaNoInpi(processo: string): Promise<FichaINPI | null> {
+  const { resultados } = await buscarNoInpi("processo", processo);
+  const achado = resultados.find((r) => r.processo === processo.replace(/\D/g, ""));
+  if (!achado) return null;
+  // o INPI só abre a ficha depois de uma busca na mesma sessão
+  const r = await ponte([{ url: `${PEPI}/` }, login(), passoBusca("processo", processo), { url: `${PEPI}/servlet/MarcasServletController?Action=detail&CodPedido=${achado.codPedido}` }]);
+  return lerFicha(r.corpo ?? "", achado.processo, achado.codPedido);
+}
+
+/** Logo da marca no INPI (data URL) ou null. */
+export async function logoNoInpi(processo: string, codPedido: string): Promise<string | null> {
+  const r = await ponte([{ url: `${PEPI}/` }, login(), passoBusca("processo", processo), { url: `${PEPI}/servlet/LogoMarcasServletController?Action=image&codProcesso=${codPedido}` }]);
+  if (!r.corpoBase64 || !/image\//.test(r.tipo) || r.corpoBase64.length < 200) return null;
+  return `data:${r.tipo.split(";")[0]};base64,${r.corpoBase64}`;
+}

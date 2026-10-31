@@ -21,6 +21,7 @@ import { TOOLS_INDICADORES } from "./tools-indicadores";
 import { TOOLS_ROTINAS } from "./tools-rotinas";
 import { TOOLS_PROCESSOS_BUSCA } from "./tools-processos-busca";
 import { toolsRedesenho } from "./tools-redesenho";
+import { toolsMarcas } from "./tools-marcas";
 import { TOOLS_PAINEL } from "./tools-painel";
 import { toolsOperacao } from "./tools-operacao";
 import { envolvidosPorNome, etiquetasPorNome, toolsSistema } from "./tools-sistema";
@@ -851,6 +852,7 @@ export const TOOLS: ToolDef[] = [
   ...toolsOperacao(db),
   ...toolsSistema(db),
   ...toolsRedesenho(db),
+  ...toolsMarcas(db),
 ];
 
 /** hora, categoria, envolvidos e etiquetas (criar/atualizar atividade). */
