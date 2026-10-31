@@ -20,6 +20,11 @@ import {
   NotebookPen,
   Plug,
   BellRing,
+  BookOpen,
+  Search,
+  ShieldAlert,
+  Stamp,
+  FilePlus,
   Cake,
   Settings2,
   Sparkles,
@@ -76,6 +81,20 @@ export const SECOES: Secao[] = [
     ],
   },
   { id: "processos", label: "Processos", icon: Gavel, abas: [{ href: "/admin/processes", label: "Processos e casos", icon: Gavel }] },
+  {
+    // marcas no INPI (30/10/2026), as mesmas telas do Marca Acompanhada
+    id: "marcas",
+    label: "Marcas",
+    icon: Stamp,
+    abas: [
+      { href: "/admin/marcas", label: "Principal", icon: LayoutDashboard, perm: "marcas" },
+      { href: "/admin/marcas/processos", label: "Processos", icon: Search, perm: "marcas" },
+      { href: "/admin/marcas/cadastrar", label: "Cadastrar processos", icon: FilePlus, perm: "marcas" },
+      { href: "/admin/marcas/revistas", label: "Revistas INPI", icon: BookOpen, perm: "marcas" },
+      { href: "/admin/marcas/colidencias", label: "Colidências", icon: ShieldAlert, perm: "marcas" },
+      { href: "/admin/marcas/whatsapp", label: "WhatsApp", icon: MessageCircle, perm: "marcas" },
+    ],
+  },
   {
     id: "arquivos",
     label: "Arquivos",
