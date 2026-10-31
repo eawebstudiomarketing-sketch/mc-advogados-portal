@@ -36,12 +36,15 @@ import { PERM_DA_TELA, type PermChave, type Permissoes } from "@/lib/permissoes"
 export type NavItem = { href: string; label: string; icon: LucideIcon; todos?: boolean; soSuper?: boolean; perm?: PermChave };
 export type Secao = { id: string; label: string; icon: LucideIcon; abas: NavItem[] };
 
-// Menu em seções (30/10/2026, redesenho da navegação): cada item do menu é uma
+// Menu em seções (30/10/2026, redesenho da navegação), em ordem de prioridade
+// (Distribuição, WhatsApp e Demandas logo abaixo da Área de trabalho): cada item do menu é uma
 // seção, e as telas dela viram abas no topo da página (AbasSecao). As rotas
 // continuam as mesmas; só muda como se chega nelas. Cada pessoa vê só as telas
 // liberadas para ela (PERM_DA_TELA); o admin máximo vê tudo.
 export const SECOES: Secao[] = [
   { id: "inicio", label: "Área de trabalho", icon: LayoutDashboard, abas: [{ href: "/admin", label: "Área de trabalho", icon: LayoutDashboard }] },
+  { id: "distribuicao", label: "Distribuição", icon: Inbox, abas: [{ href: "/admin/distribuicao", label: "Distribuição", icon: Inbox }] },
+  { id: "whatsapp", label: "WhatsApp", icon: MessageCircle, abas: [{ href: "/admin/whatsapp", label: "WhatsApp", icon: MessageCircle }] },
   {
     id: "demandas",
     label: "Demandas",
@@ -52,7 +55,6 @@ export const SECOES: Secao[] = [
       { href: "/admin/agenda", label: "Agenda", icon: CalendarDays },
     ],
   },
-  { id: "distribuicao", label: "Distribuição", icon: Inbox, abas: [{ href: "/admin/distribuicao", label: "Distribuição", icon: Inbox }] },
   {
     id: "caixa",
     label: "Caixa de entrada",
@@ -85,7 +87,6 @@ export const SECOES: Secao[] = [
       { href: "/admin/reports", label: "Relatórios", icon: BarChart3 },
     ],
   },
-  { id: "whatsapp", label: "WhatsApp", icon: MessageCircle, abas: [{ href: "/admin/whatsapp", label: "WhatsApp", icon: MessageCircle }] },
   { id: "financeiro", label: "Financeiro", icon: Wallet, abas: [{ href: "/admin/financial", label: "Financeiro", icon: Wallet }] },
   {
     id: "ferramentas",

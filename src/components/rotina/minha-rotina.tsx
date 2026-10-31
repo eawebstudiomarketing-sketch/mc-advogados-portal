@@ -51,6 +51,7 @@ export function MinhaRotina({
   compacto = false,
   linkTela = true,
   outrosDias = [],
+  pequeno = false,
 }: {
   itens: ItemRotinaTela[];
   outrosDias?: ItemOutroDia[];
@@ -58,6 +59,8 @@ export function MinhaRotina({
   titulo?: string;
   compacto?: boolean;
   linkTela?: boolean;
+  /** Cartão estreito de checklist (coluna da direita da Área de trabalho, 30/10/2026). */
+  pequeno?: boolean;
 }) {
   const [itens, setItens] = useState(inicial);
   const [aberto, setAberto] = useState<string | null>(null);
@@ -84,6 +87,67 @@ export function MinhaRotina({
   }
 
   if (!itens.length && !outrosDias.length) return null;
+  if (pequeno) {
+    // pendentes primeiro (em ordem de horário), feitos no fim
+    const ordem = [...itens].sort((a, b) => Number(a.feito) - Number(b.feito));
+    return (
+      <section className="ui-card p-4">
+        <div className="flex items-center justify-between gap-2">
+          <p className="eyebrow flex items-center gap-1.5">
+            <ListChecks className="h-3.5 w-3.5" aria-hidden /> Minha rotina
+          </p>
+          {itens.length > 0 && (
+            <span className={`text-sm font-semibold tabular-nums ${feitos === itens.length ? "text-status-success" : "text-foreground"}`}>
+              {feitos}/{itens.length}
+            </span>
+          )}
+        </div>
+        {itens.length > 0 ? (
+          <>
+            <div className="mt-2 h-1 overflow-hidden rounded-full bg-track">
+              <div className="h-full rounded-full bg-status-success transition-[width] duration-300" style={{ width: `${pct}%` }} />
+            </div>
+            <ul className="mt-2 max-h-72 space-y-px overflow-y-auto">
+              {ordem.map((i) => {
+                const etq = !i.feito ? ETIQUETA[i.situacao ?? ""] : undefined;
+                return (
+                  <li key={i.id}>
+                    <button
+                      type="button"
+                      onClick={() => alternar(i)}
+                      disabled={!podeMarcar}
+                      aria-pressed={i.feito}
+                      className={`flex w-full items-center gap-2.5 rounded-lg px-1.5 py-1.5 text-left transition-colors hover:bg-hover ${podeMarcar ? "" : "cursor-default"}`}
+                    >
+                      <span
+                        className={`flex h-4 w-4 shrink-0 items-center justify-center rounded border-2 transition-colors ${
+                          i.feito ? "border-status-success bg-status-success text-white" : etq?.texto === "Atrasado" ? "border-status-danger" : "border-border-strong"
+                        }`}
+                        aria-hidden
+                      >
+                        {i.feito && <Check className="h-3 w-3" strokeWidth={3} />}
+                      </span>
+                      <span className={`min-w-0 flex-1 truncate text-[13px] ${i.feito ? "text-muted line-through" : "text-foreground"}`} title={i.titulo}>
+                        {i.titulo}
+                      </span>
+                      {hora(i.hora_inicio) && <span className={`shrink-0 text-[11px] tabular-nums ${etq ? (etq.texto === "Atrasado" ? "text-status-danger" : "text-status-info") : "text-muted"}`}>{hora(i.hora_inicio)}</span>}
+                    </button>
+                  </li>
+                );
+              })}
+            </ul>
+          </>
+        ) : (
+          <p className="mt-2 text-sm text-muted">Nada da sua rotina para hoje.</p>
+        )}
+        {linkTela && (
+          <Link href="/admin/rotinas" className="eyebrow mt-2 inline-block hover:!text-foreground">
+            Abrir rotinas ›
+          </Link>
+        )}
+      </section>
+    );
+  }
   return (
     <section className={compacto ? "" : "ui-card p-5"}>
       <div className="flex items-end justify-between gap-3">

@@ -2,7 +2,7 @@ import Link from "next/link";
 import { Suspense } from "react";
 import { PeriodoFiltro } from "@/components/ui/periodo-filtro";
 import { lerPeriodo } from "@/lib/periodo";
-import { pontosDeRotina, rotinaDoDia, rotinaOutrosDias } from "@/lib/data/rotina-diaria";
+import { pontosDeRotina, rotinaDoDia } from "@/lib/data/rotina-diaria";
 import { MinhaRotina } from "@/components/rotina/minha-rotina";
 import { listEtiquetas } from "@/lib/data/etiquetas";
 import { AlertTriangle, ArrowRight, Trophy, Sun, CalendarPlus } from "lucide-react";
@@ -152,10 +152,9 @@ export default async function AdminOverviewPage({
       : []),
   ].slice(0, 7);
 
-  const [pontosRotina, minhaRotina, rotinaOutros] = await Promise.all([
+  const [pontosRotina, minhaRotina] = await Promise.all([
     pontosDeRotina(somaDias(hoje, -periodo + 1)),
     meuResponsavel ? rotinaDoDia(meuResponsavel, hoje) : Promise.resolve([]),
-    meuResponsavel ? rotinaOutrosDias(meuResponsavel, hoje) : Promise.resolve([]),
   ]);
   const linhasRanking = verEquipe
     ? ranking(activities, pessoas, periodo, pontosRotina)
@@ -196,9 +195,10 @@ export default async function AdminOverviewPage({
           </div>
         </div>
 
+        <div className="space-y-4">
         <Link
           href={atrasadas.length ? "/admin/activities?prazo=atrasadas" : "/admin/agenda"}
-          className="group ui-card p-5 transition-colors hover:bg-hover"
+          className="group block ui-card p-5 transition-colors hover:bg-hover"
         >
           <p className="eyebrow flex items-center gap-2">
             <span className={`h-1.5 w-1.5 rounded-full ${atrasadas.length ? "bg-status-danger" : "bg-gold"}`} aria-hidden />
@@ -222,21 +222,21 @@ export default async function AdminOverviewPage({
             <ArrowRight className="h-3.5 w-3.5 transition-transform group-hover:translate-x-0.5" aria-hidden />
           </p>
         </Link>
+
+        {/* rotina do dia: checklist pequeno ao lado (pedido de 30/10/2026) */}
+        {minhaRotina.length > 0 && (
+          <MinhaRotina
+            pequeno
+            itens={minhaRotina.map((i) => ({ id: i.id, titulo: i.titulo, feito: i.feito, feitoEm: i.feitoEm, hora_inicio: i.hora_inicio, hora_fim: i.hora_fim, observacao: i.observacao, situacao: i.situacao }))}
+            podeMarcar
+          />
+        )}
+        </div>
       </section>
 
       <Suspense fallback={null}>
         <MiniIndicadores profileId={profile.id} nome={profile.full_name} />
       </Suspense>
-
-      {(minhaRotina.length > 0 || rotinaOutros.length > 0) && (
-        <div className="mb-10">
-          <MinhaRotina
-            itens={minhaRotina.map((i) => ({ id: i.id, titulo: i.titulo, feito: i.feito, feitoEm: i.feitoEm, hora_inicio: i.hora_inicio, hora_fim: i.hora_fim, observacao: i.observacao, situacao: i.situacao }))}
-            outrosDias={rotinaOutros.map((i) => ({ id: i.id, titulo: i.titulo, dias: i.dias, hora_inicio: i.hora_inicio, hora_fim: i.hora_fim }))}
-            podeMarcar
-          />
-        </div>
-      )}
 
       {/* agora: o que precisa de atenção, numerado */}
       {agora.length > 0 && (
