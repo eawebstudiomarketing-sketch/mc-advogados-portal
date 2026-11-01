@@ -210,9 +210,15 @@ export default async function AdminClientsPage({
               <tr key={c.id}>
                 <td className="px-3 py-3">
                   <Link href={`/admin/clients/${c.id}`} className="group flex items-center gap-3">
-                    <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-navy text-[11px] font-semibold text-gold-2">
-                      {c.name.replace(/[^A-Za-zÀ-ú0-9 ]/g, "").trim().slice(0, 2).toUpperCase()}
-                    </span>
+                    {/* foto do WhatsApp (0064); sem foto, as iniciais */}
+                    {(c as { foto_url?: string | null }).foto_url ? (
+                      // eslint-disable-next-line @next/next/no-img-element -- foto do bucket público avatars
+                      <img src={(c as { foto_url?: string | null }).foto_url!} alt="" className="h-9 w-9 shrink-0 rounded-full bg-surface-2 object-cover ring-1 ring-border" />
+                    ) : (
+                      <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-navy text-[11px] font-semibold text-gold-2">
+                        {c.name.replace(/[^A-Za-zÀ-ú0-9 ]/g, "").trim().slice(0, 2).toUpperCase()}
+                      </span>
+                    )}
                     <span className="min-w-0">
                       <span className="block truncate font-medium text-foreground underline-offset-2 group-hover:underline">{c.name}</span>
                       <span className="block text-xs text-muted">{[c.apelido && c.apelido !== c.name ? c.apelido : null, formatarDocumento(c.documento)].filter(Boolean).join(" · ")}</span>

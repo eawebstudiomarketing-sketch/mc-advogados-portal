@@ -147,9 +147,14 @@ export default async function AdminClientDetailPage({
       {/* cabeçalho do cliente */}
       <div className="flex flex-wrap items-start justify-between gap-4">
         <div className="flex min-w-0 items-center gap-4">
-          <span className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-navy text-base font-semibold text-gold-2 shadow-md">
-            {sigla}
-          </span>
+          {(client as { foto_url?: string | null }).foto_url ? (
+            // eslint-disable-next-line @next/next/no-img-element -- foto do WhatsApp no bucket público avatars (0064)
+            <img src={(client as { foto_url?: string | null }).foto_url!} alt={`Foto de ${client.name}`} className="h-12 w-12 shrink-0 rounded-xl bg-surface-2 object-cover shadow-md ring-1 ring-border" />
+          ) : (
+            <span className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-navy text-base font-semibold text-gold-2 shadow-md">
+              {sigla}
+            </span>
+          )}
           <div className="min-w-0">
             <div className="flex flex-wrap items-center gap-2">
               <h1 className="page-title truncate">{client.name}</h1>
