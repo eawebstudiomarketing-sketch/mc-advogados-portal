@@ -47,4 +47,4 @@ jobs:
     steps:
       - name: Cobrar documentos dos clientes
         run: |
-          curl -fsS -m 120             -H "Authorization: Bearer ${{ secrets.CRON_SECRET }}"             "https://mcadvogados.app.br/api/cron/cobrancas"
+          curl -fsS -m 120             -H "Authorization: Bearer ${{ secrets.CRON_SECRET }}"             "https://mcadvogados.app.br/api/cron/distribuicao?tarefa=cobrancas"
