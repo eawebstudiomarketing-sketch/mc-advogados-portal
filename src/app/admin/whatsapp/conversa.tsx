@@ -28,6 +28,7 @@ import {
   Smile,
   Trash2,
   X,
+  Zap,
 } from "lucide-react";
 import { toast } from "sonner";
 import { createClient } from "@/lib/supabase/client";
@@ -44,6 +45,7 @@ import {
 } from "./actions";
 import { executarOrdem } from "./ordem";
 import { AvatarWa } from "./comum";
+import { GerenciarRespostas, SugestoesRespostas, filtrarRespostas, preencherResposta, useRespostasRapidas } from "./respostas-rapidas";
 import { EMOJIS_RAPIDOS, dataHoraCompleta, diaChave, diaCompleto, telefone, tamanhoLegivel } from "./util";
 
 const POR_PAGINA = 60;
@@ -565,6 +567,7 @@ export function Conversa({
         respondendo={respondendo}
         editando={editando}
         nomeDe={(m) => (m.from_me ? "Você" : (m.sender_jid && nomes.get(m.sender_jid)) || nome)}
+        nomeContato={chat.is_group ? "" : nome}
         onCancelar={() => {
           setRespondendo(null);
           setEditando(null);
@@ -944,6 +947,7 @@ function Compositor({
   respondendo,
   editando,
   nomeDe,
+  nomeContato,
   onCancelar,
   onTexto,
   onArquivos,
@@ -952,6 +956,8 @@ function Compositor({
   respondendo: Msg | null;
   editando: Msg | null;
   nomeDe: (m: Msg) => string;
+  /** primeiro nome vira o {nome} das mensagens rápidas (grupo: vazio) */
+  nomeContato: string;
   onCancelar: () => void;
   onTexto: (t: string) => void;
   onArquivos: (fs: File[], legenda: string, ptt: boolean) => void;
@@ -965,6 +971,27 @@ function Compositor({
   const recRef = useRef<MediaRecorder | null>(null);
   const partes = useRef<Blob[]>([]);
   const cancelar = useRef(false);
+  // mensagens rápidas: "/atalho" no começo da caixa abre a lista (03/11/2026)
+  const respostas = useRespostasRapidas();
+  const [gerenciar, setGerenciar] = useState(false);
+  const [listaAberta, setListaAberta] = useState(false);
+  const [selResposta, setSelResposta] = useState(0);
+  const barra = !editando && !anexos.length && /^\/\S*$/.test(texto);
+  const termoBarra = barra ? texto.slice(1) : "";
+  const sugestoes = barra || listaAberta ? filtrarRespostas(respostas, termoBarra) : [];
+  const mostrarSugestoes = (barra || listaAberta) && ligado;
+  function usarResposta(t: string) {
+    setTexto(preencherResposta(t, nomeContato));
+    setListaAberta(false);
+    setSelResposta(0);
+    requestAnimationFrame(() => {
+      const el = textoRef.current;
+      if (el) {
+        el.focus();
+        el.setSelectionRange(el.value.length, el.value.length);
+      }
+    });
+  }
 
   useEffect(() => {
     const el = textoRef.current;
@@ -1060,6 +1087,16 @@ function Compositor({
           ))}
         </div>
       )}
+      {mostrarSugestoes && !gravando && (
+        <SugestoesRespostas
+          itens={sugestoes}
+          selecionado={Math.min(selResposta, Math.max(0, sugestoes.length - 1))}
+          onEscolher={(r) => usarResposta(r.texto)}
+          onGerenciar={() => setGerenciar(true)}
+          nomeContato={nomeContato}
+        />
+      )}
+      {gerenciar && <GerenciarRespostas onFechar={() => setGerenciar(false)} />}
       {gravando ? (
         <div className="flex items-center gap-2">
           <button type="button" onClick={() => parar(true)} className="icon-btn icon-btn-danger" aria-label="Descartar áudio">
@@ -1088,11 +1125,29 @@ function Compositor({
           <button type="button" onClick={() => arquivoRef.current?.click()} disabled={!ligado || !!editando} className="icon-btn h-10 w-10" aria-label="Anexar arquivos" data-tip="Anexar">
             <Paperclip aria-hidden />
           </button>
+          <button
+            type="button"
+            onClick={() => {
+              setListaAberta((v) => !v || barra);
+              setSelResposta(0);
+              textoRef.current?.focus();
+            }}
+            disabled={!ligado || !!editando}
+            className="icon-btn h-10 w-10"
+            aria-label="Mensagens rápidas"
+            aria-expanded={mostrarSugestoes}
+            data-tip="Mensagens rápidas (ou digite /)"
+          >
+            <Zap aria-hidden />
+          </button>
           <textarea
             id="wa-texto"
             ref={textoRef}
             value={texto}
-            onChange={(e) => setTexto(e.target.value)}
+            onChange={(e) => {
+              setTexto(e.target.value);
+              setSelResposta(0);
+            }}
             onPaste={(e) => {
               const fs = Array.from(e.clipboardData.files);
               if (fs.length) {
@@ -1101,6 +1156,24 @@ function Compositor({
               }
             }}
             onKeyDown={(e) => {
+              if (mostrarSugestoes && sugestoes.length) {
+                if (e.key === "ArrowDown" || e.key === "ArrowUp") {
+                  e.preventDefault();
+                  setSelResposta((k) => (k + (e.key === "ArrowDown" ? 1 : sugestoes.length - 1)) % sugestoes.length);
+                  return;
+                }
+                if (e.key === "Tab" || (e.key === "Enter" && !e.shiftKey)) {
+                  e.preventDefault();
+                  usarResposta(sugestoes[Math.min(selResposta, sugestoes.length - 1)].texto);
+                  return;
+                }
+              }
+              if (e.key === "Escape" && mostrarSugestoes) {
+                e.preventDefault();
+                setListaAberta(false);
+                if (barra) setTexto("");
+                return;
+              }
               if (e.key === "Enter" && !e.shiftKey) {
                 e.preventDefault();
                 mandar();
@@ -1110,7 +1183,7 @@ function Compositor({
             rows={1}
             autoFocus={!!editando}
             disabled={!ligado}
-            placeholder={!ligado ? "Agente fora do ar: não dá pra enviar agora" : anexos.length ? "Legenda (opcional)" : "Mensagem"}
+            placeholder={!ligado ? "Agente fora do ar: não dá pra enviar agora" : anexos.length ? "Legenda (opcional)" : "Mensagem (/ para mensagens rápidas)"}
             className="ui-input max-h-40 min-h-10 flex-1 resize-none !rounded-2xl py-2"
             aria-label="Mensagem"
           />

@@ -10,6 +10,8 @@ import type { Database } from "@/lib/supabase/types";
 import { destinoDeVolta } from "@/lib/voltar";
 import { reagendarAudienciaDaAtividade } from "@/lib/zap/lembretes";
 import { cancelarPendentes } from "@/lib/zap/fila";
+import { configCobranca } from "@/lib/cobrancas";
+import type { SupabaseClient } from "@supabase/supabase-js";
 
 type Db = Awaited<ReturnType<typeof createClient>>;
 
@@ -81,6 +83,12 @@ export async function createActivityAction(
   if (typeof type !== "string" || !ACTIVITY_TYPES.includes(type as never)) {
     return { error: "Selecione o tipo de atividade." };
   }
+  // depende de documento do cliente: cobra no WhatsApp até chegar (03/11/2026)
+  const cobrar = formData.get("cobrar_documentos") === "on";
+  const docsCobrar = [...new Set(String(formData.get("documentos_cobrar") ?? "").split(/[,;\n]/).map((d) => d.trim().slice(0, 120)).filter(Boolean))].slice(0, 20);
+  const destinoCobranca = ["auto", "grupo", "numero"].includes(String(formData.get("destino_cobranca"))) ? (String(formData.get("destino_cobranca")) as "auto" | "grupo" | "numero") : "auto";
+  if (cobrar && !clienteDaAtividade) return { error: "Para cobrar documento, escolha o cliente da atividade." };
+  if (cobrar && !docsCobrar.length) return { error: "Diga quais documentos faltam (separe por vírgula)." };
 
   const supabase = await createClient();
   const responsavel = await lerResponsavel(supabase, formData.get("responsavel_id"));
@@ -102,6 +110,14 @@ export async function createActivityAction(
 
   if (error) {
     return { error: "Não foi possível salvar a atividade. Tente novamente." };
+  }
+
+  if (cobrar && criada && clienteDaAtividade) {
+    const cfg = await configCobranca();
+    await (supabase as unknown as SupabaseClient)
+      .from("cobrancas_documentos")
+      .insert({ activity_id: criada.id, client_id: clienteDaAtividade, documentos: docsCobrar, mensagem: cfg.mensagem, destino: destinoCobranca, intervalo_dias: cfg.intervaloDias, ativa: true, proxima_em: new Date().toISOString(), criado_por: profile.id })
+      .then(({ error: e }) => e && console.error("cobrança de documento:", e.message));
   }
 
   // audiência: avisa o cliente (criação, 5 dias e 1 dia antes) — só se for categoria Audiência com data e horário

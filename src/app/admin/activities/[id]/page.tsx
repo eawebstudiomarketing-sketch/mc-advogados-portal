@@ -14,6 +14,7 @@ import { ACTIVITY_TYPE_LABEL } from "@/lib/activity-type";
 import { formatDate } from "@/lib/mock-data";
 import { exigirPermissao } from "@/lib/dal";
 import { Comentarios } from "@/components/atividade/comentarios";
+import { CobrancaDocumento } from "@/components/atividade/cobranca-documento";
 import { EtiquetasEditor } from "@/components/atividade/etiquetas";
 import { listEtiquetas } from "@/lib/data/etiquetas";
 import { listResponsaveis } from "@/lib/data/responsaveis";
@@ -95,6 +96,7 @@ export default async function ActivityDetailPage({ params }: { params: Promise<{
           {activity.description && (
             <p className="mt-4 whitespace-pre-wrap text-sm text-foreground/70">{activity.description}</p>
           )}
+          <CobrancaDocumento atividadeId={activity.id} />
         </div>
 
         <div className="ui-card p-5">

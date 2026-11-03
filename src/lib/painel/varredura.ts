@@ -8,6 +8,7 @@ import { carregarBase } from "./dados";
 import { equipeNoZap } from "./equipe-zap";
 import { diasParaFim, fimDoContrato, textoFaltam } from "@/lib/contrato";
 import { DIA, aberta, atrasada, dataBahia, dentro, dias, hojeBahia, notaPessoa, pesoAtividade, periodoDe, somaDias, TIPOS, type LinhaAtividade } from "./base";
+import { caiNoDia, type Repeticao } from "@/lib/rotina-repeticao";
 
 // Varredura do gerente (24/10/2026): passa por todo o sistema no período do
 // filtro e devolve "achados" — um fato, uma sugestão e as ações possíveis
@@ -375,18 +376,17 @@ export async function varrer(periodoId: string) {
     return d;
   })();
   const [{ data: itensRot }, { data: feitosRot }] = await Promise.all([
-    db().from("rotina_itens").select("id, responsavel_id, titulo, dias, ativo").eq("ativo", true),
+    db().from("rotina_itens").select("id, responsavel_id, titulo, dias, ativo, repeticao, regra_mensal").eq("ativo", true),
     db().from("rotina_feitos").select("item_id, responsavel_id, dia").gte("dia", somaDias(hoje, -7)),
   ]);
-  type ItemR = { id: string; responsavel_id: string; titulo: string; dias: number[] };
-  const wOntem = new Date(`${ontemUtil}T12:00:00Z`).getUTCDay();
+  type ItemR = { id: string; responsavel_id: string; titulo: string } & Repeticao;
   const feitosSet = new Set(((feitosRot ?? []) as { item_id: string; dia: string }[]).map((f) => `${f.item_id}|${f.dia}`));
   const naoFeitos = new Map<string, string[]>();
-  for (const it of (itensRot ?? []) as ItemR[]) if (it.dias.includes(wOntem) && !feitosSet.has(`${it.id}|${ontemUtil}`)) naoFeitos.set(it.responsavel_id, [...(naoFeitos.get(it.responsavel_id) ?? []), it.titulo]);
+  for (const it of (itensRot ?? []) as ItemR[]) if (caiNoDia(it, ontemUtil) && !feitosSet.has(`${it.id}|${ontemUtil}`)) naoFeitos.set(it.responsavel_id, [...(naoFeitos.get(it.responsavel_id) ?? []), it.titulo]);
   const semRotina = [...naoFeitos.entries()].map(([rid, titulos]) => ({ rid, titulos, ps: pessoa(rid) })).filter((x) => x.ps);
   if (semRotina.length) {
     const repetidos = ((itensRot ?? []) as ItemR[]).filter(
-      (it) => [1, 2, 3, 4, 5, 6, 7].map((k) => somaDias(hoje, -k)).filter((d) => diaUtil(d) && it.dias.includes(new Date(`${d}T12:00:00Z`).getUTCDay()) && !feitosSet.has(`${it.id}|${d}`)).length >= 3
+      (it) => [1, 2, 3, 4, 5, 6, 7].map((k) => somaDias(hoje, -k)).filter((d) => diaUtil(d) && caiNoDia(it, d) && !feitosSet.has(`${it.id}|${d}`)).length >= 3
     );
     add({
       id: "rotinas",

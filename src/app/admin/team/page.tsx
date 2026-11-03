@@ -6,6 +6,8 @@ import { getEscritorioConfig, listPessoas } from "@/lib/data/escritorio";
 import { Avatar } from "@/components/ui/avatar";
 import { EditorAreas, LinhaPessoa } from "./pessoas-zap";
 import { ZapConfig } from "./zap-config";
+import { CobrancaConfig } from "./cobranca-config";
+import { configCobranca } from "@/lib/cobrancas";
 
 // Equipe (30/10/2026): a lista de pessoas. Tudo o que é de cada uma — indicadores,
 // rotina, demandas, WhatsApp, áreas, clientes, acessos e permissões — fica na
@@ -18,7 +20,7 @@ const PAPEL: Record<string, string> = { admin: "Administrador(a)", advogado: "Ad
 export default async function AdminTeamPage() {
   const { profile } = await exigirPermissao("equipe");
   const souSuper = ehSuperAdmin(profile);
-  const [staff, pessoas, config] = await Promise.all([listStaff(), listPessoas(), getEscritorioConfig()]);
+  const [staff, pessoas, config, cobranca] = await Promise.all([listStaff(), listPessoas(), getEscritorioConfig(), configCobranca()]);
   const fotoDe = new Map(pessoas.filter((p) => p.profileId).map((p) => [p.profileId!, p.foto]));
   const ordenada = [...staff].sort((a, b) => Number(b.super_admin) - Number(a.super_admin) || (a.role === b.role ? a.full_name.localeCompare(b.full_name, "pt-BR") : a.role === "admin" ? -1 : 1));
   const semLogin = pessoas.filter((p) => !p.profileId);
@@ -93,6 +95,7 @@ export default async function AdminTeamPage() {
           <h2 className="section-title">Configurações do escritório</h2>
           <EditorAreas areas={config.areas} />
           <ZapConfig config={config} />
+          <CobrancaConfig config={cobranca} />
         </section>
       )}
     </div>

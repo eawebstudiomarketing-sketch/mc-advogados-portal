@@ -12,7 +12,7 @@ import { responsavelDoPerfil } from "@/lib/data/responsaveis";
 import { listPessoas } from "@/lib/data/escritorio";
 import { contarDistribuicaoPendentes } from "@/lib/data/distribuicao";
 import { contarNaoTratadas } from "@/lib/data/publicacoes";
-import { ranking, clientesComMaisPendencias, hojeBahia, emAberto, somaDias } from "@/lib/data/painel";
+import { atividadesDoRanking, ranking, clientesComMaisPendencias, hojeBahia, emAberto, somaDias } from "@/lib/data/painel";
 import { Avatar } from "@/components/ui/avatar";
 import { createClient } from "@/lib/supabase/server";
 import { exigirPermissao } from "@/lib/dal";
@@ -152,13 +152,13 @@ export default async function AdminOverviewPage({
       : []),
   ].slice(0, 7);
 
-  const [pontosRotina, minhaRotina] = await Promise.all([
+  // ranking da equipe visível para todos (03/11/2026); quem não vê a equipe recebe só o placar, contado no servidor
+  const [pontosRotina, minhaRotina, atividadesPlacar] = await Promise.all([
     pontosDeRotina(somaDias(hoje, -periodo + 1)),
     meuResponsavel ? rotinaDoDia(meuResponsavel, hoje) : Promise.resolve([]),
+    verEquipe ? Promise.resolve(activities) : atividadesDoRanking(),
   ]);
-  const linhasRanking = verEquipe
-    ? ranking(activities, pessoas, periodo, pontosRotina)
-    : ranking(activities, pessoas.filter((p) => p.id === meuResponsavel), periodo, pontosRotina);
+  const linhasRanking = ranking(atividadesPlacar, pessoas, periodo, pontosRotina);
   const topClientes = clientesComMaisPendencias(activities, 8);
   const maxPend = Math.max(1, ...topClientes.map((c) => c.abertas));
 
@@ -267,7 +267,7 @@ export default async function AdminOverviewPage({
         {minhaRotina.length > 0 && (
           <MinhaRotina
             pequeno
-            itens={minhaRotina.map((i) => ({ id: i.id, titulo: i.titulo, feito: i.feito, feitoEm: i.feitoEm, hora_inicio: i.hora_inicio, hora_fim: i.hora_fim, observacao: i.observacao, situacao: i.situacao }))}
+            itens={minhaRotina.map((i) => ({ id: i.id, titulo: i.titulo, feito: i.feito, feitoEm: i.feitoEm, hora_inicio: i.hora_inicio, hora_fim: i.hora_fim, observacao: i.observacao, situacao: i.situacao, checklist: i.checklist, subFeitos: i.subFeitos }))}
             podeMarcar
           />
         )}
@@ -366,7 +366,7 @@ export default async function AdminOverviewPage({
           <div className="mb-4 flex items-center justify-between gap-2">
             <div>
               <p className="eyebrow">Pontos · demandas + rotina</p>
-              <h2 className="section-title !text-lg">{verEquipe ? "Ranking da equipe" : "Seu desempenho"}</h2>
+              <h2 className="section-title !text-lg">Ranking da equipe</h2>
             </div>
             <div className="inline-flex rounded-full border border-border p-0.5 text-xs">
               {[7, 30].map((p) => (

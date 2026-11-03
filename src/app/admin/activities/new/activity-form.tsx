@@ -36,6 +36,7 @@ export function ActivityForm({
   // Vindo de publicação sem processo cadastrado: obriga escolher o cliente
   // (não pré-seleciona o primeiro da lista para não salvar no cliente errado).
   const [cliente, setCliente] = useState(clienteInicial ?? "");
+  const [cobrar, setCobrar] = useState(false);
 
   return (
     <form action={formAction} className="max-w-xl space-y-5 ui-card p-6">
@@ -142,6 +143,39 @@ export function ActivityForm({
       </div>
 
       <CamposAgenda categoria={inicial.categoria} hora={inicial.hora} areas={areas} />
+
+      {/* cobrança de documento (03/11/2026): cobra no WhatsApp do cliente até chegar */}
+      <div className="rounded-xl border border-border p-3">
+        <label className="flex cursor-pointer items-start gap-2.5">
+          <input type="checkbox" name="cobrar_documentos" checked={cobrar} onChange={(e) => setCobrar(e.target.checked)} className="mt-0.5 accent-navy" />
+          <span>
+            <span className="block text-sm font-medium text-foreground">Depende de documento do cliente</span>
+            <span className="block text-xs text-muted">O portal cobra no WhatsApp do cliente de tempos em tempos (padrão do escritório) até o documento chegar.</span>
+          </span>
+        </label>
+        {cobrar && (
+          <div className="mt-3 space-y-3 pl-6">
+            {!cliente && <p className="text-xs font-medium text-status-danger">Escolha o cliente lá em cima para vincular a atividade a ele.</p>}
+            <div>
+              <label htmlFor="documentos_cobrar" className="ui-label">
+                Documentos que faltam <span className="font-normal text-muted">· separe por vírgula</span>
+              </label>
+              <input id="documentos_cobrar" name="documentos_cobrar" required placeholder="RG, comprovante de residência" className="ui-input" />
+            </div>
+            <div>
+              <label htmlFor="destino_cobranca" className="ui-label">
+                Por onde vai
+              </label>
+              <select id="destino_cobranca" name="destino_cobranca" defaultValue="auto" className="ui-input">
+                <option value="auto">Automático (grupo do cliente; sem grupo, o número)</option>
+                <option value="grupo">Grupo do cliente</option>
+                <option value="numero">Número do cliente</option>
+              </select>
+            </div>
+            <p className="text-xs text-muted">O texto padrão sai sozinho. Para mudar o texto, gerar com IA ou mudar o intervalo, abra a atividade depois de criar.</p>
+          </div>
+        )}
+      </div>
 
       <div>
         <label htmlFor="description" className="ui-label">

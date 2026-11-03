@@ -1,6 +1,7 @@
 "use client";
 
 import { ChecklistAtividade } from "./checklist";
+import { CobrancaDocumento } from "./cobranca-documento";
 import { HistoricoRegistro } from "@/components/ui/historico-registro";
 import { createContext, useCallback, useContext, useEffect, useRef, useState, useTransition } from "react";
 import { createPortal } from "react-dom";
@@ -307,6 +308,8 @@ function AtividadeModal({ id, editarAoAbrir, onClose }: { id: string; editarAoAb
               </div>
 
               <ChecklistAtividade key={`ck-${d.id}`} atividadeId={d.id} inicial={d.checklist} />
+
+              <CobrancaDocumento key={`cob-${d.id}`} atividadeId={d.id} />
 
               {d.pode.documentos && (
               <div className="mt-5 rounded-xl border border-border">

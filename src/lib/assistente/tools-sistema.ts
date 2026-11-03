@@ -5,6 +5,7 @@ import type { Database } from "@/lib/supabase/types";
 import { PERMISSOES } from "@/lib/permissoes";
 import { PROCESS_AREAS } from "@/lib/process-area";
 import { cumprimento, listarItensRotina, relatorioDoDia, rotinaDoDia } from "@/lib/data/rotina-diaria";
+import { descreverRepeticao, regraValida } from "@/lib/rotina-repeticao";
 import { conversaCom, GERAL } from "@/lib/data/mensagens";
 import { hojeBahia, somaDias } from "@/lib/periodo";
 import { MOTIVO_TEXTO, todosOsRobos, type MotivoFalha } from "@/lib/robos/saude";
@@ -190,22 +191,29 @@ export function toolsSistema(db: () => Db): ToolDef[] {
       name: "listar_rotinas",
       kind: "read",
       label: "Consultou as rotinas",
-      description: "Itens da rotina (todos os dias da semana) de uma pessoa ou de todas: título, horário, dias, como fazer.",
+      description: "Itens da rotina de uma pessoa ou de todas, na ordem de prioridade: título, horário, repetição (dias da semana ou regra do mês), checklist, como fazer.",
       parameters: obj({ pessoa: { type: "string" } }),
       run: async (a) => {
         const p = a.pessoa ? await pessoaPorNome(a.pessoa) : null;
         const itens = await listarItensRotina(p ? [p.id] : undefined, solto(adm()));
         const { data: pessoas } = await adm().from("responsaveis").select("id, nome");
         const nome = new Map((pessoas ?? []).map((x) => [x.id, x.nome]));
-        return itens.map((i) => ({
-          item_id: i.id,
-          pessoa: nome.get(i.responsavel_id),
-          titulo: i.titulo,
-          inicio: i.hora_inicio?.slice(0, 5) ?? null,
-          fim: i.hora_fim?.slice(0, 5) ?? null,
-          dias: i.dias.map((d) => ROTULO_DIA[d]).join(", "),
-          como_fazer: i.observacao,
-        }));
+        const posicao = new Map<string, number>();
+        return itens.map((i) => {
+          const n = (posicao.get(i.responsavel_id) ?? 0) + 1;
+          posicao.set(i.responsavel_id, n);
+          return {
+            item_id: i.id,
+            pessoa: nome.get(i.responsavel_id),
+            prioridade: n,
+            titulo: i.titulo,
+            inicio: i.hora_inicio?.slice(0, 5) ?? null,
+            fim: i.hora_fim?.slice(0, 5) ?? null,
+            repete: i.repeticao === "mensal" ? descreverRepeticao(i) : i.dias.map((d) => ROTULO_DIA[d]).join(", "),
+            checklist: i.checklist.map((c) => c.texto),
+            como_fazer: i.observacao,
+          };
+        });
       },
     },
     {
@@ -236,10 +244,54 @@ export function toolsSistema(db: () => Db): ToolDef[] {
       kind: "write",
       soSuper: true,
       label: "Alterou item de rotina",
-      description: "Altera um item da rotina (só o que muda): titulo, inicio, fim, dias, como_fazer. Pegue o item_id em listar_rotinas.",
-      parameters: obj({ item_id: { type: "string" }, titulo: { type: "string" }, inicio: { type: "string" }, fim: { type: "string" }, dias: DIAS_PARAM, como_fazer: { type: "string" } }, ["item_id"]),
+      description:
+        "Altera um item da rotina (só o que muda): titulo, inicio, fim, dias, como_fazer; repeticao 'semanal' (usa dias) ou 'mensal' com regra_mensal ({tipo:'dia',dia:5} | {tipo:'util',qual:'primeiro'|'ultimo'} | {tipo:'semana',ordem:1-4 ou -1,dia_semana:0-6}); checklist (lista de subitens, substitui a atual; [] tira); prioridade (posição na lista da pessoa, 1 = topo). Pegue o item_id em listar_rotinas.",
+      parameters: obj(
+        {
+          item_id: { type: "string" },
+          titulo: { type: "string" },
+          inicio: { type: "string" },
+          fim: { type: "string" },
+          dias: DIAS_PARAM,
+          como_fazer: { type: "string" },
+          repeticao: { type: "string", enum: ["semanal", "mensal"] },
+          regra_mensal: { type: "object", description: "regra do mês quando repeticao = mensal", properties: { tipo: { type: "string", enum: ["dia", "util", "semana"] }, dia: { type: "number" }, qual: { type: "string", enum: ["primeiro", "ultimo"] }, ordem: { type: "number" }, dia_semana: { type: "number" } } },
+          checklist: { type: "array", items: { type: "string" } },
+          prioridade: { type: "number", description: "1 = primeiro da lista" },
+        },
+        ["item_id"]
+      ),
       run: async (a) => {
         const patch: Record<string, unknown> = {};
+        if (a.repeticao === "mensal") {
+          const r = regraValida(a.regra_mensal);
+          if (!r) throw new Error("Para repetir por mês, diga a regra (ex.: todo dia 5, 1º dia útil, última sexta).");
+          patch.repeticao = "mensal";
+          patch.regra_mensal = r;
+        } else if (a.repeticao === "semanal") {
+          patch.repeticao = "semanal";
+          patch.regra_mensal = null;
+        }
+        if (Array.isArray(a.checklist)) {
+          const { data: atual } = await solto(adm()).from("rotina_itens").select("checklist").eq("id", String(a.item_id)).maybeSingle();
+          const antigos = ((atual?.checklist ?? []) as { id: string; texto: string }[]);
+          // mantém o id do subitem que continua igual (o que já foi marcado hoje não se perde)
+          patch.checklist = (a.checklist as unknown[])
+            .map((t) => String(t).trim().slice(0, 200))
+            .filter(Boolean)
+            .slice(0, 30)
+            .map((texto) => ({ id: antigos.find((x) => x.texto === texto)?.id ?? crypto.randomUUID(), texto }));
+        }
+        if (typeof a.prioridade === "number") {
+          const d = solto(adm());
+          const { data: it } = await d.from("rotina_itens").select("responsavel_id").eq("id", String(a.item_id)).maybeSingle();
+          if (!it) throw new Error("Item não encontrado.");
+          const { data: lista } = await d.from("rotina_itens").select("id").eq("responsavel_id", it.responsavel_id).eq("ativo", true).order("ordem").order("created_at");
+          const ids = (lista ?? []).map((x) => x.id as string).filter((x) => x !== String(a.item_id));
+          ids.splice(Math.max(0, Math.min(ids.length, Math.round(a.prioridade) - 1)), 0, String(a.item_id));
+          await Promise.all(ids.map((x, n) => d.from("rotina_itens").update({ ordem: n }).eq("id", x)));
+          if (Object.keys(patch).length === 0 && a.titulo === undefined && a.inicio === undefined && a.fim === undefined && a.dias === undefined && a.como_fazer === undefined) return { ok: true, prioridade: ids.indexOf(String(a.item_id)) + 1 };
+        }
         if (a.titulo !== undefined) patch.titulo = String(a.titulo).slice(0, 140);
         if (a.inicio !== undefined) patch.hora_inicio = hora(a.inicio);
         if (a.fim !== undefined) patch.hora_fim = hora(a.fim);

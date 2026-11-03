@@ -1,11 +1,13 @@
 import "server-only";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { createClient } from "@/lib/supabase/server";
+import { caiNoDia, type RegraMensal, type SubitemRotina } from "@/lib/rotina-repeticao";
 
 // Rotina diária de cada pessoa (definida pelo admin máximo): itens com horário
-// (início/fim, opcionais), dias da semana e observação. A pessoa marca o que
-// fez no dia; cada item feito vale 1 ponto no ranking, mesmo se atrasado (o
-// atraso só aparece no relatório do Maurício).
+// (início/fim, opcionais), repetição (dias da semana ou regra mensal),
+// observação e checklist. A pessoa marca o que fez no dia; cada item feito vale
+// 1 ponto no ranking, mesmo se atrasado (o atraso só aparece no relatório do
+// Maurício). A ordem dos itens é a prioridade que o admin máximo define (03/11).
 
 export type ItemRotina = {
   id: string;
@@ -17,23 +19,25 @@ export type ItemRotina = {
   hora_inicio: string | null; // "HH:MM:SS"
   hora_fim: string | null;
   observacao: string | null;
+  checklist: SubitemRotina[];
+  repeticao: "semanal" | "mensal";
+  regra_mensal: RegraMensal | null;
   created_at?: string;
 };
 export type SituacaoItem = "feito" | "agora" | "atrasado" | "depois" | "sem_hora";
-export type ItemDoDia = ItemRotina & { feito: boolean; feitoEm: string | null; situacao: SituacaoItem };
+export type ItemDoDia = ItemRotina & { feito: boolean; feitoEm: string | null; situacao: SituacaoItem; subFeitos: string[] };
 
-// tabelas das migrations 0030/0032 (fora do types.ts gerado)
+// tabelas das migrations 0030/0032/0065 (fora do types.ts gerado)
 type Db = SupabaseClient;
 const banco = async (db?: Db) => db ?? ((await createClient()) as unknown as Db);
 
-const diaDaSemana = (dia: string) => new Date(`${dia}T12:00:00Z`).getUTCDay();
 const hhmm = (t: string | null) => (t ? t.slice(0, 5) : null);
 const agoraBahia = () => new Intl.DateTimeFormat("en-GB", { timeZone: "America/Bahia", hour: "2-digit", minute: "2-digit", hour12: false }).format(new Date());
 const horaBahia = (iso: string) => new Intl.DateTimeFormat("en-GB", { timeZone: "America/Bahia", hour: "2-digit", minute: "2-digit", hour12: false }).format(new Date(iso));
 const hojeBahia = () => new Intl.DateTimeFormat("en-CA", { timeZone: "America/Bahia" }).format(new Date());
 
-/** Ordem do dia: por horário de início; sem horário vai pro fim. */
-const porHorario = (a: ItemRotina, b: ItemRotina) => (a.hora_inicio ?? "99").localeCompare(b.hora_inicio ?? "99") || a.ordem - b.ordem;
+/** Ordem do dia: a prioridade definida pelo admin máximo (setas ↑↓ no editor). */
+const porPrioridade = (a: ItemRotina, b: ItemRotina) => a.ordem - b.ordem || (a.created_at ?? "").localeCompare(b.created_at ?? "");
 
 /** Limite do item: o fim; sem fim, 1 h depois do início. */
 function limite(i: ItemRotina): string | null {
@@ -47,28 +51,29 @@ function limite(i: ItemRotina): string | null {
 export async function listarItensRotina(responsavelIds?: string[], db?: Db): Promise<ItemRotina[]> {
   let q = (await banco(db))
     .from("rotina_itens")
-    .select("id, responsavel_id, titulo, dias, ordem, ativo, hora_inicio, hora_fim, observacao, created_at")
+    .select("id, responsavel_id, titulo, dias, ordem, ativo, hora_inicio, hora_fim, observacao, checklist, repeticao, regra_mensal, created_at")
     .eq("ativo", true)
     .order("ordem")
     .order("created_at");
   if (responsavelIds) q = q.in("responsavel_id", responsavelIds.length ? responsavelIds : ["00000000-0000-0000-0000-000000000000"]);
   const { data } = await q;
-  return ((data ?? []) as ItemRotina[]).sort(porHorario);
+  return ((data ?? []) as ItemRotina[]).map((i) => ({ ...i, checklist: i.checklist ?? [], repeticao: i.repeticao ?? "semanal" })).sort(porPrioridade);
 }
 
-/** Rotina de uma pessoa num dia (só os itens daquele dia da semana), com o que já foi feito e a situação agora. */
+/** Rotina de uma pessoa num dia (só os itens que caem nele), com o que já foi feito, os subitens marcados e a situação agora. */
 export async function rotinaDoDia(responsavelId: string, dia: string, db?: Db): Promise<ItemDoDia[]> {
   const d = await banco(db);
-  const semana = diaDaSemana(dia);
-  const [itens, { data: feitos }] = await Promise.all([
+  const [itens, { data: feitos }, { data: subs }] = await Promise.all([
     listarItensRotina([responsavelId], d),
     d.from("rotina_feitos").select("item_id, feito_em").eq("responsavel_id", responsavelId).eq("dia", dia),
+    d.from("rotina_subitens_feitos").select("item_id, sub_id").eq("responsavel_id", responsavelId).eq("dia", dia),
   ]);
   const feitoEm = new Map((feitos ?? []).map((f) => [f.item_id as string, f.feito_em as string]));
+  const subFeitos = (id: string) => (subs ?? []).filter((x) => x.item_id === id).map((x) => x.sub_id as string);
   const hoje = hojeBahia();
   const agora = agoraBahia();
   return itens
-    .filter((i) => i.dias.includes(semana))
+    .filter((i) => caiNoDia(i, dia))
     .map((i) => {
       const feito = feitoEm.has(i.id);
       const ini = hhmm(i.hora_inicio);
@@ -82,14 +87,13 @@ export async function rotinaDoDia(responsavelId: string, dia: string, db?: Db): 
             : dia === hoje && agora >= ini
               ? "agora"
               : "depois";
-      return { ...i, feito, feitoEm: feitoEm.get(i.id) ?? null, situacao };
+      return { ...i, feito, feitoEm: feitoEm.get(i.id) ?? null, situacao, subFeitos: subFeitos(i.id) };
     });
 }
 
-/** Itens da pessoa que não caem neste dia da semana (para mostrar a semana no cartão). */
+/** Itens da pessoa que não caem neste dia (para mostrar a semana/o mês no cartão). */
 export async function rotinaOutrosDias(responsavelId: string, dia: string, db?: Db): Promise<ItemRotina[]> {
-  const semana = diaDaSemana(dia);
-  return (await listarItensRotina([responsavelId], db)).filter((i) => !i.dias.includes(semana));
+  return (await listarItensRotina([responsavelId], db)).filter((i) => !caiNoDia(i, dia));
 }
 
 /** Itens de rotina feitos por pessoa desde um dia (pontos do ranking). */
@@ -103,12 +107,11 @@ export async function pontosDeRotina(desde: string, db?: Db): Promise<Map<string
 /** Progresso de hoje de cada pessoa: feitos / total. */
 export async function progressoDoDia(dia: string, db?: Db): Promise<Map<string, { feitos: number; total: number }>> {
   const d = await banco(db);
-  const semana = diaDaSemana(dia);
   const [itens, { data: feitos }] = await Promise.all([listarItensRotina(undefined, d), d.from("rotina_feitos").select("item_id, responsavel_id").eq("dia", dia)]);
   const m = new Map<string, { feitos: number; total: number }>();
   const doDia = new Set<string>();
   for (const i of itens) {
-    if (!i.dias.includes(semana)) continue;
+    if (!caiNoDia(i, dia)) continue;
     doDia.add(i.id);
     const p = m.get(i.responsavel_id) ?? { feitos: 0, total: 0 };
     p.total++;
@@ -122,7 +125,7 @@ export type Cumprimento = { esperados: number; feitos: number; noHorario: number
 
 /**
  * Cumprimento de cada pessoa num período (até hoje): quantos itens eram
- * esperados (pelos dias da semana de cada item ativo), quantos foram feitos e
+ * esperados (pela repetição de cada item ativo), quantos foram feitos e
  * quantos foram marcados até o horário-limite do item.
  */
 export async function cumprimento(desde: string, ate: string, db?: Db): Promise<Map<string, Cumprimento>> {
@@ -139,8 +142,7 @@ export async function cumprimento(desde: string, ate: string, db?: Db): Promise<
   };
   // só conta a partir do dia em que o item foi criado
   for (let dia = desde; dia <= ate; dia = proximoDia(dia)) {
-    const semana = diaDaSemana(dia);
-    for (const i of itens) if (i.dias.includes(semana) && dia >= criadoEm(i)) pega(i.responsavel_id).esperados++;
+    for (const i of itens) if (caiNoDia(i, dia) && dia >= criadoEm(i)) pega(i.responsavel_id).esperados++;
   }
   for (const f of feitos ?? []) {
     const c = pega(f.responsavel_id);
@@ -164,12 +166,11 @@ export type LinhaRelatorio = { item: ItemRotina; feitoEm: string | null; noHorar
 /** Relatório de um dia: para cada pessoa, cada item esperado com feito/não feito e se foi no horário. */
 export async function relatorioDoDia(dia: string, db?: Db): Promise<Map<string, LinhaRelatorio[]>> {
   const d = await banco(db);
-  const semana = diaDaSemana(dia);
   const [itens, { data: feitos }] = await Promise.all([listarItensRotina(undefined, d), d.from("rotina_feitos").select("item_id, feito_em").eq("dia", dia)]);
   const feitoEm = new Map((feitos ?? []).map((f) => [f.item_id as string, f.feito_em as string]));
   const m = new Map<string, LinhaRelatorio[]>();
   for (const i of itens) {
-    if (!i.dias.includes(semana) || dia < criadoEm(i)) continue;
+    if (!caiNoDia(i, dia) || dia < criadoEm(i)) continue;
     const quando = feitoEm.get(i.id) ?? null;
     const lim = limite(i);
     const noHorario = quando ? !lim || horaBahia(quando) <= lim : null;

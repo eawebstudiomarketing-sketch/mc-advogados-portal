@@ -160,8 +160,8 @@ export async function rotinaDaPessoa({
                   podeMarcar
                   compacto
                   titulo="Minha rotina de hoje"
-                  itens={itensDia.map((i) => ({ id: i.id, titulo: i.titulo, feito: i.feito, feitoEm: i.feitoEm, hora_inicio: i.hora_inicio, hora_fim: i.hora_fim, observacao: i.observacao, situacao: i.situacao }))}
-                  outrosDias={outros.map((i) => ({ id: i.id, titulo: i.titulo, dias: i.dias, hora_inicio: i.hora_inicio, hora_fim: i.hora_fim }))}
+                  itens={itensDia.map((i) => ({ id: i.id, titulo: i.titulo, feito: i.feito, feitoEm: i.feitoEm, hora_inicio: i.hora_inicio, hora_fim: i.hora_fim, observacao: i.observacao, situacao: i.situacao, checklist: i.checklist, subFeitos: i.subFeitos }))}
+                  outrosDias={outros.map((i) => ({ id: i.id, titulo: i.titulo, dias: i.dias, hora_inicio: i.hora_inicio, hora_fim: i.hora_fim, repeticao: i.repeticao, regra_mensal: i.regra_mensal }))}
                 />
               );
               const resumoNode = (
@@ -261,7 +261,7 @@ export async function rotinaDaPessoa({
         pessoa={{ id: alvo.id, nome: alvo.nome }}
         itens={itensTodos
           .filter((i) => i.responsavel_id === alvo.id)
-          .map((i) => ({ id: i.id, titulo: i.titulo, dias: i.dias, hora_inicio: i.hora_inicio, hora_fim: i.hora_fim, observacao: i.observacao }))}
+          .map((i) => ({ id: i.id, titulo: i.titulo, dias: i.dias, hora_inicio: i.hora_inicio, hora_fim: i.hora_fim, observacao: i.observacao, checklist: i.checklist, repeticao: i.repeticao, regra_mensal: i.regra_mensal }))}
         pessoas={pessoas.filter((p) => p.profileId).map((p) => ({ id: p.id, nome: p.nome, temRotina: comItens.has(p.id) }))}
       />
     );

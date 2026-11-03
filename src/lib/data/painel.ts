@@ -1,6 +1,7 @@
 import "server-only";
 import type { Activity } from "@/lib/data/activities";
 import type { Pessoa } from "@/lib/data/escritorio";
+import { createAdminClient } from "@/lib/supabase/admin";
 
 // Contas da Visão geral e da Equipe: ranking de quem concluiu, carga de cada
 // pessoa e clientes com mais pendências. Tudo a partir da lista de atividades
@@ -19,9 +20,26 @@ export const emAberto = (a: Pick<Activity, "status">) => a.status === "aberta" |
 
 export type LinhaRanking = { responsavelId: string; nome: string; concluidas: number; rotina: number; pontos: number; abertas: number; atrasadas: number };
 
+type AtividadeRanking = Pick<Activity, "responsavel_id" | "status" | "concluida_em" | "deadline">;
+
+/**
+ * Atividades da equipe toda, só os campos do placar (03/11/2026: o ranking ficou
+ * visível para todos; quem não vê a equipe só enxerga as próprias atividades,
+ * então o placar dos colegas é contado aqui pelo servidor, sem expor o conteúdo).
+ */
+export async function atividadesDoRanking(): Promise<AtividadeRanking[]> {
+  const db = createAdminClient();
+  const out: AtividadeRanking[] = [];
+  for (let i = 0; ; i += 1000) {
+    const { data } = await db.from("activities").select("responsavel_id, status, concluida_em, deadline").is("archived_at", null).range(i, i + 999);
+    out.push(...((data ?? []) as AtividadeRanking[]));
+    if (!data || data.length < 1000) return out;
+  }
+}
+
 /** Quem mais concluiu no período (concluida_em dentro dos últimos `dias`). */
 /** Pontos = demandas concluídas + itens de rotina feitos no período (1 ponto cada). */
-export function ranking(atividades: Activity[], pessoas: Pessoa[], dias: number, rotina: Map<string, number> = new Map()): LinhaRanking[] {
+export function ranking(atividades: AtividadeRanking[], pessoas: Pessoa[], dias: number, rotina: Map<string, number> = new Map()): LinhaRanking[] {
   const hoje = hojeBahia();
   const desde = Date.parse(`${somaDias(hoje, -dias + 1)}T00:00:00-03:00`);
   const linhas = new Map<string, LinhaRanking>(

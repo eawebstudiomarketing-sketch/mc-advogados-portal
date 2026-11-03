@@ -5,7 +5,8 @@ import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { Check, ChevronDown, ListChecks } from "lucide-react";
 import { toast } from "sonner";
-import { marcarRotinaAction } from "@/app/admin/rotina/actions";
+import { marcarRotinaAction, marcarSubitemRotinaAction } from "@/app/admin/rotina/actions";
+import { descreverRepeticao, type RegraMensal, type SubitemRotina } from "@/lib/rotina-repeticao";
 
 export type ItemRotinaTela = {
   id: string;
@@ -16,13 +17,13 @@ export type ItemRotinaTela = {
   hora_fim?: string | null;
   observacao?: string | null;
   situacao?: "feito" | "agora" | "atrasado" | "depois" | "sem_hora";
+  /** checklist da tarefa fixa (03/11) e os subitens já marcados hoje */
+  checklist?: SubitemRotina[];
+  subFeitos?: string[];
 };
 
 /** Item da rotina que não cai hoje (só para mostrar a semana). */
-export type ItemOutroDia = { id: string; titulo: string; dias: number[]; hora_inicio?: string | null; hora_fim?: string | null };
-
-const DIA_CURTO = ["Dom", "Seg", "Ter", "Qua", "Qui", "Sex", "Sáb"];
-const nomeDosDias = (dias: number[]) => (dias.length === 7 ? "Todo dia" : [...dias].sort().map((d) => DIA_CURTO[d]).join(", "));
+export type ItemOutroDia = { id: string; titulo: string; dias: number[]; hora_inicio?: string | null; hora_fim?: string | null; repeticao?: "semanal" | "mensal"; regra_mensal?: RegraMensal | null };
 
 const ETIQUETA: Record<string, { texto: string; cor: string } | undefined> = {
   agora: { texto: "Agora", cor: "bg-status-info-bg text-status-info" },
@@ -43,7 +44,7 @@ function gruposDoDia(itens: ItemRotinaTela[]): [string, ItemRotinaTela[]][] {
   return grupos.filter(([, lista]) => lista.length > 0);
 }
 
-/** Rotina do dia em ordem de horário. Cada item marcado vale 1 ponto no ranking. */
+/** Rotina do dia na ordem de prioridade. Cada item marcado vale 1 ponto no ranking. */
 export function MinhaRotina({
   itens: inicial,
   podeMarcar,
@@ -82,6 +83,26 @@ export function MinhaRotina({
       } else {
         if (novo && feitos + 1 === itens.length) toast.success("Rotina do dia completa! 🎉");
         router.refresh(); // ranking e situação ("atrasado") se acertam
+      }
+    });
+  }
+
+  /** Subitem do checklist da tarefa: marcando todos, a tarefa se marca sozinha. */
+  function alternarSub(i: ItemRotinaTela, subId: string) {
+    if (!podeMarcar) return;
+    const antes = i.subFeitos ?? [];
+    const novo = !antes.includes(subId);
+    const subFeitos = novo ? [...antes, subId] : antes.filter((x) => x !== subId);
+    const completo = novo && (i.checklist ?? []).every((x) => subFeitos.includes(x.id));
+    setItens((xs) => xs.map((x) => (x.id === i.id ? { ...x, subFeitos, ...(completo ? { feito: true, feitoEm: new Date().toISOString(), situacao: "feito" as const } : {}) } : x)));
+    start(async () => {
+      const r = await marcarSubitemRotinaAction(i.id, subId, novo);
+      if (!r.ok) {
+        setItens((xs) => xs.map((x) => (x.id === i.id ? i : x)));
+        toast.error(r.erro ?? "Não foi possível salvar.");
+      } else {
+        if (r.itemFeito && !i.feito) toast.success(`“${i.titulo}” concluída.`);
+        router.refresh();
       }
     });
   }
@@ -130,6 +151,11 @@ export function MinhaRotina({
                       <span className={`min-w-0 flex-1 truncate text-[13px] ${i.feito ? "text-muted line-through" : "text-foreground"}`} title={i.titulo}>
                         {i.titulo}
                       </span>
+                      {!!i.checklist?.length && (
+                        <span className="shrink-0 text-[11px] tabular-nums text-muted" title="Subitens do checklist">
+                          {(i.subFeitos ?? []).filter((x) => i.checklist!.some((c) => c.id === x)).length}/{i.checklist.length}
+                        </span>
+                      )}
                       {hora(i.hora_inicio) && <span className={`shrink-0 text-[11px] tabular-nums ${etq ? (etq.texto === "Atrasado" ? "text-status-danger" : "text-status-info") : "text-muted"}`}>{hora(i.hora_inicio)}</span>}
                     </button>
                   </li>
@@ -202,7 +228,38 @@ export function MinhaRotina({
                     <span className={`text-sm ${i.feito ? "text-muted line-through" : "text-foreground"}`}>{i.titulo}</span>
                     {etq && <span className={`rounded-full px-2 py-px text-[10px] font-semibold ${etq.cor}`}>{etq.texto}</span>}
                     {i.feito && i.feitoEm && <span className="text-[11px] text-status-success">feito às {horaFeito(i.feitoEm)}</span>}
+                    {!!i.checklist?.length && (
+                      <span className="text-[11px] tabular-nums text-muted">
+                        {(i.subFeitos ?? []).filter((x) => i.checklist!.some((c) => c.id === x)).length}/{i.checklist.length} subitens
+                      </span>
+                    )}
                   </span>
+                  {!!i.checklist?.length && (
+                    <ul className="mt-1.5 space-y-0.5 border-l-2 border-border pl-2.5" aria-label={`Checklist de ${i.titulo}`}>
+                      {i.checklist.map((c) => {
+                        const ok = (i.subFeitos ?? []).includes(c.id);
+                        return (
+                          <li key={c.id}>
+                            <button
+                              type="button"
+                              onClick={() => alternarSub(i, c.id)}
+                              disabled={!podeMarcar}
+                              aria-pressed={ok}
+                              className={`flex w-full items-start gap-2 rounded-md px-1 py-0.5 text-left transition-colors hover:bg-hover ${podeMarcar ? "" : "cursor-default"}`}
+                            >
+                              <span
+                                className={`mt-0.5 flex h-3.5 w-3.5 shrink-0 items-center justify-center rounded border-[1.5px] transition-colors ${ok ? "border-status-success bg-status-success text-white" : "border-border-strong"}`}
+                                aria-hidden
+                              >
+                                {ok && <Check className="h-2.5 w-2.5" strokeWidth={3} />}
+                              </span>
+                              <span className={`text-xs ${ok ? "text-muted line-through" : "text-foreground/85"}`}>{c.texto}</span>
+                            </button>
+                          </li>
+                        );
+                      })}
+                    </ul>
+                  )}
                   {i.observacao && (
                     <button type="button" onClick={() => setAberto(aberto === i.id ? null : i.id)} className="mt-0.5 inline-flex items-center gap-1 text-[11px] text-muted hover:text-foreground">
                       <ChevronDown className={`h-3 w-3 transition-transform ${aberto === i.id ? "rotate-180" : ""}`} aria-hidden /> Como fazer
@@ -219,13 +276,13 @@ export function MinhaRotina({
       ))}
       {outrosDias.length > 0 && (
         <div className="mt-3 border-t border-border pt-3">
-          <p className="eyebrow mb-1">Nos outros dias</p>
+          <p className="eyebrow mb-1">Em outros dias</p>
           <ul className="space-y-0.5">
             {outrosDias.map((i) => (
               <li key={i.id} className="flex items-baseline gap-3 px-2 py-1 text-sm">
                 <span className="w-12 shrink-0 text-right text-xs tabular-nums text-muted">{hora(i.hora_inicio) ?? "—"}</span>
                 <span className="min-w-0 flex-1 text-foreground/75">{i.titulo}</span>
-                <span className="shrink-0 text-[11px] text-muted">{nomeDosDias(i.dias)}</span>
+                <span className="shrink-0 text-[11px] text-muted">{descreverRepeticao({ repeticao: i.repeticao ?? "semanal", dias: i.dias, regra_mensal: i.regra_mensal ?? null })}</span>
               </li>
             ))}
           </ul>
