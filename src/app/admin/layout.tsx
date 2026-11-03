@@ -11,7 +11,8 @@ import { contarNaoLidas } from "@/lib/data/mensagens";
 import { contarDistribuicaoPendentes } from "@/lib/data/distribuicao";
 import { alertaDaRotina } from "@/lib/rotina-relatorio/alerta";
 
-export default async function AdminLayout({ children }: { children: React.ReactNode }) {
+// `rotina`: cartão da rotina de hoje aberto pelo reloginho por cima da tela (src/app/admin/@rotina).
+export default async function AdminLayout({ children, rotina }: { children: React.ReactNode; rotina: React.ReactNode }) {
   const profile = await requireRole(["admin", "advogado"]);
   const permissoes = (await getPermissoes())!;
   // tudo em paralelo (desempenho, 30/10): lista leve para a busca rápida (Ctrl+K, só id e nome dos
@@ -37,6 +38,7 @@ export default async function AdminLayout({ children }: { children: React.ReactN
       superAdmin={ehSuperAdmin(profile)}
     >
       {children}
+      {rotina}
     </AdminShell>
   );
 }
