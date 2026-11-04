@@ -1,6 +1,6 @@
 import "server-only";
 import type { SupabaseClient } from "@supabase/supabase-js";
-import { configCobranca, destinoDaCobranca, listaDocumentos, preencherMensagem } from "@/lib/cobrancas";
+import { configCobranca, destinoDaCobranca, listaDocumentos, preencherMensagem, saudacaoCliente } from "@/lib/cobrancas";
 import type { ToolDef } from "./tools";
 
 // Ferramentas do assistente para a cobrança de documento (03/11/2026) e as
@@ -13,9 +13,10 @@ export function toolsCobranca(dbTipado: () => unknown): ToolDef[] {
   const db = () => dbTipado() as SupabaseClient;
 
   async function atividade(id: unknown) {
-    const { data } = await db().from("activities").select("id, title, status, client_id, clients(name)").eq("id", String(id)).maybeSingle();
+    const { data } = await db().from("activities").select("id, title, status, client_id, clients(name, tipo_pessoa)").eq("id", String(id)).maybeSingle();
     if (!data) throw new Error("Atividade não encontrada.");
-    return { id: data.id as string, titulo: data.title as string, status: data.status as string, clienteId: (data.client_id as string | null) || null, cliente: (data.clients as unknown as { name: string } | null)?.name ?? "" };
+    const cli = data.clients as unknown as { name: string; tipo_pessoa: string | null } | null;
+    return { id: data.id as string, titulo: data.title as string, status: data.status as string, clienteId: (data.client_id as string | null) || null, cliente: cli ? saudacaoCliente(cli.name, cli.tipo_pessoa) : "" };
   }
   const lerDocs = (x: unknown) => [...new Set((Array.isArray(x) ? x : String(x ?? "").split(/[,;\n]/)).map((d) => String(d).trim().slice(0, 120)).filter(Boolean))].slice(0, 20);
 

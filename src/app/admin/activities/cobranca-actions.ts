@@ -7,7 +7,7 @@ import { createAdminClient } from "@/lib/supabase/admin";
 import { requireRole } from "@/lib/dal";
 import { generateJson } from "@/lib/gemini";
 import { MODELOS } from "@/lib/ia-modelos";
-import { cobrancaDaAtividade, configCobranca, destinoDaCobranca, enviarCobranca, type Cobranca, type ConfigCobranca } from "@/lib/cobrancas";
+import { cobrancaDaAtividade, configCobranca, destinoDaCobranca, enviarCobranca, saudacaoCliente, type Cobranca, type ConfigCobranca } from "@/lib/cobrancas";
 
 // Cobrança de documento na atividade (03/11/2026): quem faz a atividade liga,
 // escolhe os documentos, por onde vai (grupo ou número), de quanto em quanto
@@ -20,7 +20,8 @@ const adm = () => createAdminClient() as unknown as SupabaseClient;
 export type TelaCobranca = {
   cobranca: (Cobranca & { recebidos: string[]; destinoRotulo: string | null }) | null;
   config: ConfigCobranca;
-  atividade: { id: string; titulo: string; clienteId: string | null; cliente: string | null; status: string };
+  /** saudacao = como o cliente é chamado na mensagem (PF: 1º nome; empresa: nome inteiro) */
+  atividade: { id: string; titulo: string; clienteId: string | null; cliente: string | null; saudacao: string; status: string };
   destinos: { auto: string | null; grupo: string | null; numero: string | null };
 };
 
@@ -28,7 +29,7 @@ export async function carregarCobrancaAction(activityId: string): Promise<TelaCo
   await requireRole(["admin", "advogado"]);
   if (!UUID.test(activityId)) return null;
   // a leitura passa pelas regras do banco: só abre se a pessoa pode ver a atividade
-  const { data: at } = await (await db()).from("activities").select("id, title, status, client_id, clients(name)").eq("id", activityId).maybeSingle();
+  const { data: at } = await (await db()).from("activities").select("id, title, status, client_id, clients(name, tipo_pessoa)").eq("id", activityId).maybeSingle();
   if (!at) return null;
   const clienteId = (at.client_id as string | null) || null;
   const [cobranca, config, auto, grupo, numero] = await Promise.all([
@@ -41,7 +42,10 @@ export async function carregarCobrancaAction(activityId: string): Promise<TelaCo
   return {
     cobranca,
     config,
-    atividade: { id: at.id, titulo: at.title, clienteId, cliente: (at.clients as unknown as { name: string } | null)?.name ?? null, status: at.status },
+    atividade: (() => {
+      const cli = at.clients as unknown as { name: string; tipo_pessoa: string | null } | null;
+      return { id: at.id, titulo: at.title, clienteId, cliente: cli?.name ?? null, saudacao: cli ? saudacaoCliente(cli.name, cli.tipo_pessoa) : "", status: at.status };
+    })(),
     destinos: { auto: auto?.rotulo ?? null, grupo: grupo?.rotulo ?? null, numero: numero?.rotulo ?? null },
   };
 }

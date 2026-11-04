@@ -55,9 +55,12 @@ export async function configCobranca(): Promise<ConfigCobranca> {
 /** "RG, CPF e comprovante de residência" */
 export const listaDocumentos = (docs: string[]) => (docs.length <= 1 ? docs.join("") : `${docs.slice(0, -1).join(", ")} e ${docs[docs.length - 1]}`);
 
+/** Como chamar o cliente na mensagem: pessoa física pelo 1º nome; empresa pelo nome inteiro ("Olá, GRUPO!" não serve). */
+export const saudacaoCliente = (nome: string, tipo: string | null | undefined) => (tipo === "PF" ? (nome.trim().split(/\s+/)[0] ?? nome) : nome.trim());
+
+/** `cliente` já vem pronto para a saudação (ver saudacaoCliente). */
 export function preencherMensagem(texto: string, v: { cliente: string; titulo: string; documentos: string[] }) {
-  const primeiro = v.cliente.trim().split(/\s+/)[0] ?? "";
-  return texto.replaceAll("{cliente}", primeiro).replaceAll("{titulo}", v.titulo).replaceAll("{documentos}", listaDocumentos(v.documentos));
+  return texto.replaceAll("{cliente}", v.cliente.trim()).replaceAll("{titulo}", v.titulo).replaceAll("{documentos}", listaDocumentos(v.documentos));
 }
 
 const semAcento = (t: string) => t.normalize("NFD").replace(/[̀-ͯ]/g, "").toLowerCase().trim();
@@ -125,11 +128,12 @@ export function horarioDeCobrar(agora: Date, cfg: Pick<ConfigCobranca, "horaInic
 type Contexto = { titulo: string; cliente: string; status: string; responsavelProfile: string | null };
 
 async function contextoDa(c: Cobranca): Promise<Contexto | null> {
-  const { data } = await db().from("activities").select("title, status, archived_at, clients(name), responsaveis!activities_responsavel_id_fkey(profile_id)").eq("id", c.activity_id).maybeSingle();
+  const { data } = await db().from("activities").select("title, status, archived_at, clients(name, tipo_pessoa), responsaveis!activities_responsavel_id_fkey(profile_id)").eq("id", c.activity_id).maybeSingle();
   if (!data) return null;
+  const cli = data.clients as unknown as { name: string; tipo_pessoa: string | null } | null;
   return {
     titulo: data.title as string,
-    cliente: (data.clients as unknown as { name: string } | null)?.name ?? "",
+    cliente: cli ? saudacaoCliente(cli.name, cli.tipo_pessoa) : "",
     status: data.archived_at ? "arquivada" : (data.status as string),
     responsavelProfile: (data.responsaveis as unknown as { profile_id: string | null } | null)?.profile_id ?? null,
   };

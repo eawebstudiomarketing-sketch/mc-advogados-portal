@@ -21,7 +21,7 @@ const dataHora = (iso: string | null) =>
   iso ? new Date(iso).toLocaleString("pt-BR", { timeZone: "America/Bahia", day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit" }) : "—";
 const lista = (d: string[]) => (d.length <= 1 ? d.join("") : `${d.slice(0, -1).join(", ")} e ${d[d.length - 1]}`);
 const previa = (texto: string, cliente: string, titulo: string, docs: string[]) =>
-  texto.replaceAll("{cliente}", cliente.trim().split(/\s+/)[0] ?? "").replaceAll("{titulo}", titulo).replaceAll("{documentos}", lista(docs) || "…");
+  texto.replaceAll("{cliente}", cliente.trim()).replaceAll("{titulo}", titulo).replaceAll("{documentos}", lista(docs) || "…");
 
 type Form = { clienteId: string; documentos: string[]; mensagem: string; destino: "auto" | "grupo" | "numero"; intervaloDias: number };
 
@@ -187,7 +187,7 @@ function FormCobranca({
     if (semCliente) void clientesParaVincularAction().then(setClientes);
   }, [semCliente]);
 
-  const nomeCliente = semCliente ? (clientes?.find((x) => x.id === form.clienteId)?.name ?? "") : (tela.atividade.cliente ?? "");
+  const nomeCliente = semCliente ? (clientes?.find((x) => x.id === form.clienteId)?.name ?? "") : tela.atividade.saudacao;
   function incluirDoc() {
     const t = novoDoc.trim();
     if (!t) return;
