@@ -9,7 +9,8 @@ import { ACTIVITY_STATUSES } from "@/lib/activity-status";
 import type { Database } from "@/lib/supabase/types";
 import { destinoDeVolta } from "@/lib/voltar";
 import { reagendarAudienciaDaAtividade } from "@/lib/zap/lembretes";
-import { cancelarPendentes } from "@/lib/zap/fila";
+import { cancelarPendentes, destinoDoCliente } from "@/lib/zap/fila";
+import { criarAgendamento, proximaOcorrencia, type Recorrencia } from "@/lib/zap/agendamentos";
 import { configCobranca } from "@/lib/cobrancas";
 import type { SupabaseClient } from "@supabase/supabase-js";
 
@@ -23,6 +24,8 @@ function lerAgenda(formData: FormData): { categoria?: string; hora?: string | nu
   if (formData.has("area")) out.area = String(formData.get("area") ?? "").trim() || null;
   const categoria = formData.get("categoria");
   if (typeof categoria === "string" && CATEGORIAS.includes(categoria)) out.categoria = categoria;
+  // tipo Audiência (04/11/2026) sempre entra na Agenda como audiência (lembretes ao cliente)
+  if (formData.get("type") === "audiencia") out.categoria = "audiencia";
   if (formData.has("hora")) {
     const hora = String(formData.get("hora") ?? "");
     out.hora = /^\d{2}:\d{2}$/.test(hora) ? hora : null; // horário em qualquer atividade (pedido de 20/10)
@@ -90,6 +93,25 @@ export async function createActivityAction(
   if (cobrar && !clienteDaAtividade) return { error: "Para cobrar documento, escolha o cliente da atividade." };
   if (cobrar && !docsCobrar.length) return { error: "Diga quais documentos faltam (separe por vírgula)." };
 
+  // mensagem automática no WhatsApp do cliente (04/11/2026): confere tudo antes de criar a atividade
+  let zap: { destino: { para: string; rotulo: string }; texto: string; recorrencia: Recorrencia; hora: string } | null = null;
+  if (formData.get("zap_auto") === "on") {
+    const texto = String(formData.get("zap_texto") ?? "").trim();
+    const data = String(formData.get("zap_data") ?? "");
+    const hora = String(formData.get("zap_hora") ?? "");
+    const rep = String(formData.get("zap_repeticao") ?? "unica");
+    if (!clienteDaAtividade) return { error: "Para a mensagem automática no WhatsApp, escolha o cliente da atividade." };
+    if (!texto) return { error: "Escreva a mensagem automática do WhatsApp (ou use Escrever com IA)." };
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(data) || !/^\d{2}:\d{2}$/.test(hora)) return { error: "Escolha o dia e o horário da mensagem automática." };
+    const destino = await destinoDoCliente(clienteDaAtividade);
+    if (!destino) return { error: "Este cliente não tem WhatsApp vinculado (grupo, contato ou número na ficha)." };
+    const semana = new Date(`${data}T12:00:00Z`).getUTCDay();
+    const recorrencia: Recorrencia =
+      rep === "uteis" ? { tipo: "diaria", uteis: true, inicio: data } : rep === "semanal" ? { tipo: "semanal", dias: [semana], inicio: data } : rep === "mensal" ? { tipo: "mensal", dia: Number(data.slice(8)), inicio: data } : { tipo: "unica", data };
+    if (!proximaOcorrencia(recorrencia, hora, new Date())) return { error: "O dia e o horário da mensagem automática já passaram." };
+    zap = { destino, texto, recorrencia, hora };
+  }
+
   const supabase = await createClient();
   const responsavel = await lerResponsavel(supabase, formData.get("responsavel_id"));
   if (responsavel === null) return { error: "Responsável inválido." };
@@ -110,6 +132,12 @@ export async function createActivityAction(
 
   if (error) {
     return { error: "Não foi possível salvar a atividade. Tente novamente." };
+  }
+
+  if (zap && criada) {
+    await criarAgendamento({ para: zap.destino.para, rotulo: zap.destino.rotulo, texto: zap.texto, recorrencia: zap.recorrencia, hora: zap.hora, criadoPor: profile.id, activityId: criada.id }).catch((e) =>
+      console.error("mensagem automática da atividade:", (e as Error).message)
+    );
   }
 
   if (cobrar && criada && clienteDaAtividade) {

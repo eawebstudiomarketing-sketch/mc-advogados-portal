@@ -8,6 +8,7 @@ export const ACTIVITY_TYPE_LABEL: Record<ActivityType, string> = {
   contrato: "Contrato",
   reuniao: "Reunião",
   pesquisa: "Pesquisa",
+  audiencia: "Audiência",
 };
 
 export const ACTIVITY_TYPES = Object.keys(ACTIVITY_TYPE_LABEL) as ActivityType[];

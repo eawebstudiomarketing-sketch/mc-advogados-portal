@@ -1960,6 +1960,7 @@ export type Database = {
         | "contrato"
         | "reuniao"
         | "pesquisa"
+        | "audiencia"
       contract_status: "active" | "expired" | "cancelled"
       demand_draft_status: "rascunho" | "aprovada" | "descartada"
       demand_priority: "alta" | "media" | "baixa"
@@ -2113,6 +2114,7 @@ export const Constants = {
         "contrato",
         "reuniao",
         "pesquisa",
+        "audiencia",
       ],
       contract_status: ["active", "expired", "cancelled"],
       demand_draft_status: ["rascunho", "aprovada", "descartada"],

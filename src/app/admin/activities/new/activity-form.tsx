@@ -11,6 +11,7 @@ import { EtiquetasEditor } from "@/components/atividade/etiquetas";
 import type { Etiqueta } from "@/lib/data/etiquetas";
 import { VoltarInput } from "@/components/nav/back-button";
 import { CamposAgenda } from "@/components/atividade/campos-agenda";
+import { MensagemZapCampos } from "@/components/atividade/mensagem-zap-campos";
 
 const initialState: CreateActivityState = { error: null };
 
@@ -37,6 +38,7 @@ export function ActivityForm({
   // (não pré-seleciona o primeiro da lista para não salvar no cliente errado).
   const [cliente, setCliente] = useState(clienteInicial ?? "");
   const [cobrar, setCobrar] = useState(false);
+  const [tipo, setTipo] = useState(inicial.tipo ?? ACTIVITY_TYPES[0]);
 
   return (
     <form action={formAction} className="max-w-xl space-y-5 ui-card p-6">
@@ -118,7 +120,8 @@ export function ActivityForm({
         <select
           id="type"
           name="type"
-          defaultValue={inicial.tipo}
+          value={tipo}
+          onChange={(e) => setTipo(e.target.value)}
           className="ui-input"
         >
           {ACTIVITY_TYPES.map((type) => (
@@ -142,7 +145,8 @@ export function ActivityForm({
         />
       </div>
 
-      <CamposAgenda categoria={inicial.categoria} hora={inicial.hora} areas={areas} />
+      {/* tipo Audiência já entra na Agenda como audiência (04/11/2026) */}
+      <CamposAgenda key={tipo === "audiencia" ? "aud" : "outro"} categoria={tipo === "audiencia" ? "audiencia" : inicial.categoria} hora={inicial.hora} areas={areas} />
 
       {/* cobrança de documento (03/11/2026): cobra no WhatsApp do cliente até chegar */}
       <div className="rounded-xl border border-border p-3">
@@ -189,6 +193,8 @@ export function ActivityForm({
           className="ui-input"
         />
       </div>
+
+      <MensagemZapCampos clienteId={cliente} />
 
       {state.error && <p className="text-sm text-status-danger">{state.error}</p>}
 

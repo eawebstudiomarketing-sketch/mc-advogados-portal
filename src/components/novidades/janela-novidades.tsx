@@ -9,7 +9,9 @@ import type { Novidade, ItemNovidade } from "@/lib/novidades";
 // Janela "Novidades" (04/11/2026), no estilo do "What's new" do Chrome: abre
 // sozinha uma vez quando sai algo novo no portal, com um item por vez (print,
 // o que é e como usar). Fechar marca como vista; depois só em Caixa de entrada →
-// Novidades.
+// Novidades. Abas que já estavam abertas também fecham na hora (04/11/2026:
+// fechava numa aba e a janela continuava nas outras): o navegador guarda que
+// foi vista e avisa as outras abas (evento "storage").
 
 export function ItemDaNovidade({ item }: { item: ItemNovidade }) {
   return (
@@ -39,14 +41,35 @@ export function ItemDaNovidade({ item }: { item: ItemNovidade }) {
   );
 }
 
+const chaveVista = (id: string) => `mc:novidade-vista:${id}`;
+const jaVista = (id: string) => {
+  try {
+    return localStorage.getItem(chaveVista(id)) === "1";
+  } catch {
+    return false;
+  }
+};
+
 export function JanelaNovidades({ novidade }: { novidade: Novidade }) {
   const [aberta, setAberta] = useState(true);
   const [k, setK] = useState(0);
   const total = novidade.itens.length;
   const fechar = () => {
     setAberta(false);
+    try {
+      localStorage.setItem(chaveVista(novidade.id), "1");
+    } catch {}
     void novidadeVistaAction(novidade.id);
   };
+
+  // vista em outra aba (agora ou antes): some aqui também, sem mostrar de novo
+  useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- lê o navegador só depois de montar
+    if (jaVista(novidade.id)) setAberta(false);
+    const outraAba = (e: StorageEvent) => e.key === chaveVista(novidade.id) && e.newValue === "1" && setAberta(false);
+    window.addEventListener("storage", outraAba);
+    return () => window.removeEventListener("storage", outraAba);
+  }, [novidade.id]);
 
   useEffect(() => {
     if (!aberta) return;

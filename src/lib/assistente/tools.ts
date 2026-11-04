@@ -60,7 +60,7 @@ export type ToolDef = {
 };
 
 const STATUS = ["aberta", "em_andamento", "concluida", "cancelada"];
-const TIPOS = ["consultoria", "processo", "contrato", "reuniao", "pesquisa"];
+const TIPOS = ["consultoria", "processo", "contrato", "reuniao", "pesquisa", "audiencia"];
 const DATA = { type: "string", description: "Data no formato AAAA-MM-DD" };
 const MAX_CHARS = 30_000;
 
@@ -872,6 +872,7 @@ async function camposExtras(a: Record<string, unknown>) {
     out.hora = h || null;
   }
   if (a.categoria && ["tarefa", "prazo", "audiencia"].includes(String(a.categoria))) out.categoria = String(a.categoria);
+  if (a.tipo === "audiencia" || a.type === "audiencia") out.categoria = "audiencia"; // tipo Audiência = audiência na Agenda
   if (a.envolvidos !== undefined) out.envolvidos = await envolvidosPorNome(a.envolvidos);
   if (a.etiquetas !== undefined) out.etiquetas = await etiquetasPorNome(a.etiquetas, true);
   return out;

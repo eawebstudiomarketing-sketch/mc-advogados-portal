@@ -7,7 +7,7 @@ import { mcpDb, type McpIdentity } from "@/lib/mcp/oauth";
 const MAX_CHARS = 60_000;
 const uuid = z.string().uuid();
 const activityStatus = z.enum(["aberta", "em_andamento", "concluida", "cancelada"]);
-const activityType = z.enum(["consultoria", "processo", "contrato", "reuniao", "pesquisa"]);
+const activityType = z.enum(["consultoria", "processo", "contrato", "reuniao", "pesquisa", "audiencia"]);
 const financialStatus = z.enum(["pending", "paid", "overdue", "cancelled"]);
 const date = z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "use AAAA-MM-DD");
 const limite = z.number().int().min(1).max(200).default(50);

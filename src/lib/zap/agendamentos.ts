@@ -124,12 +124,12 @@ export async function resolverConversa(alvo: string): Promise<{ para: string; ro
   return { erro: `Não achei conversa nem cliente com "${t}".` };
 }
 
-export async function criarAgendamento(a: { para: string; rotulo: string; texto: string; recorrencia: Recorrencia; hora: string; ate?: string | null; criadoPor: string | null }): Promise<Agendamento> {
+export async function criarAgendamento(a: { para: string; rotulo: string; texto: string; recorrencia: Recorrencia; hora: string; ate?: string | null; criadoPor: string | null; activityId?: string | null }): Promise<Agendamento> {
   const proxima = proximaOcorrencia(a.recorrencia, a.hora, new Date(), a.ate);
   if (!proxima) throw new Error("Esse horário já passou. Escolha uma data/hora futura.");
   const { data, error } = await db()
     .from("zap_agendamentos")
-    .insert({ para: a.para, rotulo: a.rotulo.slice(0, 200), texto: a.texto.trim().slice(0, 4000), recorrencia: a.recorrencia, hora: a.hora.slice(0, 5), ate: a.ate ?? null, proxima_em: proxima.toISOString(), criado_por: a.criadoPor })
+    .insert({ para: a.para, rotulo: a.rotulo.slice(0, 200), texto: a.texto.trim().slice(0, 4000), recorrencia: a.recorrencia, hora: a.hora.slice(0, 5), ate: a.ate ?? null, proxima_em: proxima.toISOString(), criado_por: a.criadoPor, ...(a.activityId ? { activity_id: a.activityId } : {}) })
     .select("*")
     .single();
   if (error) throw new Error("Não foi possível agendar.");

@@ -2,7 +2,8 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
-import { CornerDownLeft, Search, Building2, type LucideIcon } from "lucide-react";
+import { CornerDownLeft, Search, Building2, Gavel, ListChecks, type LucideIcon } from "lucide-react";
+import { buscaRapidaAction, type ResultadoBuscaRapida } from "@/app/admin/busca-actions";
 
 export type PaletteItem = { href: string; label: string; group: string; icon?: LucideIcon; hint?: string };
 
@@ -12,7 +13,9 @@ const normalizar = (s: string) =>
     .replace(/[̀-ͯ]/g, "")
     .toLowerCase();
 
-// Busca rápida (Ctrl+K / ⌘K): pula para qualquer tela ou cliente.
+// Busca rápida (Ctrl+K / ⌘K): pula para qualquer tela, cliente, processo (pelo número,
+// com ou sem pontos, ou pelas partes) ou atividade. Processos e atividades vêm do
+// servidor enquanto a pessoa digita (04/11/2026).
 export function CommandPalette({
   open,
   onOpenChange,
@@ -25,14 +28,28 @@ export function CommandPalette({
   const router = useRouter();
   const [busca, setBusca] = useState("");
   const [ativo, setAtivo] = useState(0);
+  const [remotos, setRemotos] = useState<ResultadoBuscaRapida[]>([]);
   const inputRef = useRef<HTMLInputElement>(null);
   const listaRef = useRef<HTMLUListElement>(null);
+
+  useEffect(() => {
+    const t = busca.trim();
+    if (!open || t.length < 3) return;
+    let vivo = true;
+    const timer = setTimeout(() => void buscaRapidaAction(t).then((r) => vivo && setRemotos(r)).catch(() => {}), 250);
+    return () => {
+      vivo = false;
+      clearTimeout(timer);
+    };
+  }, [busca, open]);
 
   const resultados = useMemo(() => {
     const q = normalizar(busca.trim());
     const lista = q ? items.filter((i) => normalizar(`${i.label} ${i.hint ?? ""}`).includes(q)) : items;
-    return lista.slice(0, 40);
-  }, [busca, items]);
+    const extras: PaletteItem[] = busca.trim().length >= 3 ? remotos.map((r) => ({ ...r, icon: r.group === "Processos" ? Gavel : ListChecks })) : [];
+    // processo pelo número vem primeiro (é o que se procura colando o número)
+    return (/\d{6}/.test(busca) ? [...extras, ...lista] : [...lista, ...extras]).slice(0, 40);
+  }, [busca, items, remotos]);
 
   useEffect(() => {
     if (!open) return;
@@ -84,7 +101,7 @@ export function CommandPalette({
                 ir(resultados[ativo]);
               }
             }}
-            placeholder="Buscar cliente ou tela…"
+            placeholder="Buscar cliente, processo (nº ou partes), atividade ou tela…"
             className="h-12 flex-1 bg-transparent text-sm text-foreground outline-none focus-visible:outline-none placeholder:text-muted/70"
           />
           <kbd className="rounded-md border border-border bg-surface-2 px-1.5 py-0.5 text-[11px] font-medium text-muted">Esc</kbd>
