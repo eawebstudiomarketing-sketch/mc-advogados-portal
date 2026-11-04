@@ -70,6 +70,7 @@ export const SECOES: Secao[] = [
       { href: "/admin/alertas", label: "Alertas", icon: BellRing },
       { href: "/admin/publicacoes", label: "Publicações", icon: Newspaper },
       { href: "/admin/mensagens", label: "Mensagens", icon: MessagesSquare, todos: true },
+      { href: "/admin/novidades", label: "Novidades", icon: Sparkles, todos: true },
     ],
   },
   {

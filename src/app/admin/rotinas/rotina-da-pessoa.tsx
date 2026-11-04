@@ -9,7 +9,7 @@ import { RelatorioDoDia } from "@/components/rotina/relatorio-do-dia";
 import { AprovarRelatorio } from "@/components/rotina/aprovar-relatorio";
 import { ExcluirRotina } from "@/components/rotina/excluir-rotina";
 import { concluidasNoDia } from "@/lib/rotina-relatorio/dia";
-import { carregarModelos, demandasVencidas, equipeDe, lerRelatorio, modeloDaPessoa, relatoriosDoDia } from "@/lib/rotina-relatorio/dados";
+import { carregarModelos, demandasVencidas, equipeDe, lerRelatorio, modeloDaPessoa, prazoDoRelatorio, relatoriosDoDia } from "@/lib/rotina-relatorio/dados";
 import { RelatorioLeitura } from "@/components/rotina/relatorio-leitura";
 import { EditorRotina } from "./editor";
 import { EditorModelos } from "./modelos";
@@ -71,11 +71,12 @@ export async function rotinaDaPessoa({
     const dia = /^\d{4}-\d{2}-\d{2}$/.test(sp.dia ?? "") && sp.dia! <= hoje ? sp.dia! : hoje;
     const meu = alvo.id === eu;
     const editavel = meu && dia === hoje;
-    const [itensDia, outros, modelo, rel] = await Promise.all([
+    const [itensDia, outros, modelo, rel, prazo] = await Promise.all([
       rotinaDoDia(alvo.id, dia, adm),
       editavel ? rotinaOutrosDias(alvo.id, hoje, adm) : Promise.resolve([]),
       modeloDaPessoa(alvo.id),
       lerRelatorio(alvo.id, dia),
+      prazoDoRelatorio(alvo.id),
     ]);
     const [equipe, venc] = editavel && modelo ? await Promise.all([equipeDe(alvo.id), demandasVencidas(alvo.id, hoje)]) : [[], []];
     const concluidas = editavel ? await concluidasNoDia(alvo.id, dia) : [];
@@ -196,6 +197,7 @@ export async function rotinaDaPessoa({
                     demandas={enviado && rel.snapshot ? rel.snapshot.demandas : venc}
                     resumo={enviado ? undefined : resumoNode}
                     equipeNode={enviado ? undefined : (secaoEquipe ?? undefined)}
+                    prazo={prazo.texto}
                     inicial={{ respostas: rel?.respostas ?? {}, justificativas: rel?.justificativas ?? {}, enviadoEm: enviado ? rel.enviado_em : null }}
                   />
                   {enviado && (

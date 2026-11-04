@@ -87,7 +87,12 @@ export function NovoProcesso({
 
   const conferir = () =>
     startEnvio(async () => {
-      const r = await conferirVariosAction([...marcados]);
+      // leva junto o que a lista já achou no diário (partes, advogados, classe, órgão): a pesquisa pelo número pode não trazer
+      const lista = resultado && "tipo" in resultado && resultado.tipo === "lista" ? resultado.itens : [];
+      const r = await conferirVariosAction(
+        [...marcados],
+        lista.filter((i) => marcados.has(i.numero)).map((i) => ({ numero: i.numero, partes: i.partes, advogados: i.advogados, classe: i.classe, orgao: i.orgao, tribunal: i.tribunal }))
+      );
       if (r.erro) return void toast.error(r.erro);
       toast.success(`${r.abertos} processo(s) mandados para leitura no tribunal${r.jaNoPortal ? ` · ${r.jaNoPortal} já estavam no portal` : ""}. Confira e aprove em "Aguardando aprovação".`);
       if (r.falhas.length) toast.error(r.falhas.slice(0, 3).join(" | "));

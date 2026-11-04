@@ -3,15 +3,15 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { rotinaDoDia } from "@/lib/data/rotina-diaria";
 import { responsavelDoPerfil } from "@/lib/data/responsaveis";
-import { hojeBahia, lerRelatorio } from "./dados";
+import { hojeBahia, lerRelatorio, prazoDoRelatorio } from "./dados";
 
 // Relógio no alto do sistema (Rotinas v2, 30/10): leva à rotina da própria
 // pessoa e acende um alerta quando uma tarefa fixa passou da hora sem ser
-// marcada, ou quando já são 18h ou mais e o relatório do dia não foi enviado.
+// marcada, ou quando faltam 2 h (ou menos) para o prazo do relatório do dia e ele
+// não foi enviado (prazo: equipe 18:00, admin máximo 23:59; 04/11/2026).
 
 export type AlertaRotina = { href: string; atrasadas: number; relatorioPendente: boolean } | null;
 
-const HORA_DO_RELATORIO = 18;
 
 export async function alertaDaRotina(profileId: string): Promise<AlertaRotina> {
   const eu = await responsavelDoPerfil(profileId);
@@ -25,6 +25,6 @@ export async function alertaDaRotina(profileId: string): Promise<AlertaRotina> {
   const atrasadas = itens.filter((i) => !i.feito && i.situacao === "atrasado").length;
   const hora = Number(new Intl.DateTimeFormat("en-GB", { timeZone: "America/Bahia", hour: "2-digit", hour12: false }).format(new Date()));
   let relatorioPendente = false;
-  if (temModelo && hora >= HORA_DO_RELATORIO) relatorioPendente = (await lerRelatorio(eu, hoje))?.status !== "enviado";
+  if (temModelo && hora >= (await prazoDoRelatorio(eu)).hora - 2) relatorioPendente = (await lerRelatorio(eu, hoje))?.status !== "enviado";
   return { href: `/admin/rotinas?pessoa=${eu}`, atrasadas, relatorioPendente };
 }

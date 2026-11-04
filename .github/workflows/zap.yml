@@ -45,6 +45,6 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 5
     steps:
-      - name: Cobrar documentos dos clientes
+      - name: Cobrar documentos e enfileirar mensagens agendadas
         run: |
           curl -fsS -m 120             -H "Authorization: Bearer ${{ secrets.CRON_SECRET }}"             "https://mcadvogados.app.br/api/cron/distribuicao?tarefa=cobrancas"

@@ -67,6 +67,7 @@ export default async function AlertasPage({ searchParams }: { searchParams: Prom
     { chave: "publicacoes", rotulo: "Publicações", n: contadores.publicacoes, href: "/admin/alertas" },
     ...(podeAndamentos ? [{ chave: "andamentos", rotulo: "Andamentos", n: contadores.andamentos, href: "/admin/alertas?aba=andamentos" }] : []),
     { chave: "robos", rotulo: "Robôs", n: problemas.length, href: "/admin/alertas?aba=robos" },
+    { chave: "novidades", rotulo: "Novidades do portal", n: 0, href: "/admin/novidades" },
   ];
 
   return (

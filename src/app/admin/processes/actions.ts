@@ -84,6 +84,38 @@ export async function updateProcessAction(
     return { error: "Selecione a área do processo." };
   }
 
+  // 04/11/2026: todos os dados da capa são editáveis (título, cliente, responsável, classe,
+  // instância, distribuição, valor da causa e as partes por polo)
+  const texto = (k: string, max = 300) => {
+    const v = formData.get(k);
+    return typeof v === "string" && v.trim() ? v.trim().slice(0, max) : null;
+  };
+  const uuid = (k: string) => {
+    const v = texto(k, 40);
+    return v && /^[0-9a-f-]{36}$/i.test(v) ? v : null;
+  };
+  const instancia = Number(texto("instancia", 2));
+  const distribuido = texto("distribuido_em", 10);
+  const valorTxt = texto("valor_causa", 30);
+  const valor = valorTxt ? Number(valorTxt.replace(/[^\d,.-]/g, "").replace(/\.(?=\d{3}(\D|$))/g, "").replace(",", ".")) : null;
+  if (valorTxt && !Number.isFinite(valor)) return { error: "Valor da causa inválido (use, por exemplo, 15.000,00)." };
+  let partes: { nome: string; papel: string; polo: "ativo" | "passivo" | "outro" }[] | undefined;
+  const partesTxt = formData.get("partes");
+  if (typeof partesTxt === "string") {
+    try {
+      partes = (JSON.parse(partesTxt) as { nome?: unknown; papel?: unknown; polo?: unknown }[])
+        .map((x) => ({
+          nome: String(x.nome ?? "").trim().slice(0, 200),
+          papel: String(x.papel ?? "").trim().slice(0, 60) || "Parte",
+          polo: (x.polo === "ativo" || x.polo === "passivo" ? x.polo : "outro") as "ativo" | "passivo" | "outro",
+        }))
+        .filter((x) => x.nome)
+        .slice(0, 60);
+    } catch {
+      return { error: "Não foi possível ler as partes. Recarregue a página e tente de novo." };
+    }
+  }
+
   const supabase = await createClient();
   const { error } = await supabase
     .from("processes")
@@ -93,6 +125,14 @@ export async function updateProcessAction(
       area: area as Database["public"]["Enums"]["process_area"],
       fase: typeof fase === "string" && fase.trim() ? fase.trim() : null,
       status: typeof status === "string" && status.trim() ? status.trim() : "ativo",
+      titulo: texto("titulo"),
+      classe: texto("classe"),
+      client_id: uuid("client_id"),
+      responsible_id: uuid("responsible_id"),
+      instancia: [1, 2, 3].includes(instancia) ? instancia : null,
+      distribuido_em: distribuido && /^\d{4}-\d{2}-\d{2}$/.test(distribuido) ? distribuido : null,
+      valor_causa: valor,
+      ...(partes ? { partes } : {}),
     })
     .eq("id", id);
 

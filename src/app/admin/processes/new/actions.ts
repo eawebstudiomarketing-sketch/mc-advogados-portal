@@ -6,7 +6,7 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { PROCESS_AREAS, type ProcessArea } from "@/lib/process-area";
 import { djenPorNome, djenPorOab, mascaraCnj, nomePeloCnpj, type ProcessoAchado } from "@/lib/processos-busca/fontes";
-import { abrirCandidato, aprovarCandidato, descartarCandidato, getCandidato, lerDeNovo, type Candidato } from "@/lib/processos-busca/candidatos";
+import { abrirCandidato, aprovarCandidato, descartarCandidato, getCandidato, lerDeNovo, type Candidato, type DicaCandidato } from "@/lib/processos-busca/candidatos";
 
 export type TipoBusca = "numero" | "nome" | "oab" | "documento";
 
@@ -95,7 +95,10 @@ export async function pesquisarAction(tipo: TipoBusca, termo: string, uf?: strin
 }
 
 /** Manda para conferência (robô lê no tribunal) os processos marcados numa lista. */
-export async function conferirVariosAction(numeros: string[]): Promise<{ erro?: string; abertos: number; jaNoPortal: number; falhas: string[] }> {
+export async function conferirVariosAction(
+  numeros: string[],
+  achados: DicaCandidato[] = []
+): Promise<{ erro?: string; abertos: number; jaNoPortal: number; falhas: string[] }> {
   try {
     const profile = await equipeComProcessos();
     const lista = [...new Set(numeros)].slice(0, 30);
@@ -104,7 +107,7 @@ export async function conferirVariosAction(numeros: string[]): Promise<{ erro?: 
     const falhas: string[] = [];
     for (const n of lista) {
       try {
-        const r = await abrirCandidato(n, "busca", profile.id);
+        const r = await abrirCandidato(n, "busca", profile.id, undefined, achados.find((x) => x.numero === n));
         if ("jaNoPortal" in r) jaNoPortal++;
         else abertos++;
       } catch (e) {

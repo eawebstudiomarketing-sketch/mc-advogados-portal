@@ -29,6 +29,7 @@ import {
   Trash2,
   X,
   Zap,
+  CalendarClock,
 } from "lucide-react";
 import { toast } from "sonner";
 import { createClient } from "@/lib/supabase/client";
@@ -46,6 +47,7 @@ import {
 import { executarOrdem } from "./ordem";
 import { AvatarWa } from "./comum";
 import { GerenciarRespostas, SugestoesRespostas, filtrarRespostas, preencherResposta, useRespostasRapidas } from "./respostas-rapidas";
+import { AgendarMensagem } from "./agendar-mensagem";
 import { EMOJIS_RAPIDOS, dataHoraCompleta, diaChave, diaCompleto, telefone, tamanhoLegivel } from "./util";
 
 const POR_PAGINA = 60;
@@ -568,6 +570,8 @@ export function Conversa({
         editando={editando}
         nomeDe={(m) => (m.from_me ? "Você" : (m.sender_jid && nomes.get(m.sender_jid)) || nome)}
         nomeContato={chat.is_group ? "" : nome}
+        jid={jid}
+        rotuloConversa={nome}
         onCancelar={() => {
           setRespondendo(null);
           setEditando(null);
@@ -948,6 +952,8 @@ function Compositor({
   editando,
   nomeDe,
   nomeContato,
+  jid,
+  rotuloConversa,
   onCancelar,
   onTexto,
   onArquivos,
@@ -958,6 +964,9 @@ function Compositor({
   nomeDe: (m: Msg) => string;
   /** primeiro nome vira o {nome} das mensagens rápidas (grupo: vazio) */
   nomeContato: string;
+  /** conversa aberta (agendar mensagem, 04/11/2026) */
+  jid: string;
+  rotuloConversa: string;
   onCancelar: () => void;
   onTexto: (t: string) => void;
   onArquivos: (fs: File[], legenda: string, ptt: boolean) => void;
@@ -974,6 +983,7 @@ function Compositor({
   // mensagens rápidas: "/atalho" no começo da caixa abre a lista (03/11/2026)
   const respostas = useRespostasRapidas();
   const [gerenciar, setGerenciar] = useState(false);
+  const [agendando, setAgendando] = useState(false);
   const [listaAberta, setListaAberta] = useState(false);
   const [selResposta, setSelResposta] = useState(0);
   const barra = !editando && !anexos.length && /^\/\S*$/.test(texto);
@@ -1097,6 +1107,7 @@ function Compositor({
         />
       )}
       {gerenciar && <GerenciarRespostas onFechar={() => setGerenciar(false)} />}
+      {agendando && <AgendarMensagem jid={jid} rotulo={rotuloConversa} textoInicial={texto} onFechar={() => setAgendando(false)} onAgendou={() => setTexto("")} />}
       {gravando ? (
         <div className="flex items-center gap-2">
           <button type="button" onClick={() => parar(true)} className="icon-btn icon-btn-danger" aria-label="Descartar áudio">
@@ -1139,6 +1150,16 @@ function Compositor({
             data-tip="Mensagens rápidas (ou digite /)"
           >
             <Zap aria-hidden />
+          </button>
+          <button
+            type="button"
+            onClick={() => setAgendando(true)}
+            disabled={!!editando || !!anexos.length}
+            className="icon-btn h-10 w-10"
+            aria-label="Agendar mensagem"
+            data-tip="Agendar mensagem (uma vez ou repetindo)"
+          >
+            <CalendarClock aria-hidden />
           </button>
           <textarea
             id="wa-texto"

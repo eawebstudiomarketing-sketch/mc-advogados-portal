@@ -26,6 +26,7 @@ import { toolsMarcas } from "./tools-marcas";
 import { TOOLS_PAINEL } from "./tools-painel";
 import { toolsOperacao } from "./tools-operacao";
 import { toolsCobranca } from "./tools-cobranca";
+import { toolsAgendadas } from "./tools-agendadas";
 import { envolvidosPorNome, etiquetasPorNome, toolsSistema } from "./tools-sistema";
 import { reagendarAudienciaDaAtividade } from "@/lib/zap/lembretes";
 
@@ -856,6 +857,7 @@ export const TOOLS: ToolDef[] = [
   ...TOOLS_PAINEL,
   ...toolsOperacao(db),
   ...toolsCobranca(db),
+  ...toolsAgendadas(db),
   ...toolsSistema(db),
   ...toolsRedesenho(db),
   ...toolsMarcas(db),
