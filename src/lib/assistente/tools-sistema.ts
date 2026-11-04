@@ -6,6 +6,7 @@ import { PERMISSOES } from "@/lib/permissoes";
 import { PROCESS_AREAS } from "@/lib/process-area";
 import { cumprimento, listarItensRotina, relatorioDoDia, rotinaDoDia } from "@/lib/data/rotina-diaria";
 import { descreverRepeticao, regraValida } from "@/lib/rotina-repeticao";
+import { designarClienteA } from "@/lib/designar-cliente";
 import { conversaCom, GERAL } from "@/lib/data/mensagens";
 import { hojeBahia, somaDias } from "@/lib/periodo";
 import { MOTIVO_TEXTO, todosOsRobos, type MotivoFalha } from "@/lib/robos/saude";
@@ -587,6 +588,7 @@ export function toolsSistema(db: () => Db): ToolDef[] {
           .select("id")
           .single();
         if (error) throw error;
+        await designarClienteA(ctx.profileId, c.id); // quem cadastra vira responsável pelo cliente também
         return { cliente: c.name, link_no_portal: `/admin/processes/${data.id}` };
       },
     },

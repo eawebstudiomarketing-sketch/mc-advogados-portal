@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { StatusRapido } from "@/components/atividade/status-rapido";
 import { Suspense } from "react";
 import { PeriodoFiltro } from "@/components/ui/periodo-filtro";
 import { lerPeriodo } from "@/lib/periodo";
@@ -93,9 +94,11 @@ export default async function AdminOverviewPage({
       cliente: (c.clients as unknown as { name: string } | null)?.name ?? null,
       pessoas: c.participantes,
       cor: "bg-[#7c5cc4]",
+      atividade: null as { id: string; status: string } | null,
     })),
     ...ativsHoje.map((a) => ({
       chave: `a-${a.id}`,
+      atividade: { id: a.id, status: a.status } as { id: string; status: string } | null,
       dia: a.deadline!,
       href: `/admin/activities/${a.id}`,
       hora: a.hora ? a.hora.slice(0, 5) : "",
@@ -132,6 +135,7 @@ export default async function AdminOverviewPage({
   const agora = [
     ...atrasadas.slice(0, 4).map((a) => ({
       chave: `at-${a.id}`,
+      atividade: { id: a.id, status: a.status },
       href: `/admin/activities/${a.id}`,
       titulo: a.title,
       detalhe: `${a.clients?.name ?? "Sem cliente"} · venceu ${a.deadline!.split("-").reverse().slice(0, 2).join("/")}`,
@@ -139,6 +143,7 @@ export default async function AdminOverviewPage({
     })),
     ...deHoje.slice(0, 3).map((a) => ({
       chave: `hj-${a.id}`,
+      atividade: { id: a.id, status: a.status },
       href: `/admin/activities/${a.id}`,
       titulo: a.title,
       detalhe: `${a.clients?.name ?? "Sem cliente"} · vence hoje${a.hora ? ` às ${a.hora.slice(0, 5)}` : ""}`,
@@ -219,8 +224,8 @@ export default async function AdminOverviewPage({
               <h2 className="section-title">Precisa de você</h2>
               <ol className="mt-4 border-b border-border">
                 {agora.map((item) => (
-                  <li key={item.chave}>
-                    <Link href={item.href} className="lista-linha group">
+                  <li key={item.chave} className="flex items-center gap-1">
+                    <Link href={item.href} className="lista-linha group min-w-0 flex-1">
                       <span className={`h-2 w-2 shrink-0 rounded-full ${item.cor}`} aria-hidden />
                       <span className="min-w-0 flex-1">
                         <span className="block truncate text-sm font-medium text-foreground">{item.titulo}</span>
@@ -228,6 +233,7 @@ export default async function AdminOverviewPage({
                       </span>
                       <span className="eyebrow shrink-0 transition-colors group-hover:!text-foreground">Abrir ›</span>
                     </Link>
+                    {"atividade" in item && item.atividade && <StatusRapido id={item.atividade.id} status={item.atividade.status} />}
                   </li>
                 ))}
               </ol>
@@ -334,7 +340,8 @@ export default async function AdminOverviewPage({
                         : new Date(`${i.dia}T12:00:00Z`).toLocaleDateString("pt-BR", { weekday: "short", day: "2-digit", month: "2-digit", timeZone: "UTC" }).replace(".", "")}
                     </p>
                   )}
-                  <Link href={i.href} className="flex items-center gap-3.5 rounded-2xl px-2 py-2.5 transition-colors hover:bg-surface-2">
+                  <div className="flex items-center gap-1 rounded-2xl transition-colors hover:bg-surface-2">
+                  <Link href={i.href} className="flex min-w-0 flex-1 items-center gap-3.5 px-2 py-2.5">
                     <span className="numero-grande w-12 shrink-0 text-right text-base text-foreground">{i.hora || "—"}</span>
                     <span className={`h-9 w-1 shrink-0 rounded-full ${i.cor}`} aria-hidden />
                     <span className="min-w-0 flex-1">
@@ -348,6 +355,8 @@ export default async function AdminOverviewPage({
                       })}
                     </span>
                   </Link>
+                  {i.atividade && <StatusRapido id={i.atividade.id} status={i.atividade.status} />}
+                  </div>
                 </li>
               ))}
               {agendaHoje.length > (variosDias ? 10 : 7) && (

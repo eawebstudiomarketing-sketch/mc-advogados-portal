@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { StatusRapido } from "@/components/atividade/status-rapido";
 import { ChevronLeft, ChevronRight, Plus, CalendarPlus } from "lucide-react";
 import { exigirPermissao } from "@/lib/dal";
 import { createClient } from "@/lib/supabase/server";
@@ -26,6 +27,8 @@ type Item = {
   concluida: boolean;
   aberta: boolean;
   cliente: string | null;
+  /** só atividades (compromisso não tem): botões de status na lista (04/11/2026) */
+  status?: string;
 };
 
 const COR: Record<string, string> = {
@@ -189,6 +192,7 @@ export default async function AgendaPage({ searchParams }: { searchParams: Promi
         concluida: a.status === "concluida" || a.status === "cancelada",
         aberta: a.status === "aberta" || a.status === "em_andamento",
         cliente: nomeCliente(a.clients),
+        status: a.status,
       })),
     ];
     if (sp.categoria) itens = itens.filter((i) => i.categoria === sp.categoria);
@@ -251,8 +255,8 @@ export default async function AgendaPage({ searchParams }: { searchParams: Promi
                   </div>
                   <ul className="divide-y divide-border">
                     {grupos.get(d)!.map((it) => (
-                      <li key={`${it.categoria}-${it.id}`}>
-                        <Link href={it.href} className="flex items-center gap-3 px-4 py-2.5 transition-colors hover:bg-surface-2">
+                      <li key={`${it.categoria}-${it.id}`} className="flex items-center pr-2 transition-colors hover:bg-surface-2">
+                        <Link href={it.href} className="flex min-w-0 flex-1 items-center gap-3 px-4 py-2.5">
                           <span className="numero-grande w-12 shrink-0 text-right text-sm text-foreground">{it.hora ?? "—"}</span>
                           <span className={`h-8 w-1 shrink-0 rounded-full border-l-4 ${COR[it.categoria] ?? COR.tarefa}`} aria-hidden />
                           <span className="min-w-0 flex-1">
@@ -266,6 +270,7 @@ export default async function AgendaPage({ searchParams }: { searchParams: Promi
                             <span className="shrink-0 rounded-full bg-status-danger-bg px-2 py-0.5 text-[11px] font-semibold text-status-danger">Atrasada</span>
                           )}
                         </Link>
+                        {it.categoria !== "compromisso" && it.aberta && <StatusRapido id={it.id} status={it.status} />}
                       </li>
                     ))}
                   </ul>
@@ -399,8 +404,8 @@ export default async function AgendaPage({ searchParams }: { searchParams: Promi
           ) : (
             <ul className="mt-3 space-y-3">
               {proximos.map((it) => (
-                <li key={`${it.categoria}-${it.id}`}>
-                  <Link href={it.href} className="group block">
+                <li key={`${it.categoria}-${it.id}`} className="flex items-start gap-1">
+                  <Link href={it.href} className="group block min-w-0 flex-1">
                     <p className="text-xs text-muted">
                       {it.dia === hoje ? <span className="font-semibold text-status-pending">Hoje</span> : dataBR(it.dia)}
                       {it.hora ? ` · ${it.hora}` : ""} ·{" "}
@@ -421,6 +426,7 @@ export default async function AgendaPage({ searchParams }: { searchParams: Promi
                     <p className="text-sm text-foreground group-hover:underline">{it.titulo}</p>
                     {it.cliente && <p className="text-xs text-muted">{it.cliente}</p>}
                   </Link>
+                  {it.categoria !== "compromisso" && it.aberta && <StatusRapido id={it.id} status={it.status} compacto />}
                 </li>
               ))}
             </ul>

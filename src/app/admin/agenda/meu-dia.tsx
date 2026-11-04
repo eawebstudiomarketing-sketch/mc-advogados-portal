@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { StatusRapido } from "@/components/atividade/status-rapido";
 import { rotinaDoDia } from "@/lib/data/rotina-diaria";
 import { MinhaRotina } from "@/components/rotina/minha-rotina";
 import { ChevronLeft, ChevronRight, Coffee, MapPin } from "lucide-react";
@@ -44,8 +45,8 @@ function ListaCurta({ titulo, cor, itens, pessoas }: { titulo: string; cor: stri
       </p>
       <ul className="mt-3 space-y-1">
         {itens.slice(0, 6).map((a) => (
-          <li key={a.id}>
-            <Link href={`/admin/activities/${a.id}`} className="flex items-center gap-2.5 rounded-xl px-2 py-1.5 hover:bg-surface-2">
+          <li key={a.id} className="flex items-center gap-1 rounded-xl hover:bg-surface-2">
+            <Link href={`/admin/activities/${a.id}`} className="flex min-w-0 flex-1 items-center gap-2.5 px-2 py-1.5">
               {a.responsavelId && pessoas.get(a.responsavelId) ? (
                 <Avatar nome={pessoas.get(a.responsavelId)!.nome} foto={pessoas.get(a.responsavelId)!.foto} tamanho={24} />
               ) : (
@@ -54,6 +55,7 @@ function ListaCurta({ titulo, cor, itens, pessoas }: { titulo: string; cor: stri
               <span className="min-w-0 flex-1 truncate text-[13px] text-foreground">{a.titulo}</span>
               <span className="eyebrow shrink-0">{a.prazo ? dataCurta(a.prazo) : ""}</span>
             </Link>
+            <StatusRapido id={a.id} status={a.status} compacto />
           </li>
         ))}
         {itens.length > 6 && <li className="px-2 pt-1 text-xs text-muted">e mais {itens.length - 6}</li>}

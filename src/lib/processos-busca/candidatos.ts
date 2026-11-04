@@ -4,6 +4,7 @@ import { createAdminClient } from "@/lib/supabase/admin";
 import { gravarDoRobo, type MovRobo } from "@/lib/andamentos/robos";
 import { ligarPublicacoesAosProcessos } from "@/lib/publicacoes/monitor";
 import { areaDe, tituloDe } from "@/lib/publicacoes/criar-processos";
+import { designarClienteA } from "@/lib/designar-cliente";
 import type { ProcessArea } from "@/lib/process-area";
 import { datajudResumo, djenPorNumero, mascaraCnj, tribunalDoNumero, type AdvogadoDjen, type ParteDjen } from "./fontes";
 
@@ -215,6 +216,8 @@ export async function aprovarCandidato(id: string, opcoes: OpcoesAprovar, decidi
   }
 
   await db.from("processos_candidatos").update({ status: "aprovado", process_id: processId, decidido_por: decididoPor, decidido_em: new Date().toISOString() }).eq("id", c.id);
+  // quem aprova vira responsável pelo processo (acima) e pelo cliente dele (04/11/2026)
+  await designarClienteA(opcoes.responsibleId ?? decididoPor, opcoes.clientId);
 
   // histórico já lido pelo robô entra agora (processo sem histórico = tudo como histórico, sem aviso)
   let andamentos = 0;

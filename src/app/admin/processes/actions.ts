@@ -10,6 +10,7 @@ import { ligarPublicacoesAosProcessos } from "@/lib/publicacoes/monitor";
 import { destinoDeVolta } from "@/lib/voltar";
 import { idsDoLote } from "@/lib/lote";
 import type { ResultadoLote } from "@/components/ui/selecao-lista";
+import { designarClienteA } from "@/lib/designar-cliente";
 
 export type CreateProcessState = { error: string | null };
 
@@ -51,6 +52,9 @@ export async function createProcessAction(
     }
     return { error: "Não foi possível salvar o processo. Tente novamente." };
   }
+
+  // quem cadastra vira responsável pelo processo (acima) e pelo cliente dele (04/11/2026)
+  await designarClienteA(profile.id, typeof clientId === "string" ? clientId : null);
 
   // Publicações do DJEN que chegaram antes do cadastro passam a apontar para ele.
   await ligarPublicacoesAosProcessos();
