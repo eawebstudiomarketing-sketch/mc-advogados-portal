@@ -293,7 +293,8 @@ export function Assistente({
         );
       return;
     }
-    const chamadas = parts.filter((p) => p.functionCall);
+    // carregar_ferramentas é bastidor (liga mais ferramentas), não aparece
+    const chamadas = parts.filter((p) => p.functionCall && p.functionCall.name !== "carregar_ferramentas");
     if (chamadas.length)
       itens.push(
         <div key={`${ci}-f`} className="flex flex-wrap gap-1.5">

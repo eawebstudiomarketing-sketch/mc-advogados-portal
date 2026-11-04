@@ -2,8 +2,10 @@ import { NextResponse } from "next/server";
 import { GoogleGenAI, ApiError, type Content, type Part } from "@google/genai";
 import { ehSuperAdmin, exigirPermissao } from "@/lib/dal";
 import { tudoLiberado } from "@/lib/permissoes";
-import { PREFIXO_ANEXOS, TOOLS, TOOL_MAP, executar, podeUsar, type Ctx } from "@/lib/assistente/tools";
+import { PREFIXO_ANEXOS, TOOL_MAP, executar, type Ctx } from "@/lib/assistente/tools";
+import { CARREGAR, declaracoesDaVez } from "@/lib/assistente/grupos";
 import { MODELOS } from "@/lib/ia-modelos";
+import { registrarUsoIA } from "@/lib/ia-uso";
 
 // Assistente do portal (balão de chat). Conversa sem estado no servidor: o
 // navegador manda o histórico (formato do Gemini) e recebe o histórico novo.
@@ -18,15 +20,31 @@ const RECENTES_INTEIROS = 6; // resultados de ferramenta mais antigos que isso v
 type Pendente = { tipo: "exclusao" | "envio" | "alteracao"; itens: { name: string; label: string; resumo: string; args: Record<string, unknown> }[] };
 type Evento = { tool: string; label: string; ok: boolean; erro?: string };
 
-function sistema(nome: string, pathname: string, papel: string, superAdmin: boolean): string {
+// Quem fala, data e tela vão na última mensagem (contexto()), não aqui: assim o
+// começo do pedido fica igual entre perguntas e o Gemini cobra menos (cache implícito).
+function contexto(nome: string, pathname: string, papel: string): string {
   const hoje = new Intl.DateTimeFormat("pt-BR", { timeZone: "America/Bahia", weekday: "long", day: "2-digit", month: "2-digit", year: "numeric" }).format(new Date());
   const iso = new Intl.DateTimeFormat("en-CA", { timeZone: "America/Bahia" }).format(new Date());
   const ficha = pathname.match(/^\/admin\/clients\/([0-9a-f-]{36})/i)?.[1];
-  return `Você é o assistente do portal da MC Advogados (assessoria jurídica empresarial, Teixeira de Freitas-BA). Fala com ${nome}, da equipe (${papel}), em português, de forma curta e cordial; executa tarefas no portal com as ferramentas.
+  return `[Contexto: fala com ${nome}, da equipe (${papel}). Hoje é ${hoje} (${iso}). Tela atual: ${pathname}${ficha ? ` — ficha do cliente de id ${ficha}; "este cliente"/"esse cliente" se refere a ele` : ""}.]`;
+}
 
-Hoje é ${hoje} (${iso}). A pessoa está na tela ${pathname}${ficha ? ` — ficha do cliente de id ${ficha}; "este cliente"/"esse cliente" se refere a ele` : ""}.
+/** Cópia do histórico com o contexto na última mensagem escrita pela pessoa (não volta para o navegador). */
+function comContexto(h: Content[], texto: string): Content[] {
+  for (let i = h.length - 1; i >= 0; i--) {
+    const c = h[i];
+    if (c.role === "user" && c.parts?.some((p) => typeof p.text === "string") && !c.parts?.some((p) => p.functionResponse))
+      return [...h.slice(0, i), { ...c, parts: [{ text: texto }, ...(c.parts ?? [])] }, ...h.slice(i + 1)];
+  }
+  return h;
+}
+
+function sistema(papel: string, superAdmin: boolean): string {
+  return `Você é o assistente do portal da MC Advogados (assessoria jurídica empresarial, Teixeira de Freitas-BA). Fala com a pessoa da equipe indicada no [Contexto] da mensagem, em português, de forma curta e cordial; executa tarefas no portal com as ferramentas.
 
 Regras:
+- Data de hoje e tela atual: use o [Contexto] da última mensagem.
+- Só parte das ferramentas vem ligada em cada etapa. Se a que você precisa (inclusive as citadas abaixo) não estiver na lista desta etapa, chame carregar_ferramentas com o grupo certo e continue; se já estiver na lista, use direto. Nunca diga que não consegue sem tentar isso antes.
 - Ache o id de clientes citados pelo nome com buscar_clientes; se houver dois parecidos, pergunte.
 - Nunca invente dados, ids ou resultados; erro de ferramenta = explique em uma frase.
 - Datas relativas viram AAAA-MM-DD nas ferramentas; nas respostas escreva datas como 09/10 (ou 09/10/2026).
@@ -43,10 +61,6 @@ Regras:
 - gerar_demandas é só para as demandas proativas do onboarding/ficha do cliente (ficam na aba Demandas da ficha). Envio de e-mail ao cliente e onboarding: indique a tela e ofereça abrir.${papel === "administrador" ? `
 - WhatsApp do escritório (ferramentas whatsapp_*): envios pedem confirmação no portal, então chame direto com o texto final já redigido (curto, cordial, sem markdown). Para "o cliente X", o destino padrão é a conversa vinculada; se não houver, procure com whatsapp_conversas. Pedidos de clientes encontrados no zap vão para a Distribuição (enviar_para_distribuicao), não direto para atividade. Triagem: whatsapp_triagem e devolva a lista agrupada (🔴 urgente, 🟡 cliente com demanda, 🟢 possível cliente novo, ⚪ pode esperar) com resposta sugerida; só envie se pedirem. Relatório do mês pelo zap: gerar_relatorio (se ainda não existir) e depois whatsapp_enviar_relatorio (vai para o grupo "Assessoria Jurídica" do cliente se existir). Também dá para, como no app: reagir, editar, apagar para todos e encaminhar mensagens (pegue o wa_id em whatsapp_ler_conversa), fixar/arquivar/silenciar/marcar como lida uma conversa, ver o perfil de um contato, ver/gerenciar grupos (participantes, nome, descrição, admins) e criar grupo.` : ""}`;
 }
-
-// cada pessoa só enxerga as ferramentas que pode usar (permissões do advogado)
-const declaracoesPara = (ctx: Ctx) =>
-  TOOLS.filter((t) => podeUsar(t, ctx)).map((t) => ({ name: t.name, description: t.description, parametersJsonSchema: t.parameters }));
 
 // Resultado de ferramenta antigo não precisa ir inteiro de novo a cada chamada.
 function resumirAntigos(h: Content[]): Content[] {
@@ -104,6 +118,10 @@ export async function POST(request: Request) {
   async function responder(chamadas: NonNullable<Part["functionCall"]>[], aprovado: boolean): Promise<Content> {
     const parts: Part[] = [];
     for (const fc of chamadas) {
+      if (fc.name === CARREGAR.name) {
+        parts.push({ functionResponse: { id: fc.id, name: fc.name, response: await executar(CARREGAR, (fc.args ?? {}) as Record<string, unknown>, ctx) } });
+        continue; // bastidor: não aparece na conversa
+      }
       const t = TOOL_MAP.get(fc.name ?? "");
       let resposta: Record<string, unknown>;
       if (!t) resposta = { ok: false, erro: `Ferramenta desconhecida: ${fc.name}` };
@@ -139,15 +157,18 @@ export async function POST(request: Request) {
   }
 
   const ai = new GoogleGenAI({ apiKey });
-  const config = {
-    systemInstruction: sistema(profile.full_name.split(" ")[0] ?? "", String(body.pathname ?? "/admin"), role === "admin" ? "administrador" : "advogado", superAdmin),
-    tools: [{ functionDeclarations: declaracoesPara(ctx) }],
-  };
+  const papel = role === "admin" ? "administrador" : "advogado";
+  const pathname = String(body.pathname ?? "/admin");
+  const systemInstruction = sistema(papel, superAdmin);
+  const ctxTexto = contexto(profile.full_name.split(" ")[0] ?? "", pathname, papel);
 
   try {
     for (let rodada = 0; rodada < MAX_RODADAS; rodada++) {
       history = limitarHistorico(history);
-      const resp = await ai.models.generateContent({ model: MODEL, contents: resumirAntigos(history), config });
+      // só as ferramentas do assunto (ver lib/assistente/grupos.ts); recalcula a cada etapa
+      const config = { systemInstruction, tools: [{ functionDeclarations: declaracoesDaVez(ctx, history, pathname) }] };
+      const resp = await ai.models.generateContent({ model: MODEL, contents: comContexto(resumirAntigos(history), ctxTexto), config });
+      await registrarUsoIA("assistente", MODEL, resp.usageMetadata);
       const conteudo = resp.candidates?.[0]?.content;
       if (!conteudo?.parts?.length) {
         const bloqueio = resp.promptFeedback?.blockReason || resp.candidates?.[0]?.finishReason;

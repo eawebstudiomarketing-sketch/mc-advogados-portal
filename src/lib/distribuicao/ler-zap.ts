@@ -1,4 +1,5 @@
 import "server-only";
+import type { SupabaseClient } from "@supabase/supabase-js";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { generateJson } from "@/lib/gemini";
 import { MODELOS } from "@/lib/ia-modelos";
@@ -81,10 +82,53 @@ function conteudo(m: Msg): string {
 
 const chave = (iso: string) => String(Math.floor(Date.parse(iso) / 1000));
 
-export type ResultadoLeitura = { conversas: number; mensagens: number; sugestoes: number; erro?: string };
+export type ResultadoLeitura = { conversas: number; mensagens: number; sugestoes: number; erro?: string; ocupada?: true };
+
+// Trava (04/11/2026): o Agente da VPS chama a leitura a cada conversa, o GitHub de
+// hora em hora e a Vercel às 21h. Duas leituras juntas pegavam as mesmas mensagens
+// e pagavam a IA (e a transcrição dos áudios) duas vezes. Quem chega com a leitura
+// em andamento só deixa "pendente" e a leitura em curso roda mais uma vez no fim.
+const TRAVA = "trava:distribuicao";
+const TRAVA_VENCE_MS = 6 * 60_000; // função caiu no meio: a trava vence sozinha
+
+async function pegarTrava(db: SupabaseClient): Promise<boolean> {
+  const agora = new Date().toISOString();
+  const { error } = await db.from("painel_gerente").insert({ chave: TRAVA, conteudo: { pendente: false }, created_at: agora });
+  if (!error) return true;
+  const { data } = await db.from("painel_gerente").select("created_at").eq("chave", TRAVA).maybeSingle();
+  if (data && Date.now() - Date.parse(data.created_at as string) > TRAVA_VENCE_MS) {
+    // vencida: assume só se ninguém renovou no meio-tempo
+    const { data: peguei } = await db.from("painel_gerente").update({ conteudo: { pendente: false }, created_at: agora }).eq("chave", TRAVA).eq("created_at", data.created_at as string).select("chave");
+    return !!peguei?.length;
+  }
+  await db.from("painel_gerente").update({ conteudo: { pendente: true } }).eq("chave", TRAVA);
+  return false;
+}
 
 export async function lerConversasDoZap(): Promise<ResultadoLeitura> {
   const db = createAdminClient();
+  const trava = db as unknown as SupabaseClient; // painel_gerente não está nos tipos gerados
+  if (!(await pegarTrava(trava))) return { conversas: 0, mensagens: 0, sugestoes: 0, ocupada: true };
+  const total: ResultadoLeitura = { conversas: 0, mensagens: 0, sugestoes: 0 };
+  try {
+    for (let volta = 0; volta < 3; volta++) {
+      const r = await lerUmaVez(db);
+      total.conversas += r.conversas;
+      total.mensagens += r.mensagens;
+      total.sugestoes += r.sugestoes;
+      if (r.erro) total.erro = r.erro;
+      // chegou pedido de leitura enquanto lia? lê de novo (só o que é novo)
+      const { data } = await trava.from("painel_gerente").select("conteudo").eq("chave", TRAVA).maybeSingle();
+      if (r.erro || !(data?.conteudo as { pendente?: boolean } | null)?.pendente) break;
+      await trava.from("painel_gerente").update({ conteudo: { pendente: false } }).eq("chave", TRAVA);
+    }
+  } finally {
+    await trava.from("painel_gerente").delete().eq("chave", TRAVA);
+  }
+  return total;
+}
+
+async function lerUmaVez(db: ReturnType<typeof createAdminClient>): Promise<ResultadoLeitura> {
   // grupo "Assessoria Jurídica - X" sem cliente: liga à ficha antes de ler (a demanda já nasce com cliente)
   await ligarGruposDeAssessoria(db).catch(() => undefined);
   const [config, pessoas] = await Promise.all([getEscritorioConfig(), listPessoas()]);
@@ -149,7 +193,7 @@ export async function lerConversasDoZap(): Promise<ResultadoLeitura> {
     });
 
     const ia = await generateJson<{ demandas: DemandaIA[] }>({
-      model: MODELOS.distribuicao,
+      model: MODELOS.distribuicao, funcao: "distribuicao",
       schema: SCHEMA,
       system: [
         "Você faz a triagem do WhatsApp do escritório MC Advogados (advocacia empresarial).",

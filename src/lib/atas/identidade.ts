@@ -3,6 +3,7 @@ import { X509Certificate, createPublicKey, verify as verificarRsa } from "node:c
 import forge from "node-forge";
 import { ApiError, GoogleGenAI } from "@google/genai";
 import { MODELOS } from "@/lib/ia-modelos";
+import { registrarUsoIA } from "@/lib/ia-uso";
 
 // Identidade de quem assina uma ata: local pelo IP (cabeçalhos do Vercel),
 // conferência da selfie com o documento pela IA e o certificado digital A1
@@ -88,6 +89,7 @@ export async function conferirIdentidade(
       ],
       config: { temperature: 0, maxOutputTokens: 600 },
     });
+    await registrarUsoIA("ata_identidade", MODELOS.transcricao, r.usageMetadata);
     const t = r.text ?? "";
     const j = JSON.parse(t.slice(t.indexOf("{"), t.lastIndexOf("}") + 1)) as Partial<Verificacao>;
     const cpfLido = (j.cpf_no_documento ?? "").replace(/\D/g, "") || null;

@@ -71,7 +71,7 @@ export async function relatorioDoGerente(periodoId: string, { forcar = false } =
 
   const { achados, numeros } = await varrer(p.id);
   const r = await generateJson<{ paragrafos: string[]; fechamento: string; acoes: { achado: string; frase: string }[] }>({
-    model: MODELOS.assistente,
+    model: MODELOS.assistente, funcao: "painel_gerente",
     system: SISTEMA,
     parts: [{ text: JSON.stringify({ numeros, achados: achados.map((a) => ({ id: a.id, area: a.secao, prioridade: a.prioridade, fato: a.fato, sugestao: a.sugestao })) }) }],
     schema: SCHEMA,

@@ -51,7 +51,7 @@ export async function POST(request: Request) {
 
   const bytes = Buffer.from(await audio.arrayBuffer());
   const result = await generateJson<{ resposta: string }>({
-    model: MODELOS.transcricao,
+    model: MODELOS.transcricao, funcao: "transcricao_microfone",
     system: comando ? SYSTEM_COMANDO : SYSTEM,
     schema: SCHEMA,
     parts: [

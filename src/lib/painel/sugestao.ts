@@ -59,7 +59,7 @@ export async function gerarSugestoes({ refazer = false } = {}): Promise<{ ok: tr
   const m = await calcularMetricas(periodoDe("mes"));
   const resumo = resumoParaIa(m);
   const r = await generateJson<{ resumo: string; itens: Sugestao[] }>({
-    model: MODELOS.assistente,
+    model: MODELOS.assistente, funcao: "painel_sugestoes",
     system: SISTEMA,
     parts: [{ text: JSON.stringify(resumo) }],
     schema: SCHEMA,

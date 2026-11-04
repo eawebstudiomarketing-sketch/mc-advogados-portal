@@ -38,7 +38,7 @@ export async function transcreverAudioDoZap(mediaPath: string | null, mime: stri
     // "audio/ogg; codecs=opus" (nota de voz do WhatsApp) → "audio/ogg"
     const mimeType = (mime || "audio/ogg").split(";")[0].trim();
     const r = await generateJson<{ texto: string }>({
-      model: MODELOS.transcricao,
+      model: MODELOS.transcricao, funcao: "distribuicao_audio",
       system: SYSTEM,
       schema: SCHEMA,
       parts: [{ text: "Transcreva o áudio." }, { inlineData: { mimeType, data: bytes.toString("base64") } }],

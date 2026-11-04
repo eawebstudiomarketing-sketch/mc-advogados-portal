@@ -14,6 +14,7 @@ import { downloadFile, getDriveFileMeta, getDriveSession, listFolderFiles, searc
 import { getHandoff } from "@/lib/data/handoff";
 import { GoogleGenAI } from "@google/genai";
 import { MODELOS } from "@/lib/ia-modelos";
+import { registrarUsoIA } from "@/lib/ia-uso";
 import { TOOLS_WHATSAPP } from "./tools-whatsapp";
 import { TOOLS_TRANSCRICAO } from "./tools-transcricao";
 import { TOOLS_ATAS } from "./tools-atas";
@@ -490,6 +491,7 @@ export const TOOLS: ToolDef[] = [
         model: MODELOS.leitura,
         contents: [{ role: "user", parts: [...partes, { text: `Pergunta sobre o documento "${d.title}": ${pergunta}\nResponda em português, só com o que está no documento; se não estiver lá, diga isso.` }] }],
       });
+      await registrarUsoIA("assistente_ler_documento", MODELOS.leitura, r.usageMetadata);
       return { documento: d.title, resposta: r.text ?? "(sem resposta)" };
     },
   },
@@ -687,6 +689,7 @@ export const TOOLS: ToolDef[] = [
           },
         ],
       });
+      await registrarUsoIA("assistente_ler_drive", MODELOS.leitura, r.usageMetadata);
       return { arquivo: arq.name, resposta: r.text ?? "(sem resposta)" };
     },
   },
@@ -754,6 +757,7 @@ export const TOOLS: ToolDef[] = [
         model: MODELOS.leitura,
         contents: [{ role: "user", parts: [...partes, { text: `Pergunta sobre o anexo "${nome}": ${pergunta}\nResponda em português, só com o que está no arquivo; se não estiver lá, diga isso.` }] }],
       });
+      await registrarUsoIA("assistente_ler_anexo", MODELOS.leitura, r.usageMetadata);
       return { anexo: nome, resposta: r.text ?? "(sem resposta)" };
     },
   },

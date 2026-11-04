@@ -110,7 +110,7 @@ export async function rascunhoResposta(chatJid: string): Promise<string> {
     contexto = ((ats ?? []) as { title: string; deadline: string | null }[]).map((a) => `- ${a.title}${a.deadline ? ` (prazo ${a.deadline.split("-").reverse().join("/")})` : ""}`).join("\n");
   }
   const r = await generateJson<{ mensagem: string }>({
-    model: MODELOS.assistente,
+    model: MODELOS.assistente, funcao: "painel_rascunho",
     system:
       "Você escreve, em nome do escritório MC Advogados, a próxima mensagem de WhatsApp para o cliente. Português do Brasil, cordial e curta (até 4 linhas), responde o que o cliente perguntou por último. Se não houver informação suficiente para responder o mérito, diga que a equipe está verificando e dá retorno até um prazo curto. Não invente fatos, valores nem datas de processo. Sem assinatura.",
     parts: [{ text: `Conversa (${chat?.is_group ? "grupo" : "privado"} ${chat?.nome ?? ""}):\n${conversa || "(sem mensagens recentes)"}\n\nAtividades abertas do cliente:\n${contexto || "(nenhuma)"}` }],

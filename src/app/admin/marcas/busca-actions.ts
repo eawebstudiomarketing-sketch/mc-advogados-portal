@@ -125,7 +125,7 @@ export async function buscaIAAction(e: EntradaBusca & { logo?: { mime: string; b
   const plano = await generateJson<{ classes: { classe: string; motivo: string }[]; termos: string[]; texto_logo: string }>({
     system: SISTEMA_PLANO,
     parts: partes,
-    model: MODELOS.leitura,
+    model: MODELOS.leitura, funcao: "marcas_busca",
     schema: {
       type: "object",
       properties: {
@@ -165,7 +165,7 @@ export async function buscaIAAction(e: EntradaBusca & { logo?: { mime: string; b
   const parecer = await generateJson<Parecer>({
     system: SISTEMA_PARECER,
     parts: [{ text: `Marca pretendida: ${ref}${e.siglas ? " (contém siglas)" : ""}\nOnde será usada: ${e.ondeUsar}\nContexto: ${e.contexto || "-"}\nClasses: ${classes.map((c) => `${c.classe} (${c.motivo})`).join("; ")}\n\nAnterioridades encontradas no INPI (${candidatos.length + extras.length}):\n${lista || "nenhuma"}` }],
-    model: MODELOS.leitura,
+    model: MODELOS.leitura, funcao: "marcas_busca",
     schema: {
       type: "object",
       properties: {

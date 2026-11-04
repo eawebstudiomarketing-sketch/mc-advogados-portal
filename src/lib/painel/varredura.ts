@@ -314,7 +314,7 @@ export async function varrer(periodoId: string) {
   }
   if (candidatas.length) {
     const r = await generateJson<{ casos: { k: number; atividade: string }[] }>({
-      model: MODELOS.assistente,
+      model: MODELOS.assistente, funcao: "painel_varredura",
       system: "Para cada mensagem de um advogado ao cliente, diga se ela afirma que UMA das atividades listadas foi feita/entregue. Responda o id da atividade ou vazio se não der para afirmar com segurança.",
       parts: [{ text: JSON.stringify(candidatas.map((c) => ({ k: c.k, mensagem: c.texto, atividades: c.abertas }))) }],
       schema: { type: "object", properties: { casos: { type: "array", items: { type: "object", properties: { k: { type: "integer" }, atividade: { type: "string" } }, required: ["k", "atividade"] } } }, required: ["casos"] },

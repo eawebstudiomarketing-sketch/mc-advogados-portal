@@ -6,8 +6,9 @@
 //   3.1 Flash-Lite 0,25/1,50 · 3.8 Flash 0,75/3,75 (dobra em 2027). A família 2.x (2.0/2.5)
 //   não está mais disponível para contas novas (testado em 08/10/2026).
 export const MODELOS = {
-  /** áudio → texto (🎙 do onboarding e do assistente) */
-  transcricao: process.env.GEMINI_MODELO_TRANSCRICAO ?? "gemini-flash-latest",
+  /** áudio → texto (🎙 do onboarding e do assistente). Fixo em 04/11/2026: o apelido
+   *  "gemini-flash-latest" apontava para o 3.8 Flash e trocaria sozinho para um mais caro. */
+  transcricao: process.env.GEMINI_MODELO_TRANSCRICAO ?? "gemini-3.8-flash",
   /** perguntas do onboarding a partir da ficha de handoff */
   onboarding: process.env.GEMINI_MODELO_ONBOARDING ?? "gemini-3.1-flash-lite",
   /** demandas a partir de ficha/ATAs/documentos */

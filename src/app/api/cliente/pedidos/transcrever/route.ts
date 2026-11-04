@@ -40,7 +40,7 @@ export async function POST(request: Request) {
 
   const bytes = Buffer.from(await audio.arrayBuffer());
   const result = await generateJson<{ titulo: string; resposta: string }>({
-    model: MODELOS.transcricao,
+    model: MODELOS.transcricao, funcao: "transcricao_cliente",
     system: SYSTEM,
     schema: SCHEMA,
     parts: [{ text: "Transcreva o pedido." }, { inlineData: { mimeType, data: bytes.toString("base64") } }],

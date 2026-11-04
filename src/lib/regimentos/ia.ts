@@ -62,7 +62,7 @@ export async function gerarQuestionario(d: { nome: string; segmento: string; dad
   const roteiro = await generateJson<{ descricao: string; secoes: { titulo: string; descricao: string; foco: string }[] }>({
     system: `${SISTEMA_GERAR}\n\n${MODELO_REFERENCIA}\n\nNESTA ETAPA devolva só o roteiro: entre 15 e 18 seções (título, descrição curta e "foco" = os assuntos que as perguntas da seção devem cobrir) e a "descricao" do formulário no estilo "🎯 OBJETIVO / Coletar informações para elaboração de Regimento Interno claro, aplicável e juridicamente seguro, com foco em: …" (com 4 a 6 focos em linhas separadas).`,
     parts: [{ text: empresa }],
-    model: MODELOS.onboarding,
+    model: MODELOS.onboarding, funcao: "regimentos",
     schema: {
       type: "object",
       properties: {
@@ -82,7 +82,7 @@ export async function gerarQuestionario(d: { nome: string; segmento: string; dad
       generateJson<{ perguntas: unknown[] }>({
         system: `${SISTEMA_GERAR}\n\n${MODELO_REFERENCIA}\n\nNESTA ETAPA escreva só as perguntas de UMA seção: entre 6 e 12 perguntas (mínimo 6), específicas da empresa, sem repetir assuntos das outras seções.`,
         parts: [{ text: `${empresa}\n\nTodas as seções do questionário:\n${titulos}\n\nSeção a escrever agora: ${s.titulo}\nDescrição: ${s.descricao}\nAssuntos a cobrir: ${s.foco}` }],
-        model: MODELOS.onboarding,
+        model: MODELOS.onboarding, funcao: "regimentos",
         schema: { type: "object", properties: { perguntas: ESQUEMA_PERGUNTAS }, required: ["perguntas"] },
       })
     )
@@ -101,7 +101,7 @@ export async function editarQuestionario(atual: { descricao: string | null; seco
   const r = await generateJson<{ descricao: string; secoes: unknown }>({
     system: SISTEMA_EDITAR,
     parts: [{ text: `Empresa: ${empresa}\nPedido: ${pedido}\n\nQuestionário atual:\n${JSON.stringify({ descricao: atual.descricao ?? "", secoes: atual.secoes })}` }],
-    model: MODELOS.onboarding,
+    model: MODELOS.onboarding, funcao: "regimentos",
     schema: {
       type: "object",
       properties: { descricao: { type: "string" }, secoes: ESQUEMA_SECOES },

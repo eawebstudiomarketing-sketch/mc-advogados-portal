@@ -135,7 +135,7 @@ export async function gerarMensagemCobrancaAction(v: { titulo: string; documento
   const documentos = v.documentos.map((d) => d.trim()).filter(Boolean).slice(0, 20);
   if (!documentos.length) return { ok: false, erro: "Diga primeiro quais documentos faltam." };
   const r = await generateJson<{ mensagem: string }>({
-    model: MODELOS.onboarding,
+    model: MODELOS.onboarding, funcao: "cobranca",
     system:
       "Você escreve mensagens de WhatsApp de um escritório de advocacia (MC Advogados) cobrando documentos do cliente. Tom cordial, direto, em português do Brasil, sem juridiquês, 2 a 4 frases, no máximo 1 emoji. " +
       "Use exatamente os marcadores {cliente} (primeiro nome do cliente) e {documentos} (lista do que falta) no texto, sem trocar por nomes. Não invente prazos nem valores.",

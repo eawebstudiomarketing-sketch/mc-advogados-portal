@@ -70,7 +70,7 @@ export async function generateDemandsFromSources({
     },
   ];
 
-  const result = await generateJson<{ demands?: GeneratedDemand[] }>({ model: MODELOS.demandas, system: SYSTEM, schema: SCHEMA, parts });
+  const result = await generateJson<{ demands?: GeneratedDemand[] }>({ model: MODELOS.demandas, funcao: "demandas", system: SYSTEM, schema: SCHEMA, parts });
   if (!result.ok) return result;
 
   const demands = (result.data.demands ?? []).filter(

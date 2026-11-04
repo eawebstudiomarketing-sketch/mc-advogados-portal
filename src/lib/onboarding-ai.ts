@@ -50,7 +50,7 @@ export async function generateOnboardingStages(cliente: {
   triagem: string;
 }): Promise<GeminiResult<OnboardingStage[]>> {
   const result = await generateJson<{ etapas: { numero: number; perguntas: string[] }[] }>({
-    model: MODELOS.onboarding,
+    model: MODELOS.onboarding, funcao: "onboarding",
     system: SYSTEM,
     schema: SCHEMA,
     parts: [

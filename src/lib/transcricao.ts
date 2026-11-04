@@ -3,6 +3,7 @@ import { createHmac } from "node:crypto";
 import { ApiError, GoogleGenAI, HarmBlockThreshold, HarmCategory, ThinkingLevel, type File as ArquivoGemini } from "@google/genai";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { MODELOS } from "@/lib/ia-modelos";
+import { registrarUsoIA } from "@/lib/ia-uso";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { BUCKET_WHATSAPP, linkVps } from "@/lib/whatsapp";
 import type { ModoTranscricao, OpcoesTranscricao } from "@/lib/transcricao-formato";
@@ -168,6 +169,7 @@ async function gerarTexto(ai: GoogleGenAI, sistema: string, partes: ParteIA[]): 
         contents: [{ role: "user", parts: partes }],
         config: { systemInstruction: sistema, maxOutputTokens: 32_768, temperature: 0.2, thinkingConfig: { thinkingLevel: ThinkingLevel.LOW }, safetySettings: SEM_FILTRO },
       });
+      await registrarUsoIA("transcricao_reuniao", MODELOS.transcricao, r.usageMetadata);
       const fim = r.candidates?.[0]?.finishReason;
       // GEMINI_LOG_TOKENS=1: mostra o consumo de cada pedido (para medir custo)
       if (process.env.GEMINI_LOG_TOKENS) console.info("gemini tokens:", JSON.stringify(r.usageMetadata));

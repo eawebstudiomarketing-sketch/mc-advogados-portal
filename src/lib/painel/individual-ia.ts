@@ -66,7 +66,7 @@ export async function resumoDaPessoa(ind: Indicadores, { forcar = false } = {}):
     processos: ind.processos,
   };
   const r = await generateJson<{ paragrafos: string[]; recomendacoes: string[] }>({
-    model: MODELOS.assistente,
+    model: MODELOS.assistente, funcao: "painel_pessoa",
     system: SISTEMA,
     parts: [{ text: JSON.stringify(dados) }],
     schema: SCHEMA,

@@ -1,5 +1,6 @@
 import "server-only";
 import { GoogleGenAI, ApiError, type Part } from "@google/genai";
+import { registrarUsoIA } from "@/lib/ia-uso";
 
 // Cliente único do Gemini (Google AI Studio, nível pago). Toda geração do
 // portal pede resposta em JSON com formato fixo e devolve erro em português.
@@ -13,11 +14,14 @@ export async function generateJson<T>({
   parts,
   schema,
   model = GEMINI_MODEL,
+  funcao = "outros",
 }: {
   system: string;
   parts: Part[];
   schema: Record<string, unknown>;
   model?: string;
+  /** nome no medidor de consumo (uso_ia) */
+  funcao?: string;
 }): Promise<GeminiResult<T>> {
   const apiKey = process.env.GEMINI_API_KEY;
   if (!apiKey) return { ok: false, error: "A chave do Gemini (GEMINI_API_KEY) não está configurada no servidor." };
@@ -33,6 +37,7 @@ export async function generateJson<T>({
         responseJsonSchema: schema,
       },
     });
+    await registrarUsoIA(funcao, model, response.usageMetadata);
 
     const finish = response.candidates?.[0]?.finishReason;
     if (response.promptFeedback?.blockReason || finish === "SAFETY" || finish === "PROHIBITED_CONTENT") {
