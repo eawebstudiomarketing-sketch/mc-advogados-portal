@@ -31,6 +31,7 @@ export default async function AdminLayout({ children, rotina }: { children: Reac
   return (
     <AdminShell
       userName={profile.full_name}
+      userId={profile.id}
       userRole={profile.role}
       clients={clients.map((c) => ({ id: c.id, name: c.name }))}
       permissoes={permissoes}

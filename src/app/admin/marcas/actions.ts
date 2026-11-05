@@ -111,11 +111,12 @@ export async function buscarCadastroAction(tipo: "processo" | "nome" | "titular"
 }
 
 /** Acompanhar um ou vários processos: lê a ficha no INPI e entra na carteira. */
-export async function acompanharAction(processos: string[]): Promise<{ ok: true; feitos: number; erros: string[] } | { ok: false; error: string }> {
+export async function acompanharAction(processos: string[]): Promise<{ ok: true; feitos: number; erros: string[]; avisos: string[] } | { ok: false; error: string }> {
   const { profile } = await exigirPermissao("marcas");
   const lista = [...new Set(processos.map((p) => p.replace(/\D/g, "")).filter((p) => p.length === 9))].slice(0, 10);
   if (!lista.length) return { ok: false, error: "Nenhum processo válido (são 9 dígitos)." };
   const erros: string[] = [];
+  const avisos: string[] = [];
   let feitos = 0;
   for (const [i, p] of lista.entries()) {
     // o pePI bloqueia consultas em sequência (31/10/2026): 8 s entre um processo e outro
@@ -124,10 +125,19 @@ export async function acompanharAction(processos: string[]): Promise<{ ok: true;
     await db().from("marcas").update({ acompanhando: true }).eq("processo", p);
     const r = await sincronizarProcesso(p, { criado_por: profile.id, comLogo: true }).catch((e) => ({ ok: false as const, error: (e as Error).message }));
     if (r.ok) feitos++;
-    else erros.push(r.error);
+    else if (/não encontrado no INPI/.test(r.error)) {
+      // recém-protocolada (05/11/2026): o pePI leva alguns dias para mostrar o
+      // pedido. Entra na carteira assim mesmo e a conferência diária completa.
+      const { error } = await db().from("marcas").upsert({ processo: p, tipo: "marca", acompanhando: true, origem: "portal", criado_por: profile.id }, { onConflict: "processo", ignoreDuplicates: true });
+      if (error) erros.push(`${p}: ${error.message}`);
+      else {
+        feitos++;
+        avisos.push(`${p}: o INPI ainda não publicou a ficha (pedido recém-protocolado leva alguns dias). Já está na carteira e os dados entram sozinhos quando aparecerem.`);
+      }
+    } else erros.push(r.error);
   }
   recarregar();
-  return { ok: true, feitos, erros };
+  return { ok: true, feitos, erros, avisos };
 }
 
 // ───────────── aba WhatsApp ─────────────

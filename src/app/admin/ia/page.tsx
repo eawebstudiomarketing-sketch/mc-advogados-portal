@@ -11,7 +11,7 @@ export default async function IaPage() {
   return (
     <div className="-mt-2">
       <h1 className="sr-only">IA do escritório</h1>
-      <Assistente nome={profile.full_name.split(" ")[0] ?? ""} modo="tela" />
+      <Assistente nome={profile.full_name.split(" ")[0] ?? ""} usuarioId={profile.id} modo="tela" />
     </div>
   );
 }

@@ -26,7 +26,7 @@ export default async function AssistentePage() {
   const publicacoes = profile.role === "admin" ? await contarNaoTratadas().catch(() => 0) : null;
   return (
     <main className="min-h-dvh w-full bg-background">
-      <Assistente nome={profile.full_name.split(" ")[0] ?? ""} modo="pagina" publicacoes={publicacoes} />
+      <Assistente nome={profile.full_name.split(" ")[0] ?? ""} usuarioId={profile.id} modo="pagina" publicacoes={publicacoes} />
     </main>
   );
 }

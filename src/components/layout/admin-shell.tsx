@@ -36,6 +36,7 @@ const iniciais = (nome: string) =>
 export function AdminShell({
   children,
   userName,
+  userId,
   userRole,
   clients = [],
   permissoes,
@@ -47,6 +48,7 @@ export function AdminShell({
 }: {
   children: React.ReactNode;
   userName: string;
+  userId: string;
   userRole: string;
   clients?: { id: string; name: string }[];
   permissoes: Permissoes;
@@ -289,7 +291,7 @@ export function AdminShell({
       {/* na tela IA (Ferramentas) o assistente já está aberto em tela grande */}
       {(userRole === "admin" || userRole === "advogado") && permissoes.assistente && pathname !== "/admin/ia" && (
         <div className="print:hidden">
-          <Assistente nome={userName.split(" ")[0] ?? ""} />
+          <Assistente nome={userName.split(" ")[0] ?? ""} usuarioId={userId} />
         </div>
       )}
       <Suspense fallback={null}>

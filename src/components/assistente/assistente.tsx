@@ -23,7 +23,10 @@ type Anexo = { caminho: string; nome: string; enviando?: boolean; previa?: strin
 
 const RE_ANEXO = /\[Anexo: (.+?) \(anexo=[^)]+\)\]/g;
 
-const CHAVE = "mc:assistente";
+// Conversa guardada por CONTA (05/11/2026): antes a chave era a mesma para
+// todos, e quem entrava com outra conta no mesmo navegador via a conversa da
+// pessoa anterior. A chave antiga é apagada.
+const chaveDe = (usuarioId: string) => `mc:assistente:${usuarioId}`;
 
 // ---------- markdown mínimo (negrito, links, listas, quebras) ----------
 function linha(texto: string, key: string, onLink: (href: string) => void) {
@@ -87,9 +90,10 @@ function Markdown({ texto, onLink }: { texto: string; onLink: (href: string) => 
   );
 }
 
-function lerSalvo(): Content[] {
+function lerSalvo(usuarioId: string): Content[] {
   try {
-    const s = sessionStorage.getItem(CHAVE);
+    sessionStorage.removeItem("mc:assistente");
+    const s = sessionStorage.getItem(chaveDe(usuarioId));
     return s ? (JSON.parse(s) as Content[]) : [];
   } catch {
     return [];
@@ -99,10 +103,13 @@ function lerSalvo(): Content[] {
 // Balão do assistente: conversa com o Gemini, que executa ações no portal.
 export function Assistente({
   nome,
+  usuarioId,
   modo = "flutuante",
   publicacoes = null,
 }: {
   nome: string;
+  /** id da conta: cada uma tem a própria conversa */
+  usuarioId: string;
   /** flutuante = balão (Ctrl+J); pagina = app do celular (/assistente); tela = Ferramentas › IA, dentro do portal */
   modo?: "flutuante" | "pagina" | "tela";
   /** App instalável (admin): atalho para as Publicações com o número de não tratadas. */
@@ -128,14 +135,14 @@ export function Assistente({
 
   useEffect(() => {
     setMontado(true); // eslint-disable-line react-hooks/set-state-in-effect -- só para o portal no cliente
-    setHistory(lerSalvo());
-  }, []);
+    setHistory(lerSalvo(usuarioId));
+  }, [usuarioId]);
 
   useEffect(() => {
     try {
-      sessionStorage.setItem(CHAVE, JSON.stringify(history.slice(-60)));
+      sessionStorage.setItem(chaveDe(usuarioId), JSON.stringify(history.slice(-60)));
     } catch {}
-  }, [history]);
+  }, [history, usuarioId]);
 
   useEffect(() => {
     fimRef.current?.scrollIntoView({ behavior: "smooth", block: "end" });

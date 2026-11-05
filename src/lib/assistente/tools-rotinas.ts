@@ -21,7 +21,7 @@ export const TOOLS_ROTINAS: ToolDef[] = [
     soSuper: true,
     label: "Consultou as rotinas do dia",
     description:
-      "Situação das rotinas de um dia, por pessoa: se enviou o relatório (e a que horas), rotinas fixas feitas, demandas concluídas no dia e demandas vencidas em aberto. Mostra quem NÃO enviou o relatório. Prazo do relatório: a equipe até as 18:00, o admin máximo (Maurício) até as 23:59.",
+      "Situação das rotinas de um dia, por pessoa: se enviou o relatório (e a que horas), rotinas fixas feitas, demandas concluídas no dia e demandas vencidas em aberto. Mostra quem NÃO enviou o relatório. Prazo do relatório: a equipe até as 17:00, o admin máximo (Maurício) até as 23:59.",
     parameters: obj({ dia: DIA }),
     run: async (a) => {
       const dia = diaValido(a.dia);

@@ -18,7 +18,7 @@ import {
 } from "@/lib/rotina-relatorio/tipos";
 
 // Relatório do dia (Rotinas v2): a pessoa responde as perguntas do modelo dela,
-// justifica as demandas vencidas e envia, até o prazo (equipe 18:00, admin máximo 23:59). As três seções ficam
+// justifica as demandas vencidas e envia, até o prazo (equipe 17:00, admin máximo 23:59). As três seções ficam
 // bem separadas (sobre você · sobre a equipe · sobre cada pessoa).
 
 type PerguntaTela = Pick<Pergunta, "id" | "secao" | "texto" | "tipo" | "opcoes" | "obrigatoria">;
@@ -120,7 +120,7 @@ export function RelatorioDoDia({
   equipeNode?: React.ReactNode;
   /** admin máximo corrigindo o relatório já enviado de outra pessoa */
   edicao?: { responsavelId: string; dia: string };
-  /** até que horas pode enviar (equipe 18:00, admin máximo 23:59) */
+  /** até que horas pode enviar (equipe 17:00, admin máximo 23:59) */
   prazo?: string;
 }) {
   const [respostas, setRespostas] = useState(inicial.respostas);

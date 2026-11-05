@@ -73,15 +73,18 @@ export function BuscaCadastro() {
       // de 10 em 10 (o servidor espera 8 s entre um e outro para o INPI não bloquear)
       let feitos = 0;
       const erros: string[] = [];
+      const avisos: string[] = [];
       for (let i = 0; i < processos.length; i += 10) {
         if (processos.length > 10) toast.message(`Lendo no INPI ${i + 1}–${Math.min(i + 10, processos.length)} de ${processos.length}…`);
         const r = await acompanharAction(processos.slice(i, i + 10));
         if (!r.ok) return void toast.error(r.error);
         feitos += r.feitos;
         erros.push(...r.erros);
+        avisos.push(...r.avisos);
       }
       toast.success(`${feitos} processo(s) na carteira${erros.length ? ` · ${erros.length} com erro` : ""}`);
       if (erros.length) toast.error(erros.slice(0, 3).join(" · "));
+      if (avisos.length) toast.message(avisos.slice(0, 3).join(" · "), { duration: 12_000 });
       setResultados((rs) => rs?.map((x) => (processos.includes(x.processo) ? { ...x, jaRegistrado: true } : x)) ?? null);
       setSel(new Set());
       router.refresh();

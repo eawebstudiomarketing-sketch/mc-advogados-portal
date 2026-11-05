@@ -95,6 +95,11 @@ function passoBusca(tipo: "processo" | "nome" | "titular", termo: string): Passo
 export async function buscarNoInpi(tipo: "processo" | "nome" | "titular", termo: string): Promise<{ resultados: ResultadoBusca[]; total: number }> {
   const r = await ponte([{ url: `${PEPI}/` }, login(), passoBusca(tipo, termo)]);
   const html = r.corpo ?? "";
+  // 05/11/2026: de madrugada o pePI devolveu página sem resultado nem "nenhum
+  // resultado" (manutenção/bloqueio) e isso virava "não encontrado": a
+  // conferência passou as 200 marcas sem gravar nada. Agora é erro da ponte.
+  if (tipo === "processo" && !/Foram encontrados \d+ processos|Nenhum resultado foi encontrado/.test(texto(html)))
+    throw new Error("Ponte do INPI: o pePI não devolveu a pesquisa (fora do ar ou em manutenção).");
   const total = Number(texto(html).match(/Foram encontrados (\d+) processos/)?.[1] ?? 0);
   return { resultados: lerResultados(html), total };
 }

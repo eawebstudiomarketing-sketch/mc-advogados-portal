@@ -8,7 +8,7 @@ import { hojeBahia, lerRelatorio, prazoDoRelatorio } from "./dados";
 // Relógio no alto do sistema (Rotinas v2, 30/10): leva à rotina da própria
 // pessoa e acende um alerta quando uma tarefa fixa passou da hora sem ser
 // marcada, ou quando faltam 2 h (ou menos) para o prazo do relatório do dia e ele
-// não foi enviado (prazo: equipe 18:00, admin máximo 23:59; 04/11/2026).
+// não foi enviado (prazo: equipe 17:00, admin máximo 23:59; 04/11/2026).
 
 export type AlertaRotina = { href: string; atrasadas: number; relatorioPendente: boolean } | null;
 
