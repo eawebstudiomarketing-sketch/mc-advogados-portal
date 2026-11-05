@@ -1,6 +1,8 @@
 import Link from "next/link";
 import { BarraFiltros } from "@/components/ui/barra-filtros";
-import { exigirPermissao } from "@/lib/dal";
+import { ehSuperAdmin, exigirPermissao } from "@/lib/dal";
+import { contarPedidosPrazo, listarPedidosPrazo } from "@/lib/prazo-pedidos";
+import { PedidosPrazo } from "./pedidos-prazo";
 import { htmlParaTexto } from "@/lib/astrea/texto";
 import { alertasDeAndamentos, alertasDePublicacoes, comentariosDe, contadoresAlertas, quandoAlerta, tituloProcesso } from "@/lib/data/alertas";
 import { contadoresAndamentos } from "@/lib/data/andamentos";
@@ -21,16 +23,22 @@ export default async function AlertasPage({ searchParams }: { searchParams: Prom
   const { profile, permissoes } = await exigirPermissao("publicacoes");
   const sp = await searchParams;
   const podeAndamentos = !!permissoes.processos;
-  const aba = sp.aba === "andamentos" && podeAndamentos ? "andamentos" : sp.aba === "robos" ? "robos" : "publicacoes";
-  const [contadores, ultima, problemas] = await Promise.all([
+  // aba Prazos (05/11/2026): pedidos da equipe para mudar prazo, só o admin máximo decide
+  const superAdmin = ehSuperAdmin(profile);
+  const aba = sp.aba === "andamentos" && podeAndamentos ? "andamentos" : sp.aba === "robos" ? "robos" : sp.aba === "prazos" && superAdmin ? "prazos" : "publicacoes";
+  const [contadores, ultima, problemas, nPrazos] = await Promise.all([
     contadoresAlertas(),
     podeAndamentos ? contadoresAndamentos().then((c) => c.ultima) : null,
     robosComProblema().catch(() => [] as RoboTela[]),
+    superAdmin ? contarPedidosPrazo().catch(() => 0) : 0,
   ]);
 
   let lista: React.ReactNode;
   let donoAbas: { chave: string; rotulo: string; n: number; href: string; ativa: boolean }[] = [];
-  if (aba === "robos") {
+  if (aba === "prazos") {
+    const [pendentes, decididos] = await Promise.all([listarPedidosPrazo("pendente"), listarPedidosPrazo("decididos", 20)]);
+    lista = <PedidosPrazo pendentes={pendentes} decididos={decididos} />;
+  } else if (aba === "robos") {
     lista = <TabelaRobos robos={(await todosOsRobos().catch(() => [])) as RoboTela[]} />;
   } else if (aba === "andamentos") {
     const grupos = await alertasDeAndamentos(sp.q);
@@ -84,6 +92,7 @@ export default async function AlertasPage({ searchParams }: { searchParams: Prom
   const abas = [
     { chave: "publicacoes", rotulo: "Publicações", n: contadores.publicacoes, href: "/admin/alertas" },
     ...(podeAndamentos ? [{ chave: "andamentos", rotulo: "Andamentos", n: contadores.andamentos, href: "/admin/alertas?aba=andamentos" }] : []),
+    ...(superAdmin ? [{ chave: "prazos", rotulo: "Prazos", n: nPrazos, href: "/admin/alertas?aba=prazos" }] : []),
     { chave: "robos", rotulo: "Robôs", n: problemas.length, href: "/admin/alertas?aba=robos" },
     { chave: "novidades", rotulo: "Novidades do portal", n: 0, href: "/admin/novidades" },
   ];
@@ -135,7 +144,7 @@ export default async function AlertasPage({ searchParams }: { searchParams: Prom
           ))}
         </div>
       )}
-      {aba !== "robos" && <BarraFiltros filtros={[{ tipo: "busca", nome: "q", rotulo: aba === "andamentos" ? "Nº do processo, parte ou cliente" : "Nº do processo ou termo" }]} />}
+      {aba !== "robos" && aba !== "prazos" && <BarraFiltros filtros={[{ tipo: "busca", nome: "q", rotulo: aba === "andamentos" ? "Nº do processo, parte ou cliente" : "Nº do processo ou termo" }]} />}
       {lista}
     </div>
   );

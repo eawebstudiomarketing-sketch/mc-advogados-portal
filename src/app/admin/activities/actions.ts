@@ -13,6 +13,7 @@ import { cancelarPendentes, destinoDoCliente } from "@/lib/zap/fila";
 import { criarAgendamento, proximaOcorrencia, type Recorrencia } from "@/lib/zap/agendamentos";
 import { configCobranca } from "@/lib/cobrancas";
 import type { SupabaseClient } from "@supabase/supabase-js";
+import { ehPrazoTravado, MSG_TRAVADO } from "@/lib/prazo-pedidos";
 
 type Db = Awaited<ReturnType<typeof createClient>>;
 
@@ -246,12 +247,13 @@ async function salvarAtividade(formData: FormData): Promise<string | null> {
       title: title.trim(),
       description: typeof description === "string" && description.trim() ? description.trim() : null,
       type: type as Database["public"]["Enums"]["activity_type"],
-      deadline: typeof deadline === "string" && deadline ? deadline : null,
+      // prazo travado (05/11/2026): sem o campo no formulário, o prazo não muda
+      ...(formData.has("deadline") ? { deadline: typeof deadline === "string" && deadline ? deadline : null } : {}),
       ...lerAgenda(formData),
     })
     .eq("id", id);
 
-  if (error) return "Não foi possível salvar as alterações. Tente novamente.";
+  if (error) return ehPrazoTravado(error.message) ? MSG_TRAVADO : "Não foi possível salvar as alterações. Tente novamente.";
   await reagendarAudienciaDaAtividade(id).catch(() => undefined);
   revalidatePath("/admin/activities");
   revalidatePath("/admin/agenda");
@@ -328,7 +330,7 @@ export async function bulkUpdateDeadlineAction(ids: string[], deadline: string |
 
   const supabase = await createClient();
   const { data, error } = await supabase.from("activities").update({ deadline }).in("id", lista).select("id");
-  if (error) return { ok: false, error: "Não foi possível mudar o prazo. Tente novamente." };
+  if (error) return { ok: false, error: ehPrazoTravado(error.message) ? MSG_TRAVADO : "Não foi possível mudar o prazo. Tente novamente." };
 
   revalidatePath("/admin/activities");
   revalidatePath("/admin");

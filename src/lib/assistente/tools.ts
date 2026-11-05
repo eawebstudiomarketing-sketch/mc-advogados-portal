@@ -27,6 +27,8 @@ import { TOOLS_PAINEL } from "./tools-painel";
 import { toolsOperacao } from "./tools-operacao";
 import { toolsCobranca } from "./tools-cobranca";
 import { toolsAgendadas } from "./tools-agendadas";
+import { toolsPrazo } from "./tools-prazo";
+import { conferirMudancaDePrazo } from "@/lib/prazo-pedidos";
 import { envolvidosPorNome, etiquetasPorNome, toolsSistema } from "./tools-sistema";
 import { reagendarAudienciaDaAtividade } from "@/lib/zap/lembretes";
 
@@ -361,7 +363,7 @@ export const TOOLS: ToolDef[] = [
     name: "atualizar_atividade",
     kind: "write",
     label: "Atualizou atividade",
-    description: "Altera uma atividade (só o que muda). Concluir: status='concluida'. Tirar prazo: deadline ''.",
+    description: "Altera uma atividade (só o que muda). Concluir: status='concluida'. Tirar prazo: deadline ''. Prazo que JÁ existe só o admin máximo muda; a equipe usa pedir_mudanca_prazo.",
     parameters: obj(
       {
         activity_id: { type: "string" },
@@ -378,8 +380,9 @@ export const TOOLS: ToolDef[] = [
       },
       ["activity_id"]
     ),
-    run: async (a) => {
+    run: async (a, ctx) => {
       await porId("activities", a.activity_id, "Atividade");
+      if (a.deadline !== undefined) await conferirMudancaDePrazo(!!ctx.superAdmin, [String(a.activity_id)], a.deadline ? String(a.deadline) : null);
       const patch: Record<string, unknown> = {};
       for (const k of ["title", "type", "description", "status"]) if (a[k] !== undefined) patch[k] = a[k];
       if (a.responsavel) patch.responsavel_id = await responsavelPorNome(a.responsavel);
@@ -400,8 +403,9 @@ export const TOOLS: ToolDef[] = [
       { activity_ids: { type: "array", items: { type: "string" } }, status: { type: "string", enum: STATUS }, deadline: DATA },
       ["activity_ids"]
     ),
-    run: async (a) => {
+    run: async (a, ctx) => {
       const ids = (a.activity_ids as string[]).slice(0, 200);
+      if (a.deadline !== undefined) await conferirMudancaDePrazo(!!ctx.superAdmin, ids, a.deadline ? String(a.deadline) : null);
       const patch: Record<string, unknown> = {};
       if (a.status) patch.status = a.status;
       if (a.deadline !== undefined) patch.deadline = a.deadline ? String(a.deadline) : null;
@@ -858,6 +862,10 @@ export const TOOLS: ToolDef[] = [
   ...toolsOperacao(db),
   ...toolsCobranca(db),
   ...toolsAgendadas(db),
+  ...toolsPrazo(async (id) => {
+    const { data } = await createAdminClient().from("profiles").select("full_name").eq("id", id).maybeSingle();
+    return data?.full_name?.split(" ")[0] ?? "Alguém da equipe";
+  }),
   ...toolsSistema(db),
   ...toolsRedesenho(db),
   ...toolsMarcas(db),

@@ -3,6 +3,7 @@ import { z } from "zod";
 import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { mcpDb, type McpIdentity } from "@/lib/mcp/oauth";
+import { conferirMudancaDePrazo, ehSuperAdminId } from "@/lib/prazo-pedidos";
 
 const MAX_CHARS = 60_000;
 const uuid = z.string().uuid();
@@ -221,6 +222,8 @@ export function registerTools(server: McpServer, who: McpIdentity) {
       const before = must(await db.from("activities").select("*").eq("id", id).maybeSingle(), "Atividade");
       const clean = Object.fromEntries(Object.entries(patch).filter(([, v]) => v !== undefined));
       if (Object.keys(clean).length === 0) throw new Error("Nada para alterar.");
+      // prazo travado (05/11/2026): só o admin máximo muda um prazo que já existe
+      if (patch.deadline !== undefined) await conferirMudancaDePrazo(await ehSuperAdminId(who.profileId), [id], patch.deadline ?? null);
       const row = must(await db.from("activities").update(clean as never).eq("id", id).select("*").single(), "Atividade");
       return { value: row, before };
     });

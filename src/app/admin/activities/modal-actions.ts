@@ -11,6 +11,7 @@ import { listResponsaveis, type Responsavel } from "@/lib/data/responsaveis";
 import type { Database } from "@/lib/supabase/types";
 import { lerChecklist, type ItemChecklist } from "@/lib/checklist";
 import { getHistorico, type EventoHistorico } from "@/lib/data/historico";
+import { pedidoPendente } from "@/lib/prazo-pedidos";
 
 // Ações da mini tela da atividade (abre por cima de qualquer lista/quadro).
 
@@ -38,7 +39,9 @@ export type AtividadeDetalhe = {
   /** Documentos do cliente que ainda não estão nesta atividade (para anexar). */
   docsDoCliente: { id: string; title: string }[];
   responsaveis: Responsavel[];
-  pode: { excluir: boolean; verCliente: boolean; documentos: boolean; salvarModeloAviso: boolean };
+  pode: { excluir: boolean; verCliente: boolean; documentos: boolean; salvarModeloAviso: boolean; mudarPrazo: boolean };
+  /** pedido de mudança de prazo aguardando o Dr. Maurício (05/11/2026); id vazio = de outra pessoa */
+  pedidoPrazo: { id: string; prazo_novo: string | null } | null;
 };
 
 export async function getActivityDetailAction(id: string): Promise<{ ok: true; data: AtividadeDetalhe } | { ok: false; error: string }> {
@@ -48,7 +51,7 @@ export async function getActivityDetailAction(id: string): Promise<{ ok: true; d
 
   const supabase = await createClient();
   const perms = await getPermissoes();
-  const [etiquetasTodas, documentos, responsaveis, { data: docsCliente }, historico] = await Promise.all([
+  const [etiquetasTodas, documentos, responsaveis, { data: docsCliente }, historico, pedidoPrazo] = await Promise.all([
     listEtiquetas(),
     listDocuments({ activityId: id }),
     listResponsaveis(),
@@ -60,6 +63,7 @@ export async function getActivityDetailAction(id: string): Promise<{ ok: true; d
       .order("created_at", { ascending: false })
       .limit(300),
     ehSuperAdmin(profile) ? getHistorico("activities", id, 20) : Promise.resolve([]),
+    pedidoPendente(id).catch(() => null),
   ]);
 
   return {
@@ -93,7 +97,8 @@ export async function getActivityDetailAction(id: string): Promise<{ ok: true; d
       })),
       docsDoCliente: docsCliente ?? [],
       responsaveis,
-      pode: { excluir: !!perms?.excluir, verCliente: !!perms?.clientes, documentos: !!perms?.documentos, salvarModeloAviso: profile.role === "admin" },
+      pode: { excluir: !!perms?.excluir, verCliente: !!perms?.clientes, documentos: !!perms?.documentos, salvarModeloAviso: profile.role === "admin", mudarPrazo: ehSuperAdmin(profile) },
+      pedidoPrazo: pedidoPrazo ? { id: pedidoPrazo.pedido_por === profile.id ? pedidoPrazo.id : "", prazo_novo: pedidoPrazo.prazo_novo } : null,
     },
   };
 }

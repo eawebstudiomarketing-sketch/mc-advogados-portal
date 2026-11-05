@@ -11,11 +11,12 @@ import { EnvolvidosSelect } from "@/components/atividade/envolvidos-select";
 import { EtiquetasEditor } from "@/components/atividade/etiquetas";
 import type { Etiqueta } from "@/lib/data/etiquetas";
 import { VoltarInput } from "@/components/nav/back-button";
+import { CampoPrazo, type PedidoAberto } from "@/components/atividade/campo-prazo";
 
 const initialState: UpdateActivityState = { error: null };
 
-export function EditActivityForm({ etiquetas = [], activity, responsaveis, areas }: {
-  etiquetas?: Etiqueta[]; activity: Activity; responsaveis: Responsavel[]; areas?: string[] }) {
+export function EditActivityForm({ etiquetas = [], activity, responsaveis, areas, podeMudarPrazo, pedidoPrazo }: {
+  etiquetas?: Etiqueta[]; activity: Activity; responsaveis: Responsavel[]; areas?: string[]; podeMudarPrazo: boolean; pedidoPrazo: PedidoAberto }) {
   const [state, formAction, pending] = useActionState(updateActivityAction, initialState);
 
   return (
@@ -78,13 +79,7 @@ export function EditActivityForm({ etiquetas = [], activity, responsaveis, areas
         <label htmlFor="deadline" className="ui-label">
           Prazo (opcional)
         </label>
-        <input
-          id="deadline"
-          name="deadline"
-          type="date"
-          defaultValue={activity.deadline ?? ""}
-          className="ui-input"
-        />
+        <CampoPrazo activityId={activity.id} deadline={activity.deadline} podeMudar={podeMudarPrazo} pedido={pedidoPrazo} />
       </div>
 
       <CamposAgenda categoria={activity.categoria} hora={activity.hora} areas={areas} area={activity.area} />

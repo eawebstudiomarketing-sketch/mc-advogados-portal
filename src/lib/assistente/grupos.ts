@@ -26,8 +26,8 @@ const GRUPOS: Grupo[] = [
   },
   {
     id: "atividades",
-    sobre: "atividades em massa, arquivar/excluir atividade, checklist, etiquetas, cobrança de documento ao cliente, avisar cliente que concluiu, mensagem interna da equipe, excluir compromisso",
-    ferramentas: ["atualizar_atividades_em_massa", "arquivar_atividades", "excluir_atividade", "checklist_atividade", "listar_etiquetas", "criar_etiqueta", "editar_etiqueta", "excluir_etiqueta", "etiquetar_atividade", "avisar_cliente_atividade_concluida", "mensagem_para_equipe", "cobrar_documento_cliente", "cobrancas_de_documento", "documento_recebido", "excluir_compromisso"],
+    sobre: "atividades em massa, arquivar/excluir atividade, checklist, etiquetas, cobrança de documento ao cliente, avisar cliente que concluiu, mensagem interna da equipe, excluir compromisso, pedidos de mudança de prazo",
+    ferramentas: ["atualizar_atividades_em_massa", "arquivar_atividades", "excluir_atividade", "checklist_atividade", "listar_etiquetas", "criar_etiqueta", "editar_etiqueta", "excluir_etiqueta", "etiquetar_atividade", "avisar_cliente_atividade_concluida", "mensagem_para_equipe", "cobrar_documento_cliente", "cobrancas_de_documento", "documento_recebido", "excluir_compromisso", "pedidos_de_prazo", "decidir_pedido_prazo"],
     palavras: /atividad|tarefa|etiquet|checklist|arquiv|exclu|apag|remov|conclu|cobr|pend[eê]n|respons[aá]vel|equipe|avis|compromisso|desmarc|cancel/i,
     telas: ["/admin/activities", "/admin/kanban", "/admin/agenda"],
   },

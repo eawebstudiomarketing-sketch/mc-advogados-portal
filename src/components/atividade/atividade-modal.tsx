@@ -37,6 +37,7 @@ import { EnvolvidosSelect } from "./envolvidos-select";
 import { EtiquetasEditor } from "./etiquetas";
 import { Comentarios } from "./comentarios";
 import { AvisarCliente } from "./avisar-cliente";
+import { CampoPrazo } from "@/components/atividade/campo-prazo";
 
 // Mini tela da atividade: abre no meio da tela, por cima de qualquer lista ou
 // quadro, sem trocar de página. Fecha com Esc, clique fora ou no X.
@@ -408,7 +409,7 @@ function AtividadeModal({ id, editarAoAbrir, onClose }: { id: string; editarAoAb
                 <div>
                   <label htmlFor="m-deadline" className="ui-label">Prazo e horário</label>
                   <div className="flex gap-2">
-                    <input id="m-deadline" name="deadline" type="date" defaultValue={d.deadline ?? ""} className="ui-input" />
+                    <CampoPrazo activityId={d.id} deadline={d.deadline} podeMudar={d.pode.mudarPrazo} pedido={d.pedidoPrazo} inputId="m-deadline" />
                     <input name="hora" type="time" defaultValue={d.hora?.slice(0, 5) ?? ""} aria-label="Horário" className="ui-input max-w-32" />
                   </div>
                 </div>
