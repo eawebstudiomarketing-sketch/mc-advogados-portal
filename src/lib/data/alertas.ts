@@ -1,7 +1,7 @@
 import "server-only";
 import { createClient } from "@/lib/supabase/server";
 import type { Andamento } from "@/lib/data/andamentos";
-import type { Publicacao } from "@/lib/data/publicacoes";
+import { CAMPOS_PUBLICACAO, type Publicacao } from "@/lib/data/publicacoes";
 
 // Alertas no padrão do Astrea: aba Publicações ("Publicação recebida") e aba
 // Andamentos ("Andamento recebido", um cartão por processo).
@@ -62,7 +62,7 @@ export async function alertasDePublicacoes(busca?: string): Promise<Publicacao[]
   const supabase = await createClient();
   let q = supabase
     .from("publicacoes")
-    .select("*, clients(id, name), processes(id, numero_processo, profiles(full_name))")
+    .select(CAMPOS_PUBLICACAO)
     .eq("status", "nao_tratada")
     .is("alerta_descartado_em", null)
     .order("created_at", { ascending: false })

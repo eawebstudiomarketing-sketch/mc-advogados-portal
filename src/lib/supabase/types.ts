@@ -654,6 +654,9 @@ export type Database = {
           diario: string | null
           nome_pesquisado: string | null
           responsavel_nome: string | null
+          responsavel_id: string | null
+          encaminhada_por: string | null
+          encaminhada_em: string | null
           titulo_processo: string | null
           data_publicacao: string | null
           texto_html: string | null
@@ -695,6 +698,9 @@ export type Database = {
           diario?: string | null
           nome_pesquisado?: string | null
           responsavel_nome?: string | null
+          responsavel_id?: string | null
+          encaminhada_por?: string | null
+          encaminhada_em?: string | null
           titulo_processo?: string | null
           data_publicacao?: string | null
           texto_html?: string | null
@@ -736,6 +742,9 @@ export type Database = {
           diario?: string | null
           nome_pesquisado?: string | null
           responsavel_nome?: string | null
+          responsavel_id?: string | null
+          encaminhada_por?: string | null
+          encaminhada_em?: string | null
           titulo_processo?: string | null
           data_publicacao?: string | null
           texto_html?: string | null

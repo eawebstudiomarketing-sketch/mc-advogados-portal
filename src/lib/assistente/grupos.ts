@@ -41,7 +41,7 @@ const GRUPOS: Grupo[] = [
   {
     id: "processos",
     sobre: "processos (criar, atualizar, pesquisar processo novo, aprovar), andamentos, publicações/intimações, alertas, histórico manual, etiquetas de processo",
-    ferramentas: ["listar_processos", "criar_processo", "atualizar_processo", "listar_andamentos", "andamentos_do_processo", "marcar_andamentos", "ler_andamentos_agora", "vincular_cliente_processo", "listar_alertas_publicacoes", "tratar_publicacao", "adicionar_historico_manual", "comentar_andamento", "marcar_andamento_importante", "etiqueta_processos", "pesquisar_processo_novo", "processos_aguardando_aprovacao", "aprovar_processo_novo", "descartar_processo_novo"],
+    ferramentas: ["listar_processos", "criar_processo", "atualizar_processo", "listar_andamentos", "andamentos_do_processo", "marcar_andamentos", "ler_andamentos_agora", "vincular_cliente_processo", "listar_alertas_publicacoes", "tratar_publicacao", "encaminhar_publicacao", "adicionar_historico_manual", "comentar_andamento", "marcar_andamento_importante", "etiqueta_processos", "pesquisar_processo_novo", "processos_aguardando_aprovacao", "aprovar_processo_novo", "descartar_processo_novo"],
     palavras: /process|andament|publica|intima|alerta|vara|tribunal|pje|cnj|audi[eê]ncia|senten|despach|\d{7}-?\d{2}\.?\d{4}/i,
     telas: ["/admin/processos", "/admin/alertas", "/admin/processes"],
   },

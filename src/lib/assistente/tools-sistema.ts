@@ -10,6 +10,8 @@ import { designarClienteA } from "@/lib/designar-cliente";
 import { conversaCom, GERAL } from "@/lib/data/mensagens";
 import { hojeBahia, somaDias } from "@/lib/periodo";
 import { MOTIVO_TEXTO, todosOsRobos, type MotivoFalha } from "@/lib/robos/saude";
+import { pessoasDaEquipe } from "@/lib/publicacoes/dono";
+import { encaminharPublicacao } from "@/lib/publicacoes/encaminhar";
 import type { Ctx, ToolDef } from "./tools";
 
 // Ferramentas do assistente para o que entrou no portal em out/2026: rotinas,
@@ -102,7 +104,7 @@ function lerDias(v: unknown): number[] | undefined {
     const n = Number(parte);
     if (Number.isInteger(n) && n >= 0 && n <= 6) out.add(n);
     else {
-      const k = Object.keys(NOME_DIA).find((d) => parte.normalize("NFD").replace(/[̀-ͯ]/g, "").startsWith(d.normalize("NFD").replace(/[̀-ͯ]/g, "")));
+      const k = Object.keys(NOME_DIA).find((d) => parte.normalize("NFD").replace(/[\u0300-\u036f]/g, "").startsWith(d.normalize("NFD").replace(/[\u0300-\u036f]/g, "")));
       if (k) out.add(NOME_DIA[k]);
     }
   }
@@ -789,6 +791,33 @@ export function toolsSistema(db: () => Db): ToolDef[] {
         const { error } = await db().from("publicacoes").update(campos).eq("id", pub.id);
         if (error) throw error;
         return { processo: pub.numero_mascara, feito: a.acao };
+      },
+    },
+    {
+      name: "encaminhar_publicacao",
+      kind: "write",
+      perm: ["publicacoes"],
+      label: "Encaminhou publicação",
+      description:
+        "Encaminha a publicação de um processo (número; a mais recente não tratada) para outra pessoa da equipe, que passa a ser a responsável e recebe aviso. Use quando pedirem para passar/distribuir/mandar a publicação para alguém.",
+      parameters: obj({ processo: { type: "string" }, pessoa: { type: "string", description: "nome de quem vai receber" } }, ["processo", "pessoa"]),
+      run: async (a, ctx) => {
+        const dig = limpa(a.processo).replace(/\D/g, "");
+        if (dig.length < 6) throw new Error("Diga o número do processo da publicação.");
+        const { data } = await db()
+          .from("publicacoes")
+          .select("id, status")
+          .like("numero_processo", `%${dig}%`)
+          .order("data_disponibilizacao", { ascending: false })
+          .limit(5);
+        const pub = (data ?? []).find((p) => p.status === "nao_tratada") ?? data?.[0];
+        if (!pub) throw new Error("Não achei publicação desse processo.");
+        const equipe = await pessoasDaEquipe();
+        const alvo = limpa(a.pessoa).normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase();
+        const achadas = equipe.filter((p) => p.nome.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase().includes(alvo));
+        if (achadas.length !== 1) throw new Error(achadas.length ? `Mais de uma pessoa com esse nome: ${achadas.map((p) => p.nome).join(", ")}.` : `Não achei "${a.pessoa}" na equipe. Equipe: ${equipe.map((p) => p.nome).join(", ")}.`);
+        const { data: eu } = await adm().from("profiles").select("full_name").eq("id", ctx.profileId).maybeSingle();
+        return await encaminharPublicacao(pub.id, achadas[0].id, ctx.profileId, eu?.full_name ?? null);
       },
     },
     {

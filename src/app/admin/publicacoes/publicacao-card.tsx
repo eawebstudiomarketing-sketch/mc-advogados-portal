@@ -4,6 +4,7 @@ import { STATUS_PUBLICACAO, type Publicacao, type PublicacaoStatus } from "@/lib
 import { sugerir, dataPublicacao, type Sugestao } from "@/lib/publicacoes/sugestoes";
 import { TextoAstrea } from "@/components/ui/texto-astrea";
 import { mudarStatusPublicacaoAction } from "./actions";
+import { Encaminhar } from "./encaminhar";
 
 const dataBR = (iso: string) => iso.split("-").reverse().join("/");
 
@@ -66,8 +67,14 @@ export function PublicacaoCard({
   destaque = false,
   selecionavel = false,
   taxas = {},
+  equipe = [],
+  dono = null,
 }: {
   p: Publicacao;
+  /** Quem pode receber a publicação no "Encaminhar para…". */
+  equipe?: { id: string; nome: string }[];
+  /** Dono já resolvido (encaminhada > responsável do processo > nome do Astrea). */
+  dono?: string | null;
   destaque?: boolean;
   selecionavel?: boolean;
   /** % de vezes que cada tipo de sugestão foi usado (só aparece com histórico suficiente). */
@@ -82,7 +89,7 @@ export function PublicacaoCard({
   const numero = p.numero_mascara ?? p.numero_processo;
   // mesmas colunas da tela Publicações do Astrea; publicação só do DJEN usa o equivalente
   const titulo = p.titulo_processo ?? (partes.length ? partes.map((x) => x.nome).join(" x ") : null);
-  const responsavel = p.responsavel_nome ?? p.processes?.profiles?.full_name;
+  const responsavel = (dono ? equipe.find((x) => x.id === dono)?.nome : null) ?? p.processes?.profiles?.full_name ?? p.responsavel_nome;
   const diario = p.diario ?? p.tribunal;
   const nomePesquisado = p.tribunal === "INPI" ? "INPI · procurador" : (p.nome_pesquisado ?? (p.termo ? `OAB ${p.termo}` : null));
   const texto = p.texto_html ?? p.texto;
@@ -119,7 +126,14 @@ export function PublicacaoCard({
             )}
           </h3>
           {titulo && <p className="mt-0.5 text-[13px] break-words text-navy-3">{titulo}</p>}
-          {responsavel && <p className="mt-0.5 text-xs text-muted">Responsável: <span className="font-medium text-foreground/80">{responsavel}</span></p>}
+          {responsavel ? (
+            <p className="mt-0.5 text-xs text-muted">
+              Responsável: <span className="font-medium text-foreground/80">{responsavel}</span>
+              {p.encaminhada_em && <span> · encaminhada em {new Date(p.encaminhada_em).toLocaleDateString("pt-BR", { timeZone: "America/Bahia" })}</span>}
+            </p>
+          ) : (
+            <p className="mt-0.5 text-xs font-medium text-status-pending">Sem responsável</p>
+          )}
           <p className="mt-1 text-xs">
             {p.clients ? (
               <Link href={`/admin/clients/${p.clients.id}`} className="font-medium text-navy-3 hover:underline">
@@ -206,6 +220,7 @@ export function PublicacaoCard({
             </Link>
             <BotaoStatus id={p.id} status="tratada" rotulo="Já tratei" icone={CheckCheck} />
             <BotaoStatus id={p.id} status="descartada" rotulo="Descartar" icone={X} />
+            {equipe.length > 0 && <Encaminhar id={p.id} equipe={equipe} atual={dono} />}
           </>
         ) : (
           <>

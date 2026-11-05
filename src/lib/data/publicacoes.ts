@@ -5,7 +5,7 @@ import type { Database } from "@/lib/supabase/types";
 export type PublicacaoStatus = "nao_tratada" | "tratada" | "descartada";
 export type Publicacao = Database["public"]["Tables"]["publicacoes"]["Row"] & {
   clients: { id: string; name: string } | null;
-  processes: { id: string; numero_processo: string; profiles: { full_name: string } | null } | null;
+  processes: { id: string; numero_processo: string; responsible_id: string | null; responsavel_nome: string | null; profiles: { full_name: string } | null } | null;
 };
 
 export const STATUS_PUBLICACAO: Record<PublicacaoStatus, string> = {
@@ -14,7 +14,8 @@ export const STATUS_PUBLICACAO: Record<PublicacaoStatus, string> = {
   descartada: "Descartada",
 };
 
-const CAMPOS = "*, clients(id, name), processes(id, numero_processo, profiles(full_name))";
+export const CAMPOS_PUBLICACAO = "*, clients(id, name), processes(id, numero_processo, responsible_id, responsavel_nome, profiles(full_name))";
+const CAMPOS = CAMPOS_PUBLICACAO;
 
 export async function listPublicacoes(filtro: {
   status?: PublicacaoStatus | "todas";

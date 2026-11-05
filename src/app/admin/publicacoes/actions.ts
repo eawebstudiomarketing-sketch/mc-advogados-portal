@@ -5,6 +5,7 @@ import { createClient } from "@/lib/supabase/server";
 import { exigirPermissao, requireRole } from "@/lib/dal";
 import type { ResultadoMonitor } from "@/lib/publicacoes/monitor";
 import { enviarPush } from "@/lib/push";
+import { encaminharPublicacao } from "@/lib/publicacoes/encaminhar";
 
 const STATUS = ["nao_tratada", "tratada", "descartada"] as const;
 
@@ -24,6 +25,17 @@ export async function mudarStatusPublicacaoAction(formData: FormData): Promise<v
     )
     .eq("id", id);
   revalidatePath("/admin/publicacoes");
+}
+
+/** Encaminhar: a publicação passa a ser de outra pessoa da equipe, que recebe aviso no portal e no celular. */
+export async function encaminharPublicacaoAction(formData: FormData): Promise<void> {
+  const { profile } = await exigirPermissao("publicacoes");
+  const id = formData.get("id");
+  const para = formData.get("para");
+  if (typeof id !== "string" || !id || typeof para !== "string" || !para) return;
+  await encaminharPublicacao(id, para, profile.id, profile.full_name);
+  revalidatePath("/admin/publicacoes");
+  revalidatePath("/admin/alertas");
 }
 
 /** Ações em massa: marca várias publicações de uma vez (tratadas ou descartadas). */

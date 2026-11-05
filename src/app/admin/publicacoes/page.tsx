@@ -16,9 +16,10 @@ import { PublicacaoCard } from "./publicacao-card";
 import { BuscarAgora } from "./buscar-agora";
 import { FerramentasLista } from "./ferramentas-lista";
 import { AtivarCelular } from "./ativar-celular";
+import { contarPorDono, donoDe, filtrarPorDono, filtroDono, pessoasDaEquipe, type DonoFiltro } from "@/lib/publicacoes/dono";
 import { adicionarOabAction, alternarOabAction, removerOabAction, salvarEmailAlertaAction, salvarProcuradoresInpiAction } from "./actions";
 
-type Busca = { status?: string; tribunal?: string; uf?: string; de?: string; ate?: string; q?: string; p?: string };
+type Busca = { status?: string; tribunal?: string; uf?: string; de?: string; ate?: string; q?: string; p?: string; dono?: string };
 
 const FILTROS: (PublicacaoStatus | "todas")[] = ["nao_tratada", "tratada", "descartada", "todas"];
 
@@ -28,16 +29,29 @@ export default async function PublicacoesPage({ searchParams }: { searchParams: 
   const admin = profile.role === "admin";
   const status = (FILTROS as string[]).includes(sp.status ?? "") ? (sp.status as PublicacaoStatus | "todas") : "nao_tratada";
 
-  const [contadores, destaque, lista, taxas] = await Promise.all([
+  const dono = filtroDono(sp.dono, profile.role);
+
+  const [contadores, destaque, bruta, taxas, equipe, pendentes] = await Promise.all([
     contadoresPublicacoes(),
     sp.p ? getPublicacao(sp.p) : Promise.resolve(null),
-    sp.p ? Promise.resolve([]) : listPublicacoes({ status, tribunal: sp.tribunal, uf: sp.uf, de: sp.de, ate: sp.ate, busca: sp.q }),
+    sp.p ? Promise.resolve([]) : listPublicacoes({ status, tribunal: sp.tribunal, uf: sp.uf, de: sp.de, ate: sp.ate, busca: sp.q, limite: dono === "todas" ? 100 : 1000 }),
     taxasDeSugestao(),
+    pessoasDaEquipe(),
+    listPublicacoes({ status: "nao_tratada", limite: 1000 }),
   ]);
+  // filtra pelo dono aqui (a maioria dos processos só tem o nome do responsável vindo do Astrea)
+  const lista = filtrarPorDono(bruta, dono, profile.id, equipe).slice(0, 100);
+  const porDono = contarPorDono(pendentes, profile.id, equipe);
+  const ABAS_DONO: { chave: DonoFiltro; rotulo: string; n: number }[] = [
+    { chave: "minhas", rotulo: "Minhas", n: porDono.minhas },
+    ...(admin ? [{ chave: "sem" as const, rotulo: "Sem responsável", n: porDono.sem }] : []),
+    { chave: "todas", rotulo: "Todas do escritório", n: porDono.todas },
+  ];
 
   const hrefFiltro = (novo: Partial<Busca>) => {
     const q = new URLSearchParams();
-    const m = { status, tribunal: sp.tribunal, uf: sp.uf, de: sp.de, ate: sp.ate, q: sp.q, ...novo };
+    const m = { status, tribunal: sp.tribunal, uf: sp.uf, de: sp.de, ate: sp.ate, q: sp.q, dono, ...novo };
+    if (m.dono && m.dono !== filtroDono(undefined, profile.role)) q.set("dono", m.dono);
     if (m.status && m.status !== "nao_tratada") q.set("status", m.status);
     if (m.tribunal) q.set("tribunal", m.tribunal);
     if (m.uf) q.set("uf", m.uf);
@@ -74,10 +88,23 @@ export default async function PublicacoesPage({ searchParams }: { searchParams: 
               ver todas as não tratadas
             </Link>
           </p>
-          <PublicacaoCard p={destaque} destaque taxas={taxas} />
+          <PublicacaoCard p={destaque} destaque taxas={taxas} equipe={equipe} dono={donoDe(destaque, equipe)} />
         </div>
       ) : (
         <>
+          <nav className="mb-4 flex flex-wrap gap-6 border-b border-border" aria-label="De quem são as publicações">
+            {ABAS_DONO.map((a) => (
+              <Link
+                key={a.chave}
+                href={hrefFiltro({ dono: a.chave })}
+                aria-current={dono === a.chave ? "page" : undefined}
+                className={`-mb-px inline-flex items-center gap-2 border-b-2 px-1 pb-3 text-[15px] transition-colors ${dono === a.chave ? "border-navy-3 font-medium text-foreground" : "border-transparent text-foreground/65 hover:text-foreground"}`}
+              >
+                {a.rotulo}
+                <span className={`rounded px-1.5 text-[11px] font-semibold ${a.n ? "bg-navy-3 text-white" : "bg-surface-2 text-muted"}`}>{a.n}</span>
+              </Link>
+            ))}
+          </nav>
           <div className="mb-4 flex flex-wrap items-center gap-2">
             {FILTROS.map((f) => (
               <Link
@@ -104,11 +131,11 @@ export default async function PublicacoesPage({ searchParams }: { searchParams: 
           <div className="space-y-3">
             {lista.length === 0 && (
               <div className="ui-card px-5 py-12 text-center text-sm text-muted">
-                {status === "nao_tratada" ? "Nenhuma publicação esperando tratamento. 🎉" : "Nenhuma publicação com esse filtro."}
+                {status === "nao_tratada" ? (dono === "minhas" ? "Nenhuma publicação sua esperando tratamento. 🎉" : "Nenhuma publicação esperando tratamento. 🎉") : "Nenhuma publicação com esse filtro."}
               </div>
             )}
             {lista.map((p) => (
-              <PublicacaoCard key={p.id} p={p} selecionavel taxas={taxas} />
+              <PublicacaoCard key={p.id} p={p} selecionavel taxas={taxas} equipe={equipe} dono={donoDe(p, equipe)} />
             ))}
           </div>
         </>

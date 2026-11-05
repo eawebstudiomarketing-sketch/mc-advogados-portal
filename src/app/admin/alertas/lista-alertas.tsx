@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useState } from "react";
 import { ChevronDown, CloudDownload, Newspaper, Star } from "lucide-react";
 import { TextoAstrea } from "@/components/ui/texto-astrea";
+import { Encaminhar } from "../publicacoes/encaminhar";
 import { descartarAlertasAndamentosAction, descartarAlertasPublicacoesAction, situacaoPublicacaoAction } from "./actions";
 
 // Lista da aba (Publicações ou Andamentos) no padrão do Astrea: caixinha em cada
@@ -26,11 +27,14 @@ export type ItemPublicacao = {
   numero: string;
   nomePesquisado: string | null;
   texto: string;
+  dono: string | null;
 };
 
 const LINK = "text-[12px] font-semibold tracking-wide text-navy-3 uppercase hover:underline";
 
-export function ListaAlertas(props: { aba: "andamentos"; itens: ItemAndamento[] } | { aba: "publicacoes"; itens: ItemPublicacao[] }) {
+export function ListaAlertas(
+  props: { aba: "andamentos"; itens: ItemAndamento[] } | { aba: "publicacoes"; itens: ItemPublicacao[]; equipe: { id: string; nome: string }[] }
+) {
   const [sel, setSel] = useState<string[]>([]);
   const [abertos, setAbertos] = useState<string[]>([]);
   const chaves = props.aba === "andamentos" ? props.itens.map((i) => i.processId) : props.itens.map((i) => i.id);
@@ -154,6 +158,11 @@ export function ListaAlertas(props: { aba: "andamentos"; itens: ItemAndamento[] 
                       {p.diario} - Processo {p.numero}
                     </p>
                     {p.nomePesquisado && <p className="mt-0.5 text-sm text-muted">{p.nomePesquisado}</p>}
+                    {props.aba === "publicacoes" && (
+                      <p className={`mt-0.5 text-sm ${p.dono ? "text-muted" : "font-medium text-status-pending"}`}>
+                        {p.dono ? `Responsável: ${props.equipe.find((x) => x.id === p.dono)?.nome ?? "—"}` : "Sem responsável"}
+                      </p>
+                    )}
                     {aberto && (
                       <p className="mt-3 max-h-[28rem] overflow-y-auto rounded-lg bg-surface-2 p-3 text-sm text-foreground/85">
                         <TextoAstrea texto={p.texto} />
@@ -170,6 +179,9 @@ export function ListaAlertas(props: { aba: "andamentos"; itens: ItemAndamento[] 
                           Descartar publicação
                         </button>
                       </form>
+                      {props.aba === "publicacoes" && props.equipe.length > 0 && (
+                        <Encaminhar id={p.id} equipe={props.equipe} atual={p.dono} classe={`${LINK} inline-flex cursor-pointer list-none items-center gap-1`} />
+                      )}
                       <button type="button" onClick={() => alternar(abertos, setAbertos, p.id)} className={LINK}>
                         {aberto ? "Recolher" : "Expandir"}
                       </button>

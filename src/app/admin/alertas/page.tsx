@@ -8,11 +8,12 @@ import { LerAgora } from "../andamentos/ler-agora";
 import { ListaAlertas, type ItemAndamento, type ItemPublicacao } from "./lista-alertas";
 import { robosComProblema, todosOsRobos } from "@/lib/robos/saude";
 import { CardsRobos, TabelaRobos, type RoboTela } from "./saude-robos";
+import { contarPorDono, donoDe, filtrarPorDono, filtroDono, pessoasDaEquipe, type DonoFiltro } from "@/lib/publicacoes/dono";
 
 // Alertas no padrão do Astrea: aba Publicações e aba Andamentos. Em cima, cards de robô com
 // problema (saúde dos robôs); a aba Robôs mostra a situação de todos.
 
-type Busca = { aba?: string; q?: string };
+type Busca = { aba?: string; q?: string; dono?: string };
 
 const dataBR = (iso: string) => new Date(iso).toLocaleDateString("pt-BR", { timeZone: "America/Bahia" });
 
@@ -28,6 +29,7 @@ export default async function AlertasPage({ searchParams }: { searchParams: Prom
   ]);
 
   let lista: React.ReactNode;
+  let donoAbas: { chave: string; rotulo: string; n: number; href: string; ativa: boolean }[] = [];
   if (aba === "robos") {
     lista = <TabelaRobos robos={(await todosOsRobos().catch(() => [])) as RoboTela[]} />;
   } else if (aba === "andamentos") {
@@ -51,7 +53,22 @@ export default async function AlertasPage({ searchParams }: { searchParams: Prom
     }));
     lista = <ListaAlertas aba="andamentos" itens={itens} />;
   } else {
-    const pubs = await alertasDePublicacoes(sp.q);
+    const dono = filtroDono(sp.dono, profile.role);
+    const [todas, equipe] = await Promise.all([alertasDePublicacoes(sp.q), pessoasDaEquipe()]);
+    const pubs = filtrarPorDono(todas, dono, profile.id, equipe);
+    const n = contarPorDono(todas, profile.id, equipe);
+    const padrao = filtroDono(undefined, profile.role);
+    const href = (d: DonoFiltro) => {
+      const q = new URLSearchParams();
+      if (d !== padrao) q.set("dono", d);
+      if (sp.q) q.set("q", sp.q);
+      return `/admin/alertas${q.size ? `?${q}` : ""}`;
+    };
+    donoAbas = [
+      { chave: "minhas", rotulo: "Minhas", n: n.minhas, href: href("minhas"), ativa: dono === "minhas" },
+      ...(profile.role === "admin" ? [{ chave: "sem", rotulo: "Sem responsável", n: n.sem, href: href("sem"), ativa: dono === "sem" }] : []),
+      { chave: "todas", rotulo: "Todas do escritório", n: n.todas, href: href("todas"), ativa: dono === "todas" },
+    ];
     const itens: ItemPublicacao[] = pubs.map((p) => ({
       id: p.id,
       quando: quandoAlerta(p.created_at),
@@ -59,8 +76,9 @@ export default async function AlertasPage({ searchParams }: { searchParams: Prom
       numero: p.numero_mascara ?? p.numero_processo,
       nomePesquisado: p.nome_pesquisado ?? (p.termo ? `OAB ${p.termo}` : null),
       texto: p.texto_html ?? htmlParaTexto(p.texto),
+      dono: donoDe(p, equipe),
     }));
-    lista = <ListaAlertas aba="publicacoes" itens={itens} />;
+    lista = <ListaAlertas aba="publicacoes" itens={itens} equipe={equipe} />;
   }
 
   const abas = [
@@ -103,6 +121,20 @@ export default async function AlertasPage({ searchParams }: { searchParams: Prom
         ))}
       </nav>
 
+      {donoAbas.length > 0 && (
+        <div className="mb-4 flex flex-wrap items-center gap-2" role="group" aria-label="De quem são as publicações">
+          {donoAbas.map((d) => (
+            <Link
+              key={d.chave}
+              href={d.href}
+              aria-current={d.ativa ? "page" : undefined}
+              className={`inline-flex h-9 items-center gap-2 rounded-full border px-4 text-[13px] font-medium transition-colors ${d.ativa ? "border-navy bg-navy text-white" : "border-border bg-surface text-foreground/75 hover:border-border-strong hover:text-foreground"}`}
+            >
+              {d.rotulo} <span className={d.ativa ? "text-white/80" : "text-muted"}>{d.n}</span>
+            </Link>
+          ))}
+        </div>
+      )}
       {aba !== "robos" && <BarraFiltros filtros={[{ tipo: "busca", nome: "q", rotulo: aba === "andamentos" ? "Nº do processo, parte ou cliente" : "Nº do processo ou termo" }]} />}
       {lista}
     </div>
