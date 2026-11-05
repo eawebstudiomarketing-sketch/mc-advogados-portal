@@ -6,7 +6,7 @@ import { rotinaDoDia } from "@/lib/data/rotina-diaria";
 import { ehDiaDeExpediente } from "@/lib/publicacoes/sugestoes";
 import { criarOrdem } from "@/lib/whatsapp";
 import { demandasVencidas, modelosAtribuidos, relatoriosDoDia } from "./dados";
-import { chaveResposta, SECAO_ROTULO, SECOES, type DemandaVencida, type RelatorioDoDia, type Valor } from "./tipos";
+import { chaveResposta, enviadoComAtraso, SECAO_ROTULO, SECOES, type DemandaVencida, type RelatorioDoDia, type Valor } from "./tipos";
 
 // Fim do dia (Rotinas v2): monta o HTML com tudo sobre as rotinas e as demandas
 // do dia e manda no WhatsApp do Maurício, com um resumo curto. Roda à 00:05
@@ -33,6 +33,8 @@ type PessoaDia = {
   nome: string;
   relatorio: RelatorioDoDia | null;
   temModelo: boolean;
+  /** relatório da equipe enviado depois das 18:00 */
+  atrasado: boolean;
   fixas: { titulo: string; feito: boolean }[];
   concluidas: Concluida[];
   vencidas: DemandaVencida[];
@@ -66,6 +68,7 @@ export async function coletarDia(dia: string): Promise<PessoaDia[]> {
         nome: p.nome,
         relatorio: rel,
         temModelo: atribuidos.has(p.id),
+        atrasado: rel?.status === "enviado" && p.profileId !== MAURICIO && enviadoComAtraso(rel.enviado_em),
         fixas: fixas.map((f) => ({ titulo: f.titulo, feito: f.feito })),
         concluidas,
         vencidas,
@@ -109,7 +112,7 @@ export function montarHtml(dia: string, pessoas: PessoaDia[]): string {
       const status = !p.temModelo
         ? `<span class="tag neutro">sem relatório</span>`
         : p.relatorio?.status === "enviado"
-          ? `<span class="tag ok">relatório enviado às ${esc(hora(p.relatorio.enviado_em!))}</span>`
+          ? `<span class="tag ${p.atrasado ? "ruim" : "ok"}">relatório enviado às ${esc(hora(p.relatorio.enviado_em!))}${p.atrasado ? " (com atraso)" : ""}</span>`
           : `<span class="tag ruim">relatório não enviado</span>`;
       return `<section>
   <h3>${esc(p.nome)} ${status}</h3>

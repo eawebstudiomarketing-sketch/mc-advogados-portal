@@ -7,6 +7,7 @@ import { ehSuperAdmin, requireRole } from "@/lib/dal";
 import { responsavelDoPerfil } from "@/lib/data/responsaveis";
 import { aprovarRelatorio, atribuirModelo, editarRelatorioEnviado, enviarRelatorio, excluirModelo, hojeBahia, salvarModelo, salvarRascunho, type PerguntaEditavel } from "@/lib/rotina-relatorio/dados";
 import { enviarRelatorioDoDia, MAURICIO } from "@/lib/rotina-relatorio/dia";
+import { avisarRelatorioAtrasado } from "@/lib/rotina-relatorio/atraso";
 import type { Valor } from "@/lib/rotina-relatorio/tipos";
 
 // Ações do relatório do dia (Rotinas v2). Modelos: só o admin máximo.
@@ -76,7 +77,10 @@ export async function enviarRelatorioAction(respostas: Record<string, Valor>, ju
     const faltas = await enviarRelatorio(eu, dia, respostas, justificativas);
     if (faltas.length) return { ok: false, error: `Ainda falta: ${faltas.join("; ")}.`, faltas };
     // o relatório de dono: quando o Maurício envia o dele, o resumo do dia (HTML) vai para o Zap dele
+    const enviadoEm = new Date();
     after(async () => {
+      // da equipe depois das 18:00: avisa o Maurício (portal + Zap)
+      await avisarRelatorioAtrasado(eu, dia, enviadoEm).catch(() => false);
       const { data } = await (createAdminClient() as unknown as import("@supabase/supabase-js").SupabaseClient).from("responsaveis").select("profile_id").eq("id", eu).maybeSingle();
       if (data?.profile_id === MAURICIO) await enviarRelatorioDoDia(dia, { forcar: true }).catch(() => undefined);
     });

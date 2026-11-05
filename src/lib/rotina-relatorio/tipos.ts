@@ -62,6 +62,12 @@ export type RelatorioDoDia = {
   editado_em: string | null;
 };
 
+/** Prazo da equipe (05/11/2026): enviar até as 18:00. Depois ainda dá até 23:59, mas conta como atraso e o Maurício é avisado. */
+export const PRAZO_EQUIPE_HORA = 18;
+/** Enviado depois do prazo da equipe (hora da Bahia). */
+export const enviadoComAtraso = (iso: string | null | undefined, prazoHora = PRAZO_EQUIPE_HORA) =>
+  !!iso && prazoHora < 24 && Number(new Intl.DateTimeFormat("en-GB", { timeZone: "America/Bahia", hour: "2-digit", hour12: false }).format(new Date(iso))) % 24 >= prazoHora;
+
 const vazio = (v: Valor | undefined) => v === undefined || v === null || (typeof v === "string" && !v.trim()) || (Array.isArray(v) && v.length === 0);
 
 /** O que falta para poder enviar (lista de avisos em português; vazia = pode enviar). */

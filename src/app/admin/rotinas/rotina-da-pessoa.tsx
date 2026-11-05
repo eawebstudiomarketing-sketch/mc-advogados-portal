@@ -11,6 +11,7 @@ import { ExcluirRotina } from "@/components/rotina/excluir-rotina";
 import { concluidasNoDia } from "@/lib/rotina-relatorio/dia";
 import { carregarModelos, demandasVencidas, equipeDe, lerRelatorio, modeloDaPessoa, prazoDoRelatorio, relatoriosDoDia } from "@/lib/rotina-relatorio/dados";
 import { RelatorioLeitura } from "@/components/rotina/relatorio-leitura";
+import { enviadoComAtraso } from "@/lib/rotina-relatorio/tipos";
 import { EditorRotina } from "./editor";
 import { EditorModelos } from "./modelos";
 
@@ -108,9 +109,9 @@ export async function rotinaDaPessoa({
                           <Avatar nome={x.nome} foto={x.foto} tamanho={32} />
                           <span className="min-w-0 flex-1 truncate text-sm font-medium text-foreground">{x.nome}</span>
                           {enviado && r?.aprovado_em ? (
-                            <span className="rounded bg-status-success-bg px-1.5 py-0.5 text-xs font-semibold text-status-success">Aprovado · nota {r.nota}</span>
+                            <span className="rounded bg-status-success-bg px-1.5 py-0.5 text-xs font-semibold text-status-success">Aprovado · nota {r.nota}{enviadoComAtraso(r.enviado_em) ? " · enviado com atraso" : ""}</span>
                           ) : enviado ? (
-                            <span className="rounded bg-status-info-bg px-1.5 py-0.5 text-xs font-semibold text-status-info">Para aprovar · enviado às {horaDe(r!.enviado_em!)}</span>
+                            <span className={`rounded px-1.5 py-0.5 text-xs font-semibold ${enviadoComAtraso(r!.enviado_em) ? "bg-status-pending-bg text-status-pending" : "bg-status-info-bg text-status-info"}`}>Para aprovar · enviado às {horaDe(r!.enviado_em!)}{enviadoComAtraso(r!.enviado_em) ? " (com atraso)" : ""}</span>
                           ) : (
                             <span className="rounded bg-surface-2 px-1.5 py-0.5 text-xs font-semibold text-muted">{r ? "Em rascunho" : dia < hoje ? "Não enviou" : "Ainda não enviou"}</span>
                           )}
