@@ -13,6 +13,8 @@ import { AbasSecao } from "./abas-secao";
 import { NovoMenu, AtalhosMenu } from "./atalhos-topo";
 import { InstalarApp } from "./instalar-app";
 import { RotinaRelogio } from "./rotina-relogio";
+import { AvisoPrazoRotina } from "./aviso-prazo-rotina";
+import type { AlertaRotina } from "@/lib/rotina-relatorio/alerta";
 import { TemaBotao } from "@/components/ui/tema-botao";
 import { NavTrail } from "@/components/nav/nav-trail";
 import { AtividadeModalProvider } from "@/components/atividade/atividade-modal";
@@ -59,7 +61,7 @@ export function AdminShell({
   /** Demandas que chegaram de fora e ainda não foram distribuídas. */
   distribuicaoPendentes?: number;
   /** Relógio da rotina: leva à rotina da pessoa e avisa quando há tarefa atrasada ou relatório por enviar. */
-  alertaRotina?: { href: string; atrasadas: number; relatorioPendente: boolean } | null;
+  alertaRotina?: AlertaRotina;
   /** Admin máximo (Maurício e João): vê o Painel do Dono. */
   superAdmin?: boolean;
 }) {
@@ -274,6 +276,7 @@ export function AdminShell({
             </form>
           </div>
         </header>
+        {alertaRotina?.aviso && <AvisoPrazoRotina aviso={alertaRotina.aviso} />}
 
         <main className="flex-1">
           <div key={pathname} className="mx-auto w-full max-w-[1240px] px-4 py-7 animate-page sm:px-6 lg:px-10 lg:py-10">

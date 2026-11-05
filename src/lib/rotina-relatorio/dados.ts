@@ -176,18 +176,18 @@ export async function relatoriosDoDia(dia: string): Promise<RelatorioDoDia[]> {
 
 /**
  * Prazo do relatório do dia (04/11/2026, regra do João): a equipe preenche até
- * as 17:00 (05/11/2026, antes 18:00); o admin máximo (Maurício), que aprova os da equipe, até as 23:59.
+ * as 18:00 (05/11/2026: das 17h às 18h fica um aviso fixo no topo); o admin máximo (Maurício), que aprova os da equipe, até as 23:59.
  * `hora` = hora cheia em que fecha (24 = meia-noite).
  */
 export async function prazoDoRelatorio(responsavelId: string): Promise<{ hora: number; texto: string }> {
   const { data } = await db().from("responsaveis").select("profiles!responsaveis_profile_id_fkey(role, super_admin)").eq("id", responsavelId).maybeSingle();
   const p = (data?.profiles ?? null) as unknown as { role: string; super_admin: boolean | null } | null;
-  return p?.role === "admin" && p.super_admin ? { hora: 24, texto: "23:59" } : { hora: 17, texto: "17:00" };
+  return p?.role === "admin" && p.super_admin ? { hora: 24, texto: "23:59" } : { hora: 18, texto: "18:00" };
 }
 
 const horaBahia = () => Number(new Intl.DateTimeFormat("en-GB", { timeZone: "America/Bahia", hour: "2-digit", hour12: false }).format(new Date())) % 24;
 
-/** Só aceita o dia de hoje (Bahia), até o prazo da pessoa (17:00 a equipe, 23:59 o admin máximo). */
+/** Só aceita o dia de hoje (Bahia), até o prazo da pessoa (18:00 a equipe, 23:59 o admin máximo). */
 async function exigirHoje(dia: string, responsavelId: string) {
   const prazo = await prazoDoRelatorio(responsavelId);
   if (dia !== hojeBahia()) throw new Error(`O relatório só pode ser preenchido e enviado no próprio dia, até as ${prazo.texto}.`);

@@ -81,6 +81,7 @@ export async function enviarRelatorioAction(respostas: Record<string, Valor>, ju
       if (data?.profile_id === MAURICIO) await enviarRelatorioDoDia(dia, { forcar: true }).catch(() => undefined);
     });
     revalidatePath("/admin/rotinas");
+    revalidatePath("/admin", "layout"); // some o aviso do prazo no topo e a bolinha do relógio
     return { ok: true };
   } catch (e) {
     return { ok: false, error: msg(e) };

@@ -30,7 +30,7 @@ export async function RotinasDoDia({ dia: pedido }: { dia?: string }) {
           <h2 className="section-title">Rotinas de {dataBr(dia)}</h2>
           <p className="mt-0.5 text-sm text-muted">
             {enviados} de {comModelo.length} relatórios enviados · {concluidas} demandas concluídas · {vencidas} vencidas em aberto
-            {dia === hoje ? " · a equipe envia até as 17:00 e o Maurício até as 23:59" : ""}
+            {dia === hoje ? " · a equipe envia até as 18:00 e o Maurício até as 23:59" : ""}
           </p>
         </div>
         <form method="get" className="flex items-center gap-1.5">
