@@ -23,6 +23,7 @@ export type AtividadeDetalhe = {
   status: Database["public"]["Enums"]["activity_status"];
   deadline: string | null;
   hora: string | null;
+  categoria: string | null;
   created_at: string;
   archived_at: string | null;
   cliente_avisado_em: string | null;
@@ -76,6 +77,7 @@ export async function getActivityDetailAction(id: string): Promise<{ ok: true; d
       status: a.status,
       deadline: a.deadline,
       hora: a.hora,
+      categoria: a.categoria ?? null,
       created_at: a.created_at,
       archived_at: a.archived_at,
       cliente_avisado_em: a.cliente_avisado_em,

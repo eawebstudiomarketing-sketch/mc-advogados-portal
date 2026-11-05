@@ -101,6 +101,10 @@ function AtividadeModal({ id, editarAoAbrir, onClose }: { id: string; editarAoAb
   const [excluir, setExcluir] = useState(false);
   const [anexar, setAnexar] = useState("");
   const [msg, setMsg] = useState<string | null>(null);
+  // tipo escolhido no editar (Audiência mostra o horário na hora)
+  const [tipoEd, setTipoEd] = useState<{ id: string; tipo: string } | null>(null);
+  const tipoAtual = d && tipoEd?.id === d.id ? tipoEd.tipo : d?.type;
+  const comHora = !!d && (tipoAtual === "audiencia" || d.categoria === "audiencia" || !!d.hora);
   const [pending, start] = useTransition();
   const painel = useRef<HTMLDivElement>(null);
 
@@ -398,7 +402,7 @@ function AtividadeModal({ id, editarAoAbrir, onClose }: { id: string; editarAoAb
                 </div>
                 <div>
                   <label htmlFor="m-type" className="ui-label">Tipo</label>
-                  <select id="m-type" name="type" defaultValue={d.type} className="ui-input">
+                  <select id="m-type" name="type" defaultValue={d.type} onChange={(e) => setTipoEd({ id: d.id, tipo: e.target.value })} className="ui-input">
                     {ACTIVITY_TYPES.map((t) => (
                       <option key={t} value={t}>
                         {ACTIVITY_TYPE_LABEL[t]}
@@ -407,10 +411,11 @@ function AtividadeModal({ id, editarAoAbrir, onClose }: { id: string; editarAoAb
                   </select>
                 </div>
                 <div>
-                  <label htmlFor="m-deadline" className="ui-label">Prazo e horário</label>
+                  {/* horário só na atividade com hora marcada (audiência) ou que já tem um (05/11/2026) */}
+                  <label htmlFor="m-deadline" className="ui-label">{comHora ? "Prazo e horário" : "Prazo"}</label>
                   <div className="flex gap-2">
                     <CampoPrazo activityId={d.id} deadline={d.deadline} podeMudar={d.pode.mudarPrazo} pedido={d.pedidoPrazo} inputId="m-deadline" />
-                    <input name="hora" type="time" defaultValue={d.hora?.slice(0, 5) ?? ""} aria-label="Horário" className="ui-input max-w-32" />
+                    {comHora && <input name="hora" type="time" defaultValue={d.hora?.slice(0, 5) ?? ""} aria-label="Horário" className="ui-input max-w-32" />}
                   </div>
                 </div>
                 <div>
