@@ -8,11 +8,14 @@ import type { Indicadores } from "./individual";
 // Resumo com IA dos Indicadores de UMA pessoa (28/10/2026): "você fez isso,
 // pecou nisso, recomendo aquilo". Gasto mínimo: os números já vêm prontos (código),
 // a IA só redige — 1 chamada barata, guardada por pessoa+período em painel_gerente
-// (períodos fechados valem para sempre; os que terminam "agora", 1 hora).
+// (períodos fechados valem para sempre; os que terminam "agora", até o fim do dia).
 // Cada pessoa só recebe o próprio resumo; o texto nunca cita outra pessoa.
 
 const db = () => createAdminClient() as unknown as SupabaseClient;
-const VALIDADE_MS = 60 * 60 * 1000;
+// 05/11/2026: o texto vale o DIA inteiro (antes 1 hora: o painel gerava de
+// novo a cada abertura depois de 1 h). Para refazer antes, botão Atualizar.
+const diaBahia = (d: Date | string) => new Intl.DateTimeFormat("en-CA", { timeZone: "America/Bahia" }).format(new Date(d));
+const valeHoje = (criado: string) => diaBahia(criado) === diaBahia(new Date());
 const VERSAO = "ind-v1";
 
 export type ResumoPessoa = { paragrafos: string[]; recomendacoes: string[]; geradoEm: string; periodo: string };
@@ -42,7 +45,7 @@ export async function resumoDaPessoa(ind: Indicadores, { forcar = false } = {}):
   const chave = `${VERSAO}|${ind.pessoa.id}|${p.id}|${p.ini.slice(0, 10)}`;
   const fechado = p.id === "ontem" || p.id === "mes-anterior";
   const { data: cache } = await db().from("painel_gerente").select("conteudo, created_at").eq("chave", chave).maybeSingle();
-  if (cache && !forcar && (fechado || Date.now() - Date.parse(cache.created_at as string) < VALIDADE_MS)) return { ok: true, resumo: cache.conteudo as ResumoPessoa };
+  if (cache && !forcar && (fechado || valeHoje(cache.created_at as string))) return { ok: true, resumo: cache.conteudo as ResumoPessoa };
 
   const a = ind.atividades;
   const dados = {

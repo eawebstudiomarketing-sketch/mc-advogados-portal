@@ -17,10 +17,13 @@ export type { AcaoGerente } from "./varredura";
 // clientes, WhatsApp, gargalos e "se eu fosse começar…". Embaixo, a lista
 // curta "o que fazer agora" com os mini-botões. Os números e nomes vêm da
 // varredura (código); a IA (Flash-Lite, 1 chamada) só redige. Cache por
-// período em painel_gerente (os que terminam "agora" valem 1 hora).
+// período em painel_gerente (os que terminam "agora" valem até o fim do dia).
 
 const db = () => createAdminClient() as unknown as SupabaseClient;
-const VALIDADE_MS = 60 * 60 * 1000;
+// 05/11/2026: o texto vale o DIA inteiro (antes 1 hora: o painel gerava de
+// novo a cada abertura depois de 1 h). Para refazer antes, botão Atualizar.
+const diaBahia = (d: Date | string) => new Intl.DateTimeFormat("en-CA", { timeZone: "America/Bahia" }).format(new Date(d));
+const valeHoje = (criado: string) => diaBahia(criado) === diaBahia(new Date());
 const MAURICIO = "ee479af5-6a30-4741-880a-c9e96ea0079b"; // perfil do Maurício (recebe o resumo das 7h)
 const VERSAO = "v4";
 
@@ -67,7 +70,7 @@ export async function relatorioDoGerente(periodoId: string, { forcar = false } =
   const chave = `${VERSAO}|${p.id}|${p.ini.slice(0, 10)}`;
   const fechado = p.id === "ontem" || p.id === "mes-anterior";
   const { data: cache } = await db().from("painel_gerente").select("conteudo, created_at").eq("chave", chave).maybeSingle();
-  if (cache && !forcar && (fechado || Date.now() - Date.parse(cache.created_at as string) < VALIDADE_MS)) return { ok: true, gerente: cache.conteudo as Gerente };
+  if (cache && !forcar && (fechado || valeHoje(cache.created_at as string))) return { ok: true, gerente: cache.conteudo as Gerente };
 
   const { achados, numeros } = await varrer(p.id);
   const r = await generateJson<{ paragrafos: string[]; fechamento: string; acoes: { achado: string; frase: string }[] }>({
