@@ -71,6 +71,10 @@ export function FormularioPublico({ slug, config, pixels }: { slug: string; conf
   const [erro, setErro] = useState<string | null>(null);
   const [enviando, setEnviando] = useState(false);
   const sessao = useRef("");
+  const visitante = useRef("");
+  const tempos = useRef<Record<string, number>>({});
+  const entrouEm = useRef(0);
+  const telaAnterior = useRef<Tela>("inicio");
   const comecou = useRef(false);
   const armadilha = useRef<HTMLInputElement>(null);
   const campoRef = useRef<HTMLInputElement | HTMLTextAreaElement>(null);
@@ -87,6 +91,16 @@ export function FormularioPublico({ slug, config, pixels }: { slug: string; conf
     } catch {
       sessao.current = idAleatorio();
     }
+    // pixel próprio: o mesmo aparelho volta com o mesmo id (sabemos que é a 2ª visita)
+    try {
+      visitante.current = localStorage.getItem("mc:visitante") ?? "";
+      if (!visitante.current) {
+        visitante.current = idAleatorio();
+        localStorage.setItem("mc:visitante", visitante.current);
+      }
+    } catch {
+      visitante.current = sessao.current;
+    }
     api({ passo: "abriu" }).catch(() => null);
   }, [api, slug]);
 
@@ -100,6 +114,45 @@ export function FormularioPublico({ slug, config, pixels }: { slug: string; conf
     const t = setTimeout(() => campoRef.current?.focus({ preventScroll: true }), 350);
     return () => clearTimeout(t);
   }, [tela]);
+
+  // pixel próprio: avisa a cada troca de tela até onde a pessoa foi e quanto tempo
+  // ficou em cada pergunta (sem o que ela digitou). Ao sair da página, manda por beacon.
+  const rastro = useCallback(
+    (passo: number, beacon = false) => {
+      if (!sessao.current) return;
+      const q = new URLSearchParams(location.search);
+      const utm = Object.fromEntries(["source", "medium", "campaign", "content", "term"].map((k) => [k, q.get(`utm_${k}`) ?? ""]).filter(([, v]) => v));
+      const corpo = JSON.stringify({
+        sessao: sessao.current,
+        rastro: { visita: sessao.current, visitante: visitante.current || sessao.current, passo, total: campos.length, tempos: tempos.current, utm, fbclid: q.has("fbclid"), gclid: q.has("gclid"), referrer: document.referrer },
+      });
+      if (beacon && navigator.sendBeacon) navigator.sendBeacon(`/api/f/${slug}`, new Blob([corpo], { type: "application/json" }));
+      else fetch(`/api/f/${slug}`, { method: "POST", headers: { "content-type": "application/json" }, body: corpo, keepalive: true }).catch(() => null);
+    },
+    [campos.length, slug],
+  );
+  const passoDe = useCallback((t: Tela) => (typeof t === "number" ? t : t === "fim" ? campos.length : -1), [campos.length]);
+  const somarTempo = useCallback(() => {
+    const ant = telaAnterior.current;
+    if (typeof ant === "number" && campos[ant] && entrouEm.current) tempos.current[campos[ant].id] = (tempos.current[campos[ant].id] ?? 0) + (performance.now() - entrouEm.current);
+    entrouEm.current = performance.now();
+  }, [campos]);
+
+  useEffect(() => {
+    somarTempo();
+    telaAnterior.current = tela;
+    if (tela !== "fim") rastro(passoDe(tela));
+  }, [tela, rastro, passoDe, somarTempo]);
+
+  useEffect(() => {
+    const saiu = () => {
+      if (document.visibilityState !== "hidden" || telaAnterior.current === "fim") return;
+      somarTempo();
+      rastro(passoDe(telaAnterior.current), true);
+    };
+    document.addEventListener("visibilitychange", saiu);
+    return () => document.removeEventListener("visibilitychange", saiu);
+  }, [rastro, passoDe, somarTempo]);
 
   const marcarInicio = () => {
     if (comecou.current) return;
@@ -116,7 +169,7 @@ export function FormularioPublico({ slug, config, pixels }: { slug: string; conf
       const utm = Object.fromEntries(["source", "medium", "campaign", "content", "term"].map((k) => [k, q.get(`utm_${k}`) ?? ""]).filter(([, v]) => v));
       const ga = cookie("_ga").split(".").slice(-2).join(".");
       const rastreio = Object.fromEntries(
-        Object.entries({ fbclid: q.get("fbclid") ?? "", gclid: q.get("gclid") ?? "", fbp: cookie("_fbp"), fbc: cookie("_fbc"), ga: ga.includes(".") ? ga : "", pagina: location.href, referrer: document.referrer }).filter(([, v]) => v),
+        Object.entries({ visitante: visitante.current, fbclid: q.get("fbclid") ?? "", gclid: q.get("gclid") ?? "", fbp: cookie("_fbp"), fbc: cookie("_fbc"), ga: ga.includes(".") ? ga : "", pagina: location.href, referrer: document.referrer }).filter(([, v]) => v),
       );
       const eventId = `lead-${idAleatorio()}`;
       try {

@@ -1,9 +1,11 @@
 import { after, NextResponse } from "next/server";
 import { formularioPorSlug } from "@/lib/crm/dados";
 import { criarLeadDoFormulario, depoisDoLead, registrarPassoFormulario } from "@/lib/crm/leads";
+import { ligarVisitasAoLead, registrarRastro } from "@/lib/crm/visitas";
 
 // Formulário público do CRM (06/11/2026). Sem login. Dois pedidos:
 //  { passo: "abriu" | "comecou", sessao } → conta a visita no funil do formulário;
+//  { rastro: {visita, visitante, passo, total, tempos, utm, ...} } → pixel próprio (até onde foi);
 //  { enviar: true, sessao, respostas, eventId, utm, rastreio } → cria o lead.
 // O campo "site" é armadilha para robô (fica escondido na página).
 
@@ -23,6 +25,10 @@ export async function POST(req: Request, { params }: { params: Promise<{ slug: s
   if (!corpo) return NextResponse.json({ erro: "Pedido inválido." }, { status: 400 });
   const sessao = String(corpo.sessao ?? "");
 
+  if (corpo.rastro && typeof corpo.rastro === "object") {
+    await registrarRastro(form.id, corpo.rastro as Parameters<typeof registrarRastro>[1], req.headers);
+    return NextResponse.json({ ok: true });
+  }
   if (corpo.passo === "abriu" || corpo.passo === "comecou") {
     await registrarPassoFormulario(form.id, sessao, corpo.passo);
     return NextResponse.json({ ok: true });
@@ -43,6 +49,7 @@ export async function POST(req: Request, { params }: { params: Promise<{ slug: s
 
   const r = await criarLeadDoFormulario(form, { respostas, sessao, eventId, utm: curto(corpo.utm, 200), rastreio });
   if (!r.ok) return NextResponse.json({ erro: r.erro }, { status: 422 });
+  after(() => ligarVisitasAoLead(sessao, (rastreio as Record<string, string>).visitante, r.id).catch(() => null));
   if (r.novo) after(() => depoisDoLead(r.id, form).catch((e) => console.error("crm depoisDoLead:", e)));
   return NextResponse.json({ ok: true });
 }

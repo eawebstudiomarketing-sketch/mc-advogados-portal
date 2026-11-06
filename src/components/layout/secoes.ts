@@ -26,6 +26,7 @@ import {
   Stamp,
   SquareKanban,
   Target,
+  Radar,
   ClipboardPen,
   BookCheck,
   Lightbulb,
@@ -95,6 +96,7 @@ export const SECOES: Secao[] = [
     abas: [
       { href: "/admin/comercial", label: "Funil", icon: SquareKanban, perm: "comercial" },
       { href: "/admin/comercial/formularios", label: "Formulários", icon: ClipboardPen, perm: "comercial" },
+      { href: "/admin/comercial/visitas", label: "Visitas", icon: Radar, perm: "comercial" },
       { href: "/admin/comercial/numeros", label: "Números", icon: BarChart3, perm: "comercial" },
       { href: "/admin/comercial/configurar", label: "Pixels e ajustes", icon: Settings2, perm: "comercial" },
     ],

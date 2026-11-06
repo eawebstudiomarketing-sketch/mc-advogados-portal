@@ -2,6 +2,7 @@ import "server-only";
 import { equipeComercial, listarEtapas, listarFormularios, listarLeads, registrarEvento } from "@/lib/crm/dados";
 import { moverLead } from "@/lib/crm/leads";
 import { telefoneBonito } from "@/lib/crm/tipos";
+import { listarVisitas } from "@/lib/crm/visitas";
 import type { ToolDef } from "./tools";
 
 // CRM / Comercial (06/11/2026): o Assistente consulta o funil, acha um lead,
@@ -57,6 +58,41 @@ export const TOOLS_COMERCIAL: ToolDef[] = [
           chegou: new Date(l.created_at).toLocaleString("pt-BR", { timeZone: "America/Bahia", dateStyle: "short", timeStyle: "short" }),
           link: `/admin/comercial/${l.id}`,
         })),
+      };
+    },
+  },
+  {
+    name: "visitas_formularios",
+    kind: "read",
+    perm: ["comercial"],
+    label: "Consultou as visitas dos formulários",
+    description:
+      "Pixel próprio dos formulários do CRM: quantas pessoas abriram, começaram e enviaram no período, quantas estão preenchendo agora, de onde vieram (anúncio Meta/Google, Instagram, link direto), e em qual pergunta mais desistem. Use para 'quantos entraram no formulário hoje', 'onde o pessoal desiste', 'qual anúncio traz mais gente'.",
+    parameters: obj({ dias: { type: "number", description: "período em dias (padrão 7)" } }),
+    run: async (a) => {
+      const dias = Math.min(90, Math.max(1, Number(a.dias) || 7));
+      const [visitas, forms] = await Promise.all([listarVisitas({ desde: new Date(Date.now() - dias * 86_400_000).toISOString() }), listarFormularios()]);
+      const porCanal = new Map<string, { visitas: number; enviaram: number }>();
+      for (const v of visitas) {
+        const x = porCanal.get(v.canal ?? "Link direto") ?? { visitas: 0, enviaram: 0 };
+        x.visitas++;
+        if (v.enviou) x.enviaram++;
+        porCanal.set(v.canal ?? "Link direto", x);
+      }
+      return {
+        tela: "/admin/comercial/visitas",
+        periodo_dias: dias,
+        visitas: visitas.length,
+        pessoas: new Set(visitas.map((v) => v.visitante)).size,
+        comecaram: visitas.filter((v) => v.passo_max >= 0).length,
+        enviaram: visitas.filter((v) => v.enviou).length,
+        preenchendo_agora: visitas.filter((v) => !v.enviou && Date.now() - Date.parse(v.ultimo_em) < 180_000).length,
+        por_canal: [...porCanal].map(([canal, x]) => ({ canal, ...x })),
+        por_formulario: forms.map((f) => {
+          const doForm = visitas.filter((v) => v.formulario_id === f.id);
+          const desistiram = f.config.campos.map((c, i) => ({ pergunta: c.titulo, pararam_aqui: doForm.filter((v) => !v.enviou && v.passo_max === i).length }));
+          return { formulario: f.nome, abriram: doForm.length, enviaram: doForm.filter((v) => v.enviou).length, so_viram_a_abertura: doForm.filter((v) => v.passo_max < 0).length, onde_pararam: desistiram };
+        }),
       };
     },
   },

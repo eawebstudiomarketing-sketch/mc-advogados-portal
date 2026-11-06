@@ -76,8 +76,8 @@ const GRUPOS: Grupo[] = [
   {
     id: "comercial",
     sobre: "CRM comercial: leads dos formulários e anúncios, funil (etapas), mover lead, anotar no lead",
-    ferramentas: ["leads_crm", "mover_lead", "anotar_lead"],
-    palavras: /lead|funil|crm|comercial|formul[aá]rio|quiz|an[uú]ncio|campanha|prospec|proposta|fech(ou|ar|ado)|perdid/i,
+    ferramentas: ["leads_crm", "visitas_formularios", "mover_lead", "anotar_lead"],
+    palavras: /lead|funil|crm|comercial|visita|pixel|desist|formul[aá]rio|quiz|an[uú]ncio|campanha|prospec|proposta|fech(ou|ar|ado)|perdid/i,
     telas: ["/admin/comercial"],
   },
   {
