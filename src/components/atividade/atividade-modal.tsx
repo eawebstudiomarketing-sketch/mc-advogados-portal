@@ -11,9 +11,7 @@ import {
   Archive,
   ArchiveRestore,
   CalendarDays,
-  Download,
   ExternalLink,
-  FileText,
   Paperclip,
   Pencil,
   Tag,
@@ -21,7 +19,7 @@ import {
   UserRound,
   X,
 } from "lucide-react";
-import { DriveIcon } from "@/components/ui/drive-icon";
+import { AnexosAtividade } from "./anexos-atividade";
 import { ACTIVITY_STATUS_LABEL, ACTIVITY_STATUSES, type ActivityStatus } from "@/lib/activity-status";
 import { ACTIVITY_TYPE_LABEL, ACTIVITY_TYPES } from "@/lib/activity-type";
 import { formatDate } from "@/lib/mock-data";
@@ -316,36 +314,14 @@ function AtividadeModal({ id, editarAoAbrir, onClose }: { id: string; editarAoAb
 
               <CobrancaDocumento key={`cob-${d.id}`} atividadeId={d.id} />
 
-              {d.pode.documentos && (
+              {/* anexos (06/11/2026): qualquer arquivo, em qualquer atividade (com ou sem cliente) */}
               <div className="mt-5 rounded-xl border border-border">
-                <div className="flex items-center justify-between gap-2 border-b border-border px-4 py-2.5">
-                  <p className="flex items-center gap-1.5 text-sm font-medium text-foreground">
-                    <Paperclip className="h-4 w-4 text-muted" aria-hidden /> Documentos
-                    <span className="text-xs font-normal text-muted">({d.documentos.length})</span>
-                  </p>
-                  <Link href={`/admin/documents/new?activityId=${d.id}`} onClick={onClose} className="ui-link text-xs">
-                    + Enviar novo
-                  </Link>
+                <p className="flex items-center gap-1.5 border-b border-border px-4 py-2.5 text-sm font-medium text-foreground">
+                  <Paperclip className="h-4 w-4 text-muted" aria-hidden /> Anexos
+                </p>
+                <div className="px-4 py-3">
+                  <AnexosAtividade key={d.id} activityId={d.id} temCliente={!!d.client_id} inicial={d.documentos} />
                 </div>
-                <ul className="divide-y divide-border">
-                  {d.documentos.length === 0 && <li className="px-4 py-3 text-sm text-muted">Nenhum documento anexado.</li>}
-                  {d.documentos.map((doc) => (
-                    <li key={doc.id} className="flex items-center gap-2 px-4 py-2">
-                      <FileText className="h-4 w-4 shrink-0 text-muted" aria-hidden />
-                      <span className="min-w-0 flex-1 truncate text-sm">{doc.title}</span>
-                      {doc.drive_file_id && (
-                        <a href={`https://drive.google.com/file/d/${doc.drive_file_id}/view`} target="_blank" rel="noreferrer" className="icon-btn" aria-label="Abrir no Google Drive" data-tip="Abrir no Drive">
-                          <DriveIcon />
-                        </a>
-                      )}
-                      {doc.downloadUrl && (
-                        <a href={doc.downloadUrl} target="_blank" rel="noreferrer" className="icon-btn" aria-label="Baixar" data-tip="Baixar">
-                          <Download aria-hidden />
-                        </a>
-                      )}
-                    </li>
-                  ))}
-                </ul>
                 {d.docsDoCliente.length > 0 && (
                   <div className="flex flex-wrap items-center gap-2 border-t border-border px-4 py-2.5">
                     <select
@@ -367,7 +343,6 @@ function AtividadeModal({ id, editarAoAbrir, onClose }: { id: string; editarAoAb
                   </div>
                 )}
               </div>
-              )}
               <div className="mt-4">
                 <Comentarios activityId={d.id} />
               </div>

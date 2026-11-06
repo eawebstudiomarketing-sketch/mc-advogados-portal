@@ -6,7 +6,7 @@ import { ehSuperAdmin, exigirPermissao, getPermissoes, requireRole } from "@/lib
 import { getActivity } from "@/lib/data/activities";
 import { nomeResponsavel } from "@/lib/responsavel-nome";
 import { listEtiquetas, type Etiqueta } from "@/lib/data/etiquetas";
-import { listDocuments } from "@/lib/data/documents";
+import { anexosDaAtividade, type Anexo } from "@/lib/anexos-atividade";
 import { listResponsaveis, type Responsavel } from "@/lib/data/responsaveis";
 import type { Database } from "@/lib/supabase/types";
 import { lerChecklist, type ItemChecklist } from "@/lib/checklist";
@@ -36,7 +36,8 @@ export type AtividadeDetalhe = {
   checklist: ItemChecklist[];
   historico: EventoHistorico[];
   etiquetasTodas: Etiqueta[];
-  documentos: { id: string; title: string; created_at: string; downloadUrl: string | null; drive_file_id: string | null }[];
+  /** anexos da atividade (06/11/2026: inclui internos e atividade sem cliente) */
+  documentos: Anexo[];
   /** Documentos do cliente que ainda não estão nesta atividade (para anexar). */
   docsDoCliente: { id: string; title: string }[];
   responsaveis: Responsavel[];
@@ -54,7 +55,7 @@ export async function getActivityDetailAction(id: string): Promise<{ ok: true; d
   const perms = await getPermissoes();
   const [etiquetasTodas, documentos, responsaveis, { data: docsCliente }, historico, pedidoPrazo] = await Promise.all([
     listEtiquetas(),
-    listDocuments({ activityId: id }),
+    anexosDaAtividade(id, profile.id),
     listResponsaveis(),
     supabase
       .from("documents")
@@ -90,13 +91,7 @@ export async function getActivityDetailAction(id: string): Promise<{ ok: true; d
       checklist: lerChecklist(a.checklist),
       historico,
       etiquetasTodas,
-      documentos: documentos.map((d) => ({
-        id: d.id,
-        title: d.title,
-        created_at: d.created_at,
-        downloadUrl: d.downloadUrl,
-        drive_file_id: d.drive_file_id,
-      })),
+      documentos,
       docsDoCliente: docsCliente ?? [],
       responsaveis,
       pode: { excluir: !!perms?.excluir, verCliente: !!perms?.clientes, documentos: !!perms?.documentos, salvarModeloAviso: profile.role === "admin", mudarPrazo: ehSuperAdmin(profile) },

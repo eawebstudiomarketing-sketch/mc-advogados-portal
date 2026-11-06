@@ -1,5 +1,6 @@
 "use server";
 
+import { registrarAnexo } from "@/lib/anexos-atividade";
 import { redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
@@ -147,6 +148,19 @@ export async function createActivityAction(
       .from("cobrancas_documentos")
       .insert({ activity_id: criada.id, client_id: clienteDaAtividade, documentos: docsCobrar, mensagem: cfg.mensagem, destino: destinoCobranca, intervalo_dias: cfg.intervaloDias, ativa: true, proxima_em: new Date().toISOString(), criado_por: profile.id })
       .then(({ error: e }) => e && console.error("cobrança de documento:", e.message));
+  }
+
+  // anexos escolhidos no formulário (06/11/2026): já subiram para a pasta da pessoa; aqui entram na atividade
+  if (criada) {
+    for (const bruto of formData.getAll("anexos").slice(0, 30)) {
+      try {
+        const a = JSON.parse(String(bruto)) as { caminho?: string; nome?: string; interno?: boolean };
+        if (typeof a.caminho !== "string" || typeof a.nome !== "string") continue;
+        await registrarAnexo({ atividade: { id: criada.id, client_id: clienteDaAtividade }, caminho: a.caminho, nome: a.nome, interno: a.interno !== false, profileId: profile.id, pendente: profile.id });
+      } catch (e) {
+        console.error("anexo da nova atividade:", (e as Error).message);
+      }
+    }
   }
 
   // audiência: avisa o cliente (criação, 5 dias e 1 dia antes) — só se for categoria Audiência com data e horário

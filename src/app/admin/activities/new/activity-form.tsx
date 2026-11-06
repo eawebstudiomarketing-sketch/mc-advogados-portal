@@ -2,6 +2,7 @@
 
 import { useActionState, useState } from "react";
 import { createActivityAction, type CreateActivityState } from "../actions";
+import { AnexosAtividade } from "@/components/atividade/anexos-atividade";
 import { ACTIVITY_TYPE_LABEL, ACTIVITY_TYPES } from "@/lib/activity-type";
 import type { Client } from "@/lib/data/clients";
 import type { Responsavel } from "@/lib/data/responsaveis";
@@ -192,6 +193,14 @@ export function ActivityForm({
           defaultValue={inicial.descricao}
           className="ui-input"
         />
+      </div>
+
+      {/* anexos (06/11/2026): sobem já e entram quando a atividade for criada */}
+      <div>
+        <p className="ui-label">
+          Anexos <span className="font-normal text-muted">(opcional)</span>
+        </p>
+        <AnexosAtividade activityId={null} temCliente={!!cliente} />
       </div>
 
       <MensagemZapCampos clienteId={cliente} />

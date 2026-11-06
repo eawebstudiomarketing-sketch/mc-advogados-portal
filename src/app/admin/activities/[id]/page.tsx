@@ -1,11 +1,10 @@
-import { Download } from "lucide-react";
 import { BackButton } from "@/components/nav/back-button";
 import { nomeResponsavel } from "@/lib/responsavel-nome";
-import { DriveIcon } from "@/components/ui/drive-icon";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { getActivity } from "@/lib/data/activities";
-import { listDocuments } from "@/lib/data/documents";
+import { anexosDaAtividade } from "@/lib/anexos-atividade";
+import { AnexosAtividade } from "@/components/atividade/anexos-atividade";
 import { AttachExistingDocument } from "@/components/drive/attach-existing-document";
 import { deleteActivityAction } from "../actions";
 import { StatusBadge } from "@/components/ui/status-badge";
@@ -20,13 +19,13 @@ import { listEtiquetas } from "@/lib/data/etiquetas";
 import { listResponsaveis } from "@/lib/data/responsaveis";
 
 export default async function ActivityDetailPage({ params }: { params: Promise<{ id: string }> }) {
-  await exigirPermissao("atividades");
+  const { profile } = await exigirPermissao("atividades");
   const { id } = await params;
 
   const activity = await getActivity(id);
   if (!activity) notFound();
 
-  const [documents, etiquetas, responsaveis] = await Promise.all([listDocuments({ activityId: id }), listEtiquetas(), listResponsaveis()]);
+  const [anexos, etiquetas, responsaveis] = await Promise.all([anexosDaAtividade(id, profile.id), listEtiquetas(), listResponsaveis()]);
   const envolvidos = (activity.envolvidos ?? []).map((e) => responsaveis.find((r) => r.id === e)?.nome).filter(Boolean);
 
   return (
@@ -100,42 +99,10 @@ export default async function ActivityDetailPage({ params }: { params: Promise<{
         </div>
 
         <div className="ui-card p-5">
-          <div className="flex items-center justify-between">
-            <h2 className="section-title">Documentos</h2>
-            {activity.client_id && (
-              <Link href={`/admin/documents/new?activityId=${activity.id}`} className="ui-link">
-                + Anexar documento
-              </Link>
-            )}
-          </div>
+          {/* anexos (06/11/2026): qualquer arquivo, com ou sem cliente na atividade */}
+          <h2 className="section-title mb-3">Anexos</h2>
+          <AnexosAtividade activityId={activity.id} temCliente={!!activity.client_id} inicial={anexos} />
           {activity.client_id && <AttachExistingDocument clientId={activity.client_id} activityId={activity.id} />}
-          {!activity.client_id && (
-            <p className="mt-3 text-xs text-muted">
-              Esta atividade não tem cliente vinculado, então ainda não é possível anexar documentos a ela.
-            </p>
-          )}
-          <ul className="mt-3 divide-y divide-border">
-            {documents.length === 0 && <p className="py-3 text-sm text-muted">Nenhum documento anexado.</p>}
-            {documents.map((d) => (
-              <li key={d.id} className="flex items-center justify-between gap-3 py-3">
-                <div>
-                  <p className="text-sm text-foreground">{d.title}</p>
-                  <p className="text-xs text-muted">{new Date(d.created_at).toLocaleDateString("pt-BR")}</p>
-                </div>
-                {d.drive_file_id && (
-                <a
-                  href={`https://drive.google.com/file/d/${d.drive_file_id}/view`}
-                  target="_blank"
-                  rel="noreferrer"
-                  className="icon-btn" aria-label="Abrir no Google Drive" data-tip="Abrir no Google Drive"
-                ><DriveIcon /></a>
-              )}
-              {d.downloadUrl && (
-                  <a href={d.downloadUrl} target="_blank" rel="noreferrer" className="icon-btn" aria-label="Baixar" data-tip="Baixar"><Download aria-hidden /></a>
-                )}
-              </li>
-            ))}
-          </ul>
         </div>
       </div>
 
