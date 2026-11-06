@@ -6,11 +6,11 @@ import { AlarmClock } from "lucide-react";
 import { toast } from "sonner";
 import type { AvisoPrazo } from "@/lib/rotina-relatorio/alerta";
 
-// Aviso do prazo do relatório (05/11/2026): na última hora antes de fechar
-// (equipe das 17h às 18h), uma faixa fica fixa no topo de todas as telas
-// lembrando o que falta. Na primeira vez do dia também sobe um cartãozinho.
-// 05/11/2026: depois das 18:00 a equipe ainda envia até 23:59; a faixa passa a
-// dizer que está com atraso (o Maurício é avisado quando ela enviar).
+// Aviso do prazo do relatório (05/11/2026): antes do limite, uma faixa fica
+// fixa no topo de todas as telas lembrando o que falta. Na primeira vez do dia
+// também sobe um cartãozinho. Depois do limite (se as regras ainda aceitam até
+// 23:59) a faixa passa a dizer que está com atraso. 06/11/2026: o limite e
+// quanto tempo antes vêm das Regras da rotina.
 // A hora é a do navegador (Bahia), conferida a cada 30 s: aparece e some sozinha.
 
 const agoraBahia = () => {
@@ -29,10 +29,10 @@ export function AvisoPrazoRotina({ aviso }: { aviso: AvisoPrazo }) {
   useEffect(() => {
     const conferir = () => {
       const { dia, min } = agoraBahia();
-      const resta = aviso.prazoHora * 60 - min;
-      const dentro = resta > 0 && resta <= 60;
+      const resta = aviso.prazoMin - min;
+      const dentro = resta > 0 && resta <= aviso.antesMin;
       setFaltam(dentro ? resta : null);
-      setAtrasado(resta <= 0 && aviso.prazoHora < 24);
+      setAtrasado(resta <= 0 && aviso.prazoMin < 1440 && !aviso.fecha);
       if (!dentro) return;
       const chave = `mc:aviso-relatorio:${dia}`;
       try {
@@ -41,12 +41,12 @@ export function AvisoPrazoRotina({ aviso }: { aviso: AvisoPrazo }) {
       } catch {
         return;
       }
-      toast.warning(`Falta menos de 1 hora: o prazo do relatório do dia é ${aviso.prazoTexto}.`, { description: "Preencha a rotina e envie o relatório. Depois disso fica com atraso.", duration: 15_000 });
+      toast.warning(`Faltam ${resta} min: o prazo do relatório do dia é ${aviso.prazoTexto}.`, { description: aviso.fecha ? "Preencha a rotina e envie o relatório. Depois disso ele fecha." : "Preencha a rotina e envie o relatório. Depois disso fica com atraso.", duration: 15_000 });
     };
     conferir();
     const t = setInterval(conferir, 30_000);
     return () => clearInterval(t);
-  }, [aviso.prazoHora, aviso.prazoTexto]);
+  }, [aviso.prazoMin, aviso.prazoTexto, aviso.antesMin, aviso.fecha]);
 
   if (faltam === null && !atrasado) return null;
   const falta = [aviso.tarefasFaltando ? `${aviso.tarefasFaltando} tarefa${aviso.tarefasFaltando > 1 ? "s" : ""} da rotina` : "", "enviar o relatório do dia"].filter(Boolean).join(" e ");
@@ -56,7 +56,7 @@ export function AvisoPrazoRotina({ aviso }: { aviso: AvisoPrazo }) {
       <span className="min-w-0 flex-1">
         {atrasado ? (
           <>
-            <strong className="font-semibold">Relatório do dia atrasado</strong> (o prazo era {aviso.prazoTexto}). Ainda dá para enviar até 23:59; o Dr. Maurício é avisado do atraso. Falta: {falta}.
+            <strong className="font-semibold">Relatório do dia atrasado</strong> (o prazo era {aviso.prazoTexto}). Ainda dá para enviar até 23:59{aviso.avisaDono ? "; o Dr. Maurício é avisado do atraso" : ""}. Falta: {falta}.
           </>
         ) : (
           <>

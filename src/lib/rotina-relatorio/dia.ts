@@ -3,9 +3,10 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { listPessoas } from "@/lib/data/escritorio";
 import { rotinaDoDia } from "@/lib/data/rotina-diaria";
-import { ehDiaDeExpediente } from "@/lib/publicacoes/sugestoes";
 import { criarOrdem } from "@/lib/whatsapp";
 import { demandasVencidas, modelosAtribuidos, relatoriosDoDia } from "./dados";
+import { ehDiaDeRelatorio, lerRegras } from "./regras";
+import { paraMin } from "./regras-base";
 import { chaveResposta, enviadoComAtraso, SECAO_ROTULO, SECOES, type DemandaVencida, type RelatorioDoDia, type Valor } from "./tipos";
 
 // Fim do dia (Rotinas v2): monta o HTML com tudo sobre as rotinas e as demandas
@@ -33,7 +34,7 @@ type PessoaDia = {
   nome: string;
   relatorio: RelatorioDoDia | null;
   temModelo: boolean;
-  /** relatório da equipe enviado depois das 18:00 */
+  /** relatório da equipe enviado depois do limite da pessoa (Regras da rotina) */
   atrasado: boolean;
   fixas: { titulo: string; feito: boolean }[];
   concluidas: Concluida[];
@@ -52,7 +53,7 @@ export async function concluidasNoDia(responsavelId: string, dia: string): Promi
 }
 
 export async function coletarDia(dia: string): Promise<PessoaDia[]> {
-  const [pessoas, relatorios, atribuidos] = await Promise.all([listPessoas(), relatoriosDoDia(dia), modelosAtribuidos()]);
+  const [pessoas, relatorios, atribuidos, regras] = await Promise.all([listPessoas(), relatoriosDoDia(dia), modelosAtribuidos(), lerRegras()]);
   const porPessoa = new Map(relatorios.map((r) => [r.responsavel_id, r]));
   const equipe = pessoas.filter((p) => p.profileId);
   return Promise.all(
@@ -68,7 +69,7 @@ export async function coletarDia(dia: string): Promise<PessoaDia[]> {
         nome: p.nome,
         relatorio: rel,
         temModelo: atribuidos.has(p.id),
-        atrasado: rel?.status === "enviado" && p.profileId !== MAURICIO && enviadoComAtraso(rel.enviado_em),
+        atrasado: rel?.status === "enviado" && p.profileId !== MAURICIO && enviadoComAtraso(rel.enviado_em, paraMin(regras.excecoes[p.id] ?? regras.prazo)),
         fixas: fixas.map((f) => ({ titulo: f.titulo, feito: f.feito })),
         concluidas,
         vencidas,
@@ -166,7 +167,9 @@ export type ResultadoEnvioDia = { dia: string; enviado: boolean; motivo?: string
 
 /** Gera o HTML do dia e manda para o WhatsApp do Maurício. Uma vez por dia, a menos que `forcar`. */
 export async function enviarRelatorioDoDia(dia: string, { forcar = false }: { forcar?: boolean } = {}): Promise<ResultadoEnvioDia> {
-  if (!forcar && !ehDiaDeExpediente(dia)) return { dia, enviado: false, motivo: "não é dia de expediente" };
+  const regras = await lerRegras();
+  if (!regras.resumoFimDoDiaZap) return { dia, enviado: false, motivo: "desligado nas Regras da rotina" };
+  if (!forcar && !ehDiaDeRelatorio(dia, regras)) return { dia, enviado: false, motivo: "dia sem relatório (Regras da rotina)" };
   if (!forcar) {
     const { data: jaFoi } = await db().from("rotina_relatorio_dia").select("dia").eq("dia", dia).maybeSingle();
     if (jaFoi) return { dia, enviado: false, motivo: "já enviado" };

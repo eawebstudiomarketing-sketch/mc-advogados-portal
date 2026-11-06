@@ -18,7 +18,7 @@ import {
 } from "@/lib/rotina-relatorio/tipos";
 
 // Relatório do dia (Rotinas v2): a pessoa responde as perguntas do modelo dela,
-// justifica as demandas vencidas e envia, até o prazo (equipe 18:00, admin máximo 23:59; a equipe ainda envia até 23:59, mas com atraso). As três seções ficam
+// justifica as demandas vencidas e envia, até o prazo (Regras da rotina; admin máximo 23:59). As três seções ficam
 // bem separadas (sobre você · sobre a equipe · sobre cada pessoa).
 
 type PerguntaTela = Pick<Pergunta, "id" | "secao" | "texto" | "tipo" | "opcoes" | "obrigatoria">;
@@ -109,6 +109,7 @@ export function RelatorioDoDia({
   equipeNode,
   edicao,
   prazo = "23:59",
+  fecha = false,
 }: {
   perguntas: PerguntaTela[];
   equipe: PessoaEquipe[];
@@ -120,8 +121,10 @@ export function RelatorioDoDia({
   equipeNode?: React.ReactNode;
   /** admin máximo corrigindo o relatório já enviado de outra pessoa */
   edicao?: { responsavelId: string; dia: string };
-  /** até que horas pode enviar (equipe 18:00, admin máximo 23:59) */
+  /** até que horas pode enviar (Regras da rotina; admin máximo 23:59) */
   prazo?: string;
+  /** depois do prazo não aceita mais (Regras da rotina) */
+  fecha?: boolean;
 }) {
   const [respostas, setRespostas] = useState(inicial.respostas);
   const [justificativas, setJustificativas] = useState(inicial.justificativas);
@@ -263,7 +266,7 @@ export function RelatorioDoDia({
       <div>
         <h2 className="section-title">Relatório do dia</h2>
         <p className="mt-0.5 text-sm text-muted">
-          {edicao ? "Você pode corrigir este relatório, se quiser." : enviado ? "Relatório enviado." : prazo === "23:59" ? "Responda até as 23:59 de hoje. O rascunho é salvo sozinho." : `Responda até as ${prazo} de hoje. Depois disso ainda dá para enviar até 23:59, mas fica com atraso e o Dr. Maurício é avisado. O rascunho é salvo sozinho.`}
+          {edicao ? "Você pode corrigir este relatório, se quiser." : enviado ? "Relatório enviado." : prazo === "23:59" ? "Responda até as 23:59 de hoje. O rascunho é salvo sozinho." : fecha ? `Responda até as ${prazo} de hoje. Depois disso o relatório fecha. O rascunho é salvo sozinho.` : `Responda até as ${prazo} de hoje. Depois disso ainda dá para enviar até 23:59, mas fica com atraso. O rascunho é salvo sozinho.`}
         </p>
       </div>
       {enviado ? (

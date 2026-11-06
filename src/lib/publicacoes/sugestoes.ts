@@ -30,6 +30,8 @@ function diaUtil(d: Date, recesso = true): boolean {
   if (recesso && (md >= "12-20" || md <= "01-20")) return false;
   return true;
 }
+/** Feriado nacional fixo. "AAAA-MM-DD". */
+export const ehFeriadoNacional = (isoDia: string) => FERIADOS.has(isoDia.slice(5, 10));
 /** Dia de expediente (seg–sex, fora dos feriados nacionais fixos). "AAAA-MM-DD". */
 export function ehDiaDeExpediente(isoDia: string): boolean {
   return diaUtil(new Date(`${isoDia}T12:00:00Z`), false);

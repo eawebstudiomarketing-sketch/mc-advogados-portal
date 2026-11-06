@@ -12,6 +12,7 @@ import { concluidasNoDia } from "@/lib/rotina-relatorio/dia";
 import { carregarModelos, demandasVencidas, equipeDe, lerRelatorio, modeloDaPessoa, prazoDoRelatorio, relatoriosDoDia } from "@/lib/rotina-relatorio/dados";
 import { RelatorioLeitura } from "@/components/rotina/relatorio-leitura";
 import { enviadoComAtraso } from "@/lib/rotina-relatorio/tipos";
+import { paraMin } from "@/lib/rotina-relatorio/regras-base";
 import { EditorRotina } from "./editor";
 import { EditorModelos } from "./modelos";
 
@@ -84,6 +85,8 @@ export async function rotinaDaPessoa({
     const relsEquipe = souSuper && meu ? (await relatoriosDoDia(dia)).filter((r) => r.responsavel_id !== alvo.id) : [];
     const daEquipe = souSuper && meu ? pessoas.filter((x) => x.id !== alvo.id && (atribuidos.has(x.id) || relsEquipe.some((r) => r.responsavel_id === x.id))) : [];
     const aprovadorNome = pessoas.find((x) => x.id === modelo?.aprovador_id)?.nome ?? "Maurício";
+    // limite de cada pessoa (Regras da rotina: geral ou exceção)
+    const limiteDe = (id: string) => paraMin(prazo.regras.excecoes[id] ?? prazo.regras.prazo);
     // fluxo em etapas aberto: a própria pessoa, com modelo, ainda sem enviar
     const fluxoAberto = editavel && !!modelo && rel?.status !== "enviado";
     const secaoEquipe =
@@ -109,9 +112,9 @@ export async function rotinaDaPessoa({
                           <Avatar nome={x.nome} foto={x.foto} tamanho={32} />
                           <span className="min-w-0 flex-1 truncate text-sm font-medium text-foreground">{x.nome}</span>
                           {enviado && r?.aprovado_em ? (
-                            <span className="rounded bg-status-success-bg px-1.5 py-0.5 text-xs font-semibold text-status-success">Aprovado · nota {r.nota}{enviadoComAtraso(r.enviado_em) ? " · enviado com atraso" : ""}</span>
+                            <span className="rounded bg-status-success-bg px-1.5 py-0.5 text-xs font-semibold text-status-success">Aprovado · nota {r.nota}{enviadoComAtraso(r.enviado_em, limiteDe(x.id)) ? " · enviado com atraso" : ""}</span>
                           ) : enviado ? (
-                            <span className={`rounded px-1.5 py-0.5 text-xs font-semibold ${enviadoComAtraso(r!.enviado_em) ? "bg-status-pending-bg text-status-pending" : "bg-status-info-bg text-status-info"}`}>Para aprovar · enviado às {horaDe(r!.enviado_em!)}{enviadoComAtraso(r!.enviado_em) ? " (com atraso)" : ""}</span>
+                            <span className={`rounded px-1.5 py-0.5 text-xs font-semibold ${enviadoComAtraso(r!.enviado_em, limiteDe(x.id)) ? "bg-status-pending-bg text-status-pending" : "bg-status-info-bg text-status-info"}`}>Para aprovar · enviado às {horaDe(r!.enviado_em!)}{enviadoComAtraso(r!.enviado_em, limiteDe(x.id)) ? " (com atraso)" : ""}</span>
                           ) : (
                             <span className="rounded bg-surface-2 px-1.5 py-0.5 text-xs font-semibold text-muted">{r ? "Em rascunho" : dia < hoje ? "Não enviou" : "Ainda não enviou"}</span>
                           )}
@@ -199,6 +202,7 @@ export async function rotinaDaPessoa({
                     resumo={enviado ? undefined : resumoNode}
                     equipeNode={enviado ? undefined : (secaoEquipe ?? undefined)}
                     prazo={prazo.texto}
+                    fecha={prazo.fecha}
                     inicial={{ respostas: rel?.respostas ?? {}, justificativas: rel?.justificativas ?? {}, enviadoEm: enviado ? rel.enviado_em : null }}
                   />
                   {enviado && (

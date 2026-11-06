@@ -9,6 +9,7 @@ import { aprovarRelatorio, atribuirModelo, editarRelatorioEnviado, enviarRelator
 import { enviarRelatorioDoDia, MAURICIO } from "@/lib/rotina-relatorio/dia";
 import { avisarRelatorioAtrasado } from "@/lib/rotina-relatorio/atraso";
 import type { Valor } from "@/lib/rotina-relatorio/tipos";
+import { salvarRegras } from "@/lib/rotina-relatorio/regras";
 
 // Ações do relatório do dia (Rotinas v2). Modelos: só o admin máximo.
 // Preencher e enviar: cada pessoa, só o próprio relatório, só no dia de hoje.
@@ -79,13 +80,26 @@ export async function enviarRelatorioAction(respostas: Record<string, Valor>, ju
     // o relatório de dono: quando o Maurício envia o dele, o resumo do dia (HTML) vai para o Zap dele
     const enviadoEm = new Date();
     after(async () => {
-      // da equipe depois das 18:00: avisa o Maurício (portal + Zap)
+      // da equipe depois do limite: avisa o Maurício (portal e/ou Zap, conforme as Regras)
       await avisarRelatorioAtrasado(eu, dia, enviadoEm).catch(() => false);
       const { data } = await (createAdminClient() as unknown as import("@supabase/supabase-js").SupabaseClient).from("responsaveis").select("profile_id").eq("id", eu).maybeSingle();
       if (data?.profile_id === MAURICIO) await enviarRelatorioDoDia(dia, { forcar: true }).catch(() => undefined);
     });
     revalidatePath("/admin/rotinas");
     revalidatePath("/admin", "layout"); // some o aviso do prazo no topo e a bolinha do relógio
+    return { ok: true };
+  } catch (e) {
+    return { ok: false, error: msg(e) };
+  }
+}
+
+/** Regras da rotina (06/11/2026): só o admin máximo. A agenda das 8h no Zap é a chave rotina_ativa que já existia. */
+export async function salvarRegrasAction(regras: unknown, agendaZap: boolean): Promise<Resultado> {
+  try {
+    await exigirSuper();
+    await salvarRegras(regras);
+    await createAdminClient().from("escritorio_config").update({ rotina_ativa: agendaZap, updated_at: new Date().toISOString() }).eq("id", 1);
+    revalidatePath("/admin", "layout"); // relógio, faixa do topo e textos do prazo
     return { ok: true };
   } catch (e) {
     return { ok: false, error: msg(e) };

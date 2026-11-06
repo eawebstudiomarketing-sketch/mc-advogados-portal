@@ -5,6 +5,7 @@ import { RelatorioLeitura } from "@/components/rotina/relatorio-leitura";
 import { coletarDia } from "@/lib/rotina-relatorio/dia";
 import { hojeBahia } from "@/lib/rotina-relatorio/dados";
 import { listPessoas } from "@/lib/data/escritorio";
+import { lerRegras } from "@/lib/rotina-relatorio/regras";
 
 // Aba "Rotinas" do Painel do Dono: o relatório do dia de cada pessoa, ao lado
 // das rotinas fixas e das demandas (concluídas e vencidas). Só o admin máximo
@@ -16,7 +17,7 @@ const hora = (iso: string) => new Date(iso).toLocaleTimeString("pt-BR", { timeZo
 export async function RotinasDoDia({ dia: pedido }: { dia?: string }) {
   const hoje = hojeBahia();
   const dia = /^\d{4}-\d{2}-\d{2}$/.test(pedido ?? "") && pedido! <= hoje ? pedido! : hoje;
-  const [pessoas, fotos] = await Promise.all([coletarDia(dia), listPessoas()]);
+  const [pessoas, fotos, regras] = await Promise.all([coletarDia(dia), listPessoas(), lerRegras()]);
   const foto = new Map(fotos.map((p) => [p.id, p.foto]));
   const comModelo = pessoas.filter((p) => p.temModelo);
   const enviados = comModelo.filter((p) => p.relatorio?.status === "enviado").length;
@@ -30,7 +31,7 @@ export async function RotinasDoDia({ dia: pedido }: { dia?: string }) {
           <h2 className="section-title">Rotinas de {dataBr(dia)}</h2>
           <p className="mt-0.5 text-sm text-muted">
             {enviados} de {comModelo.length} relatórios enviados · {concluidas} demandas concluídas · {vencidas} vencidas em aberto
-            {dia === hoje ? " · a equipe envia até as 18:00 (depois, até 23:59 com atraso) e o Maurício até as 23:59" : ""}
+            {dia === hoje ? ` · a equipe envia até as ${regras.prazo}${regras.depoisDoPrazo === "aceita" ? " (depois, até 23:59 com atraso)" : ""} e você até as 23:59` : ""}
           </p>
         </div>
         <form method="get" className="flex items-center gap-1.5">

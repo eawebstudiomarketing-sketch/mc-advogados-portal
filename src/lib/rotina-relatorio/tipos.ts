@@ -1,3 +1,4 @@
+import { minutoBahia } from "./regras-base";
 // Rotinas v2 (30/10/2026): o relatório do dia. Tipos e regras que servem ao servidor e à tela.
 
 export const SECOES = ["pessoal", "equipe_geral", "equipe_pessoa"] as const;
@@ -62,11 +63,11 @@ export type RelatorioDoDia = {
   editado_em: string | null;
 };
 
-/** Prazo da equipe (05/11/2026): enviar até as 18:00. Depois ainda dá até 23:59, mas conta como atraso e o Maurício é avisado. */
-export const PRAZO_EQUIPE_HORA = 18;
-/** Enviado depois do prazo da equipe (hora da Bahia). */
-export const enviadoComAtraso = (iso: string | null | undefined, prazoHora = PRAZO_EQUIPE_HORA) =>
-  !!iso && prazoHora < 24 && Number(new Intl.DateTimeFormat("en-GB", { timeZone: "America/Bahia", hour: "2-digit", hour12: false }).format(new Date(iso))) % 24 >= prazoHora;
+/**
+ * Enviado depois do horário limite (Bahia). `prazoMin` = minuto do dia do limite
+ * (1440 = sem limite). O limite vem das Regras da rotina (06/11/2026; antes, 18:00 fixo).
+ */
+export const enviadoComAtraso = (iso: string | null | undefined, prazoMin: number) => !!iso && prazoMin < 1440 && minutoBahia(iso) >= prazoMin;
 
 const vazio = (v: Valor | undefined) => v === undefined || v === null || (typeof v === "string" && !v.trim()) || (Array.isArray(v) && v.length === 0);
 

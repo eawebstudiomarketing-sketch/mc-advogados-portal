@@ -1,6 +1,6 @@
 import Link from "next/link";
 import type { SupabaseClient } from "@supabase/supabase-js";
-import { FileText, Plus } from "lucide-react";
+import { FileText, Plus, SlidersHorizontal } from "lucide-react";
 import { ehSuperAdmin, requireRole } from "@/lib/dal";
 import { listPessoas } from "@/lib/data/escritorio";
 import { responsavelDoPerfil } from "@/lib/data/responsaveis";
@@ -12,6 +12,9 @@ import { ModalRotina } from "@/components/rotina/modal-rotina";
 import { MenuRotina } from "@/components/rotina/menu-rotina";
 import { carregarModelos, demandasVencidas, modelosAtribuidos, relatoriosDoDia } from "@/lib/rotina-relatorio/dados";
 import { EditorModelos } from "./modelos";
+import { EditorRegras } from "./regras";
+import { lerRegras } from "@/lib/rotina-relatorio/regras";
+import { getEscritorioConfig } from "@/lib/data/escritorio";
 import { rotinaDaPessoa } from "./rotina-da-pessoa";
 
 // Rotinas (30/10/2026): a página mostra só os cards de rotina, um por pessoa.
@@ -24,7 +27,7 @@ import { rotinaDaPessoa } from "./rotina-da-pessoa";
 const ROTAS = "/admin/rotinas";
 const horaDe = (iso: string) => new Date(iso).toLocaleTimeString("pt-BR", { timeZone: "America/Bahia", hour: "2-digit", minute: "2-digit" });
 
-export default async function RotinasPage({ searchParams }: { searchParams: Promise<{ pessoa?: string; aba?: string; dia?: string; nova?: string; modelos?: string }> }) {
+export default async function RotinasPage({ searchParams }: { searchParams: Promise<{ pessoa?: string; aba?: string; dia?: string; nova?: string; modelos?: string; regras?: string }> }) {
   const profile = await requireRole(["admin", "advogado"]);
   const souSuper = ehSuperAdmin(profile);
   const verEquipe = souSuper || profile.role === "admin";
@@ -53,6 +56,9 @@ export default async function RotinasPage({ searchParams }: { searchParams: Prom
         </div>
         {souSuper && (
           <div className="flex flex-wrap items-center gap-2">
+            <Link href={`${ROTAS}?regras=1`} scroll={false} className="ui-btn-secondary">
+              <SlidersHorizontal className="h-4 w-4" aria-hidden /> Regras
+            </Link>
             <Link href={`${ROTAS}?modelos=1`} scroll={false} className="ui-btn-secondary">
               <FileText className="h-4 w-4" aria-hidden /> Modelos
             </Link>
@@ -136,6 +142,17 @@ export default async function RotinasPage({ searchParams }: { searchParams: Prom
                 </li>
               ))}
           </ul>
+        </ModalRotina>
+      )}
+
+      {/* REGRAS DA ROTINA (06/11/2026): horário limite, exceções, avisos, dias… só o admin máximo */}
+      {souSuper && sp.regras === "1" && !alvo && (
+        <ModalRotina titulo="Regras da rotina" subtitulo="Horário limite do relatório do dia, avisos e dias. Vale para toda a equipe assim que você salva." fecharHref={ROTAS}>
+          <EditorRegras
+            regras={await lerRegras()}
+            agendaZap={(await getEscritorioConfig()).rotina_ativa}
+            pessoas={pessoas.filter((p) => p.profileId && p.profileId !== profile.id).map((p) => ({ id: p.id, nome: p.nome }))}
+          />
         </ModalRotina>
       )}
 

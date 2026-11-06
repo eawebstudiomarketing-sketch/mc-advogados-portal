@@ -1,10 +1,11 @@
 import "server-only";
+import { lerRegras, ehDiaDeRelatorio } from "./regras";
+import { minutoBahia, paraMin, type RegrasRotina } from "./regras-base";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { listPessoas } from "@/lib/data/escritorio";
 import {
   faltaParaEnviar,
-  PRAZO_EQUIPE_HORA,
   type DemandaVencida,
   type Modelo,
   type Pergunta,
@@ -176,24 +177,33 @@ export async function relatoriosDoDia(dia: string): Promise<RelatorioDoDia[]> {
 }
 
 /**
- * Prazo do relatório do dia (04/11/2026, regra do João): a equipe preenche até
- * as 18:00 (05/11/2026: das 17h às 18h fica um aviso fixo no topo); o admin máximo (Maurício), que aprova os da equipe, até as 23:59.
- * 05/11/2026: todos podem enviar até 23:59; o da equipe depois das 18:00 fica "com atraso" e o Maurício é avisado (Zap + portal).
- * `hora` = hora cheia do prazo (24 = meia-noite).
+ * Prazo do relatório do dia. 06/11/2026: vem das Regras da rotina (Rotinas →
+ * Regras, só o admin máximo edita): horário geral da equipe, exceção por pessoa,
+ * se depois do limite ainda aceita (até 23:59, com atraso) ou fecha, e os dias
+ * com relatório. O admin máximo, que aprova os da equipe, tem até 23:59.
+ * `min` = minuto do dia do limite (1440 = meia-noite).
  */
-export async function prazoDoRelatorio(responsavelId: string): Promise<{ hora: number; texto: string }> {
-  const { data } = await db().from("responsaveis").select("profiles!responsaveis_profile_id_fkey(role, super_admin)").eq("id", responsavelId).maybeSingle();
+export type PrazoRelatorio = { min: number; texto: string; fecha: boolean; temRelatorioHoje: boolean; regras: RegrasRotina };
+export async function prazoDoRelatorio(responsavelId: string): Promise<PrazoRelatorio> {
+  const [{ data }, regras] = await Promise.all([
+    db().from("responsaveis").select("profiles!responsaveis_profile_id_fkey(role, super_admin)").eq("id", responsavelId).maybeSingle(),
+    lerRegras(),
+  ]);
   const p = (data?.profiles ?? null) as unknown as { role: string; super_admin: boolean | null } | null;
-  return p?.role === "admin" && p.super_admin ? { hora: 24, texto: "23:59" } : { hora: PRAZO_EQUIPE_HORA, texto: "18:00" };
+  if (p?.role === "admin" && p.super_admin) return { min: 1440, texto: "23:59", fecha: false, temRelatorioHoje: true, regras };
+  const hhmm = regras.excecoes[responsavelId] ?? regras.prazo;
+  return { min: paraMin(hhmm), texto: hhmm, fecha: regras.depoisDoPrazo === "fecha", temRelatorioHoje: ehDiaDeRelatorio(hojeBahia(), regras), regras };
 }
 
-/** Só aceita o dia de hoje (Bahia). Fecha à meia-noite para todos; depois do prazo da pessoa conta como atraso. */
-async function exigirHoje(dia: string) {
+/** Só aceita o dia de hoje (Bahia), até 23:59; se as regras mandam fechar no limite, até o limite da pessoa. */
+async function exigirAberto(responsavelId: string, dia: string) {
   if (dia !== hojeBahia()) throw new Error("O relatório só pode ser preenchido e enviado no próprio dia, até as 23:59.");
+  const prazo = await prazoDoRelatorio(responsavelId);
+  if (prazo.fecha && minutoBahia(new Date()) >= prazo.min) throw new Error(`O relatório de hoje fechou às ${prazo.texto}.`);
 }
 
 export async function salvarRascunho(responsavelId: string, dia: string, respostas: Record<string, Valor>, justificativas: Record<string, string>) {
-  await exigirHoje(dia);
+  await exigirAberto(responsavelId, dia);
   const atual = await lerRelatorio(responsavelId, dia);
   if (atual?.status === "enviado") throw new Error("Este relatório já foi enviado.");
   const modelo = await modeloDaPessoa(responsavelId);
@@ -208,7 +218,7 @@ export async function salvarRascunho(responsavelId: string, dia: string, respost
 
 /** Valida e envia. Devolve a lista do que falta (vazia = enviado). */
 export async function enviarRelatorio(responsavelId: string, dia: string, respostas: Record<string, Valor>, justificativas: Record<string, string>): Promise<string[]> {
-  await exigirHoje(dia);
+  await exigirAberto(responsavelId, dia);
   const atual = await lerRelatorio(responsavelId, dia);
   if (atual?.status === "enviado") throw new Error("Este relatório já foi enviado.");
   const modelo = await modeloDaPessoa(responsavelId);
