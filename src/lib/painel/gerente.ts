@@ -28,7 +28,17 @@ const MAURICIO = "ee479af5-6a30-4741-880a-c9e96ea0079b"; // perfil do Maurício 
 const VERSAO = "v4";
 
 export type FraseGerente = { texto: string; prioridade: "alta" | "media" | "baixa" | null; acoes: AcaoGerente[] };
-export type Gerente = { paragrafos: string[]; fechamento: string; acoes: FraseGerente[]; geradoEm: string; periodo: string; pontos: number };
+/** Números para a versão curta do WhatsApp (06/11/2026), direto da varredura. */
+export type ResumoNumeros = {
+  saude: number | null;
+  criadas: number;
+  concluidas: number;
+  abertas: number;
+  atrasadas: number;
+  noPrazoPct: number | null;
+  equipe: { nome: string; concluidas: number; abertas: number; atrasadas: number }[];
+};
+export type Gerente = { paragrafos: string[]; fechamento: string; acoes: FraseGerente[]; geradoEm: string; periodo: string; pontos: number; numeros?: ResumoNumeros };
 
 const SCHEMA = {
   type: "object",
@@ -94,6 +104,15 @@ export async function relatorioDoGerente(periodoId: string, { forcar = false } =
     geradoEm: new Date().toISOString(),
     periodo: p.rotulo,
     pontos: achados.length,
+    numeros: {
+      saude: numeros.saude ?? null,
+      criadas: numeros.atividades.criadas,
+      concluidas: numeros.atividades.concluidas,
+      abertas: numeros.atividades.abertasAgora,
+      atrasadas: numeros.atividades.atrasadasAgora,
+      noPrazoPct: numeros.atividades.noPrazoPct ?? null,
+      equipe: numeros.equipe.map((e) => ({ nome: e.nome, concluidas: e.concluidasNoPeriodo, abertas: e.abertas, atrasadas: e.atrasadas })),
+    },
   };
   await db().from("painel_gerente").upsert({ chave, conteudo: gerente, created_at: gerente.geradoEm });
   return { ok: true, gerente };
@@ -108,6 +127,34 @@ export function gerenteEmTexto(g: Gerente, { negrito = true } = {}) {
     ...(g.fechamento ? [b(g.fechamento), ""] : []),
     ...(g.acoes.length ? [b("O que fazer agora:"), ...g.acoes.slice(0, 10).map((f) => `${f.prioridade ? bola[f.prioridade] : "•"} ${f.texto}`), ""] : []),
   ].join("\n");
+}
+
+/**
+ * Versão curta para o WhatsApp das 7h (06/11/2026, pedido do Maurício: o texto
+ * corrido chegava com ~4 mil caracteres). Só números + prioridades, montado em
+ * código; o texto completo continua no painel e no Assistente.
+ */
+export function gerenteResumoZap(g: Gerente, ontem: string): string {
+  const n = g.numeros;
+  const bola = { alta: "🔴", media: "🟡", baixa: "⚪" } as const;
+  const linhas = [`*Bom dia, Maurício! Resumo de ontem (${ontem})*`, ""];
+  if (n) {
+    if (n.saude !== null) linhas.push(`Saúde do escritório: *${n.saude}/100*`);
+    linhas.push(`Entraram ${n.criadas} · concluídas ${n.concluidas} · abertas ${n.abertas} · atrasadas ${n.atrasadas}${n.noPrazoPct !== null ? ` · ${n.noPrazoPct}% no prazo` : ""}`, "");
+    const equipe = n.equipe.filter((e) => e.abertas || e.concluidas);
+    if (equipe.length) {
+      linhas.push("*Equipe* (concluídas ontem · abertas · atrasadas)");
+      for (const e of equipe) linhas.push(`• ${/^maur[ií]cio/i.test(e.nome) ? "Você" : e.nome}: ${e.concluidas} · ${e.abertas} · ${e.atrasadas}${e.atrasadas >= 10 ? " ⚠️" : ""}`);
+      linhas.push("");
+    }
+  } else if (g.paragrafos[0]) {
+    linhas.push(g.paragrafos[0], "");
+  }
+  if (g.acoes.length) {
+    linhas.push("*Prioridades de hoje*", ...g.acoes.slice(0, 5).map((f) => `${f.prioridade ? bola[f.prioridade] : "•"} ${f.texto}`), "");
+  }
+  linhas.push("Análise completa e botões: mcadvogados.app.br/admin/painel?p=ontem");
+  return linhas.join("\n");
 }
 
 /**
@@ -126,7 +173,7 @@ export async function enviarGerenteDoDia(): Promise<string> {
   const pref = await preferenciaDe(MAURICIO, "resumos_painel", "zap");
   if (!pref.ativo) return "desligado em Minha conta › Notificações";
   const ontem = somaDias(dia, -1).split("-").reverse().slice(0, 2).join("/");
-  const texto = [`*Bom dia, Maurício! Aqui está o resumo de ontem (${ontem}).*`, "", gerenteEmTexto(r.gerente), "Para resolver com um clique: mcadvogados.app.br/admin/painel?p=ontem"].join("\n");
+  const texto = gerenteResumoZap(r.gerente, ontem);
   const job = await enfileirarMensagem({ para: telefone, texto: aplicarFormato(texto, pref.formato), origemRef: `painel-gerente:${dia}`, expiraEm: new Date(Date.now() + 12 * 3_600_000) });
   if (!job) return "falha ao enfileirar";
   await db().from("painel_sugestoes").upsert({ dia, texto: JSON.stringify({ resumo: r.gerente.paragrafos[0] ?? "", itens: [] }), metricas: { origem: "gerente", pontos: r.gerente.pontos }, enviado_em: new Date().toISOString() });
