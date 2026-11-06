@@ -26,6 +26,7 @@ export const PERMISSOES = [
   { chave: "equipe", grupo: "Gestão", rotulo: "Equipe (ver e convidar pessoas)", padrao: false },
   { chave: "integracoes", grupo: "Gestão", rotulo: "Integrações (Google Drive)", padrao: false },
   { chave: "lixeira", grupo: "Gestão", rotulo: "Lixeira", padrao: false },
+  { chave: "comercial", grupo: "Gestão", rotulo: "Comercial (CRM: leads, funil e formulários)", padrao: false },
   // partes sensíveis da ficha do cliente
   { chave: "ficha_handoff", grupo: "Áreas do cliente", rotulo: "Ficha de handoff", padrao: true },
   { chave: "atas", grupo: "Áreas do cliente", rotulo: "ATAs de reunião", padrao: true },
@@ -86,6 +87,7 @@ export const PERM_DA_TELA: Record<string, PermChave> = {
   "/admin/team": "equipe",
   "/admin/integracoes": "integracoes",
   "/admin/lixeira": "lixeira",
+  "/admin/comercial": "comercial",
 };
 
 /** Primeira tela liberada (para onde mandar quem não pode ver a Visão geral). */

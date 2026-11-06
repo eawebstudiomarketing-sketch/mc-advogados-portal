@@ -24,6 +24,9 @@ import {
   Search,
   ShieldAlert,
   Stamp,
+  SquareKanban,
+  Target,
+  ClipboardPen,
   BookCheck,
   Lightbulb,
   FilePlus,
@@ -82,6 +85,18 @@ export const SECOES: Secao[] = [
       { href: "/admin/onboarding", label: "Onboarding", icon: ClipboardList },
       { href: "/admin/regimentos", label: "Regimento Interno", icon: BookCheck, perm: "onboarding" },
       { href: "/admin/clients/aniversarios", label: "Aniversários", icon: Cake, perm: "clientes" },
+    ],
+  },
+  {
+    // CRM (06/11/2026): leads dos formulários e anúncios, funil e pixels
+    id: "comercial",
+    label: "Comercial",
+    icon: Target,
+    abas: [
+      { href: "/admin/comercial", label: "Funil", icon: SquareKanban, perm: "comercial" },
+      { href: "/admin/comercial/formularios", label: "Formulários", icon: ClipboardPen, perm: "comercial" },
+      { href: "/admin/comercial/numeros", label: "Números", icon: BarChart3, perm: "comercial" },
+      { href: "/admin/comercial/configurar", label: "Pixels e ajustes", icon: Settings2, perm: "comercial" },
     ],
   },
   { id: "processos", label: "Processos", icon: Gavel, abas: [{ href: "/admin/processes", label: "Processos e casos", icon: Gavel }] },

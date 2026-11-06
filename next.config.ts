@@ -33,6 +33,17 @@ const csp = [
   "upgrade-insecure-requests",
 ].join("; ");
 
+// Formulário público do CRM (/f/..., 06/11/2026): libera só o que o pixel da
+// Meta e as tags do Google (GA4 e Ads) precisam para carregar e enviar eventos.
+const PIXEL_SCRIPT = "https://connect.facebook.net https://www.googletagmanager.com https://www.google-analytics.com https://googleads.g.doubleclick.net";
+const PIXEL_ENVIO =
+  "https://www.facebook.com https://connect.facebook.net https://*.google-analytics.com https://*.analytics.google.com https://*.googletagmanager.com https://googleads.g.doubleclick.net https://www.google.com https://www.google.com.br https://*.g.doubleclick.net";
+const cspFormulario = csp
+  .replace("script-src 'self' 'unsafe-inline'", `script-src 'self' 'unsafe-inline' ${PIXEL_SCRIPT}`)
+  .replace(/img-src ([^;]+)/, `img-src $1 ${PIXEL_ENVIO}`)
+  .replace(/connect-src ([^;]+)/, `connect-src $1 ${PIXEL_ENVIO}`)
+  .replace(/frame-src ([^;]+)/, "frame-src $1 https://www.facebook.com https://td.doubleclick.net https://www.googletagmanager.com");
+
 const securityHeaders = [
   { key: "Content-Security-Policy", value: csp },
   { key: "X-Frame-Options", value: "DENY" },
@@ -44,7 +55,11 @@ const securityHeaders = [
 
 const nextConfig: NextConfig = {
   async headers() {
-    return [{ source: "/:path*", headers: securityHeaders }];
+    return [
+      { source: "/:path*", headers: securityHeaders },
+      // o último que bate vale: o formulário público troca só a política de conteúdo
+      { source: "/f/:path*", headers: [{ key: "Content-Security-Policy", value: cspFormulario }] },
+    ];
   },
   experimental: {
     serverActions: {

@@ -68,10 +68,17 @@ const GRUPOS: Grupo[] = [
   },
   {
     id: "gestao",
-    sobre: "rotinas (minha rotina, marcar, itens, relatório do dia), equipe e permissões, indicadores e ranking, Painel do Dono/gerente, histórico de alterações, saúde dos robôs, salvar conhecimento",
-    ferramentas: ["rotina_do_dia", "marcar_rotina", "listar_rotinas", "criar_item_rotina", "editar_item_rotina", "excluir_item_rotina", "copiar_rotina", "relatorio_rotina", "rotinas_do_dia", "ler_relatorio_rotina", "aprovar_relatorio_rotina", "listar_equipe", "definir_permissoes", "definir_clientes_da_pessoa", "trocar_papel", "ativar_desativar_pessoa", "meus_indicadores", "painel_do_dono", "resumo_do_gerente", "historico_alteracoes", "saude_robos", "salvar_conhecimento"],
+    sobre: "rotinas (minha rotina, marcar, itens, relatório do dia, regras da rotina e horário limite), equipe e permissões, indicadores e ranking, Painel do Dono/gerente, histórico de alterações, saúde dos robôs, salvar conhecimento",
+    ferramentas: ["rotina_do_dia", "marcar_rotina", "listar_rotinas", "criar_item_rotina", "editar_item_rotina", "excluir_item_rotina", "copiar_rotina", "relatorio_rotina", "rotinas_do_dia", "ler_relatorio_rotina", "aprovar_relatorio_rotina", "regras_rotina", "mudar_regras_rotina", "listar_equipe", "definir_permissoes", "definir_clientes_da_pessoa", "trocar_papel", "ativar_desativar_pessoa", "meus_indicadores", "painel_do_dono", "resumo_do_gerente", "historico_alteracoes", "saude_robos", "salvar_conhecimento"],
     palavras: /rotina|equipe|permiss|acesso|papel|indicador|ranking|ponto|painel|gerente|desempenho|produtiv|quem (fez|alterou|mexeu)|hist[oó]rico|rob[oô]|sistema|fora do ar|conhecimento|aprend|guard[ae]|lembr[ae]-se|relat[oó]rio do dia|o que falta/i,
     telas: ["/admin/rotinas", "/admin/team", "/admin/painel", "/admin/indicadores", "/admin/sistema"],
+  },
+  {
+    id: "comercial",
+    sobre: "CRM comercial: leads dos formulários e anúncios, funil (etapas), mover lead, anotar no lead",
+    ferramentas: ["leads_crm", "mover_lead", "anotar_lead"],
+    palavras: /lead|funil|crm|comercial|formul[aá]rio|quiz|an[uú]ncio|campanha|prospec|proposta|fech(ou|ar|ado)|perdid/i,
+    telas: ["/admin/comercial"],
   },
   {
     id: "marcas",
