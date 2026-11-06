@@ -3,7 +3,7 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { rotinaDoDia } from "@/lib/data/rotina-diaria";
 import { responsavelDoPerfil } from "@/lib/data/responsaveis";
-import { hojeBahia, lerRelatorio, prazoDoRelatorio } from "./dados";
+import { hojeBahia, lerRelatorio, modelosAtribuidos, prazoDoRelatorio, relatoriosDoDia } from "./dados";
 import { minutoBahia } from "./regras-base";
 
 // Relógio no alto do sistema (Rotinas v2, 30/10): leva à rotina da própria
@@ -16,7 +16,9 @@ import { minutoBahia } from "./regras-base";
  * das Regras da rotina). O navegador decide pela hora.
  */
 export type AvisoPrazo = { prazoMin: number; prazoTexto: string; antesMin: number; fecha: boolean; avisaDono: boolean; tarefasFaltando: number };
-export type AlertaRotina = { href: string; atrasadas: number; relatorioPendente: boolean; aviso: AvisoPrazo | null } | null;
+/** Admin máximo (06/11/2026): toda a equipe com relatório já enviou o de hoje → cartãozinho com link para aprovar. */
+export type EquipeCompleta = { dia: string; total: number; paraAprovar: number };
+export type AlertaRotina = { href: string; atrasadas: number; relatorioPendente: boolean; aviso: AvisoPrazo | null; equipeCompleta?: EquipeCompleta | null } | null;
 
 
 export async function alertaDaRotina(profileId: string): Promise<AlertaRotina> {
@@ -36,5 +38,14 @@ export async function alertaDaRotina(profileId: string): Promise<AlertaRotina> {
   const aviso = enviado
     ? null
     : { prazoMin: prazo.min, prazoTexto: prazo.texto, antesMin: prazo.regras.avisoTopoMin, fecha: prazo.fecha, avisaDono: prazo.regras.avisarAtraso !== "nenhum", tarefasFaltando: itens.filter((i) => !i.feito).length };
-  return { href: `/admin/rotinas?pessoa=${eu}`, atrasadas, relatorioPendente, aviso };
+  return { href: `/admin/rotinas?pessoa=${eu}`, atrasadas, relatorioPendente, aviso, equipeCompleta: prazo.min === 1440 && prazo.temRelatorioHoje ? await equipeCompleta(eu, hoje) : null };
+}
+
+async function equipeCompleta(eu: string, hoje: string): Promise<EquipeCompleta | null> {
+  const [atribuidos, rels] = await Promise.all([modelosAtribuidos(), relatoriosDoDia(hoje)]);
+  const equipe = [...atribuidos.keys()].filter((id) => id !== eu);
+  if (!equipe.length) return null;
+  const enviados = rels.filter((r) => r.status === "enviado" && equipe.includes(r.responsavel_id));
+  if (enviados.length < equipe.length) return null;
+  return { dia: hoje, total: equipe.length, paraAprovar: enviados.filter((r) => !r.aprovado_em).length };
 }

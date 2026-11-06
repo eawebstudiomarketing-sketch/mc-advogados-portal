@@ -171,6 +171,12 @@ export async function lerRelatorio(responsavelId: string, dia: string): Promise<
   return data ? paraRelatorio(data as Linha) : null;
 }
 
+/** Relatórios ENVIADOS desde um dia (Aprovar relatórios, 06/11/2026: qualquer dia, não só o de hoje). */
+export async function relatoriosEnviadosDesde(diaIni: string): Promise<RelatorioDoDia[]> {
+  const { data } = await db().from("rotina_relatorios").select("*").eq("status", "enviado").gte("dia", diaIni).order("dia", { ascending: false }).order("enviado_em", { ascending: false });
+  return ((data ?? []) as Linha[]).map(paraRelatorio);
+}
+
 export async function relatoriosDoDia(dia: string): Promise<RelatorioDoDia[]> {
   const { data } = await db().from("rotina_relatorios").select("*").eq("dia", dia);
   return ((data ?? []) as Linha[]).map(paraRelatorio);
