@@ -118,13 +118,13 @@ export function FormularioPublico({ slug, config, pixels }: { slug: string; conf
   // pixel próprio: avisa a cada troca de tela até onde a pessoa foi e quanto tempo
   // ficou em cada pergunta (sem o que ela digitou). Ao sair da página, manda por beacon.
   const rastro = useCallback(
-    (passo: number, beacon = false) => {
+    (passo: number, beacon = false, saiu = false) => {
       if (!sessao.current) return;
       const q = new URLSearchParams(location.search);
       const utm = Object.fromEntries(["source", "medium", "campaign", "content", "term"].map((k) => [k, q.get(`utm_${k}`) ?? ""]).filter(([, v]) => v));
       const corpo = JSON.stringify({
         sessao: sessao.current,
-        rastro: { visita: sessao.current, visitante: visitante.current || sessao.current, passo, total: campos.length, tempos: tempos.current, utm, fbclid: q.has("fbclid"), gclid: q.has("gclid"), referrer: document.referrer },
+        rastro: { visita: sessao.current, visitante: visitante.current || sessao.current, passo, total: campos.length, tempos: tempos.current, utm, fbclid: q.has("fbclid"), gclid: q.has("gclid"), referrer: document.referrer, saiu },
       });
       if (beacon && navigator.sendBeacon) navigator.sendBeacon(`/api/f/${slug}`, new Blob([corpo], { type: "application/json" }));
       else fetch(`/api/f/${slug}`, { method: "POST", headers: { "content-type": "application/json" }, body: corpo, keepalive: true }).catch(() => null);
@@ -148,7 +148,7 @@ export function FormularioPublico({ slug, config, pixels }: { slug: string; conf
     const saiu = () => {
       if (document.visibilityState !== "hidden" || telaAnterior.current === "fim") return;
       somarTempo();
-      rastro(passoDe(telaAnterior.current), true);
+      rastro(passoDe(telaAnterior.current), true, true);
     };
     document.addEventListener("visibilitychange", saiu);
     return () => document.removeEventListener("visibilitychange", saiu);

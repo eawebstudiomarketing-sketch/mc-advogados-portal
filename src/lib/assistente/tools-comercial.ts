@@ -2,7 +2,7 @@ import "server-only";
 import { equipeComercial, listarEtapas, listarFormularios, listarLeads, registrarEvento } from "@/lib/crm/dados";
 import { moverLead } from "@/lib/crm/leads";
 import { telefoneBonito } from "@/lib/crm/tipos";
-import { listarVisitas } from "@/lib/crm/visitas";
+import { listarVisitas, SAIU } from "@/lib/crm/visitas";
 import type { ToolDef } from "./tools";
 
 // CRM / Comercial (06/11/2026): o Assistente consulta o funil, acha um lead,
@@ -86,7 +86,7 @@ export const TOOLS_COMERCIAL: ToolDef[] = [
         pessoas: new Set(visitas.map((v) => v.visitante)).size,
         comecaram: visitas.filter((v) => v.passo_max >= 0).length,
         enviaram: visitas.filter((v) => v.enviou).length,
-        preenchendo_agora: visitas.filter((v) => !v.enviou && Date.now() - Date.parse(v.ultimo_em) < 180_000).length,
+        preenchendo_agora: visitas.filter((v) => !v.enviou && v.passo_atual !== SAIU && Date.now() - Date.parse(v.ultimo_em) < 180_000).length,
         por_canal: [...porCanal].map(([canal, x]) => ({ canal, ...x })),
         por_formulario: forms.map((f) => {
           const doForm = visitas.filter((v) => v.formulario_id === f.id);

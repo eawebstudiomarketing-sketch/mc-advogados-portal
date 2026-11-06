@@ -3,7 +3,7 @@ import { CheckCircle2, Monitor, Smartphone, Tablet } from "lucide-react";
 import { exigirPermissao } from "@/lib/dal";
 import { StatCard } from "@/components/ui/stat-card";
 import { listarFormularios } from "@/lib/crm/dados";
-import { listarVisitas, type Visita } from "@/lib/crm/visitas";
+import { listarVisitas, SAIU, type Visita } from "@/lib/crm/visitas";
 import { AtualizarSozinho } from "./atualizar";
 
 // Pixel próprio do CRM (06/11/2026): quem entrou nos formulários, de onde veio,
@@ -68,7 +68,8 @@ export default async function VisitasPage({ searchParams }: { searchParams: Prom
   const comecou = (v: Visita) => v.passo_max >= 0;
   const visitantes = new Set(todas.map((v) => v.visitante)).size;
   const enviaram = todas.filter((v) => v.enviou).length;
-  const aoVivo = todas.filter((v) => !v.enviou && agora() - Date.parse(v.ultimo_em) < 3 * 60_000).length;
+  const emAndamento = (v: Visita) => !v.enviou && v.passo_atual !== SAIU && agora() - Date.parse(v.ultimo_em) < 3 * 60_000;
+  const aoVivo = todas.filter(emAndamento).length;
   const vezes = new Map<string, number>();
   const porVisitante = new Map<string, number>();
   for (const v of [...todas].reverse()) {
@@ -127,7 +128,7 @@ export default async function VisitasPage({ searchParams }: { searchParams: Prom
 
       <div className="grid grid-cols-2 gap-3 lg:grid-cols-5">
         <StatCard label="Agora no formulário" value={String(aoVivo)} tone={aoVivo ? "info" : "default"} hint="últimos 3 minutos" />
-        <StatCard label="Visitas" value={String(todas.length)} hint={`${visitantes} pessoas (aparelhos)`} />
+        <StatCard label="Visitas" value={String(todas.length)} hint={`${visitantes} ${visitantes === 1 ? "pessoa (aparelho)" : "pessoas (aparelhos)"}`} />
         <StatCard label="Começaram" value={String(todas.filter(comecou).length)} hint={pct(todas.filter(comecou).length, todas.length)} />
         <StatCard label="Enviaram" value={String(enviaram)} hint={`${pct(enviaram, todas.length)} das visitas`} tone="success" />
         <StatCard label="Desistiram no meio" value={String(todas.filter((v) => comecou(v) && !v.enviou).length)} tone="pending" />
@@ -219,7 +220,7 @@ export default async function VisitasPage({ searchParams }: { searchParams: Prom
             const Icone = ICONE_APARELHO[(v.aparelho ?? "Computador") as keyof typeof ICONE_APARELHO] ?? Monitor;
             const vez = vezes.get(`${v.visitante}:${v.id}`) ?? 1;
             const parou = ateOnde(v);
-            const vivo = !v.enviou && agora() - Date.parse(v.ultimo_em) < 3 * 60_000;
+            const vivo = emAndamento(v);
             return (
               <li key={v.id} className="flex flex-wrap items-center gap-x-4 gap-y-1 px-5 py-3 text-sm">
                 <span className="w-24 shrink-0 text-xs text-muted tabular-nums">{hora(v.inicio)}</span>

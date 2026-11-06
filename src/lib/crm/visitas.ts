@@ -30,6 +30,8 @@ export type Visita = {
 };
 
 const ID = /^[a-z0-9-]{8,64}$/i;
+/** passo_atual de quem fechou a página (some de "preenchendo agora"; se voltar, o próximo passo sobrescreve). */
+export const SAIU = -9;
 
 function lerAparelho(ua: string) {
   const sistema = /iphone|ipad|ipod/i.test(ua) ? (/ipad/i.test(ua) ? "iPad" : "iPhone") : /android/i.test(ua) ? "Android" : /windows/i.test(ua) ? "Windows" : /mac os/i.test(ua) ? "Mac" : /linux/i.test(ua) ? "Linux" : "Outro";
@@ -65,7 +67,7 @@ const decodar = (v: string | null) => {
 /** Chegou um passo do pixel (abriu, mudou de pergunta, saiu). */
 export async function registrarRastro(
   formularioId: string,
-  r: { visita: string; visitante: string; passo: number; total: number; tempos?: Record<string, unknown>; utm?: Record<string, string>; fbclid?: boolean; gclid?: boolean; referrer?: string },
+  r: { visita: string; visitante: string; passo: number; total: number; tempos?: Record<string, unknown>; utm?: Record<string, string>; fbclid?: boolean; gclid?: boolean; referrer?: string; saiu?: boolean },
   headers: Headers,
 ) {
   if (!ID.test(r.visita) || !ID.test(r.visitante)) return;
@@ -82,7 +84,7 @@ export async function registrarRastro(
     if (atual.formulario_id !== formularioId) return;
     await db()
       .from("crm_visitas")
-      .update({ ultimo_em: agora, passo_atual: passo, passo_max: Math.max(Number(atual.passo_max), passo), ...(Object.keys(tempos).length ? { tempos } : {}) })
+      .update({ ultimo_em: agora, passo_atual: r.saiu ? SAIU : passo, passo_max: Math.max(Number(atual.passo_max), passo), ...(Object.keys(tempos).length ? { tempos } : {}) })
       .eq("id", r.visita);
     return;
   }
