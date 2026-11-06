@@ -9,7 +9,7 @@ import { FormularioPublico } from "./formulario-publico";
 
 const lato = Lato({ subsets: ["latin"], weight: ["400", "700"], variable: "--font-lato" });
 
-export const dynamic = "force-dynamic";
+export const revalidate = 300;
 
 const limpo = (html: string | undefined) => (html ?? "").replace(/<[^>]+>/g, " ").replace(/\s+/g, " ").trim();
 

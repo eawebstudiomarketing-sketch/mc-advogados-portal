@@ -53,7 +53,21 @@ const securityHeaders = [
   { key: "Permissions-Policy", value: "camera=(self), microphone=(self), geolocation=(self)" },
 ];
 
+const supabaseHost = (() => {
+  try {
+    return new URL(process.env.NEXT_PUBLIC_SUPABASE_URL ?? "").hostname;
+  } catch {
+    return "";
+  }
+})();
+
 const nextConfig: NextConfig = {
+  // formulários do CRM: imagens do Storage passam pelo otimizador (AVIF/WebP no tamanho da tela)
+  images: {
+    formats: ["image/avif", "image/webp"],
+    remotePatterns: supabaseHost ? [{ protocol: "https", hostname: supabaseHost, pathname: "/storage/v1/object/public/**" }] : [],
+    minimumCacheTTL: 60 * 60 * 24 * 30,
+  },
   async headers() {
     return [
       { source: "/:path*", headers: securityHeaders },

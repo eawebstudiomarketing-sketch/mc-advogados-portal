@@ -212,6 +212,7 @@ export async function salvarConfigAction(formData: FormData): Promise<Resultado>
     .eq("id", 1);
   if (error) return { ok: false, erro: "Não foi possível salvar." };
   revalidatePath(`${CRM}/configurar`);
+  revalidatePath("/f/[slug]", "page"); // os pixels vão na página pública
   return { ok: true };
 }
 

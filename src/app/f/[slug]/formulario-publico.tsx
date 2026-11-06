@@ -1,13 +1,16 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import Image from "next/image";
 import Script from "next/script";
-import { ChevronLeft } from "lucide-react";
+import { ArrowRight, Check, ChevronLeft, Loader2 } from "lucide-react";
 import { proximoIndice, type Campo, type FormConfig } from "@/lib/crm/tipos";
 
-// Formulário público (06/11/2026), no desenho do Yay! Forms: fundo escuro,
-// imagem no alto que se funde com o fundo, uma pergunta por tela, botão branco
-// embaixo ("Pular" quando vazio), barra de progresso no topo, Enter avança.
+// Formulário público (06/11/2026), no desenho do Yay! Forms: uma pergunta por
+// tela, Enter avança, barra de progresso dourada no topo. Celular: a imagem
+// (cartaz vertical) é o fundo da tela inteira e os botões ficam presos embaixo.
+// Computador: tela dividida, imagem inteira à esquerda e a pergunta à direita.
+// Imagens pelo otimizador do Next (AVIF no tamanho da tela), todas já carregadas.
 // Pixels: Meta (PageView, ViewContent, Lead com o mesmo eventID do servidor) e
 // Google (gtag: form_start, generate_lead e a conversão do Ads).
 
@@ -24,6 +27,10 @@ declare global {
 }
 
 const LETRAS = "ABCDEFGHIJKLMNOPQRSTUVWXYZ";
+const DESTAQUE = "#C6A24F"; // dourado da marca: progresso, número da pergunta, foco
+const BTN = "inline-flex h-14 items-center justify-center gap-2 rounded-xl px-7 text-[17px] font-bold shadow-[0_10px_30px_-12px_rgba(0,0,0,.7)] transition-[transform,opacity] duration-150 active:scale-[.97]";
+const BTN_FANTASMA =
+  "inline-flex h-14 items-center justify-center gap-2 rounded-xl border border-white/25 bg-white/[.06] px-7 text-[17px] font-semibold text-white backdrop-blur-sm transition-[transform,background-color] duration-150 hover:bg-white/[.12] active:scale-[.97]";
 const cookie = (n: string) => document.cookie.split("; ").find((c) => c.startsWith(`${n}=`))?.split("=").slice(1).join("=") ?? "";
 const idAleatorio = () => (crypto.randomUUID?.() ?? `${Date.now()}-${Math.random().toString(36).slice(2)}`).replace(/[^a-z0-9-]/gi, "");
 
@@ -81,9 +88,7 @@ export function FormularioPublico({ slug, config, pixels }: { slug: string; conf
       sessao.current = idAleatorio();
     }
     api({ passo: "abriu" }).catch(() => null);
-    // baixa as imagens das próximas telas já na abertura (não aparecem atrasadas)
-    for (const u of [...config.campos.map((c) => c.imagem), config.final.imagem]) if (u) new Image().src = u;
-  }, [api, slug, config]);
+  }, [api, slug]);
 
   const atual = typeof tela === "number" ? campos[tela] : null;
   const valor = atual ? respostas[atual.id] : undefined;
@@ -200,52 +205,131 @@ export function FormularioPublico({ slug, config, pixels }: { slug: string; conf
   });
 
   const imagem = tela === "inicio" ? config.boasVindas.imagem : tela === "fim" ? config.final.imagem : atual?.imagem;
-  const estilo = useMemo(() => ({ "--f-fundo": tema.fundo, "--f-texto": tema.texto, "--f-resp": tema.resposta, "--f-btn": tema.botaoFundo, "--f-btn-t": tema.botaoTexto }) as React.CSSProperties, [tema]);
+  const imagens = useMemo(() => [...new Set([config.boasVindas.imagem, ...campos.map((c) => c.imagem), config.final.imagem].filter(Boolean) as string[])], [config, campos]);
+  const estilo = useMemo(() => ({ "--f-fundo": tema.fundo, "--f-texto": tema.texto, "--f-resp": tema.resposta, "--f-btn": tema.botaoFundo, "--f-btn-t": tema.botaoTexto, "--f-destaque": DESTAQUE }) as React.CSSProperties, [tema]);
+  const numero = typeof tela === "number" ? tela + 1 : 0;
+  const centro = tela === "inicio" || tela === "fim";
+
+  const botoes = (
+    <>
+      {tela === "inicio" && (
+        <button type="button" onClick={() => avancar()} className={`${BTN} flex-1 lg:flex-none`} style={{ background: "var(--f-btn)", color: "var(--f-btn-t)" }}>
+          {config.boasVindas.botao || "Começar"}
+          <ArrowRight className="h-5 w-5" aria-hidden />
+        </button>
+      )}
+      {typeof tela === "number" && (
+        <>
+          <button type="button" onClick={voltar} aria-label="Voltar" className={`${BTN_FANTASMA} w-14 shrink-0 !px-0`}>
+            <ChevronLeft className="h-6 w-6" aria-hidden />
+          </button>
+          {vazio && !atual?.obrigatorio && !ultimo ? (
+            <button type="button" onClick={() => avancar()} className={`${BTN_FANTASMA} flex-1 lg:flex-none`}>
+              Pular
+            </button>
+          ) : (
+            <button type="button" onClick={() => avancar()} disabled={enviando} className={`${BTN} flex-1 disabled:opacity-70 lg:flex-none`} style={{ background: "var(--f-btn)", color: "var(--f-btn-t)" }}>
+              {enviando ? (
+                <>
+                  <Loader2 className="h-5 w-5 animate-spin" aria-hidden /> Enviando…
+                </>
+              ) : ultimo ? (
+                <>
+                  Enviar respostas <Check className="h-5 w-5" aria-hidden />
+                </>
+              ) : (
+                <>
+                  OK <ArrowRight className="h-5 w-5" aria-hidden />
+                </>
+              )}
+            </button>
+          )}
+        </>
+      )}
+      {tela === "fim" && config.final.botao && config.final.link && (
+        <a href={config.final.link} target="_blank" rel="noopener noreferrer" onClick={() => window.fbq?.("track", "Contact")} className={`${BTN} flex-1 lg:flex-none`} style={{ background: "var(--f-btn)", color: "var(--f-btn-t)" }}>
+          {config.final.botao}
+          <ArrowRight className="h-5 w-5" aria-hidden />
+        </a>
+      )}
+    </>
+  );
 
   return (
-    <main className="min-h-dvh font-[family-name:var(--font-lato)]" style={{ background: tema.pagina, ...estilo }}>
+    <main className="relative min-h-dvh font-[family-name:var(--font-lato)] antialiased lg:grid lg:grid-cols-2" style={{ background: "var(--f-fundo)", color: "var(--f-texto)", ...estilo }}>
       <Pixels pixels={pixels} />
       <style>{`
-        @keyframes f-entra { from { opacity: 0; transform: translateY(18px) } to { opacity: 1; transform: none } }
-        .f-entra { animation: f-entra .45s cubic-bezier(.22,1,.36,1) both }
-        @media (prefers-reduced-motion: reduce) { .f-entra { animation: none } }
+        @keyframes f-entra { from { opacity: 0; transform: translateY(14px) } to { opacity: 1; transform: none } }
+        .f-entra > * { animation: f-entra .5s cubic-bezier(.22,1,.36,1) both }
+        .f-entra > *:nth-child(2) { animation-delay: .05s } .f-entra > *:nth-child(3) { animation-delay: .1s } .f-entra > *:nth-child(n+4) { animation-delay: .15s }
+        @media (prefers-reduced-motion: reduce) { .f-entra > * { animation: none } }
       `}</style>
-      <div className="relative mx-auto flex min-h-dvh w-full max-w-[560px] flex-col overflow-hidden" style={{ background: "var(--f-fundo)", color: "var(--f-texto)" }}>
-        {/* progresso */}
-        <div className="absolute inset-x-0 top-0 z-20 h-1 bg-black/60" aria-hidden>
-          <div className="h-full bg-white transition-[width] duration-500 ease-out" style={{ width: `${progresso * 100}%` }} />
-        </div>
 
-        {imagem && (
-          <div key={imagem} className="pointer-events-none absolute inset-x-0 top-0 h-[64dvh] animate-[f-entra_.6s_ease-out_both] motion-reduce:animate-none">
-            {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img src={imagem} alt="" className="h-full w-full object-cover object-top" />
-            <div className="absolute inset-0" style={{ background: "linear-gradient(to bottom, transparent 45%, var(--f-fundo) 98%)" }} />
-          </div>
-        )}
+      {/* progresso */}
+      <div className="fixed inset-x-0 top-0 z-30 h-[3px] bg-white/10" role="progressbar" aria-valuemin={0} aria-valuemax={campos.length} aria-valuenow={numero} aria-label="Progresso">
+        <div className="h-full transition-[width] duration-500 ease-out" style={{ width: `${progresso * 100}%`, background: "var(--f-destaque)" }} />
+      </div>
 
-        <input ref={armadilha} name="site" tabIndex={-1} autoComplete="off" aria-hidden className="absolute -left-[9999px] h-0 w-0 opacity-0" />
+      {/* imagens: no celular são o fundo da tela inteira; no computador, a metade esquerda (inteira, sem cortar).
+          Todas ficam carregadas por baixo e só trocam a transparência (nada aparece atrasado). */}
+      <div className="pointer-events-none fixed inset-0 lg:sticky lg:top-0 lg:h-dvh" aria-hidden>
+        {imagens.map((u, i) => (
+          <Image
+            key={u}
+            src={u}
+            alt=""
+            fill
+            priority={i === 0}
+            loading={i === 0 ? undefined : "eager"}
+            quality={72}
+            sizes="(min-width: 1024px) 50vw, 100vw"
+            className={`object-cover object-top transition-opacity duration-700 ease-out lg:object-contain lg:object-center ${u === imagem ? "opacity-100" : "opacity-0"}`}
+          />
+        ))}
+        {/* no celular, escurece embaixo para o texto ler bem por cima da imagem */}
+        <div
+          className="absolute inset-0 lg:hidden"
+          style={{ background: "linear-gradient(to bottom, transparent 26%, color-mix(in srgb, var(--f-fundo) 55%, transparent) 42%, color-mix(in srgb, var(--f-fundo) 90%, transparent) 62%, var(--f-fundo) 100%)" }}
+        />
+      </div>
 
-        <div key={String(tela)} className={`f-entra relative z-10 flex flex-1 flex-col px-8 pb-32 ${imagem ? "pt-[40dvh]" : "pt-[22dvh]"}`}>
+      <input ref={armadilha} name="site" tabIndex={-1} autoComplete="off" aria-hidden className="absolute -left-[9999px] h-0 w-0 opacity-0" />
+
+      <section
+        className={`relative z-10 flex min-h-dvh flex-col px-6 pb-[calc(env(safe-area-inset-bottom)+7rem)] sm:px-10 lg:justify-center lg:px-16 lg:py-20 xl:px-24 ${imagem ? "pt-[40dvh] lg:pt-20" : "pt-[18dvh] lg:pt-20"} ${centro ? "text-center lg:text-left" : ""}`}
+      >
+        <div key={String(tela)} className="f-entra mx-auto w-full max-w-[34rem] lg:mx-0">
           {tela === "inicio" && (
-            <div className="mt-auto text-center sm:mt-6">
-              <h1 className="text-[28px] leading-tight">{config.boasVindas.titulo}</h1>
-              <Paragrafos texto={config.boasVindas.descricao} className="mt-4 text-[15px] leading-relaxed" />
-            </div>
+            <>
+              {config.boasVindas.titulo && <h1 className="text-balance text-[30px] font-bold leading-[1.15] tracking-[-0.01em] lg:text-[42px]">{config.boasVindas.titulo}</h1>}
+              <Paragrafos texto={config.boasVindas.descricao} className={`text-pretty text-[16px] leading-relaxed opacity-80 lg:text-[18px] ${config.boasVindas.titulo ? "mt-4" : ""}`} />
+              <p className="mt-5 text-[13px] opacity-55">
+                {campos.length} perguntas rápidas · cerca de {Math.max(1, Math.round(campos.length * 0.25))} min
+              </p>
+            </>
           )}
 
           {atual && (
-            <div className="mt-6">
-              <label htmlFor={`f-${atual.id}`} className="block text-[20px] leading-snug">
+            <>
+              <p className="mb-3 text-[13px] font-bold uppercase tracking-[0.14em]" style={{ color: "var(--f-destaque)" }}>
+                {numero} de {campos.length}
+              </p>
+              <label htmlFor={`f-${atual.id}`} className="block text-balance text-[24px] font-bold leading-[1.25] lg:text-[32px]">
                 {atual.titulo}
-                {atual.obrigatorio && <span aria-hidden> *</span>}
+                {atual.obrigatorio && (
+                  <span aria-hidden style={{ color: "var(--f-destaque)" }}>
+                    {" "}
+                    *
+                  </span>
+                )}
               </label>
-              <Paragrafos texto={atual.descricao} className="mt-2 text-[15px] leading-relaxed opacity-85" />
-              <div className="mt-7">
+              <Paragrafos texto={atual.descricao} className="mt-2.5 text-pretty text-[16px] leading-relaxed opacity-70 lg:text-[17px]" />
+              <div className="mt-8">
                 <Entrada
                   campo={atual}
                   valor={valor}
                   inputRef={campoRef}
+                  ultimo={ultimo}
                   onMudar={(v) => {
                     setErro(null);
                     marcarInicio();
@@ -254,51 +338,31 @@ export function FormularioPublico({ slug, config, pixels }: { slug: string; conf
                   onEscolher={(op) => escolher(atual, op)}
                 />
               </div>
-              {erro && (
-                <p role="alert" className="mt-4 inline-block rounded bg-red-600/90 px-2.5 py-1 text-sm text-white">
-                  {erro}
-                </p>
-              )}
-            </div>
+              <p role="alert" aria-live="polite" className={`mt-4 min-h-6 text-[14px] font-semibold text-[#FF8A7A] transition-opacity ${erro ? "opacity-100" : "opacity-0"}`}>
+                {erro}
+              </p>
+            </>
           )}
 
           {tela === "fim" && (
-            <div className="mt-auto text-center sm:mt-6">
-              <h1 className="text-[28px] leading-tight">{config.final.titulo}</h1>
-              <Paragrafos texto={config.final.descricao} className="mt-4 text-[15px] leading-relaxed" />
-            </div>
-          )}
-        </div>
-
-        {/* botões embaixo */}
-        <div className="absolute inset-x-4 bottom-5 z-20 flex gap-3">
-          {tela === "inicio" && (
-            <button type="button" onClick={() => avancar()} className="h-12 flex-1 rounded text-lg transition-transform active:scale-[.98]" style={{ background: "var(--f-btn)", color: "var(--f-btn-t)" }}>
-              {config.boasVindas.botao || "Começar"}
-            </button>
-          )}
-          {typeof tela === "number" && (
             <>
-              <button type="button" onClick={voltar} aria-label="Voltar" className="grid h-12 w-12 shrink-0 place-items-center rounded transition-transform active:scale-[.96]" style={{ background: "var(--f-btn)", color: "var(--f-btn-t)" }}>
-                <ChevronLeft className="h-6 w-6" aria-hidden />
-              </button>
-              <button
-                type="button"
-                onClick={() => avancar()}
-                disabled={enviando}
-                className="h-12 flex-1 rounded text-lg transition-[transform,background-color] active:scale-[.98] disabled:opacity-70"
-                style={vazio && !atual?.obrigatorio && !ultimo ? { background: "#C0C3C7", color: "#111" } : { background: "var(--f-btn)", color: "var(--f-btn-t)" }}
-              >
-                {enviando ? "Enviando…" : ultimo ? "Enviar" : vazio && !atual?.obrigatorio ? "Pular" : "OK"}
-              </button>
+              <span className="mx-auto mb-5 grid h-14 w-14 place-items-center rounded-full lg:mx-0" style={{ background: "color-mix(in srgb, var(--f-destaque) 18%, transparent)", color: "var(--f-destaque)" }}>
+                <Check className="h-7 w-7" aria-hidden />
+              </span>
+              <h1 className="text-balance text-[30px] font-bold leading-[1.15] lg:text-[42px]">{config.final.titulo}</h1>
+              <Paragrafos texto={config.final.descricao} className="mt-4 text-pretty text-[16px] leading-relaxed opacity-80 lg:text-[18px]" />
             </>
           )}
-          {tela === "fim" && config.final.botao && config.final.link && (
-            <a href={config.final.link} target="_blank" rel="noopener noreferrer" onClick={() => window.fbq?.("track", "Contact")} className="grid h-12 flex-1 place-items-center rounded text-lg font-bold transition-transform active:scale-[.98]" style={{ background: "var(--f-btn)", color: "var(--f-btn-t)" }}>
-              {config.final.botao}
-            </a>
-          )}
+
+          {/* computador: botões logo abaixo do conteúdo */}
+          <div className="mt-10 hidden items-center gap-3 lg:flex">{botoes}</div>
+          {typeof tela === "number" && <p className="mt-3 hidden text-[13px] opacity-50 lg:block">ou aperte Enter ↵</p>}
         </div>
+      </section>
+
+      {/* celular: botões presos embaixo */}
+      <div className="fixed inset-x-0 bottom-0 z-20 flex gap-3 px-4 pt-6 pb-[calc(env(safe-area-inset-bottom)+1rem)] lg:hidden" style={{ background: "linear-gradient(to top, var(--f-fundo) 60%, transparent)" }}>
+        {botoes}
       </div>
     </main>
   );
@@ -306,26 +370,30 @@ export function FormularioPublico({ slug, config, pixels }: { slug: string; conf
 
 const opcoesDe = (c: Campo) => (c.tipo === "sim_nao" ? ["Sim", "Não"] : c.tipo === "escolha" || c.tipo === "multipla" ? (c.opcoes ?? []) : []);
 
+const LINHA =
+  "w-full rounded-none border-0 border-b-2 bg-transparent pb-3 text-[22px] leading-tight outline-none transition-colors duration-200 placeholder:text-white/35 focus:border-[var(--f-destaque)] lg:text-[26px]";
+
 function Entrada({
   campo,
   valor,
   inputRef,
+  ultimo,
   onMudar,
   onEscolher,
 }: {
   campo: Campo;
   valor: Valor | undefined;
   inputRef: React.RefObject<HTMLInputElement | HTMLTextAreaElement | null>;
+  ultimo: boolean;
   onMudar: (v: Valor) => void;
   onEscolher: (op: string) => void;
 }) {
-  const linha = "w-full border-0 border-b bg-transparent pb-2 text-[20px] outline-none placeholder:opacity-50 focus:border-b-2";
-  const corLinha = { borderColor: "var(--f-resp)", color: "var(--f-texto)" };
+  const corLinha = { borderColor: "color-mix(in srgb, var(--f-resp) 45%, transparent)", color: "var(--f-texto)", caretColor: "var(--f-destaque)" };
   const ops = opcoesDe(campo);
   if (ops.length) {
     const marcados = Array.isArray(valor) ? valor : valor ? [valor] : [];
     return (
-      <div className="flex flex-col gap-2.5" role={campo.tipo === "multipla" ? "group" : "radiogroup"} aria-labelledby={`f-${campo.id}`}>
+      <div className={`grid gap-2.5 ${campo.tipo === "sim_nao" ? "grid-cols-2" : ""}`} role={campo.tipo === "multipla" ? "group" : "radiogroup"} aria-labelledby={`f-${campo.id}`}>
         {ops.map((op, i) => {
           const on = marcados.includes(op);
           return (
@@ -335,39 +403,50 @@ function Entrada({
               role={campo.tipo === "multipla" ? "checkbox" : "radio"}
               aria-checked={on}
               onClick={() => onEscolher(op)}
-              className="flex min-h-12 w-full items-center gap-3 rounded border px-3 py-2 text-left text-[17px] transition-colors"
-              style={{ borderColor: on ? "var(--f-texto)" : "color-mix(in srgb, var(--f-resp) 55%, transparent)", background: on ? "color-mix(in srgb, var(--f-texto) 18%, transparent)" : "color-mix(in srgb, var(--f-texto) 6%, transparent)" }}
+              className="group flex min-h-14 w-full items-center gap-3 rounded-xl border px-4 py-3 text-left text-[17px] font-semibold transition-[background-color,border-color,transform] duration-150 active:scale-[.98]"
+              style={{
+                borderColor: on ? "var(--f-destaque)" : "rgba(255,255,255,.2)",
+                background: on ? "color-mix(in srgb, var(--f-destaque) 16%, transparent)" : "rgba(255,255,255,.05)",
+              }}
             >
-              <span className="grid h-6 w-6 shrink-0 place-items-center rounded-sm border text-xs font-bold" style={{ borderColor: "var(--f-resp)", background: on ? "var(--f-texto)" : "transparent", color: on ? "var(--f-fundo)" : "var(--f-texto)" }}>
-                {campo.tipo === "sim_nao" ? op[0] : LETRAS[i]}
+              <span
+                className="grid h-7 w-7 shrink-0 place-items-center rounded-md border text-[12px] font-bold transition-colors"
+                style={{ borderColor: on ? "var(--f-destaque)" : "rgba(255,255,255,.3)", background: on ? "var(--f-destaque)" : "transparent", color: on ? "#0b1324" : "inherit" }}
+              >
+                {on && campo.tipo === "multipla" ? <Check className="h-4 w-4" aria-hidden /> : campo.tipo === "sim_nao" ? op[0] : LETRAS[i]}
               </span>
               {op}
             </button>
           );
         })}
-        {campo.tipo === "multipla" && <p className="text-xs opacity-70">Pode marcar mais de uma.</p>}
+        {campo.tipo === "multipla" && <p className="text-[13px] opacity-60">Pode marcar mais de uma.</p>}
       </div>
     );
   }
   const v = typeof valor === "string" ? valor : "";
+  const tecla = ultimo ? "send" : "next";
   if (campo.tipo === "texto_longo")
     return (
-      <textarea
-        id={`f-${campo.id}`}
-        ref={inputRef as React.RefObject<HTMLTextAreaElement>}
-        rows={3}
-        value={v}
-        onChange={(e) => onMudar(e.target.value)}
-        placeholder="Digite sua resposta aqui..."
-        className={`${linha} resize-none`}
-        style={corLinha}
-      />
+      <>
+        <textarea
+          id={`f-${campo.id}`}
+          ref={inputRef as React.RefObject<HTMLTextAreaElement>}
+          rows={3}
+          value={v}
+          enterKeyHint={tecla}
+          onChange={(e) => onMudar(e.target.value)}
+          placeholder="Escreva aqui…"
+          className={`${LINHA} resize-none`}
+          style={corLinha}
+        />
+        <p className="mt-2 hidden text-[12px] opacity-45 lg:block">Shift + Enter para pular linha</p>
+      </>
     );
   if (campo.tipo === "telefone")
     return (
-      <div className="flex items-end gap-2">
-        <span className="shrink-0 border-b pb-2 text-[17px]" style={corLinha}>
-          <span className="mr-1 text-xs">BR</span>+55
+      <div className="flex items-end gap-3">
+        <span className="shrink-0 border-b-2 pb-3 text-[20px] lg:text-[24px]" style={corLinha}>
+          🇧🇷 +55
         </span>
         <input
           id={`f-${campo.id}`}
@@ -375,10 +454,11 @@ function Entrada({
           type="tel"
           inputMode="tel"
           autoComplete="tel-national"
+          enterKeyHint={tecla}
           value={v}
           onChange={(e) => onMudar(mascaraTelefone(e.target.value))}
-          placeholder="(11) 98765-4321"
-          className={linha}
+          placeholder="(73) 99999-9999"
+          className={LINHA}
           style={corLinha}
         />
       </div>
@@ -388,12 +468,14 @@ function Entrada({
       id={`f-${campo.id}`}
       ref={inputRef as React.RefObject<HTMLInputElement>}
       type={campo.tipo === "email" ? "email" : campo.tipo === "numero" ? "number" : "text"}
-      inputMode={campo.tipo === "numero" ? "decimal" : undefined}
+      inputMode={campo.tipo === "numero" ? "decimal" : campo.tipo === "email" ? "email" : undefined}
       autoComplete={campo.mapear === "nome" ? "name" : campo.mapear === "email" || campo.tipo === "email" ? "email" : campo.mapear === "empresa" ? "organization" : "off"}
+      autoCapitalize={campo.tipo === "email" ? "none" : "sentences"}
+      enterKeyHint={tecla}
       value={v}
       onChange={(e) => onMudar(e.target.value)}
-      placeholder="Digite sua resposta aqui..."
-      className={linha}
+      placeholder="Escreva aqui…"
+      className={LINHA}
       style={corLinha}
     />
   );
