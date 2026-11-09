@@ -5,7 +5,7 @@ import { ActivitiesView } from "./activities-view";
 import { exigirPermissao } from "@/lib/dal";
 import { BarraFiltros } from "@/components/ui/barra-filtros";
 import { listPessoas, getEscritorioConfig } from "@/lib/data/escritorio";
-import { grupoDoPrazo, hojeBahia } from "@/lib/data/painel";
+import { emAberto, grupoDoPrazo, hojeBahia, somaDias } from "@/lib/data/painel";
 import { ACTIVITY_TYPE_LABEL } from "@/lib/activity-type";
 import { ACTIVITY_STATUS_LABEL } from "@/lib/activity-status";
 import { listEtiquetas } from "@/lib/data/etiquetas";
@@ -19,7 +19,7 @@ const COR_STATUS: Record<string, string> = {
   cancelada: "bg-border-strong",
 };
 
-type Filtros = { etiqueta?: string; arquivadas?: string; busca?: string; status?: string; cliente?: string; responsavel?: string; tipo?: string; area?: string; prazo?: string; categoria?: string; ordem?: string };
+type Filtros = { etiqueta?: string; arquivadas?: string; busca?: string; status?: string; cliente?: string; responsavel?: string; tipo?: string; area?: string; prazo?: string; categoria?: string; ordem?: string; periodo?: string };
 
 export default async function AdminActivitiesPage({ searchParams }: { searchParams: Promise<Filtros> }) {
   const { profile, permissoes } = await exigirPermissao("atividades");
@@ -29,6 +29,20 @@ export default async function AdminActivitiesPage({ searchParams }: { searchPara
   const arquivadas = f.arquivadas === "1";
   const [todas, pessoas, config, etiquetas] = await Promise.all([listActivities({ arquivadas }), listPessoas(), getEscritorioConfig(), listEtiquetas()]);
   const hoje = hojeBahia();
+  // Atalhos de período (09/11/2026, pedido do João): pelo prazo da atividade.
+  // Semana = segunda a domingo da semana atual; mês = mês do calendário.
+  const diaSemana = (new Date(`${hoje}T12:00:00-03:00`).getUTCDay() + 6) % 7; // 0 = segunda
+  const iniSemana = somaDias(hoje, -diaSemana);
+  const fimSemana = somaDias(iniSemana, 6);
+  const mes = hoje.slice(0, 7);
+  const PERIODOS = {
+    hoje: { rotulo: "Hoje", ok: (d: string | null) => d === hoje },
+    semana: { rotulo: "Esta semana", ok: (d: string | null) => !!d && d >= iniSemana && d <= fimSemana },
+    mes: { rotulo: "Este mês", ok: (d: string | null) => !!d && d.slice(0, 7) === mes },
+  } as const;
+  const periodo = (f.periodo && f.periodo in PERIODOS) || f.periodo === "atrasadas" ? f.periodo : undefined;
+  const noPeriodo = (a: (typeof todas)[number], p = periodo) =>
+    !p || (p === "atrasadas" ? !!a.deadline && a.deadline < hoje && emAberto(a) : PERIODOS[p as keyof typeof PERIODOS].ok(a.deadline));
   const termo = (f.busca ?? "").trim().toLowerCase();
   const filtradas = todas.filter(
     (a) =>
@@ -40,8 +54,20 @@ export default async function AdminActivitiesPage({ searchParams }: { searchPara
       (!f.tipo || a.type === f.tipo) &&
       (!f.area || a.area === f.area) &&
       (!f.categoria || a.categoria === f.categoria) &&
-      (!f.prazo || grupoDoPrazo(a.deadline, hoje) === f.prazo)
+      (!f.prazo || grupoDoPrazo(a.deadline, hoje) === f.prazo) &&
+      noPeriodo(a)
   );
+  const linkPeriodo = (p?: string) => {
+    const q = new URLSearchParams(Object.entries(f).filter(([k, v]) => k !== "periodo" && typeof v === "string" && v) as [string, string][]);
+    if (p) q.set("periodo", p);
+    const t = q.toString();
+    return `/admin/activities${t ? `?${t}` : ""}`;
+  };
+  const atalhos = [
+    { chave: undefined, rotulo: "Todas", n: todas.length },
+    ...Object.entries(PERIODOS).map(([k, v]) => ({ chave: k, rotulo: v.rotulo, n: todas.filter((a) => noPeriodo(a, k)).length })),
+    { chave: "atrasadas", rotulo: "Atrasadas", n: todas.filter((a) => noPeriodo(a, "atrasadas")).length },
+  ];
   const activities = ordenar(filtradas, f.ordem, {
     prazo: (a) => a.deadline,
     criada: (a) => a.created_at,
@@ -78,6 +104,25 @@ export default async function AdminActivitiesPage({ searchParams }: { searchPara
         </div>
       </div>
 
+      <nav aria-label="Período pelo prazo" className="mb-4 flex flex-wrap gap-2">
+        {atalhos.map((a) => {
+          const on = periodo === a.chave;
+          return (
+            <Link
+              key={a.rotulo}
+              href={linkPeriodo(a.chave)}
+              scroll={false}
+              aria-current={on ? "page" : undefined}
+              className={`inline-flex h-9 items-center gap-2 rounded-full border px-4 text-[13px] font-medium transition-colors ${
+                on ? "border-navy bg-navy text-white" : "border-border bg-surface text-foreground/75 hover:border-border-strong hover:text-foreground"
+              }`}
+            >
+              {a.rotulo}
+              <span className={`rounded-full px-1.5 text-[11px] font-semibold tabular-nums ${on ? "bg-white/20 text-white" : a.chave === "atrasadas" && a.n ? "bg-status-danger-bg text-status-danger" : "bg-surface-2 text-muted"}`}>{a.n}</span>
+            </Link>
+          );
+        })}
+      </nav>
       <BarraFiltros
         filtros={[
           { tipo: "busca", nome: "busca", rotulo: "Buscar atividade, descrição ou cliente" },
