@@ -19,6 +19,7 @@ export default async function ManualPage() {
           .manual-capitulo { break-before: page; }
           .manual-tela { break-inside: avoid; }
           .manual img { max-height: 120mm; object-fit: contain; }
+          [aria-label="Assistente do portal"], button:has(svg.lucide-sparkles) { display: none !important; }
         }
       `}</style>
       <header className="flex flex-wrap items-end justify-between gap-3">
