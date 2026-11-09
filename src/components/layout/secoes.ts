@@ -26,6 +26,7 @@ import {
   Stamp,
   SquareKanban,
   Target,
+  LifeBuoy,
   Radar,
   ClipboardPen,
   BookCheck,
@@ -152,6 +153,8 @@ export const SECOES: Secao[] = [
       { href: "/admin/lixeira", label: "Lixeira", icon: Trash2 },
     ],
   },
+  // Manual do portal (09/11/2026): todo mundo vê
+  { id: "manual", label: "Manual", icon: LifeBuoy, abas: [{ href: "/admin/manual", label: "Manual", icon: LifeBuoy, todos: true }] },
 ];
 
 /** Seções com só as abas que a pessoa pode ver (seção sem nenhuma some). */
