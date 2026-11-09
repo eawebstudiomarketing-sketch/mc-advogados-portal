@@ -7,6 +7,7 @@ import { createAdminClient } from "@/lib/supabase/admin";
 import { generateJson } from "@/lib/gemini";
 import { MODELOS } from "@/lib/ia-modelos";
 import { buscarNoInpi, buscarNomeNoInpi, type ResultadoBusca } from "@/lib/marcas/inpi";
+import { consultarBase, situacaoDoDespacho } from "@/lib/marcas/base";
 import { semelhanca } from "@/lib/marcas/revista";
 import { chaveFonetica, parecencaFonetica } from "@/lib/marcas/fonetica";
 
@@ -155,6 +156,29 @@ export async function buscaIAAction(e: EntradaBusca & { logo?: { mime: string; b
       const r = await buscarNomeNoInpi(t, true, null, 2);
       pesquisas.push({ termo: t, tipo: "Radical", total: r.total, em: new Date().toISOString(), fonte: r.fonte === "base" ? `base própria (revistas até a RPI ${r.revista ?? "?"})` : "INPI (pePI) ao vivo", processos: r.resultados.map((x) => x.processo) });
       for (const x of r.resultados) achados.set(x.processo, { ...x, termos: [...(achados.get(x.processo)?.termos ?? []), t] });
+      // termo genérico: o pePI só deu as 2 primeiras páginas. Completa com a base própria (todas as revistas
+      // desde 2017), por classe pesquisada, para não perder pedidos recentes nessas classes (09/11/2026)
+      if (r.fonte === "inpi" && r.total > r.resultados.length) {
+        for (const c of classes) {
+          const b = await consultarBase("radical", t, c.classe, 300).catch(() => null);
+          for (const l of b?.resultados ?? []) {
+            if (achados.has(l.numero)) continue;
+            achados.set(l.numero, {
+              processo: l.numero,
+              codPedido: "",
+              marca: l.marca ?? "",
+              situacao: situacaoDoDespacho(l.ultimo_despacho, l.concessao),
+              titular: l.titular ?? "",
+              classes: l.classes ? l.classes.split(",").map((x) => `NCL ${x}`).join(", ") : "",
+              deposito: l.deposito,
+              apresentacao: l.apresentacao,
+              termos: [t],
+            });
+            pesquisas.at(-1)!.processos.push(l.numero);
+          }
+        }
+        pesquisas.at(-1)!.fonte += " + base própria nas classes pesquisadas";
+      }
     }
   } catch (err) {
     return { ok: false, error: `Não foi possível consultar o INPI agora (${(err as Error).message}). Tente de novo em instantes.` };
