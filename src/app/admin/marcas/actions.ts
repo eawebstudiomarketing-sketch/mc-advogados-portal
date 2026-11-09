@@ -4,7 +4,8 @@ import { revalidatePath } from "next/cache";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { exigirPermissao } from "@/lib/dal";
 import { createAdminClient } from "@/lib/supabase/admin";
-import { buscarNoInpi, fichaNoInpi, type FichaINPI, type ResultadoBusca } from "@/lib/marcas/inpi";
+import { buscarNoInpi, buscarProcuradorNaBase, fichaNoInpi, type FichaINPI, type FonteBusca, type ResultadoBusca } from "@/lib/marcas/inpi";
+import { consultarBase, situacaoDoDespacho } from "@/lib/marcas/base";
 import { sincronizarProcesso } from "@/lib/marcas/sincronizar";
 import { enviarMarca, listMarcasZap, listModelos, modeloPara, montarMensagem, statusDaMensagem } from "@/lib/marcas/zap";
 
@@ -87,31 +88,79 @@ export async function salvarConfigAction(processo: string, c: ConfigAcompanhamen
 
 export type ResultadoCadastro = ResultadoBusca & { jaRegistrado: boolean };
 
-export async function buscarCadastroAction(tipo: "processo" | "nome" | "titular" | "procurador", termo: string): Promise<{ ok: true; resultados: ResultadoCadastro[]; total: number } | { ok: false; error: string }> {
+export async function buscarCadastroAction(tipo: "processo" | "nome" | "titular" | "procurador", termo: string): Promise<{ ok: true; resultados: ResultadoCadastro[]; total: number; fonte: FonteBusca } | { ok: false; error: string }> {
   await exigirPermissao("marcas");
   const t = termo.trim();
   if (t.length < 2) return { ok: false, error: "Digite um termo de busca." };
   try {
     let resultados: ResultadoBusca[] = [];
     let total = 0;
+    let fonte: FonteBusca = { fonte: "inpi" };
     if (tipo === "procurador") {
-      // o pePI não busca marca por procurador: procura nas marcas que o portal já conhece
+      // o pePI não busca marca por procurador: base própria (todas as revistas desde 2017) + as que o portal já conhece
       const { data } = await db().from("marcas").select("processo, nome, situacao, titular, classe, deposito").ilike("procurador", `%${t.replace(/[%_]/g, " ")}%`).limit(500);
-      resultados = (data ?? []).map((m) => ({ processo: m.processo, codPedido: "", marca: m.nome ?? "", situacao: m.situacao ?? "", titular: m.titular ?? "", classes: m.classe ?? "", deposito: m.deposito }));
-      total = resultados.length;
+      const daCarteira = (data ?? []).map((m) => ({ processo: m.processo, codPedido: "", marca: m.nome ?? "", situacao: m.situacao ?? "", titular: m.titular ?? "", classes: m.classe ?? "", deposito: m.deposito }));
+      const base = await buscarProcuradorNaBase(t).catch(() => null);
+      const vistos = new Set(daCarteira.map((m) => m.processo));
+      resultados = [...daCarteira, ...(base?.resultados ?? []).filter((r) => !vistos.has(r.processo))];
+      total = Math.max(resultados.length, (base?.total ?? 0) + daCarteira.length);
+      if (base) fonte = base;
     } else {
-      ({ resultados, total } = await buscarNoInpi(tipo, t));
+      const r = await buscarNoInpi(tipo, t);
+      ({ resultados, total } = r);
+      fonte = r.fonte === "base" ? { fonte: "base", revista: r.revista, data: r.data, motivo: r.motivo } : { fonte: "inpi" };
     }
     const { data: ja } = await db().from("marcas").select("processo").eq("acompanhando", true).in("processo", resultados.map((r) => r.processo).slice(0, 500));
     const set = new Set((ja ?? []).map((x) => x.processo));
-    return { ok: true, total, resultados: resultados.map((r) => ({ ...r, jaRegistrado: set.has(r.processo) })) };
+    return { ok: true, total, fonte, resultados: resultados.map((r) => ({ ...r, jaRegistrado: set.has(r.processo) })) };
   } catch (e) {
     return { ok: false, error: `Não foi possível consultar o INPI agora (${(e as Error).message}). Tente de novo em instantes.` };
   }
 }
 
+export type DadosManuais = { nome?: string; classe?: string; titular?: string; client_id?: string | null; observacao?: string };
+
+/** Entra na carteira só com o que se sabe: da revista (INPI fora do ar) ou digitado (ainda não publicado). A conferência diária completa a ficha. */
+async function entrarSemFicha(p: string, profileId: string, manual: DadosManuais | undefined, motivoFora: string | null): Promise<{ ok: boolean; aviso?: string; erro?: string }> {
+  const b = await consultarBase("processo", p).catch(() => null);
+  const l = b?.resultados[0];
+  const cls = (manual?.classe ?? "").replace(/\D/g, "");
+  const linha: Record<string, unknown> = {
+    processo: p,
+    tipo: "marca",
+    acompanhando: true,
+    origem: "portal",
+    criado_por: profileId,
+    nome: l?.marca ?? (manual?.nome?.trim() || null),
+    titular: l?.titular ?? (manual?.titular?.trim() || null),
+    classe: l?.classes ? `NCL ${l.classes.split(",")[0]}` : cls ? `NCL ${Number(cls)}` : null,
+    apresentacao: l?.apresentacao ?? null,
+    natureza: l?.natureza ?? null,
+    especificacao: l?.especificacao ?? null,
+    procurador: l?.procurador ?? null,
+    titular_uf: l?.uf ?? null,
+    deposito: l?.deposito ?? null,
+    concessao: l?.concessao ?? null,
+    vigencia: l?.vigencia ?? null,
+    situacao: l ? situacaoDoDespacho(l.ultimo_despacho, l.concessao) : "Aguardando publicação",
+    ultimo_despacho: l?.ultimo_despacho ?? null,
+    ultimo_despacho_data: l?.ultima_data ?? null,
+    ultima_rpi: l?.ultima_rpi ?? null,
+    ...(manual?.client_id && /^[0-9a-f-]{36}$/i.test(manual.client_id) ? { client_id: manual.client_id } : {}),
+    ...(manual?.observacao?.trim() ? { observacao: manual.observacao.trim() } : {}),
+  };
+  // não apaga o que já existia (marca que estava desacompanhada)
+  const { data: ja } = await db().from("marcas").select("id, nome").eq("processo", p).maybeSingle();
+  const { error } = ja
+    ? await db().from("marcas").update(Object.fromEntries(Object.entries(linha).filter(([k, v]) => v !== null && !(k === "nome" && ja.nome)))).eq("processo", p)
+    : await db().from("marcas").insert(linha);
+  if (error) return { ok: false, erro: `${p}: ${error.message}` };
+  if (l) return { ok: true, aviso: `${p}: o INPI está fora do ar agora (${motivoFora ?? "sem resposta"}). Entrou com os dados da revista ${l.ultima_rpi ?? ""}; a ficha completa vem na conferência.` };
+  return { ok: true, aviso: `${p}: ainda não publicado pelo INPI. Entrou na carteira como "Aguardando publicação"${linha.nome ? ` (${linha.nome})` : ""}; quando sair na revista, a ficha completa entra sozinha e você recebe aviso.` };
+}
+
 /** Acompanhar um ou vários processos: lê a ficha no INPI e entra na carteira. */
-export async function acompanharAction(processos: string[]): Promise<{ ok: true; feitos: number; erros: string[]; avisos: string[] } | { ok: false; error: string }> {
+export async function acompanharAction(processos: string[], manual?: DadosManuais): Promise<{ ok: true; feitos: number; erros: string[]; avisos: string[] } | { ok: false; error: string }> {
   const { profile } = await exigirPermissao("marcas");
   const lista = [...new Set(processos.map((p) => p.replace(/\D/g, "")).filter((p) => p.length === 9))].slice(0, 10);
   if (!lista.length) return { ok: false, error: "Nenhum processo válido (são 9 dígitos)." };
@@ -123,18 +172,23 @@ export async function acompanharAction(processos: string[]): Promise<{ ok: true;
     if (i > 0) await new Promise((r) => setTimeout(r, 8_000));
     // já estava na carteira e foi desacompanhada: volta
     await db().from("marcas").update({ acompanhando: true }).eq("processo", p);
-    const r = await sincronizarProcesso(p, { criado_por: profile.id, comLogo: true }).catch((e) => ({ ok: false as const, error: (e as Error).message }));
+    const r = await sincronizarProcesso(p, { criado_por: profile.id, comLogo: true, client_id: manual?.client_id ?? null }).catch((e) => ({ ok: false as const, error: (e as Error).message }));
     if (r.ok) feitos++;
-    else if (/não encontrado no INPI/.test(r.error)) {
-      // recém-protocolada (05/11/2026): o pePI leva alguns dias para mostrar o
-      // pedido. Entra na carteira assim mesmo e a conferência diária completa.
-      const { error } = await db().from("marcas").upsert({ processo: p, tipo: "marca", acompanhando: true, origem: "portal", criado_por: profile.id }, { onConflict: "processo", ignoreDuplicates: true });
-      if (error) erros.push(`${p}: ${error.message}`);
-      else {
-        feitos++;
-        avisos.push(`${p}: o INPI ainda não publicou a ficha (pedido recém-protocolado leva alguns dias). Já está na carteira e os dados entram sozinhos quando aparecerem.`);
+    else {
+      // 09/11/2026: recém-protocolada (o INPI ainda não publicou) ou INPI fora do ar.
+      // Entra na carteira com os dados da revista (base própria) ou os digitados;
+      // a conferência diária e a leitura da revista completam a ficha.
+      const fora = /Ponte do INPI|fora do ar|timeout|aborted|fetch failed|respondeu 5/i.test(r.error);
+      if (!fora && !/não encontrado no INPI/.test(r.error)) {
+        erros.push(r.error);
+        continue;
       }
-    } else erros.push(r.error);
+      const e = await entrarSemFicha(p, profile.id, manual, fora ? r.error : null);
+      if (e.ok) {
+        feitos++;
+        if (e.aviso) avisos.push(e.aviso);
+      } else if (e.erro) erros.push(e.erro);
+    }
   }
   recarregar();
   return { ok: true, feitos, erros, avisos };

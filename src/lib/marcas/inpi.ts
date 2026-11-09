@@ -5,6 +5,8 @@ import "server-only";
 // cookies: /api/inpi (Vercel em São Paulo) e, de reserva, WA_MIDIA_URL/inpi
 // (VPS, bloqueada pelo pePI desde 31/10/2026). Só leitura no INPI.
 
+import { consultarBase, situacaoDoDespacho, type RespostaBase } from "./base";
+
 const PEPI = "https://busca.inpi.gov.br/pePI";
 type Passo = { url: string; metodo?: "GET" | "POST"; form?: Record<string, string> };
 type RespostaPonte = { status: number; url: string; tipo: string; corpo?: string; corpoBase64?: string };
@@ -60,7 +62,39 @@ const dataIso = (br: string | null | undefined) => {
   return m ? `${m[3]}-${m[2]}-${m[1]}` : null;
 };
 
-export type ResultadoBusca = { processo: string; codPedido: string; marca: string; situacao: string; titular: string; classes: string; deposito: string | null };
+export type ResultadoBusca = {
+  processo: string;
+  codPedido: string;
+  marca: string;
+  situacao: string;
+  titular: string;
+  classes: string;
+  deposito: string | null;
+  // vêm só da base própria (revistas): o pePI não mostra na lista
+  apresentacao?: string | null;
+  procurador?: string | null;
+  ultimoDespacho?: string | null;
+};
+
+/** De onde veio o resultado: pePI ao vivo ou a base própria (revistas), quando o INPI está fora. */
+export type FonteBusca = { fonte: "inpi" } | { fonte: "base"; revista: number | null; data: string | null; motivo: string };
+
+const daBase = (b: RespostaBase): ResultadoBusca[] =>
+  b.resultados.map((l) => ({
+    processo: l.numero,
+    codPedido: "",
+    marca: l.marca ?? "",
+    situacao: situacaoDoDespacho(l.ultimo_despacho, l.concessao),
+    titular: [l.titular, l.uf && l.pais === "BR" ? l.uf : l.pais].filter(Boolean).join(" / "),
+    classes: l.classes ? l.classes.split(",").map((c) => `NCL ${c}`).join(", ") : "",
+    deposito: l.deposito,
+    apresentacao: l.apresentacao,
+    procurador: l.procurador,
+    ultimoDespacho: l.ultimo_despacho,
+  }));
+
+/** O pePI respondeu de verdade? (fora do ar ele devolve página sem resultado nem "nenhum resultado") */
+const pePIRespondeu = (html: string) => /Foram encontrados \d+ processos|Nenhum resultado foi encontrado/.test(texto(html));
 
 /** Linhas da tabela de resultados do pePI. */
 function lerResultados(html: string): ResultadoBusca[] {
@@ -92,14 +126,24 @@ function passoBusca(tipo: "processo" | "nome" | "titular", termo: string): Passo
 }
 
 /** Busca no INPI como a tela Cadastrar processos: nº do processo, nome exato da marca ou titular. */
-export async function buscarNoInpi(tipo: "processo" | "nome" | "titular", termo: string): Promise<{ resultados: ResultadoBusca[]; total: number }> {
+export async function buscarNoInpi(tipo: "processo" | "nome" | "titular", termo: string, op: { semReserva?: boolean } = {}): Promise<{ resultados: ResultadoBusca[]; total: number } & FonteBusca> {
+  try {
+    return { ...(await buscarNoPePI(tipo, termo)), fonte: "inpi" };
+  } catch (e) {
+    // a conferência das marcas não usa a reserva: lá "fora do ar" tem que virar erro (tenta de novo depois)
+    if (op.semReserva) throw e;
+    const b = await consultarBase(tipo === "nome" ? "exata" : tipo, termo);
+    return { resultados: daBase(b), total: b.total, fonte: "base", revista: b.revista, data: b.data, motivo: (e as Error).message };
+  }
+}
+
+async function buscarNoPePI(tipo: "processo" | "nome" | "titular", termo: string): Promise<{ resultados: ResultadoBusca[]; total: number }> {
   const r = await ponte([{ url: `${PEPI}/` }, login(), passoBusca(tipo, termo)]);
   const html = r.corpo ?? "";
   // 05/11/2026: de madrugada o pePI devolveu página sem resultado nem "nenhum
   // resultado" (manutenção/bloqueio) e isso virava "não encontrado": a
   // conferência passou as 200 marcas sem gravar nada. Agora é erro da ponte.
-  if (tipo === "processo" && !/Foram encontrados \d+ processos|Nenhum resultado foi encontrado/.test(texto(html)))
-    throw new Error("Ponte do INPI: o pePI não devolveu a pesquisa (fora do ar ou em manutenção).");
+  if (!pePIRespondeu(html)) throw new Error("Ponte do INPI: o pePI não devolveu a pesquisa (fora do ar ou em manutenção).");
   const total = Number(texto(html).match(/Foram encontrados (\d+) processos/)?.[1] ?? 0);
   return { resultados: lerResultados(html), total };
 }
@@ -170,7 +214,7 @@ function lerFicha(html: string, processo: string, codPedido: string): FichaINPI 
 
 /** Ficha completa do processo no INPI (situação real, publicações e petições). */
 export async function fichaNoInpi(processo: string): Promise<FichaINPI | null> {
-  const { resultados } = await buscarNoInpi("processo", processo);
+  const { resultados } = await buscarNoPePI("processo", processo);
   const achado = resultados.find((r) => r.processo === processo.replace(/\D/g, ""));
   if (!achado) return null;
   // o INPI só abre a ficha depois de uma busca na mesma sessão
@@ -186,7 +230,16 @@ export async function logoNoInpi(processo: string, codPedido: string): Promise<s
 }
 
 /** Busca de marca pelo nome (Busca Integrada / Busca com IA): exata ou radical, com classe opcional. */
-export async function buscarNomeNoInpi(termo: string, radical: boolean, classe?: string | null): Promise<{ resultados: ResultadoBusca[]; total: number }> {
+export async function buscarNomeNoInpi(termo: string, radical: boolean, classe?: string | null): Promise<{ resultados: ResultadoBusca[]; total: number } & FonteBusca> {
+  try {
+    return { ...(await buscarNomeNoPePI(termo, radical, classe)), fonte: "inpi" };
+  } catch (e) {
+    const b = await consultarBase(radical ? "radical" : "exata", termo, classe);
+    return { resultados: daBase(b), total: b.total, fonte: "base", revista: b.revista, data: b.data, motivo: (e as Error).message };
+  }
+}
+
+async function buscarNomeNoPePI(termo: string, radical: boolean, classe?: string | null): Promise<{ resultados: ResultadoBusca[]; total: number }> {
   const passo: Passo = {
     url: `${PEPI}/servlet/MarcasServletController`,
     metodo: "POST",
@@ -202,6 +255,13 @@ export async function buscarNomeNoInpi(termo: string, radical: boolean, classe?:
   };
   const r = await ponte([{ url: `${PEPI}/` }, login(), passo]);
   const html = r.corpo ?? "";
+  if (!pePIRespondeu(html)) throw new Error("Ponte do INPI: o pePI não devolveu a pesquisa (fora do ar ou em manutenção).");
   const total = Number(texto(html).match(/Foram encontrados (\d+) processos/)?.[1] ?? 0);
   return { resultados: lerResultados(html), total };
+}
+
+/** Busca por procurador: o pePI não tem; vem da base própria (revistas). */
+export async function buscarProcuradorNaBase(termo: string, classe?: string | null): Promise<{ resultados: ResultadoBusca[]; total: number } & FonteBusca> {
+  const b = await consultarBase("procurador", termo, classe, 300);
+  return { resultados: daBase(b), total: b.total, fonte: "base", revista: b.revista, data: b.data, motivo: "Busca por procurador vem da base própria (o INPI não tem essa busca)." };
 }

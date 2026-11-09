@@ -1,5 +1,8 @@
 import "server-only";
 import { unzipSync, strFromU8 } from "fflate";
+import { criarAvisos } from "@/lib/avisos";
+import { MAURICIO } from "@/lib/rotina-relatorio/dia";
+import { situacaoDoDespacho } from "./base";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { codigoDoDespacho } from "./prazos";
@@ -49,7 +52,20 @@ const ENT: Record<string, string> = { amp: "&", lt: "<", gt: ">", quot: '"', apo
 const des = (s: string) => s.replace(/&(amp|lt|gt|quot|apos);/g, (_, e) => ENT[e]).replace(/&#(\d+);/g, (_, n) => String.fromCharCode(Number(n)));
 const attr = (tag: string, nome: string) => tag.match(new RegExp(`${nome}="([^"]*)"`))?.[1] ?? null;
 
-type ProcessoRevista = { numero: string; marca: string | null; natureza: string | null; classe: string | null; titular: string | null; despachos: { codigo: string; nome: string; texto: string | null }[] };
+type ProcessoRevista = {
+  numero: string;
+  marca: string | null;
+  natureza: string | null;
+  apresentacao: string | null;
+  classe: string | null;
+  especificacao: string | null;
+  titular: string | null;
+  uf: string | null;
+  procurador: string | null;
+  deposito: string | null;
+  despachos: { codigo: string; nome: string; texto: string | null }[];
+};
+const dataBr = (d: string | null) => (d && /^\d{2}\/\d{2}\/\d{4}$/.test(d) ? `${d.slice(6)}-${d.slice(3, 5)}-${d.slice(0, 2)}` : null);
 
 /** Todos os processos da revista (só os campos que o módulo usa). */
 async function lerRevista(numero: number): Promise<{ data: string; processos: ProcessoRevista[] }> {
@@ -71,8 +87,19 @@ async function lerRevista(numero: number): Promise<{ data: string; processos: Pr
       numero: attr(m[1], "numero") ?? "",
       marca: nome ? des(nome[1]).trim() : null,
       natureza: marcaTag ? attr(marcaTag[1], "natureza") : null,
+      apresentacao: marcaTag ? attr(marcaTag[1], "apresentacao") : null,
       classe: corpoP.match(/<classe-nice\s[^>]*codigo="([^"]+)"/)?.[1] ?? null,
+      especificacao: (() => {
+        const e = corpoP.match(/<especificacao>([\s\S]*?)<\/especificacao>/);
+        return e ? des(e[1]).trim().slice(0, 2000) : null;
+      })(),
       titular: tit ? des(attr(tit[1], "nome-razao-social") ?? "") : null,
+      uf: tit ? attr(tit[1], "uf") : null,
+      procurador: (() => {
+        const pr = corpoP.match(/<procurador>([\s\S]*?)<\/procurador>/);
+        return pr ? des(pr[1]).trim() : null;
+      })(),
+      deposito: dataBr(attr(m[1], "data-deposito")),
       despachos: [...corpoP.matchAll(/<despacho\s([^>]*?)(?:\/>|>([\s\S]*?)<\/despacho>)/g)].map((x) => {
         const comp = x[2]?.match(/<texto-complementar>([\s\S]*?)<\/texto-complementar>/);
         return { codigo: attr(x[1], "codigo") ?? "", nome: des(attr(x[1], "nome") ?? ""), texto: comp ? des(comp[1]).trim() : null };
@@ -140,7 +167,7 @@ export async function processarRevista(numero: number, op: { forcar?: boolean; p
   const { data, processos } = await lerRevista(numero);
   const { data: carteira } = await banco
     .from("marcas")
-    .select("id, processo, nome, classe, natureza, colidencia, colid_auto, colid_escopo, colid_sensibilidade, colid_termos, colid_extras, colid_ignorar")
+    .select("id, processo, nome, classe, natureza, situacao, criado_por, colidencia, colid_auto, colid_escopo, colid_sensibilidade, colid_termos, colid_extras, colid_ignorar")
     .eq("acompanhando", true);
   const porProcesso = new Map((carteira ?? []).map((m) => [m.processo as string, m]));
 
@@ -154,6 +181,40 @@ export async function processarRevista(numero: number, op: { forcar?: boolean; p
     for (const d of p.despachos) pubs.push({ marca_id: m.id, rpi: numero, data, codigo: codigoDoDespacho(d.codigo, d.nome), despacho: d.nome, info: d.texto });
   }
   if (pubs.length) await banco.from("marca_publicacoes").upsert(pubs, { onConflict: "marca_id,rpi,despacho" });
+
+  // 1b) cadastradas antes de publicar (09/11/2026): saiu na revista → completa a ficha e avisa quem cadastrou
+  const avisos: { profile_id: string; tipo: string; titulo: string; corpo: string; url: string }[] = [];
+  for (const p of processos) {
+    const m = porProcesso.get(p.numero);
+    if (!m || (m.nome && m.situacao !== "Aguardando publicação")) continue;
+    const ult = p.despachos.at(-1);
+    await banco
+      .from("marcas")
+      .update({
+        nome: m.nome ?? p.marca,
+        classe: p.classe ? `NCL ${p.classe}` : m.classe,
+        natureza: p.natureza ?? m.natureza,
+        apresentacao: p.apresentacao,
+        especificacao: p.especificacao,
+        titular: p.titular,
+        titular_uf: p.uf,
+        procurador: p.procurador,
+        deposito: p.deposito,
+        situacao: situacaoDoDespacho(ult?.nome ?? null, null),
+        ultimo_despacho: ult?.nome ?? null,
+        ultimo_despacho_data: data,
+        ultima_rpi: numero,
+      })
+      .eq("id", m.id);
+    avisos.push({
+      profile_id: (m.criado_por as string | null) ?? MAURICIO,
+      tipo: "marca_publicada",
+      titulo: `🏷️ Saiu na revista: ${m.nome ?? p.marca ?? p.numero}`,
+      corpo: `Processo ${p.numero} publicado na RPI ${numero}: ${ult?.nome ?? "despacho"}. A ficha foi completada.`,
+      url: `/admin/marcas/processos/${p.numero}`,
+    });
+  }
+  if (avisos.length) await criarAvisos(avisos).catch(() => null);
 
   // 2) colidências: pedidos novos publicados para oposição (despacho 9) parecidos com os nossos
   const comColid = (carteira ?? []).filter((m) => m.colidencia && m.nome) as MarcaColid[];

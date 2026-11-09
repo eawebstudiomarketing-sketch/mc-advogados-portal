@@ -4,8 +4,9 @@ import Link from "next/link";
 import { useMemo, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
-import { ArrowDown, ArrowUp, Loader2, Plus, Search, Settings2 } from "lucide-react";
-import { acompanharAction, buscarCadastroAction, type ResultadoCadastro } from "../actions";
+import { ArrowDown, ArrowUp, Database, Loader2, Plus, Search, Settings2 } from "lucide-react";
+import { acompanharAction, buscarCadastroAction, type DadosManuais, type ResultadoCadastro } from "../actions";
+import type { FonteBusca } from "@/lib/marcas/inpi";
 
 // "Encontrar processos" do Cadastrar processos, nas mesmas abas do Marca
 // Acompanhada; a busca vai direto no INPI (pePI) pela ponte da VPS.
@@ -32,7 +33,7 @@ function Th({ col, ordem, setOrdem, children }: { col: Coluna; ordem: { col: Col
   );
 }
 
-export function BuscaCadastro() {
+export function BuscaCadastro({ clientes }: { clientes: { id: string; nome: string }[] }) {
   const router = useRouter();
   const [aba, setAba] = useState<Aba>("processo");
   const [termos, setTermos] = useState<Record<Aba, string>>({ processo: "", nome: "", titular: "", procurador: "" });
@@ -42,6 +43,8 @@ export function BuscaCadastro() {
   const [sel, setSel] = useState<Set<string>>(new Set());
   const [ordem, setOrdem] = useState<{ col: Coluna; asc: boolean } | null>(null);
   const [manual, setManual] = useState("");
+  const [dados, setDados] = useState<DadosManuais>({});
+  const [fonte, setFonte] = useState<FonteBusca | null>(null);
   const [buscando, startBusca] = useTransition();
   const [salvando, startSalvar] = useTransition();
 
@@ -55,6 +58,7 @@ export function BuscaCadastro() {
         return void toast.error(r.error);
       }
       setResultados(r.resultados);
+      setFonte(r.fonte);
       setInfo(`${r.total || r.resultados.length} resultado(s) encontrado(s)${r.total > r.resultados.length ? ` (mostrando os primeiros ${r.resultados.length}). Refine o filtro para resultados mais específicos.` : ""}`);
       if (tipo === "processo" && !r.resultados.length) setManual(termo.replace(/\D/g, ""));
     });
@@ -67,7 +71,7 @@ export function BuscaCadastro() {
     return l;
   }, [resultados, filtro, ordem]);
 
-  function acompanhar(processos: string[]) {
+  function acompanhar(processos: string[], extra?: DadosManuais) {
     if (!processos.length) return void toast.error("Nada para acompanhar");
     startSalvar(async () => {
       // de 10 em 10 (o servidor espera 8 s entre um e outro para o INPI não bloquear)
@@ -76,7 +80,7 @@ export function BuscaCadastro() {
       const avisos: string[] = [];
       for (let i = 0; i < processos.length; i += 10) {
         if (processos.length > 10) toast.message(`Lendo no INPI ${i + 1}–${Math.min(i + 10, processos.length)} de ${processos.length}…`);
-        const r = await acompanharAction(processos.slice(i, i + 10));
+        const r = await acompanharAction(processos.slice(i, i + 10), extra);
         if (!r.ok) return void toast.error(r.error);
         feitos += r.feitos;
         erros.push(...r.erros);
@@ -140,6 +144,17 @@ export function BuscaCadastro() {
 
       {resultados && !buscando && (
         <section className="ui-card overflow-hidden">
+          {fonte?.fonte === "base" && (
+            <p className="flex items-start gap-2 border-b border-border bg-status-info-bg px-4 py-3 text-sm text-status-info">
+              <Database className="mt-0.5 h-4 w-4 shrink-0" aria-hidden />
+              <span>
+                {aba === "procurador"
+                  ? "Resultados da base própria do portal (todas as revistas do INPI desde 2017"
+                  : "O INPI não respondeu agora. Estes resultados são da base própria do portal (todas as revistas do INPI desde 2017"}
+                {fonte.revista ? `, até a RPI ${fonte.revista}${fonte.data ? ` de ${fonte.data.split("-").reverse().join("/")}` : ""}` : ""}). A situação vem do último despacho publicado; ao acompanhar, a ficha completa entra na conferência.
+              </span>
+            </p>
+          )}
           {resultados.length === 0 ? (
             <div className="p-6 text-center text-sm text-muted">Nenhum processo encontrado.</div>
           ) : (
@@ -242,21 +257,55 @@ export function BuscaCadastro() {
       )}
 
       <section className="ui-card p-5">
-        <h2 className="section-title">Cadastrar manualmente</h2>
-        <p className="mt-1 text-sm text-muted">Se o processo ainda não aparece na busca, informe o número (9 dígitos) e o portal busca a ficha no INPI.</p>
+        <h2 className="section-title">Cadastrar manualmente (inclusive processo ainda não publicado)</h2>
+        <p className="mt-1 text-sm text-muted">
+          Informe o número (9 dígitos). O portal busca a ficha no INPI; se o pedido ainda não foi publicado, ele entra na carteira como <strong>Aguardando publicação</strong> com os dados abaixo e a ficha completa entra sozinha quando sair na revista (você recebe aviso).
+        </p>
         <form
           onSubmit={(e) => {
             e.preventDefault();
             const n = manual.replace(/\D/g, "");
             if (n.length !== 9) return void toast.error("O número do processo tem 9 dígitos");
-            acompanhar([n]);
+            acompanhar([n], dados);
           }}
-          className="mt-3 flex flex-wrap gap-2"
+          className="mt-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-3"
         >
-          <input value={manual} onChange={(e) => setManual(e.target.value)} placeholder="Número do processo" inputMode="numeric" className="ui-input w-full sm:w-64" aria-label="Número do processo" />
-          <button type="submit" disabled={salvando} className="ui-btn">
-            Cadastrar manualmente
-          </button>
+          <label className="space-y-1.5">
+            <span className="ui-label">Número do processo *</span>
+            <input value={manual} onChange={(e) => setManual(e.target.value)} placeholder="Ex: 945512600" inputMode="numeric" className="ui-input" />
+          </label>
+          <label className="space-y-1.5">
+            <span className="ui-label">Nome da marca (se ainda não publicado)</span>
+            <input value={dados.nome ?? ""} onChange={(e) => setDados({ ...dados, nome: e.target.value })} className="ui-input" />
+          </label>
+          <label className="space-y-1.5">
+            <span className="ui-label">Classe NCL</span>
+            <input value={dados.classe ?? ""} onChange={(e) => setDados({ ...dados, classe: e.target.value })} inputMode="numeric" placeholder="Ex: 35" className="ui-input" />
+          </label>
+          <label className="space-y-1.5">
+            <span className="ui-label">Titular</span>
+            <input value={dados.titular ?? ""} onChange={(e) => setDados({ ...dados, titular: e.target.value })} className="ui-input" />
+          </label>
+          <label className="space-y-1.5">
+            <span className="ui-label">Cliente</span>
+            <select value={dados.client_id ?? ""} onChange={(e) => setDados({ ...dados, client_id: e.target.value || null })} className="ui-input">
+              <option value="">Sem cliente</option>
+              {clientes.map((c) => (
+                <option key={c.id} value={c.id}>
+                  {c.nome}
+                </option>
+              ))}
+            </select>
+          </label>
+          <label className="space-y-1.5">
+            <span className="ui-label">Observação</span>
+            <input value={dados.observacao ?? ""} onChange={(e) => setDados({ ...dados, observacao: e.target.value })} placeholder="Ex: protocolado em 07/11" className="ui-input" />
+          </label>
+          <div className="sm:col-span-2 lg:col-span-3">
+            <button type="submit" disabled={salvando} className="ui-btn">
+              {salvando && <Loader2 className="h-4 w-4 animate-spin" aria-hidden />} Cadastrar e acompanhar
+            </button>
+          </div>
         </form>
       </section>
     </div>
