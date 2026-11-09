@@ -12,6 +12,25 @@ export const preferredRegion = "gru1";
 export const maxDuration = 120;
 
 type Passo = { url: string; metodo?: "GET" | "POST"; form?: Record<string, string> };
+
+/** application/x-www-form-urlencoded em ISO-8859-1 (o pePI não entende UTF-8: "AÇAITERIA" não achava nada; 09/11/2026). */
+function formLatin1(form: Record<string, string>): string {
+  const cod = (s: string) =>
+    [...s.normalize("NFC")]
+      .map((ch) => {
+        const c = ch.codePointAt(0)!;
+        if (/[A-Za-z0-9*_.-]/.test(ch)) return ch;
+        if (ch === " ") return "+";
+        if (c < 256) return `%${c.toString(16).toUpperCase().padStart(2, "0")}`;
+        // fora do latin-1: tira o acento, ou some
+        const base = ch.normalize("NFD").replace(/[\u0300-\u036f]/g, "");
+        return base && base.codePointAt(0)! < 128 ? base : "";
+      })
+      .join("");
+  return Object.entries(form)
+    .map(([k, v]) => `${cod(k)}=${cod(String(v ?? ""))}`)
+    .join("&");
+}
 const MAX_PASSOS = 6;
 
 export async function POST(request: Request) {
@@ -26,7 +45,7 @@ export async function POST(request: Request) {
       let alvo = new URL(String(p.url ?? ""));
       if (alvo.protocol !== "https:" || alvo.hostname !== "busca.inpi.gov.br") return NextResponse.json({ error: "endereço fora do pePI" }, { status: 400 });
       let metodo = p.metodo === "POST" ? "POST" : "GET";
-      let corpo = metodo === "POST" && p.form ? new URLSearchParams(p.form).toString() : undefined;
+      let corpo = metodo === "POST" && p.form ? (latin1 ? formLatin1(p.form) : new URLSearchParams(p.form).toString()) : undefined;
       // redirecionamento à mão, para guardar os cookies de cada resposta
       for (let salto = 0; salto < 5; salto++) {
         const cab: Record<string, string> = { "User-Agent": "Mozilla/5.0 (MC Advogados)", Accept: "*/*" };

@@ -94,7 +94,9 @@ const daBase = (b: RespostaBase): ResultadoBusca[] =>
   }));
 
 /** O pePI respondeu de verdade? (fora do ar ele devolve página sem resultado nem "nenhum resultado") */
-const pePIRespondeu = (html: string) => /Foram encontrados \d+ processos|Nenhum resultado foi encontrado/.test(texto(html));
+const pePIRespondeu = (html: string) => /Foram encontrados \d+ (processos|registros)|Nenhum resultado foi encontrado/.test(texto(html));
+const MAX_PAGINAS = 5; // 100 por página no pePI
+const pausa = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
 /** Linhas da tabela de resultados do pePI. */
 function lerResultados(html: string): ResultadoBusca[] {
@@ -138,6 +140,7 @@ export async function buscarNoInpi(tipo: "processo" | "nome" | "titular", termo:
 }
 
 async function buscarNoPePI(tipo: "processo" | "nome" | "titular", termo: string): Promise<{ resultados: ResultadoBusca[]; total: number }> {
+  if (tipo === "titular") return buscarTitularNoPePI(termo);
   const r = await ponte([{ url: `${PEPI}/` }, login(), passoBusca(tipo, termo)]);
   const html = r.corpo ?? "";
   // 05/11/2026: de madrugada o pePI devolveu página sem resultado nem "nenhum
@@ -257,7 +260,35 @@ async function buscarNomeNoPePI(termo: string, radical: boolean, classe?: string
   const html = r.corpo ?? "";
   if (!pePIRespondeu(html)) throw new Error("Ponte do INPI: o pePI não devolveu a pesquisa (fora do ar ou em manutenção).");
   const total = Number(texto(html).match(/Foram encontrados (\d+) processos/)?.[1] ?? 0);
-  return { resultados: lerResultados(html), total };
+  const resultados = lerResultados(html);
+  // 09/11/2026: o pePI mostra 100 por página; antes só a 1ª era lida (MANDIN: 137, a nossa estava na 2ª)
+  for (let pag = 2; pag <= Math.min(Math.ceil(total / 100), MAX_PAGINAS); pag++) {
+    await pausa(3_000);
+    const rp = await ponte([{ url: `${PEPI}/` }, login(), passo, { url: `${PEPI}/servlet/MarcasServletController?Action=nextPageMarca&page=${pag}` }]).catch(() => null);
+    if (!rp?.corpo) break;
+    resultados.push(...lerResultados(rp.corpo));
+  }
+  return { resultados, total };
+}
+
+/** Titular no pePI (09/11/2026): a 1ª tela lista os TITULARES ("Foram encontrados N registros");
+ *  cada um abre a lista de processos (pos=0, 1…). Antes a busca parava na 1ª tela e voltava vazia. */
+async function buscarTitularNoPePI(termo: string): Promise<{ resultados: ResultadoBusca[]; total: number }> {
+  const passo = passoBusca("titular", termo);
+  const r = await ponte([{ url: `${PEPI}/` }, login(), passo]);
+  const html = r.corpo ?? "";
+  if (!pePIRespondeu(html)) throw new Error("Ponte do INPI: o pePI não devolveu a pesquisa (fora do ar ou em manutenção).");
+  const posicoes = [...new Set([...html.matchAll(/tipoPesquisa=BY_CNPJ_NOME&(?:amp;)?pos=(\d+)/g)].map((m) => Number(m[1])))].slice(0, 5);
+  const resultados: ResultadoBusca[] = [];
+  let total = 0;
+  for (const pos of posicoes) {
+    await pausa(3_000);
+    const rp = await ponte([{ url: `${PEPI}/` }, login(), passo, { url: `${PEPI}/servlet/MarcasServletController?Action=searchMarca&tipoPesquisa=BY_CNPJ_NOME&pos=${pos}` }]).catch(() => null);
+    if (!rp?.corpo) continue;
+    total += Number(texto(rp.corpo).match(/Foram encontrados (\d+) processos/)?.[1] ?? 0);
+    resultados.push(...lerResultados(rp.corpo));
+  }
+  return { resultados, total: Math.max(total, resultados.length) };
 }
 
 /** Busca por procurador: o pePI não tem; vem da base própria (revistas). */
