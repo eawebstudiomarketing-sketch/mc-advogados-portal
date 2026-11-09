@@ -96,6 +96,9 @@ export type Parecer = {
   anterioridades: { processo: string; marca: string; classe: string; situacao: string; titular: string; relevancia: number; motivo: string }[];
   recomendacoes: string[];
 };
+/** Uma pesquisa feita no INPI durante a Busca com IA (aparece no relatório como no pePI). */
+export type Pesquisa = { termo: string; tipo: string; total: number; em: string; fonte: string; processos: string[] };
+
 export type EntradaBusca = { nome: string; siglas: boolean; ondeUsar: string; contexto: string; textoLogo?: string; usarTextoLogo?: boolean; extras?: { processo: string; marca: string; classes: string; situacao: string; titular: string }[] };
 
 const SISTEMA_PLANO = `Você é especialista em registro de marcas no INPI (Brasil, Classificação de Nice NCL 12ª ed.).
@@ -141,12 +144,16 @@ export async function buscaIAAction(e: EntradaBusca & { logo?: { mime: string; b
   const textoLogo = (e.textoLogo?.trim() || plano.data.texto_logo || "").trim();
   const termos = [...new Set([nome, ...plano.data.termos, ...(e.usarTextoLogo && textoLogo ? [textoLogo] : [])].map((t) => t.trim().toUpperCase()).filter((t) => t.length >= 2))].slice(0, 3);
 
-  // 2) anterioridades no INPI (radical de cada termo, devagar)
-  const achados = new Map<string, ResultadoBusca>();
+  // 2) anterioridades no INPI (radical de cada termo, devagar). Cada pesquisa fica registrada
+  //    como no pePI ("RESULTADO DA PESQUISA (data às hora) Marca: X — Foram encontrados N processos").
+  const achados = new Map<string, ResultadoBusca & { termos: string[] }>();
+  const pesquisas: Pesquisa[] = [];
   try {
     for (const [i, t] of termos.entries()) {
       if (i > 0) await pausa(4_000);
-      for (const r of (await buscarNomeNoInpi(t, true)).resultados) achados.set(r.processo, r);
+      const r = await buscarNomeNoInpi(t, true);
+      pesquisas.push({ termo: t, tipo: "Radical", total: r.total, em: new Date().toISOString(), fonte: r.fonte === "base" ? `base própria (revistas até a RPI ${r.revista ?? "?"})` : "INPI (pePI) ao vivo", processos: r.resultados.map((x) => x.processo) });
+      for (const x of r.resultados) achados.set(x.processo, { ...x, termos: [...(achados.get(x.processo)?.termos ?? []), t] });
     }
   } catch (err) {
     return { ok: false, error: `Não foi possível consultar o INPI agora (${(err as Error).message}). Tente de novo em instantes.` };
@@ -188,7 +195,7 @@ export async function buscaIAAction(e: EntradaBusca & { logo?: { mime: string; b
   if (!parecer.ok) return { ok: false, error: parecer.error };
   // só processos que vieram do INPI (a IA não inventa número)
   const validos = new Set([...candidatos, ...extras].map((r) => r.processo));
-  const resultado = { ...parecer.data, anterioridades: parecer.data.anterioridades.filter((a) => validos.has(a.processo)), termos, encontrados: candidatos };
+  const resultado = { ...parecer.data, anterioridades: parecer.data.anterioridades.filter((a) => validos.has(a.processo)), termos, encontrados: candidatos, pesquisas, classesPesquisadas: classes.map((c) => c.classe) };
 
   const { data, error } = await db()
     .from("marca_buscas")

@@ -111,7 +111,9 @@ function lerResultados(html: string): ResultadoBusca[] {
     if (!numero) continue;
     const i = cels.indexOf(numero);
     const resto = cels.slice(i + 1).filter((c) => c !== "");
-    out.push({ processo: numero, codPedido: cod[1], deposito: dataIso(resto[0]), marca: resto[1] ?? "", situacao: resto[2] ?? "", titular: resto[3] ?? "", classes: resto[4] ?? "" });
+    // apresentação e "registrada" vêm nos ícones (alt="Marca Mista", alt="Marca Registrada")
+    const apresentacao = linha.match(/alt="Marca (Nominativa|Mista|Figurativa|Tridimensional|de Posição)"/i)?.[1] ?? null;
+    out.push({ processo: numero, codPedido: cod[1], deposito: dataIso(resto[0]), marca: resto[1] ?? "", situacao: resto[2] ?? "", titular: resto[3] ?? "", classes: resto[4] ?? "", apresentacao });
   }
   return out;
 }
