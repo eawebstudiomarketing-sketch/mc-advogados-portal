@@ -151,7 +151,8 @@ export async function buscaIAAction(e: EntradaBusca & { logo?: { mime: string; b
   try {
     for (const [i, t] of termos.entries()) {
       if (i > 0) await pausa(4_000);
-      const r = await buscarNomeNoInpi(t, true);
+      // 2 páginas por termo (200 processos): termo genérico ("TOP") traz milhares e estourava o tempo
+      const r = await buscarNomeNoInpi(t, true, null, 2);
       pesquisas.push({ termo: t, tipo: "Radical", total: r.total, em: new Date().toISOString(), fonte: r.fonte === "base" ? `base própria (revistas até a RPI ${r.revista ?? "?"})` : "INPI (pePI) ao vivo", processos: r.resultados.map((x) => x.processo) });
       for (const x of r.resultados) achados.set(x.processo, { ...x, termos: [...(achados.get(x.processo)?.termos ?? []), t] });
     }

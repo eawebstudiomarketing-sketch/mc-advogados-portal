@@ -235,16 +235,16 @@ export async function logoNoInpi(processo: string, codPedido: string): Promise<s
 }
 
 /** Busca de marca pelo nome (Busca Integrada / Busca com IA): exata ou radical, com classe opcional. */
-export async function buscarNomeNoInpi(termo: string, radical: boolean, classe?: string | null): Promise<{ resultados: ResultadoBusca[]; total: number } & FonteBusca> {
+export async function buscarNomeNoInpi(termo: string, radical: boolean, classe?: string | null, paginas = MAX_PAGINAS): Promise<{ resultados: ResultadoBusca[]; total: number } & FonteBusca> {
   try {
-    return { ...(await buscarNomeNoPePI(termo, radical, classe)), fonte: "inpi" };
+    return { ...(await buscarNomeNoPePI(termo, radical, classe, paginas)), fonte: "inpi" };
   } catch (e) {
     const b = await consultarBase(radical ? "radical" : "exata", termo, classe);
     return { resultados: daBase(b), total: b.total, fonte: "base", revista: b.revista, data: b.data, motivo: (e as Error).message };
   }
 }
 
-async function buscarNomeNoPePI(termo: string, radical: boolean, classe?: string | null): Promise<{ resultados: ResultadoBusca[]; total: number }> {
+async function buscarNomeNoPePI(termo: string, radical: boolean, classe?: string | null, paginas = MAX_PAGINAS): Promise<{ resultados: ResultadoBusca[]; total: number }> {
   const passo: Passo = {
     url: `${PEPI}/servlet/MarcasServletController`,
     metodo: "POST",
@@ -264,7 +264,7 @@ async function buscarNomeNoPePI(termo: string, radical: boolean, classe?: string
   const total = Number(texto(html).match(/Foram encontrados (\d+) processos/)?.[1] ?? 0);
   const resultados = lerResultados(html);
   // 09/11/2026: o pePI mostra 100 por página; antes só a 1ª era lida (MANDIN: 137, a nossa estava na 2ª)
-  for (let pag = 2; pag <= Math.min(Math.ceil(total / 100), MAX_PAGINAS); pag++) {
+  for (let pag = 2; pag <= Math.min(Math.ceil(total / 100), paginas); pag++) {
     await pausa(3_000);
     const rp = await ponte([{ url: `${PEPI}/` }, login(), passo, { url: `${PEPI}/servlet/MarcasServletController?Action=nextPageMarca&page=${pag}` }]).catch(() => null);
     if (!rp?.corpo) break;

@@ -6,7 +6,7 @@ import { FormBuscaIA } from "./form-busca-ia";
 
 // Viabilidade → Busca com IA (como no Marca Acompanhada): pesquisa + histórico
 // de buscas anteriores (reabrir / PDF). Sem créditos: o custo é só a IA.
-export const maxDuration = 120;
+export const maxDuration = 300;
 
 const quando = (iso: string) => new Intl.DateTimeFormat("pt-BR", { dateStyle: "short", timeStyle: "short", timeZone: "America/Bahia" }).format(new Date(iso));
 
