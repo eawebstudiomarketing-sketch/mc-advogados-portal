@@ -149,6 +149,10 @@ export async function buscaIAAction(e: EntradaBusca & { logo?: { mime: string; b
   //    como no pePI ("RESULTADO DA PESQUISA (data às hora) Marca: X — Foram encontrados N processos").
   const achados = new Map<string, ResultadoBusca & { termos: string[] }>();
   const pesquisas: Pesquisa[] = [];
+  // 10/11/2026: a página tem 120 s; a base própria lenta (antes do índice) estourava o tempo (504).
+  // Ela agora só completa enquanto sobra tempo e cada consulta tem no máximo 10 s.
+  const inicio = Date.now();
+  const sobraTempo = () => Date.now() - inicio < 60_000;
   try {
     for (const [i, t] of termos.entries()) {
       if (i > 0) await pausa(4_000);
@@ -160,7 +164,8 @@ export async function buscaIAAction(e: EntradaBusca & { logo?: { mime: string; b
       // desde 2017), por classe pesquisada, para não perder pedidos recentes nessas classes (09/11/2026)
       if (r.fonte === "inpi" && r.total > r.resultados.length) {
         for (const c of classes) {
-          const b = await consultarBase("radical", t, c.classe, 300).catch(() => null);
+          if (!sobraTempo()) break;
+          const b = await consultarBase("radical", t, c.classe, 300, 10_000).catch(() => null);
           for (const l of b?.resultados ?? []) {
             if (achados.has(l.numero)) continue;
             achados.set(l.numero, {

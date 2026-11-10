@@ -27,7 +27,7 @@ export type LinhaBase = {
 
 export type RespostaBase = { fonte: "base-propria"; revista: number | null; data: string | null; total: number; resultados: LinhaBase[] };
 
-export async function consultarBase(tipo: "processo" | "exata" | "radical" | "titular" | "procurador", termo: string, classe?: string | null, limite = 100): Promise<RespostaBase> {
+export async function consultarBase(tipo: "processo" | "exata" | "radical" | "titular" | "procurador", termo: string, classe?: string | null, limite = 100, tempoMs = 30_000): Promise<RespostaBase> {
   const base = process.env.WA_MIDIA_URL;
   const segredo = process.env.WA_MIDIA_SEGREDO;
   if (!base || !segredo) throw new Error("Base própria não configurada (WA_MIDIA_URL).");
@@ -35,7 +35,7 @@ export async function consultarBase(tipo: "processo" | "exata" | "radical" | "ti
     method: "POST",
     headers: { Authorization: `Bearer ${segredo}`, "Content-Type": "application/json" },
     body: JSON.stringify({ tipo, termo, classe: classe ?? null, limite }),
-    signal: AbortSignal.timeout(30_000),
+    signal: AbortSignal.timeout(tempoMs),
     cache: "no-store",
   });
   const j = (await r.json().catch(() => ({}))) as RespostaBase & { erro?: string };
