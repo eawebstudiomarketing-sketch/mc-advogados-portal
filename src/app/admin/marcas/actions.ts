@@ -4,6 +4,7 @@ import { revalidatePath } from "next/cache";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { exigirPermissao } from "@/lib/dal";
 import { createAdminClient } from "@/lib/supabase/admin";
+import { buscarProcuradorNaCarteira } from "@/lib/marcas/procurador";
 import { buscarNoInpi, buscarProcuradorNaBase, fichaNoInpi, type FichaINPI, type FonteBusca, type ResultadoBusca } from "@/lib/marcas/inpi";
 import { consultarBase, situacaoDoDespacho } from "@/lib/marcas/base";
 import { sincronizarProcesso } from "@/lib/marcas/sincronizar";
@@ -98,8 +99,7 @@ export async function buscarCadastroAction(tipo: "processo" | "nome" | "titular"
     let fonte: FonteBusca = { fonte: "inpi" };
     if (tipo === "procurador") {
       // o pePI não busca marca por procurador: base própria (todas as revistas desde 2017) + as que o portal já conhece
-      const { data } = await db().from("marcas").select("processo, nome, situacao, titular, classe, deposito").ilike("procurador", `%${t.replace(/[%_]/g, " ")}%`).limit(500);
-      const daCarteira = (data ?? []).map((m) => ({ processo: m.processo, codPedido: "", marca: m.nome ?? "", situacao: m.situacao ?? "", titular: m.titular ?? "", classes: m.classe ?? "", deposito: m.deposito }));
+      const daCarteira = await buscarProcuradorNaCarteira(t);
       const base = await buscarProcuradorNaBase(t).catch(() => null);
       const vistos = new Set(daCarteira.map((m) => m.processo));
       resultados = [...daCarteira, ...(base?.resultados ?? []).filter((r) => !vistos.has(r.processo))];

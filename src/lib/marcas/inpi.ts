@@ -283,7 +283,10 @@ async function buscarTitularNoPePI(termo: string): Promise<{ resultados: Resulta
   const posicoes = [...new Set([...html.matchAll(/tipoPesquisa=BY_CNPJ_NOME&(?:amp;)?pos=(\d+)/g)].map((m) => Number(m[1])))].slice(0, 5);
   const resultados: ResultadoBusca[] = [];
   let total = 0;
+  // 10/11/2026: cada titular custa ~15 s; com 5 chegava a 82 s (a página tem 120). Para aos 50 s.
+  const inicio = Date.now();
   for (const pos of posicoes) {
+    if (resultados.length && Date.now() - inicio > 50_000) break;
     await pausa(3_000);
     const rp = await ponte([{ url: `${PEPI}/` }, login(), passo, { url: `${PEPI}/servlet/MarcasServletController?Action=searchMarca&tipoPesquisa=BY_CNPJ_NOME&pos=${pos}` }]).catch(() => null);
     if (!rp?.corpo) continue;

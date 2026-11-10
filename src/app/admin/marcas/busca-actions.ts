@@ -6,7 +6,8 @@ import { exigirPermissao } from "@/lib/dal";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { generateJson } from "@/lib/gemini";
 import { MODELOS } from "@/lib/ia-modelos";
-import { buscarNoInpi, buscarNomeNoInpi, type ResultadoBusca } from "@/lib/marcas/inpi";
+import { buscarNoInpi, buscarNomeNoInpi, buscarProcuradorNaBase, type ResultadoBusca } from "@/lib/marcas/inpi";
+import { buscarProcuradorNaCarteira } from "@/lib/marcas/procurador";
 import { consultarBase, situacaoDoDespacho } from "@/lib/marcas/base";
 import { semelhanca } from "@/lib/marcas/revista";
 import { chaveFonetica, parecencaFonetica } from "@/lib/marcas/fonetica";
@@ -73,10 +74,13 @@ export async function buscaIntegradaAction(p: { modo: "nome" | "titular" | "proc
         ({ resultados: lista, total } = await buscarNomeNoInpi(termo, p.tipo === "radical", p.classe));
       }
     } else if (p.modo === "procurador") {
-      // o pePI não busca marca por procurador: procura nas marcas que o portal conhece
-      const { data } = await db().from("marcas").select("processo, nome, situacao, titular, classe, deposito").ilike("procurador", `%${termo.replace(/[%_]/g, " ")}%`).limit(500);
-      lista = (data ?? []).map((m) => ({ processo: m.processo, codPedido: "", marca: m.nome ?? "", situacao: m.situacao ?? "", titular: m.titular ?? "", classes: m.classe ?? "", deposito: m.deposito }));
-      total = lista.length;
+      // o pePI não busca marca por procurador: carteira do portal (sem acento) + base própria
+      // (todas as revistas desde 2017), como no Cadastrar (10/11/2026)
+      const daCarteira = await buscarProcuradorNaCarteira(termo);
+      const base = await buscarProcuradorNaBase(termo, p.classe).catch(() => null);
+      const vistos = new Set(daCarteira.map((m) => m.processo));
+      lista = [...daCarteira, ...(base?.resultados ?? []).filter((r) => !vistos.has(r.processo))];
+      total = Math.max(lista.length, (base?.total ?? 0) + daCarteira.length);
     } else {
       ({ resultados: lista, total } = await buscarNoInpi(p.modo, termo));
     }
