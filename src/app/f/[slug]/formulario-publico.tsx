@@ -44,7 +44,7 @@ function mascaraTelefone(v: string) {
 
 function invalido(c: Campo, v: Valor | undefined): string | null {
   const t = Array.isArray(v) ? v.join("") : (v ?? "").trim();
-  if (!t) return c.obrigatorio ? "Responda para continuar." : null;
+  if (!t) return "Responda para continuar."; // 10/11/2026: todas obrigatórias (sem "Pular")
   if (c.tipo === "telefone" && ![10, 11].includes(t.replace(/\D/g, "").length)) return "Confira o número com DDD.";
   if (c.tipo === "email" && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(t)) return "Confira o e-mail.";
   return null;
@@ -276,12 +276,15 @@ export function FormularioPublico({ slug, config, pixels }: { slug: string; conf
           <button type="button" onClick={voltar} aria-label="Voltar" className={`${BTN_FANTASMA} w-14 shrink-0 !px-0`}>
             <ChevronLeft className="h-6 w-6" aria-hidden />
           </button>
-          {vazio && !atual?.obrigatorio && !ultimo ? (
-            <button type="button" onClick={() => avancar()} className={`${BTN_FANTASMA} flex-1 lg:flex-none`}>
-              Pular
-            </button>
-          ) : (
-            <button type="button" onClick={() => avancar()} disabled={enviando} className={`${BTN} flex-1 disabled:opacity-70 lg:flex-none`} style={{ background: "var(--f-btn)", color: "var(--f-btn-t)" }}>
+          {(
+            <button
+              type="button"
+              onClick={() => avancar()}
+              disabled={enviando}
+              aria-disabled={vazio}
+              className={`${BTN} flex-1 disabled:opacity-70 lg:flex-none ${vazio ? "opacity-45" : ""}`}
+              style={{ background: "var(--f-btn)", color: "var(--f-btn-t)" }}
+            >
               {enviando ? (
                 <>
                   <Loader2 className="h-5 w-5 animate-spin" aria-hidden /> Enviando…
@@ -369,12 +372,6 @@ export function FormularioPublico({ slug, config, pixels }: { slug: string; conf
               </p>
               <label htmlFor={`f-${atual.id}`} className="block text-balance text-[24px] font-bold leading-[1.25] lg:text-[32px]">
                 {atual.titulo}
-                {atual.obrigatorio && (
-                  <span aria-hidden style={{ color: "var(--f-destaque)" }}>
-                    {" "}
-                    *
-                  </span>
-                )}
               </label>
               <Paragrafos texto={atual.descricao} className="mt-2.5 text-pretty text-[16px] leading-relaxed opacity-70 lg:text-[17px]" />
               <div className="mt-8">

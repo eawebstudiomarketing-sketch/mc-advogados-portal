@@ -209,10 +209,7 @@ export function EditorFormulario({ inicial, equipe, podeExcluir, site }: { inici
               </label>
             )}
             <div className="flex flex-wrap items-center gap-4">
-              <label className="flex items-center gap-2 text-sm text-foreground">
-                <input type="checkbox" checked={!!c.obrigatorio} onChange={(e) => setCampo(i, { obrigatorio: e.target.checked })} className="h-4 w-4" />
-                Obrigatória
-              </label>
+              <span className="text-sm text-muted">Obrigatória (todas são)</span>
               <label className="flex items-center gap-2 text-sm text-muted">
                 A resposta é o
                 <select value={c.mapear ?? ""} onChange={(e) => setCampo(i, { mapear: (e.target.value || null) as Campo["mapear"] })} className="ui-input !w-auto py-1 text-sm">

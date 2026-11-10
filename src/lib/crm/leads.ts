@@ -37,7 +37,8 @@ async function telefoneDaPessoa(profileId: string): Promise<string | null> {
 /** Envio do formulário público. Devolve o id do lead ou o erro para mostrar. */
 export async function criarLeadDoFormulario(form: Formulario, e: EnvioFormulario): Promise<{ ok: true; id: string; novo: boolean } | { ok: false; erro: string }> {
   const campos = form.config.campos;
-  for (const c of campos) if (c.obrigatorio && !texto(e.respostas[c.id])) return { ok: false, erro: `Responda: ${c.titulo}` };
+  // 10/11/2026: todas as perguntas são obrigatórias (o formulário não tem mais "Pular")
+  for (const c of campos) if (!texto(e.respostas[c.id])) return { ok: false, erro: `Responda: ${c.titulo}` };
   const mapa = (k: "nome" | "telefone" | "email" | "empresa") => {
     const c = campos.find((x) => x.mapear === k) ?? (k === "telefone" ? campos.find((x) => x.tipo === "telefone") : k === "email" ? campos.find((x) => x.tipo === "email") : undefined);
     return c ? texto(e.respostas[c.id]) || null : null;
