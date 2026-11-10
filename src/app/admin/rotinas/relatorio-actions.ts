@@ -10,6 +10,7 @@ import { enviarRelatorioDoDia, MAURICIO } from "@/lib/rotina-relatorio/dia";
 import { avisarRelatorioAtrasado } from "@/lib/rotina-relatorio/atraso";
 import type { Valor } from "@/lib/rotina-relatorio/tipos";
 import { salvarRegras } from "@/lib/rotina-relatorio/regras";
+import { criarAvisos } from "@/lib/avisos";
 
 // Ações do relatório do dia (Rotinas v2). Modelos: só o admin máximo.
 // Preencher e enviar: cada pessoa, só o próprio relatório, só no dia de hoje.
@@ -146,6 +147,36 @@ export async function excluirRotinaAction(responsavelId: string): Promise<Result
     if (a.error || b.error) throw new Error("Não foi possível excluir a rotina. Tente de novo.");
     revalidatePath("/admin/rotinas");
     return { ok: true };
+  } catch (e) {
+    return { ok: false, error: msg(e) };
+  }
+}
+
+/**
+ * Justificativa → editar (10/11/2026, pedido do usuário): o Maurício lê a
+ * justificativa de uma demanda vencida no relatório, abre a atividade ali mesmo,
+ * edita e salva; a advogada responsável recebe um aviso (sininho + celular).
+ */
+export async function avisarAtividadeEditadaAction(activityId: string): Promise<Resultado & { nome?: string | null }> {
+  try {
+    const eu = await requireRole(["admin"]);
+    if (!/^[0-9a-f-]{36}$/i.test(activityId)) throw new Error("Atividade inválida.");
+    const db = createAdminClient();
+    const { data: a } = await db.from("activities").select("id, title, responsavel_id").eq("id", activityId).maybeSingle();
+    if (!a?.responsavel_id) return { ok: true, nome: null };
+    const { data: r } = await db.from("responsaveis").select("nome, profile_id").eq("id", a.responsavel_id).maybeSingle();
+    if (!r?.profile_id || r.profile_id === eu.id) return { ok: true, nome: null };
+    const quem = eu.full_name?.split(" ")[0] || "O administrador";
+    await criarAvisos([
+      {
+        profile_id: r.profile_id,
+        tipo: "atividade_editada",
+        titulo: `${quem} ajustou uma atividade sua`,
+        corpo: `${a.title} — depois de ler sua justificativa no relatório. Confira o que mudou.`,
+        url: `/admin/activities/${a.id}`,
+      },
+    ]);
+    return { ok: true, nome: r.nome?.split(" ")[0] ?? null };
   } catch (e) {
     return { ok: false, error: msg(e) };
   }

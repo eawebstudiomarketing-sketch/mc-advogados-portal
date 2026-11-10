@@ -40,19 +40,19 @@ import { CampoPrazo } from "@/components/atividade/campo-prazo";
 // Mini tela da atividade: abre no meio da tela, por cima de qualquer lista ou
 // quadro, sem trocar de página. Fecha com Esc, clique fora ou no X.
 
-type Abrir = (id: string, opcoes?: { editar?: boolean }) => void;
+type Abrir = (id: string, opcoes?: { editar?: boolean; aoSalvar?: () => void }) => void;
 const AbrirCtx = createContext<Abrir>(() => {});
 
 export function AtividadeModalProvider({ children }: { children: React.ReactNode }) {
-  const [aberta, setAberta] = useState<{ id: string; editar: boolean } | null>(null);
+  const [aberta, setAberta] = useState<{ id: string; editar: boolean; aoSalvar?: () => void } | null>(null);
 
-  const abrir = useCallback<Abrir>((id, opcoes) => setAberta({ id, editar: !!opcoes?.editar }), []);
+  const abrir = useCallback<Abrir>((id, opcoes) => setAberta({ id, editar: !!opcoes?.editar, aoSalvar: opcoes?.aoSalvar }), []);
   return (
     <AbrirCtx.Provider value={abrir}>
       {children}
       {aberta &&
         createPortal(
-          <AtividadeModal key={aberta.id} id={aberta.id} editarAoAbrir={aberta.editar} onClose={() => setAberta(null)} />,
+          <AtividadeModal key={aberta.id} id={aberta.id} editarAoAbrir={aberta.editar} aoSalvar={aberta.aoSalvar} onClose={() => setAberta(null)} />,
           document.body
         )}
     </AbrirCtx.Provider>
@@ -91,7 +91,7 @@ function Campo({ icone: Icone, rotulo, children }: { icone: typeof Tag; rotulo: 
   );
 }
 
-function AtividadeModal({ id, editarAoAbrir, onClose }: { id: string; editarAoAbrir: boolean; onClose: () => void }) {
+function AtividadeModal({ id, editarAoAbrir, aoSalvar, onClose }: { id: string; editarAoAbrir: boolean; aoSalvar?: () => void; onClose: () => void }) {
   const router = useRouter();
   const [d, setD] = useState<AtividadeDetalhe | null>(null);
   const [erro, setErro] = useState<string | null>(null);
@@ -171,7 +171,10 @@ function AtividadeModal({ id, editarAoAbrir, onClose }: { id: string; editarAoAb
 
   function salvar(form: HTMLFormElement) {
     const fd = new FormData(form);
-    executar(async () => (await saveActivityInlineAction(fd)).error, () => setEditando(false));
+    executar(async () => (await saveActivityInlineAction(fd)).error, () => {
+      setEditando(false);
+      aoSalvar?.();
+    });
   }
 
   function arquivar() {

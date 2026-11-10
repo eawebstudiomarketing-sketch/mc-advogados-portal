@@ -1,3 +1,4 @@
+import { EditarDemanda } from "./editar-demanda";
 import { chaveResposta, SECAO_ROTULO, SECOES, type RelatorioDoDia, type Valor } from "@/lib/rotina-relatorio/tipos";
 
 // Leitura do relatório já enviado (só quem pode ler o texto: o admin máximo).
@@ -23,6 +24,9 @@ export function RelatorioLeitura({ relatorio }: { relatorio: RelatorioDoDia }) {
                 <span className="font-medium text-foreground">{d.titulo}</span>
                 <span className="text-xs text-muted"> · {d.cliente ?? "Sem cliente"} · {d.diasAtraso > 0 ? `${d.diasAtraso} d de atraso` : "vence hoje"}</span>
                 <p className="whitespace-pre-wrap text-foreground/80">{relatorio.justificativas[d.id] ?? "—"}</p>
+                <div className="mt-1">
+                  <EditarDemanda id={d.id} />
+                </div>
               </li>
             ))}
           </ul>
