@@ -140,7 +140,7 @@ export default async function ManualPage() {
             </div>
           ))}
         </dl>
-        <p className="mt-6 text-xs text-muted">Manual atualizado em 09/11/2026. As mudanças seguintes aparecem em Caixa de entrada → Novidades.</p>
+        <p className="mt-6 text-xs text-muted">Manual atualizado em 10/11/2026. As mudanças seguintes aparecem em Caixa de entrada → Novidades.</p>
       </section>
     </div>
   );

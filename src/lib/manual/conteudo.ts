@@ -255,6 +255,7 @@ export const CAPITULOS: Capitulo[] = [
         passos: [
           "“Copiar link” para colocar no anúncio, na bio ou no WhatsApp.",
           "“Editar” muda perguntas, imagens, cores e a tela final; dá para pular perguntas conforme a resposta.",
+          "Toda pergunta é obrigatória: quem preenche só avança respondendo, e só envia com tudo respondido (não existe botão “Pular”).",
           "Para saber de qual anúncio veio, ponha no fim do link: ?utm_source=instagram&utm_campaign=nome-da-campanha",
         ],
       },
@@ -453,7 +454,7 @@ export const CAPITULOS: Capitulo[] = [
         href: "/admin/team",
         print: p("equipe"),
         praQue: "As pessoas do escritório, convites e o que cada uma pode ver.",
-        passos: ["“Convidar pessoa”: e-mail e papel (administrador ou advogado).", "O Dr. Maurício abre a pessoa para ligar/desligar permissões (telas e ações) e escolher os clientes dela."],
+        passos: ["“Convidar pessoa”: e-mail e papel (administrador ou advogado).", "O Dr. Maurício abre a pessoa para ligar/desligar permissões (telas e ações) e escolher os clientes dela.", "A etiqueta azul “Suporte” marca a conta de suporte técnico do portal (manutenção do sistema), com os mesmos poderes do administrador."],
       },
       { titulo: "Integrações", href: "/admin/integracoes", print: p("integracoes"), praQue: "Serviços ligados ao portal, como o Google Drive (pastas dos clientes).", passos: ["Ligue as pastas do Drive ao cliente certo e use “Sincronizar”."] },
       { titulo: "Lixeira", href: "/admin/lixeira", print: p("lixeira"), praQue: "O que foi excluído fica 30 dias aqui antes de sumir.", passos: ["Restaure o que foi excluído por engano."] },
