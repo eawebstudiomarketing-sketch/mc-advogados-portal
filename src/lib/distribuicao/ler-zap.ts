@@ -8,12 +8,18 @@ import { ACTIVITY_TYPES } from "@/lib/activity-type";
 import { criarAvisos } from "@/lib/avisos";
 import { transcreverAudioDoZap } from "@/lib/whatsapp-audio";
 import { ligarGruposDeAssessoria } from "@/lib/zap/ligar-grupos";
+import { chaveFone, jidsDoFone } from "@/lib/painel/equipe-zap";
 
 // Lê as mensagens novas das conversas do WhatsApp ligadas a clientes, de todo
 // grupo com "ASSESSORIA JURÍDICA" no nome e das conversas ligadas a dedo
 // (wa_chats.ler_demandas = true, mesmo sem cliente; false desliga) e
 // pede à IA só os PEDIDOS de trabalho. Cada pedido vira um cartão na Distribuição,
 // com área e responsável sugeridos. Nada é criado como atividade sozinho.
+//
+// Suporte (10/11/2026): na conversa do número do escritório com quem é do
+// Suporte (profiles.suporte; o telefone vem de Responsáveis), a leitura é ao
+// contrário: os PEDIDOS são as mensagens que o escritório manda para ele, e o
+// cartão já sai com ele como responsável sugerido.
 
 const MAX_MSGS = 80; // por conversa e por leitura
 const PRIMEIRA_JANELA_H = 24; // conversa nunca lida: só as últimas 24h
@@ -65,6 +71,21 @@ const SCHEMA = {
   },
   required: ["demandas"],
 };
+
+// avisos automáticos do portal que saem do número do escritório (atas, códigos,
+// relatórios, bom dia da rotina): nunca são pedido para o Suporte
+const AUTOMATICA = /^\*MC Advogados\*|Seu código para assinar|^(Bom dia|Boa tarde|Boa noite)[^\n]{0,80}(Passando|Como vai)|segue (em anexo )?o relatório mensal/i;
+
+/** Conversas (chat_jid) dos números do Suporte → id do responsável dele. */
+async function conversasDoSuporte(db: ReturnType<typeof createAdminClient>): Promise<Map<string, { resp: string; nome: string }>> {
+  const m = new Map<string, { resp: string; nome: string }>();
+  const { data: sup } = await (db as unknown as SupabaseClient).from("profiles").select("id").eq("suporte", true).eq("ativo", true);
+  const ids = ((sup ?? []) as { id: string }[]).map((x) => x.id);
+  if (!ids.length) return m;
+  const { data: resps } = await db.from("responsaveis").select("id, nome, telefone, profile_id").in("profile_id", ids);
+  for (const r of resps ?? []) if (chaveFone(r.telefone)) for (const j of jidsDoFone(r.telefone)) m.set(j, { resp: r.id, nome: r.nome });
+  return m;
+}
 
 function autor(m: Msg): string {
   if (m.from_me) return "Escritório";
@@ -131,12 +152,13 @@ export async function lerConversasDoZap(): Promise<ResultadoLeitura> {
 async function lerUmaVez(db: ReturnType<typeof createAdminClient>): Promise<ResultadoLeitura> {
   // grupo "Assessoria Jurídica - X" sem cliente: liga à ficha antes de ler (a demanda já nasce com cliente)
   await ligarGruposDeAssessoria(db).catch(() => undefined);
-  const [config, pessoas] = await Promise.all([getEscritorioConfig(), listPessoas()]);
+  const [config, pessoas, suporte] = await Promise.all([getEscritorioConfig(), listPessoas(), conversasDoSuporte(db)]);
+  const doSuporte = [...suporte.keys()].map((j) => `chat_jid.eq.${j}`).join(",");
   const { data: chats } = await db
     .from("wa_chats")
     .select("chat_jid, nome, is_group, client_id, demandas_lidas_ate, ultima_msg_em, ler_demandas, clients(name)")
     // "jur*dica" pega com e sem acento; ler_demandas=true: escolhida a dedo (mesmo sem cliente)
-    .or("client_id.not.is.null,and(is_group.eq.true,nome.ilike.*assessoria*jur*dica*),ler_demandas.is.true")
+    .or(`client_id.not.is.null,and(is_group.eq.true,nome.ilike.*assessoria*jur*dica*),ler_demandas.is.true${doSuporte ? `,${doSuporte}` : ""}`)
     .eq("arquivado", false);
 
   const hojeISO = new Intl.DateTimeFormat("en-CA", { timeZone: "America/Bahia" }).format(new Date());
@@ -144,6 +166,9 @@ async function lerUmaVez(db: ReturnType<typeof createAdminClient>): Promise<Resu
 
   for (const chat of chats ?? []) {
     if (chat.ler_demandas === false) continue; // desligada a pedido
+    const sup = !chat.is_group ? suporte.get(chat.chat_jid) : undefined;
+    // quem faz o pedido: o cliente (normal) ou o escritório (conversa do Suporte)
+    const ehPedido = (m: Msg) => (sup ? m.from_me && !AUTOMATICA.test(m.texto ?? "") : !m.from_me);
     const desde = chat.demandas_lidas_ate ?? new Date(Date.now() - PRIMEIRA_JANELA_H * 3_600_000).toISOString();
     if (chat.ultima_msg_em && chat.ultima_msg_em <= desde) continue;
 
@@ -164,9 +189,9 @@ async function lerUmaVez(db: ReturnType<typeof createAdminClient>): Promise<Resu
       .limit(200);
     const usadas = new Set<string>();
     for (const d of jaFeitas ?? []) for (const tr of (Array.isArray(d.trechos) ? d.trechos : []) as { em?: string }[]) if (tr.em) usadas.add(chave(tr.em));
-    const lidas = ((msgs ?? []) as Msg[]).reverse().filter((m) => m.from_me || !usadas.has(chave(m.wa_timestamp)));
-    // áudio do cliente: a IA ouve (transcreve) antes de procurar pedidos
-    const audios = lidas.filter((m) => m.tipo === "audio" && !m.from_me && m.media_path).slice(-MAX_AUDIOS);
+    const lidas = ((msgs ?? []) as Msg[]).reverse().filter((m) => !ehPedido(m) || !usadas.has(chave(m.wa_timestamp)));
+    // áudio de quem pede: a IA ouve (transcreve) antes de procurar pedidos
+    const audios = lidas.filter((m) => m.tipo === "audio" && ehPedido(m) && m.media_path).slice(-MAX_AUDIOS);
     for (let i = 0; i < audios.length; i += 3) {
       await Promise.all(
         audios.slice(i, i + 3).map(async (m) => {
@@ -176,7 +201,7 @@ async function lerUmaVez(db: ReturnType<typeof createAdminClient>): Promise<Resu
     }
     const novas = lidas.filter((m) => conteudo(m));
     const ultima = msgs?.[0]?.wa_timestamp;
-    if (!novas.some((m) => !m.from_me)) {
+    if (!novas.some(ehPedido)) {
       if (ultima) await db.from("wa_chats").update({ demandas_lidas_ate: ultima }).eq("chat_jid", chat.chat_jid);
       continue;
     }
@@ -189,13 +214,27 @@ async function lerUmaVez(db: ReturnType<typeof createAdminClient>): Promise<Resu
     const cliente = (chat.clients as unknown as { name: string } | null)?.name ?? chat.nome ?? "cliente";
     const linhas = novas.map((m, i) => {
       const quando = new Date(m.wa_timestamp).toLocaleString("pt-BR", { timeZone: "America/Bahia", day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit" });
-      return `[${i}] ${quando} · ${autor(m)}: ${conteudo(m)}`;
+      return `[${i}] ${quando} · ${sup && !m.from_me ? sup.nome : autor(m)}: ${conteudo(m)}`;
     });
+
+    const instrucoes = sup
+      ? [
+          "Você faz a triagem do WhatsApp do escritório MC Advogados (advocacia empresarial).",
+          `Hoje é ${hojeISO}. As mensagens abaixo são da conversa do escritório com ${sup.nome}, do Suporte (cuida do portal, sistemas, site, marketing e tecnologia do escritório).`,
+          "Mensagens marcadas [áudio] são a transcrição do que a pessoa falou num áudio: trate como se ela tivesse escrito.",
+          `Encontre só PEDIDOS DE TRABALHO que o escritório ("Escritório") faz para ${sup.nome}: pedir para fazer, ajustar, corrigir, criar, enviar, verificar ou resolver algo, ou mandar arquivo/link pedindo alguma providência.`,
+          `Ignore avisos automáticos (atas, códigos, relatórios de cliente, bom dia), cumprimentos, links ou arquivos sem pedido, e o que ${sup.nome} já respondeu como feito na conversa. As mensagens de ${sup.nome} servem só de contexto.`,
+          "Junte em UMA demanda as mensagens sobre o mesmo assunto. Se não houver pedido, devolva lista vazia.",
+          `Já registradas nos últimos dias (NÃO repita nem reescreva com outras palavras): ${(pendentes ?? []).map((p) => `"${p.titulo}"`).join(", ") || "nenhuma"}.`,
+          "Área: use null.",
+          "titulo: curto, começando com verbo no infinitivo (ex.: \"Ajustar formulário de registro de marca\"). descricao: o que foi pedido, com os detalhes úteis, em 1 a 4 frases. prazo: só se citaram data ou prazo. mensagens: índices [n] que originaram a demanda.",
+        ]
+      : null;
 
     const ia = await generateJson<{ demandas: DemandaIA[] }>({
       model: MODELOS.distribuicao, funcao: "distribuicao",
       schema: SCHEMA,
-      system: [
+      system: (instrucoes ?? [
         "Você faz a triagem do WhatsApp do escritório MC Advogados (advocacia empresarial).",
         `Hoje é ${hojeISO}. As mensagens abaixo são da conversa ${chat.is_group ? "do grupo" : "com o contato"} do cliente "${cliente}".`,
         "Mensagens marcadas [áudio] são a transcrição do que a pessoa falou num áudio: trate como se ela tivesse escrito.",
@@ -205,7 +244,7 @@ async function lerUmaVez(db: ReturnType<typeof createAdminClient>): Promise<Resu
         `Já registradas nos últimos dias (NÃO repita nem reescreva com outras palavras): ${(pendentes ?? []).map((p) => `"${p.titulo}"`).join(", ") || "nenhuma"}.`,
         `Área: escolha uma destas ou null: ${config.areas.join(", ")}.`,
         "titulo: curto, começando com verbo no infinitivo (ex.: \"Revisar contrato de locação da filial\"). descricao: o que o cliente pediu, com os detalhes úteis, em 1 a 4 frases. prazo: só se o cliente citou data ou prazo. mensagens: índices [n] que originaram a demanda.",
-      ].join("\n"),
+      ]).join("\n"),
       parts: [{ text: linhas.join("\n") }],
     });
 
@@ -224,7 +263,10 @@ async function lerUmaVez(db: ReturnType<typeof createAdminClient>): Promise<Resu
         .filter((i) => novas[i])
         .slice(0, 8)
         .map((i) => ({ texto: conteudo(novas[i]).slice(0, 600), quem: autor(novas[i]), em: novas[i].wa_timestamp }));
-      const doCliente = trechos.filter((tr) => !novas.find((m) => m.wa_timestamp === tr.em)?.from_me);
+      const doCliente = trechos.filter((tr) => {
+        const m = novas.find((x) => x.wa_timestamp === tr.em);
+        return !!m && ehPedido(m);
+      });
       if (doCliente.some((tr) => usadas.has(chave(tr.em)))) continue;
       doCliente.forEach((tr) => usadas.add(chave(tr.em)));
       linhasNovas.push({
@@ -236,7 +278,7 @@ async function lerUmaVez(db: ReturnType<typeof createAdminClient>): Promise<Resu
         area,
         prioridade: ["baixa", "media", "alta"].includes(d.prioridade) ? d.prioridade : "media",
         prazo_sugerido: d.prazo && /^\d{4}-\d{2}-\d{2}$/.test(d.prazo) && d.prazo >= hojeISO ? d.prazo : null,
-        responsavel_sugerido: await sugerirResponsavel(area, pessoas, chat.client_id),
+        responsavel_sugerido: sup ? sup.resp : await sugerirResponsavel(area, pessoas, chat.client_id),
         tipo: ACTIVITY_TYPES.includes(d.tipo as never) ? d.tipo : null,
         trechos: trechos as unknown as never,
       });
