@@ -55,7 +55,7 @@ export default async function PessoaDaEquipePage({ params, searchParams }: { par
   const adm = createAdminClient() as unknown as SupabaseClient;
 
   const [{ data: pessoa }, { data: resp }] = await Promise.all([
-    adm.from("profiles").select("id, full_name, email, role, ativo, super_admin").eq("id", id).in("role", ["admin", "advogado"]).maybeSingle(),
+    adm.from("profiles").select("*").eq("id", id).in("role", ["admin", "advogado"]).maybeSingle(),
     adm.from("responsaveis").select("id, foto_url, telefone").eq("profile_id", id).maybeSingle(),
   ]);
   if (!pessoa) notFound();
@@ -231,7 +231,7 @@ export default async function PessoaDaEquipePage({ params, searchParams }: { par
     if (pessoa.super_admin) {
       corpo = (
         <p className="ui-card flex items-center gap-2 p-5 text-sm text-foreground">
-          <Crown className="h-4 w-4 text-gold-ink" aria-hidden /> Admin máximo: vê tudo e decide o que cada pessoa vê.
+          <Crown className="h-4 w-4 text-gold-ink" aria-hidden /> {pessoa.suporte ? "Suporte: por enquanto com os mesmos poderes do admin máximo (vê tudo)." : "Admin máximo: vê tudo e decide o que cada pessoa vê."}
         </p>
       );
       corpo = (
@@ -288,7 +288,7 @@ export default async function PessoaDaEquipePage({ params, searchParams }: { par
         <div className="min-w-0">
           <h1 className="page-title">{pessoa.full_name}</h1>
           <p className="text-sm text-muted">
-            {pessoa.super_admin ? "Admin máximo" : pessoa.role === "admin" ? "Administrador" : "Advogado(a)"} · {pessoa.email}
+            {pessoa.suporte ? "Suporte · mesmos poderes do admin máximo" : pessoa.super_admin ? "Admin máximo" : pessoa.role === "admin" ? "Administrador" : "Advogado(a)"} · {pessoa.email}
             {!pessoa.ativo ? " · acesso desativado" : ""}
           </p>
         </div>

@@ -1853,6 +1853,7 @@ export type Database = {
           ativo: boolean
           oculto: boolean
           super_admin: boolean
+          suporte: boolean
           role: Database["public"]["Enums"]["user_role"]
           user_id: string
         }
@@ -1865,6 +1866,7 @@ export type Database = {
           ativo?: boolean
           oculto?: boolean
           super_admin?: boolean
+          suporte?: boolean
           role: Database["public"]["Enums"]["user_role"]
           user_id: string
         }
@@ -1877,6 +1879,7 @@ export type Database = {
           ativo?: boolean
           oculto?: boolean
           super_admin?: boolean
+          suporte?: boolean
           role?: Database["public"]["Enums"]["user_role"]
           user_id?: string
         }

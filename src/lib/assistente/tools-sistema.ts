@@ -466,7 +466,7 @@ export function toolsSistema(db: () => Db): ToolDef[] {
       run: async () => {
         const d = adm();
         const [{ data: perfis }, { data: desig }, { data: perms }, { data: clientes }] = await Promise.all([
-          d.from("profiles").select("id, full_name, email, role, ativo, oculto, super_admin").in("role", ["admin", "advogado"]).eq("oculto", false),
+          d.from("profiles").select("*").in("role", ["admin", "advogado"]).eq("oculto", false),
           d.from("equipe_clientes").select("profile_id, client_id"),
           d.from("equipe_permissoes").select("profile_id, permissoes"),
           d.from("clients").select("id, name"),
@@ -478,7 +478,7 @@ export function toolsSistema(db: () => Db): ToolDef[] {
           return {
             nome: p.full_name,
             email: p.email,
-            papel: p.super_admin ? "admin máximo" : p.role,
+            papel: p.suporte ? "suporte (mesmos poderes do admin máximo)" : p.super_admin ? "admin máximo" : p.role,
             ativo: p.ativo,
             clientes: (desig ?? []).filter((x) => x.profile_id === p.id).map((x) => nomeCli.get(x.client_id)),
             bloqueado: bloqueadas,

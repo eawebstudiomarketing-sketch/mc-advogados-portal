@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { ChevronRight, Crown, UserPlus } from "lucide-react";
+import { ChevronRight, Crown, LifeBuoy, UserPlus } from "lucide-react";
 import { listStaff } from "@/lib/data/team";
 import { ehSuperAdmin, exigirPermissao } from "@/lib/dal";
 import { getEscritorioConfig, listPessoas } from "@/lib/data/escritorio";
@@ -22,7 +22,7 @@ export default async function AdminTeamPage() {
   const souSuper = ehSuperAdmin(profile);
   const [staff, pessoas, config, cobranca] = await Promise.all([listStaff(), listPessoas(), getEscritorioConfig(), configCobranca()]);
   const fotoDe = new Map(pessoas.filter((p) => p.profileId).map((p) => [p.profileId!, p.foto]));
-  const ordenada = [...staff].sort((a, b) => Number(b.super_admin) - Number(a.super_admin) || (a.role === b.role ? a.full_name.localeCompare(b.full_name, "pt-BR") : a.role === "admin" ? -1 : 1));
+  const ordenada = [...staff].sort((a, b) => Number(b.super_admin && !b.suporte) - Number(a.super_admin && !a.suporte) || Number(b.suporte) - Number(a.suporte) || (a.role === b.role ? a.full_name.localeCompare(b.full_name, "pt-BR") : a.role === "admin" ? -1 : 1));
   const semLogin = pessoas.filter((p) => !p.profileId);
 
   return (
@@ -53,7 +53,11 @@ export default async function AdminTeamPage() {
                 <p className="truncate font-medium text-foreground">{t.full_name}</p>
                 <p className="truncate text-xs text-muted">{t.email}</p>
               </div>
-              {t.super_admin ? (
+              {t.suporte ? (
+                <span className="inline-flex items-center gap-1.5 rounded bg-status-info-bg px-2 py-0.5 text-xs font-semibold text-status-info">
+                  <LifeBuoy className="h-3.5 w-3.5" aria-hidden /> Suporte
+                </span>
+              ) : t.super_admin ? (
                 <span className="inline-flex items-center gap-1.5 rounded bg-gold-soft px-2 py-0.5 text-xs font-semibold text-gold-ink">
                   <Crown className="h-3.5 w-3.5" aria-hidden /> Admin máximo
                 </span>
