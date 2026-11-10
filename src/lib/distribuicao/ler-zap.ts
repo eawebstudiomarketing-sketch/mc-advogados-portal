@@ -34,6 +34,8 @@ type Msg = {
   media_path: string | null;
   media_mime: string | null;
   sender_jid: string | null;
+  /** "ia" = mensagem automática do portal; "humano" = alguém digitou */
+  quem?: string | null;
   raw: unknown;
   /** preenchido aqui: o que foi dito no áudio */
   transcricao?: string | null;
@@ -168,13 +170,13 @@ async function lerUmaVez(db: ReturnType<typeof createAdminClient>): Promise<Resu
     if (chat.ler_demandas === false) continue; // desligada a pedido
     const sup = !chat.is_group ? suporte.get(chat.chat_jid) : undefined;
     // quem faz o pedido: o cliente (normal) ou o escritório (conversa do Suporte)
-    const ehPedido = (m: Msg) => (sup ? m.from_me && !AUTOMATICA.test(m.texto ?? "") : !m.from_me);
+    const ehPedido = (m: Msg) => (sup ? m.from_me && m.quem !== "ia" && !AUTOMATICA.test(m.texto ?? "") : !m.from_me);
     const desde = chat.demandas_lidas_ate ?? new Date(Date.now() - PRIMEIRA_JANELA_H * 3_600_000).toISOString();
     if (chat.ultima_msg_em && chat.ultima_msg_em <= desde) continue;
 
     const { data: msgs } = await db
       .from("wa_messages")
-      .select("wa_timestamp, from_me, texto, tipo, media_nome, media_path, media_mime, sender_jid, raw")
+      .select("wa_timestamp, from_me, texto, tipo, media_nome, media_path, media_mime, sender_jid, quem, raw")
       .eq("chat_jid", chat.chat_jid)
       .gt("wa_timestamp", desde)
       .order("wa_timestamp", { ascending: false })
