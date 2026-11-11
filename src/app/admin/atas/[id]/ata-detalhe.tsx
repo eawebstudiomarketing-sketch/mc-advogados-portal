@@ -8,6 +8,7 @@ import { toast } from "sonner";
 import { AtaDocumento } from "@/components/atas/ata-documento";
 import { AssinaturaPad, type AssinaturaFeita } from "@/components/atas/assinatura-pad";
 import { ReuniaoEntrega } from "./reuniao-entrega";
+import { apagarPedacos, enviarGuardados, pedacosGuardados } from "@/lib/atas/copia-local";
 import {
   blocosDaAta,
   blocosParaCliente,
@@ -30,6 +31,7 @@ import {
   sincronizarZapsignAction,
   excluirAtaAction,
   finalizarGravacaoAction,
+  linkDeEnvioAction,
   reenviarAssinaturaAction,
   salvarAtaAction,
   type AssinaturaLinha,
@@ -139,10 +141,35 @@ export function AtaDetalhe({
     void a.play();
   }
 
+  // gravação não encerrada (11/11/2026): pedaços que ficaram guardados neste computador
+  const [guardados, setGuardados] = useState<number | null>(null);
+  const [recuperando, setRecuperando] = useState(false);
+  useEffect(() => {
+    if (ata.status !== "gravando") return;
+    let vivo = true;
+    void pedacosGuardados(ata.id).then((p) => vivo && setGuardados(p.length));
+    return () => {
+      vivo = false;
+    };
+  }, [ata.id, ata.status]);
+
   async function tentarDeNovo(fecharGravacao: boolean) {
     if (fecharGravacao) {
-      const f = await finalizarGravacaoAction(ata.id, { pedacos: true });
-      if (!f.ok) return void toast.error(f.erro);
+      setRecuperando(true);
+      try {
+        if (guardados) {
+          const base = await linkDeEnvioAction(ata.id);
+          if (!base) return void toast.error("Não foi possível falar com o servidor de mídia.");
+          const r = await enviarGuardados(ata.id, base);
+          if (r.falhas) return void toast.error(`${r.falhas} parte(s) guardada(s) neste computador não subiram. Confira a internet e tente de novo.`);
+          if (r.enviados) toast.success(`${r.enviados} parte(s) da gravação recuperada(s) deste computador.`);
+        }
+        const f = await finalizarGravacaoAction(ata.id, { pedacos: true });
+        if (!f.ok) return void toast.error(f.erro);
+        void apagarPedacos(ata.id);
+      } finally {
+        setRecuperando(false);
+      }
     }
     const r = await fetch(`/api/atas/${ata.id}/gerar`, { method: "POST" });
     if (!r.ok) toast.error((await r.json().catch(() => ({}))).error ?? "Não deu certo.");
@@ -210,9 +237,19 @@ export function AtaDetalhe({
 
       {ata.status === "gravando" && (
         <Cartao icone={<Clock className="h-5 w-5" aria-hidden />} titulo="A gravação não foi encerrada">
-          A aba da gravação foi fechada antes de encerrar? O que chegou ao servidor está salvo. Se a reunião já acabou, transcreva com o que foi gravado.
+          A aba da gravação foi fechada antes de encerrar? O que chegou ao servidor está salvo
+          {guardados ? (
+            <>
+              {" "}e <strong>{guardados} parte(s) a mais ficaram guardadas neste computador</strong>. Recupere aqui mesmo, neste computador.
+            </>
+          ) : (
+            ". Se a gravação foi feita em outro computador, abra esta página nele para recuperar o que ficou guardado lá."
+          )}{" "}
+          Se a reunião ainda está sendo gravada em outra aba, não clique: encerre por lá.
           <div className="mt-3">
-            <Acao onClick={() => tentarDeNovo(true)}>Transcrever com o que foi gravado</Acao>
+            <Acao onClick={() => tentarDeNovo(true)}>
+              {recuperando ? "Recuperando…" : "Recuperar e transcrever"}
+            </Acao>
           </div>
         </Cartao>
       )}

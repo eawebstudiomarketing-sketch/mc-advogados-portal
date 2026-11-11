@@ -7,12 +7,13 @@ import { toast } from "sonner";
 import { TIPOS_ATA, type Marcacao, type Participante, type TipoAta } from "@/lib/atas/formato";
 import { useTopoAoTrocar } from "@/lib/use-topo";
 import { contatosDoClienteAction, criarAtaAction, finalizarGravacaoAction, linkDeEnvioAction, salvarMarcacoesAction } from "../actions";
+import { apagarPedaco, apagarPedacos, guardarPedaco } from "@/lib/atas/copia-local";
 
 type Membro = { profileId: string; nome: string; telefone: string | null; email: string | null };
 type Pessoa = { nome: string; cargo: string; telefone: string; email: string; papel: "cliente" | "testemunha" | "outro" };
 type Modo = "presencial" | "online" | "arquivo";
 
-const PEDACO_MS = 30_000;
+const PEDACO_MS = 15_000; // 11/11/2026: era 30 s; menos a perder se a aba fechar
 const PROGRAMAS = ["Google Meet", "Zoom", "Microsoft Teams", "WhatsApp", "Outro"];
 const AVISO = "Pessoal, só um aviso: esta reunião vai ser gravada e transcrita. Se for preciso, depois é feita uma ata e enviada para todos conferirem e assinarem. Tudo bem?";
 const mmss = (s: number) => `${Math.floor(s / 3600) ? `${Math.floor(s / 3600)}:` : ""}${String(Math.floor((s % 3600) / 60)).padStart(Math.floor(s / 3600) ? 2 : 1, "0")}:${String(Math.floor(s % 60)).padStart(2, "0")}`;
@@ -44,7 +45,7 @@ export function NovaAta({ clientes, equipe, meuProfileId, clienteInicial }: { cl
   const [modo, setModo] = useState<Modo>("presencial");
   const [arquivo, setArquivo] = useState<File | null>(null);
   const [comecando, setComecando] = useState(false);
-  const [gravacao, setGravacao] = useState<{ ataId: string; inicio: number; recorder: MediaRecorder; streams: MediaStream[]; online: boolean } | null>(null);
+  const [gravacao, setGravacao] = useState<Gravacao | null>(null);
   const [envioArquivo, setEnvioArquivo] = useState<number | null>(null);
   useTopoAoTrocar(!!gravacao);
 
@@ -105,7 +106,16 @@ export function NovaAta({ clientes, equipe, meuProfileId, clienteInicial }: { cl
       if (!c.ok) throw new Error(c.erro);
       const formato = melhorFormato();
       const recorder = new MediaRecorder(fonte, formato ? { mimeType: formato, audioBitsPerSecond: 32_000 } : undefined);
-      setGravacao({ ataId: c.id, inicio: Date.now(), recorder, streams, online: !!tela });
+      // cada pedaço: numerado, guardado neste navegador (IndexedDB) e posto na fila de envio.
+      // Fica fora da tela de gravação de propósito: se ela sair do ar, o pedaço continua salvo aqui.
+      const fila: Gravacao["fila"] = { itens: [], contador: 0 };
+      recorder.addEventListener("dataavailable", (e) => {
+        if (!e.data.size) return;
+        const n = fila.contador++;
+        fila.itens.push({ n, blob: e.data });
+        void guardarPedaco(c.id, n, e.data);
+      });
+      setGravacao({ ataId: c.id, inicio: Date.now(), recorder, streams, online: !!tela, fila });
       enviador.current = { base: c.envio, ataId: c.id };
       recorder.start(PEDACO_MS);
     } catch (e) {
@@ -359,12 +369,21 @@ export function NovaAta({ clientes, equipe, meuProfileId, clienteInicial }: { cl
 
 /* ───────── gravando ───────── */
 
+type Gravacao = {
+  ataId: string;
+  inicio: number;
+  recorder: MediaRecorder;
+  streams: MediaStream[];
+  online: boolean;
+  fila: { itens: { n: number; blob: Blob }[]; contador: number };
+};
+
 function Gravando({
   g,
   enviador,
   onFim,
 }: {
-  g: { ataId: string; inicio: number; recorder: MediaRecorder; streams: MediaStream[]; online: boolean };
+  g: Gravacao;
   enviador: React.RefObject<{ base: string; ataId: string } | null>;
   onFim: (id: string) => void;
 }) {
@@ -375,9 +394,9 @@ function Gravando({
   const [marcacoes, setMarcacoes] = useState<Marcacao[]>([]);
   const [encerrando, setEncerrando] = useState<string | null>(null);
   const [telaCaiu, setTelaCaiu] = useState(false);
-  const fila = useRef<{ n: number; blob: Blob }[]>([]);
+  const fila = useRef(g.fila.itens);
+  const montada = useRef(false);
   const ocupado = useRef(false);
-  const contador = useRef(0);
 
   // relógio (em segundo plano o navegador atualiza mais devagar; a gravação não para)
   useEffect(() => {
@@ -407,6 +426,32 @@ function Gravando({
     return () => window.removeEventListener("beforeunload", segura);
   }, []);
 
+  // 11/11/2026: clicar em outra tela do portal tirava esta tela do ar sem aviso (o aviso do
+  // navegador só vale para fechar a aba). Agora pergunta antes; e, se sair, a gravação para
+  // e o que foi gravado fica guardado neste computador para recuperar na página da reunião.
+  useEffect(() => {
+    const clique = (e: MouseEvent) => {
+      const a = (e.target as HTMLElement | null)?.closest?.("a[href]") as HTMLAnchorElement | null;
+      if (!a || a.target === "_blank" || a.getAttribute("href")?.startsWith("#") || e.ctrlKey || e.metaKey) return;
+      if (!confirm("A gravação está em andamento. Se sair desta tela, ela para (o que já foi gravado fica salvo).\n\nPara terminar a reunião, use “Encerrar e transcrever”.\n\nSair mesmo assim?")) {
+        e.preventDefault();
+        e.stopPropagation();
+      }
+    };
+    document.addEventListener("click", clique, true);
+    montada.current = true;
+    return () => {
+      document.removeEventListener("click", clique, true);
+      montada.current = false;
+      // espera um instante: no modo de desenvolvimento o React desmonta e remonta na hora
+      setTimeout(() => {
+        if (montada.current) return;
+        if (g.recorder.state !== "inactive") g.recorder.stop();
+        g.streams.forEach((s) => s.getTracks().forEach((t) => t.stop()));
+      }, 500);
+    };
+  }, [g]);
+
   useEffect(() => {
     const tela = g.streams.find((s) => s.getVideoTracks().length);
     const fim = () => setTelaCaiu(true);
@@ -424,7 +469,8 @@ function Gravando({
         const e = enviador.current!;
         let ok = false;
         try {
-          const r = await fetch(e.base.replace("?", `/parte/${p.n}?`), { method: "PUT", body: p.blob });
+          // 11/11/2026: sem limite de tempo, um envio travado segurava a fila inteira em silêncio
+          const r = await fetch(e.base.replace("?", `/parte/${p.n}?`), { method: "PUT", body: p.blob, signal: AbortSignal.timeout(60_000) });
           if (r.status === 403) {
             const novo = await linkDeEnvioAction(e.ataId);
             if (novo) enviador.current = { ...e, base: novo };
@@ -435,6 +481,7 @@ function Gravando({
         }
         if (ok) {
           fila.current.shift();
+          void apagarPedaco(g.ataId, p.n);
           setSalvoAte((p.n + 1) * (PEDACO_MS / 1000));
           setPendentes(fila.current.length);
           setSemConexao(false);
@@ -451,9 +498,7 @@ function Gravando({
   }
 
   useEffect(() => {
-    const chegou = (e: BlobEvent) => {
-      if (!e.data.size) return;
-      fila.current.push({ n: contador.current++, blob: e.data });
+    const chegou = () => {
       setPendentes(fila.current.length);
       void bombear();
     };
@@ -494,6 +539,7 @@ function Gravando({
       setEncerrando(null);
       return void toast.error(f.erro);
     }
+    void apagarPedacos(g.ataId);
     setEncerrando("Transcrevendo…");
     await fetch(`/api/atas/${g.ataId}/gerar`, { method: "POST" }).catch(() => {});
     onFim(g.ataId);
@@ -512,9 +558,10 @@ function Gravando({
       </div>
       <div className="space-y-4 p-5 sm:p-6">
         <p className="flex items-center gap-2 text-sm text-muted">
-          {semConexao ? (
+          {/* envio parado (3+ pedaços na fila) também avisa */}
+          {semConexao || pendentes >= 3 ? (
             <>
-              <AlertTriangle className="h-4 w-4 text-status-danger" aria-hidden /> Sem conexão com o servidor: a gravação continua e os pedaços sobem quando a internet voltar ({pendentes} na fila).
+              <AlertTriangle className="h-4 w-4 text-status-danger" aria-hidden /> Sem conexão com o servidor: a gravação continua, guardada neste computador, e os pedaços sobem quando a internet voltar ({pendentes} na fila).
             </>
           ) : (
             <>
@@ -539,7 +586,7 @@ function Gravando({
             {encerrando ? <Loader2 className="h-4 w-4 animate-spin" aria-hidden /> : <Square className="h-4 w-4 fill-current" aria-hidden />} Encerrar e transcrever
           </button>
         </div>
-        <p className="text-xs text-muted">Marque os momentos importantes e as decisões: eles entram com prioridade na ata, se você gerar uma. Não feche esta aba até encerrar.</p>
+        <p className="text-xs text-muted">Marque os momentos importantes e as decisões: eles entram com prioridade na ata, se você gerar uma. Não feche esta aba nem troque de tela no portal até encerrar.</p>
       </div>
     </section>
   );

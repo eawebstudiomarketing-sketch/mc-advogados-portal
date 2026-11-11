@@ -1,6 +1,6 @@
 import Link from "next/link";
 import type { SupabaseClient } from "@supabase/supabase-js";
-import { Mic, NotebookPen, Plus } from "lucide-react";
+import { AlertTriangle, Mic, NotebookPen, Plus } from "lucide-react";
 import { exigirPermissao } from "@/lib/dal";
 import { createClient } from "@/lib/supabase/server";
 import { dataHoraBr, STATUS_ROTULO, TIPOS_ATA, type StatusAta, type TipoAta } from "@/lib/atas/formato";
@@ -56,6 +56,22 @@ export default async function AtasPage() {
           <Plus className="h-4 w-4" aria-hidden /> Nova reunião
         </Link>
       </div>
+
+      {/* 11/11/2026: gravação que a pessoa não encerrou (aba fechada) fica em destaque para recuperar */}
+      {atas
+        .filter((a) => a.status === "gravando" && a.profile_id === profile.id)
+        .map((a) => (
+          <Link
+            key={`pendente-${a.id}`}
+            href={`/admin/atas/${a.id}`}
+            className="mb-4 flex items-start gap-3 rounded-xl border border-status-danger/30 bg-status-danger-bg p-4 text-sm text-status-danger transition-colors hover:border-status-danger/60"
+          >
+            <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" aria-hidden />
+            <span>
+              <strong>Gravação não encerrada: {a.titulo}</strong> ({dataHoraBr(a.data_reuniao)}). Se a aba foi fechada sem “Encerrar”, abra aqui, neste mesmo computador, para recuperar o que foi gravado e transcrever.
+            </span>
+          </Link>
+        ))}
 
       {atas.length === 0 ? (
         <div className="ui-card flex flex-col items-center px-6 py-14 text-center">
