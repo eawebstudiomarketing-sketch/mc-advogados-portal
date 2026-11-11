@@ -72,8 +72,36 @@ export async function documentosRecebidos(c: Pick<Cobranca, "client_id" | "docum
   return c.documentos.filter((d) => chegou.has(semAcento(d)));
 }
 
+/**
+ * Trava (11/11/2026): a cobrança nunca vai para o WhatsApp de alguém da equipe.
+ * Caso real: atividades ligadas a um cadastro de cliente "Maurício Cardoso" com
+ * o celular dele → a cobrança da MR MOTOS chegou no número pessoal do Maurício.
+ * Compara os 8 últimos dígitos (com ou sem 55 / nono dígito).
+ */
+const final8 = (t: string) => t.split("@")[0].replace(/\D/g, "").slice(-8);
+async function nomeDaEquipeComEsseNumero(para: string): Promise<string | null> {
+  if (para.endsWith("@g.us")) return null;
+  const alvo = final8(para);
+  if (alvo.length < 8) return null;
+  const { data } = await db().from("responsaveis").select("nome, telefone").not("telefone", "is", null);
+  return (data ?? []).find((r) => r.telefone && final8(String(r.telefone)) === alvo)?.nome ?? null;
+}
+
+export type DestinoCobranca = { para: string; rotulo: string; daEquipe: string | null };
+
+/** Para onde vai a cobrança (com a trava da equipe). */
+export async function destinoDaCobranca(clientId: string, destino: Cobranca["destino"]): Promise<DestinoCobranca | null> {
+  const d = await destinoBruto(clientId, destino);
+  if (!d) return null;
+  const daEquipe = await nomeDaEquipeComEsseNumero(d.para);
+  return { ...d, daEquipe, rotulo: daEquipe ? `${d.rotulo}, que é o WhatsApp de ${daEquipe} (equipe) — cobrança travada` : d.rotulo };
+}
+
+export const MSG_DESTINO_EQUIPE = (nome: string) =>
+  `O WhatsApp desse cliente é o de ${nome}, da equipe. A cobrança não vai para lá: confira se a atividade está no cliente certo.`;
+
 /** Para onde vai a cobrança: o grupo do cliente, o número/contato dele, ou o automático (grupo, senão contato, senão número). */
-export async function destinoDaCobranca(clientId: string, destino: Cobranca["destino"]): Promise<{ para: string; rotulo: string } | null> {
+async function destinoBruto(clientId: string, destino: Cobranca["destino"]): Promise<{ para: string; rotulo: string } | null> {
   if (destino === "auto") return destinoDoCliente(clientId);
   const d = db();
   const [{ data: cliente }, { data: chats }] = await Promise.all([
@@ -161,6 +189,7 @@ export async function enviarCobranca(c: Cobranca, cfg: ConfigCobranca, { forcar 
   }
   const destino = await destinoDaCobranca(c.client_id, c.destino);
   if (!destino) return { ok: false, motivo: c.destino === "grupo" ? "O cliente não tem grupo de WhatsApp vinculado." : "O cliente não tem WhatsApp vinculado." };
+  if (destino.daEquipe) return { ok: false, motivo: MSG_DESTINO_EQUIPE(destino.daEquipe) };
   const texto = preencherMensagem(c.mensagem, { cliente: ctx.cliente, titulo: ctx.titulo, documentos: faltam.length ? faltam : c.documentos });
   const n = c.envios + 1;
   const job = await enfileirarMensagem({

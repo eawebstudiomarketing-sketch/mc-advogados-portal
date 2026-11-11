@@ -8,6 +8,7 @@ import { BotoesFicha } from "./botoes-ficha";
 import { PeticoesProcesso } from "./peticoes";
 import { MostrarEspecificacao } from "./mostrar-especificacao";
 import { FichaPatente } from "./ficha-patente";
+import { PreviaForaDaCarteira } from "./previa-fora-da-carteira";
 
 // Marcas → ficha do processo ("Detalhes da marca" no Marca Acompanhada, mesmo
 // desenho). Ctrl+P / botão Imprimir nesta página gera o PDF que vai para o
@@ -21,7 +22,12 @@ export default async function FichaMarcaPage({ params }: { params: Promise<{ pro
   await exigirPermissao("marcas");
   const { processo } = await params;
   const r = await getMarca(processo);
-  if (!r) notFound();
+  if (!r) {
+    // fora da carteira (resultado de busca): prévia pela base das revistas
+    const num = decodeURIComponent(processo).replace(/\D/g, "");
+    if (num.length >= 6) return <PreviaForaDaCarteira processo={num} />;
+    notFound();
+  }
   const { marca: m, publicacoes, prazos, colidencias } = r;
   if (m.tipo === "patente") return <FichaPatente m={m} publicacoes={publicacoes} prazos={prazos} />;
   const nome = nomeDaMarca(m);

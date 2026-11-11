@@ -66,7 +66,11 @@ function TabelaINPI({ linhas, destaque }: { linhas: Encontrado[]; destaque: Set<
         <tbody>
           {linhas.map((l) => (
             <tr key={l.processo} className={destaque.has(l.processo) ? "bg-[#FFE9B3]" : "bg-[#E0E0E0]"}>
-              <td className="px-1.5 py-1 tabular-nums text-[#1a5e8a]">{l.processo}</td>
+              <td className="px-1.5 py-1 tabular-nums text-[#1a5e8a]">
+                <Link href={`/admin/marcas/processos/${l.processo}`} target="_blank" className="hover:underline">
+                  {l.processo}
+                </Link>
+              </td>
               <td className="px-1.5 py-1 tabular-nums">{dataBr(l.deposito)}</td>
               <td className="px-1 py-1 text-center">
                 <Apresentacao tipo={l.apresentacao} />

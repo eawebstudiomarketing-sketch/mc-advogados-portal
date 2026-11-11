@@ -1,8 +1,8 @@
 "use client";
 
 import Link from "next/link";
-import { useMemo, useState, useTransition } from "react";
-import { useRouter } from "next/navigation";
+import { useEffect, useMemo, useRef, useState, useTransition } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
 import { toast } from "sonner";
 import { ArrowDown, ArrowUp, Database, Loader2, Plus, Search, Settings2 } from "lucide-react";
 import { acompanharAction, buscarCadastroAction, type DadosManuais, type ResultadoCadastro } from "../actions";
@@ -47,6 +47,9 @@ export function BuscaCadastro({ clientes }: { clientes: { id: string; nome: stri
   const [fonte, setFonte] = useState<FonteBusca | null>(null);
   const [buscando, startBusca] = useTransition();
   const [salvando, startSalvar] = useTransition();
+  // vindo da prévia de um processo fora da carteira: já busca pelo número
+  const params = useSearchParams();
+  const jaBuscou = useRef(false);
 
   function buscar(tipo: Aba = aba, termo = termos[tipo]) {
     if (!termo.trim()) return void toast.error("Digite um termo de busca");
@@ -63,6 +66,15 @@ export function BuscaCadastro({ clientes }: { clientes: { id: string; nome: stri
       if (tipo === "processo" && !r.resultados.length) setManual(termo.replace(/\D/g, ""));
     });
   }
+
+  useEffect(() => {
+    const n = (params.get("processo") ?? "").replace(/\D/g, "");
+    if (!n || jaBuscou.current) return;
+    jaBuscou.current = true;
+    setTermos((t) => ({ ...t, processo: n }));
+    buscar("processo", n);
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- só ao abrir
+  }, [params]);
 
   const vistos = useMemo(() => {
     const f = sem(filtro);
@@ -218,7 +230,11 @@ export function BuscaCadastro({ clientes }: { clientes: { id: string; nome: stri
                             className="h-4 w-4 accent-[var(--navy)]"
                           />
                         </td>
-                        <td className="px-4 py-2.5 font-mono text-sm">{r.processo}</td>
+                        <td className="px-4 py-2.5 font-mono text-sm">
+                          <Link href={`/admin/marcas/processos/${r.processo}`} target="_blank" className="text-navy-3 hover:underline">
+                            {r.processo}
+                          </Link>
+                        </td>
                         <td className="px-4 py-2.5 text-sm font-medium">{r.marca}</td>
                         <td className="px-4 py-2.5 text-sm">
                           <button

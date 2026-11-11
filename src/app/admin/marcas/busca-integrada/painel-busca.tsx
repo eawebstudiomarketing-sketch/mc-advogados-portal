@@ -200,13 +200,9 @@ export function PainelBuscaIntegrada() {
                     </td>
                     {modo === "nome" && <td className="px-3 py-2 text-sm tabular-nums">{r.relevancia}%</td>}
                     <td className="px-3 py-2 text-sm tabular-nums">
-                      {r.jaRegistrado ? (
-                        <Link href={`/admin/marcas/processos/${r.processo}`} className="text-navy-3 hover:underline">
-                          {r.processo}
-                        </Link>
-                      ) : (
-                        r.processo
-                      )}
+                      <Link href={`/admin/marcas/processos/${r.processo}`} target={r.jaRegistrado ? undefined : "_blank"} className="text-navy-3 hover:underline" title={r.jaRegistrado ? "Abrir a ficha" : "Fora da carteira: abrir a prévia em outra aba"}>
+                        {r.processo}
+                      </Link>
                     </td>
                     <td className="px-3 py-2 text-sm font-medium">{r.marca}</td>
                     <td className="px-3 py-2 text-sm">{r.classes}</td>

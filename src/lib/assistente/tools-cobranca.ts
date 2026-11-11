@@ -1,6 +1,6 @@
 import "server-only";
 import type { SupabaseClient } from "@supabase/supabase-js";
-import { configCobranca, destinoDaCobranca, listaDocumentos, preencherMensagem, saudacaoCliente } from "@/lib/cobrancas";
+import { configCobranca, destinoDaCobranca, MSG_DESTINO_EQUIPE, listaDocumentos, preencherMensagem, saudacaoCliente } from "@/lib/cobrancas";
 import type { ToolDef } from "./tools";
 
 // Ferramentas do assistente para a cobrança de documento (03/11/2026) e as
@@ -66,6 +66,7 @@ export function toolsCobranca(dbTipado: () => unknown): ToolDef[] {
         const destino = (["auto", "grupo", "numero"].includes(String(a.destino)) ? String(a.destino) : "auto") as "auto" | "grupo" | "numero";
         const rot = await destinoDaCobranca(clienteId, destino);
         if (!rot) throw new Error("O cliente não tem WhatsApp vinculado por esse caminho.");
+        if (rot.daEquipe) throw new Error(MSG_DESTINO_EQUIPE(rot.daEquipe));
         const intervalo = Math.min(30, Math.max(1, Math.round(Number(a.intervalo_dias) || cfg.intervaloDias)));
         const campos = { client_id: clienteId, documentos: docs, mensagem: String(a.mensagem ?? "").trim().slice(0, 2000) || cfg.mensagem, destino, intervalo_dias: intervalo, updated_at: new Date().toISOString() };
         const { data: atual } = await db().from("cobrancas_documentos").select("id").eq("activity_id", at.id).maybeSingle();

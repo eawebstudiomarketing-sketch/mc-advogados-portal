@@ -7,7 +7,7 @@ import { createAdminClient } from "@/lib/supabase/admin";
 import { requireRole } from "@/lib/dal";
 import { generateJson } from "@/lib/gemini";
 import { MODELOS } from "@/lib/ia-modelos";
-import { cobrancaDaAtividade, configCobranca, destinoDaCobranca, enviarCobranca, saudacaoCliente, type Cobranca, type ConfigCobranca } from "@/lib/cobrancas";
+import { cobrancaDaAtividade, configCobranca, destinoDaCobranca, MSG_DESTINO_EQUIPE, enviarCobranca, saudacaoCliente, type Cobranca, type ConfigCobranca } from "@/lib/cobrancas";
 
 // Cobrança de documento na atividade (03/11/2026): quem faz a atividade liga,
 // escolhe os documentos, por onde vai (grupo ou número), de quanto em quanto
@@ -86,9 +86,11 @@ export async function salvarCobrancaAction(c: {
     if (error) return { ok: false, erro: "Não foi possível vincular o cliente." };
     clienteId = c.clienteId;
   }
-  if (!(await destinoDaCobranca(clienteId, c.destino))) {
+  const destinoOk = await destinoDaCobranca(clienteId, c.destino);
+  if (!destinoOk) {
     return { ok: false, erro: c.destino === "grupo" ? "Este cliente não tem grupo de WhatsApp vinculado. Escolha o número ou o automático." : "Este cliente não tem WhatsApp vinculado (grupo, contato ou número na ficha)." };
   }
+  if (destinoOk.daEquipe) return { ok: false, erro: MSG_DESTINO_EQUIPE(destinoOk.daEquipe) };
   const { data: atual } = await adm().from("cobrancas_documentos").select("id, ativa").eq("activity_id", c.activityId).maybeSingle();
   const campos = { client_id: clienteId, documentos, mensagem, destino: c.destino, intervalo_dias: intervalo, updated_at: new Date().toISOString() };
   const { error } = atual

@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { Suspense } from "react";
 import { exigirPermissao } from "@/lib/dal";
 import { BuscaCadastro } from "./busca-cadastro";
 import { createAdminClient } from "@/lib/supabase/admin";
@@ -22,7 +23,9 @@ export default async function CadastrarMarcasPage() {
           Ver minhas marcas
         </Link>
       </div>
-      <BuscaCadastro clientes={(clientes ?? []).map((c) => ({ id: c.id, nome: c.name }))} />
+      <Suspense>
+        <BuscaCadastro clientes={(clientes ?? []).map((c) => ({ id: c.id, nome: c.name }))} />
+      </Suspense>
     </div>
   );
 }
