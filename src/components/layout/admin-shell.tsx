@@ -4,11 +4,11 @@ import Image from "next/image";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { Suspense, useEffect, useMemo, useState } from "react";
-import { Search, Menu, X, LogOut, UserRound, Bell, MessagesSquare } from "lucide-react";
+import { Search, Menu, X, LogOut, UserRound, Bell, MessagesSquare, ChevronDown } from "lucide-react";
 import { logout } from "@/app/logout/actions";
 import { CommandPalette, type PaletteItem } from "./command-palette";
 import type { Permissoes } from "@/lib/permissoes";
-import { secoesVisiveis, rotaAtiva, type Secao } from "./secoes";
+import { GRUPOS, secoesVisiveis, rotaAtiva, type Secao } from "./secoes";
 import { AbasSecao } from "./abas-secao";
 import { NovoMenu, AtalhosMenu } from "./atalhos-topo";
 import { InstalarApp } from "./instalar-app";
@@ -133,7 +133,11 @@ export function AdminShell({
 
   // item do menu = uma seção; leva à primeira tela dela que a pessoa pode ver.
   // O número somado das telas da seção aparece ao lado do nome.
-  const itemNav = (secao: Secao) => {
+  // Gestão (11/11/2026): item maior que abre e fecha; já vem aberto quando a tela atual está dentro dele
+  const [gruposAbertos, setGruposAbertos] = useState<Record<string, boolean>>({});
+  const grupoAberto = (id: string) => gruposAbertos[id] ?? secaoAtual?.grupo === id;
+
+  const itemNav = (secao: Secao, sub = false) => {
     const on = secao.id === secaoAtual?.id;
     const Icone = secao.icon;
     const n = secao.abas.reduce((soma, a) => soma + badge(a.href), 0);
@@ -142,11 +146,11 @@ export function AdminShell({
         <Link
           href={secao.abas[0].href}
           aria-current={on ? "page" : undefined}
-          className={`relative flex h-10 items-center gap-3 rounded-lg px-[11px] text-sm whitespace-nowrap transition-colors duration-150 ${
+          className={`relative flex ${sub ? "h-9 pl-[30px]" : "h-10"} items-center gap-3 rounded-lg px-[11px] text-sm whitespace-nowrap transition-colors duration-150 ${
             on ? "bg-navy/10 text-navy-3" : "text-muted hover:bg-hover hover:text-foreground"
           }`}
         >
-          <Icone className="h-[18px] w-[18px] shrink-0" aria-hidden />
+          <Icone className={`${sub ? "h-4 w-4" : "h-[18px] w-[18px]"} shrink-0`} aria-hidden />
           <span className="flex-1 truncate font-medium">{secao.label}</span>
           {n > 0 && (
             <span
@@ -179,7 +183,41 @@ export function AdminShell({
       </div>
 
       <nav className="flex-1 space-y-1 overflow-x-hidden overflow-y-auto px-[10px] pt-2 pb-4" aria-label="Menu principal">
-        <ul className="space-y-0.5">{secoes.map(itemNav)}</ul>
+        <ul className="space-y-0.5">
+          {secoes.map((sc, i) => {
+            if (!sc.grupo) return itemNav(sc);
+            if (secoes.findIndex((x) => x.grupo === sc.grupo) !== i) return null;
+            const g = GRUPOS.find((x) => x.id === sc.grupo);
+            if (!g) return null;
+            const filhas = secoes.filter((x) => x.grupo === g.id);
+            const aberto = grupoAberto(g.id);
+            const dentro = secaoAtual?.grupo === g.id;
+            const IconeG = g.icon;
+            const n = filhas.reduce((soma, f) => soma + f.abas.reduce((t, a) => t + badge(a.href), 0), 0);
+            return (
+              <li key={`grupo-${g.id}`}>
+                <button
+                  type="button"
+                  onClick={() => setGruposAbertos((o) => ({ ...o, [g.id]: !aberto }))}
+                  aria-expanded={aberto}
+                  className={`relative flex h-10 w-full items-center gap-3 rounded-lg px-[11px] text-left text-sm whitespace-nowrap transition-colors duration-150 ${
+                    dentro && !aberto ? "bg-navy/10 text-navy-3" : dentro ? "text-navy-3" : "text-muted hover:bg-hover hover:text-foreground"
+                  }`}
+                >
+                  <IconeG className="h-[18px] w-[18px] shrink-0" aria-hidden />
+                  <span className="flex-1 truncate font-medium">{g.label}</span>
+                  {!aberto && n > 0 && (
+                    <span className="rounded-full bg-navy px-1.5 text-[10px] leading-4 font-semibold text-white tabular-nums" aria-label={`${n} pendentes`}>
+                      {n > 99 ? "99+" : n}
+                    </span>
+                  )}
+                  <ChevronDown className={`h-4 w-4 shrink-0 transition-transform duration-200 ${aberto ? "rotate-180" : ""}`} aria-hidden />
+                </button>
+                {aberto && <ul className="mt-0.5 space-y-0.5">{filhas.map((f) => itemNav(f, true))}</ul>}
+              </li>
+            );
+          })}
+        </ul>
       </nav>
 
       <div className="border-t border-border px-[10px] py-3">

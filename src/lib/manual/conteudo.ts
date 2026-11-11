@@ -12,7 +12,7 @@ const p = (nome: string) => `${IMG}/${nome}.png`;
 
 export const PRIMEIROS_PASSOS: { titulo: string; texto: string }[] = [
   { titulo: "Entrar", texto: "Acesse mcadvogados.app.br e entre com o seu e-mail e senha. Esqueceu a senha? Clique em “Esqueci minha senha” na tela de entrada." },
-  { titulo: "Menu", texto: "O menu da esquerda tem as áreas do escritório. Dentro de cada área, as telas aparecem como abas no alto da página. Cada pessoa vê só o que tem permissão (quem libera é o Dr. Maurício, em Gestão → Equipe)." },
+  { titulo: "Menu", texto: "O menu da esquerda tem as áreas do escritório; “Gestão” abre e mostra Administração, Financeiro, Arquivos, Ferramentas e Manual. Dentro de cada área, as telas aparecem como abas no alto da página. Cada pessoa vê só o que tem permissão (quem libera é o Dr. Maurício, em Gestão → Administração → Equipe)." },
   { titulo: "Busca rápida", texto: "A caixa “Buscar cliente, atividade, processo…” no topo (ou Ctrl + K) acha qualquer coisa do portal pelo nome." },
   { titulo: "Botão Novo", texto: "O botão azul “Novo”, no topo, cria atividade, compromisso, cliente e outros sem sair da tela em que você está." },
   { titulo: "Sininho e avisos no celular", texto: "O sininho mostra o que precisa da sua atenção (publicação encaminhada, prazo, menção, lead novo…). No celular, abra o portal e toque em “Ativar avisos no celular” para receber os mesmos avisos como notificação." },
@@ -403,7 +403,7 @@ export const CAPITULOS: Capitulo[] = [
   {
     id: "arquivos",
     titulo: "Arquivos",
-    onde: "Menu → Arquivos (Documentos, Contratos, Reuniões, Relatórios)",
+    onde: "Menu → Gestão → Arquivos (Documentos, Contratos, Reuniões, Relatórios)",
     resumo: "Documentos dos clientes, contratos, gravações de reunião e relatórios mensais.",
     telas: [
       { titulo: "Documentos", href: "/admin/documents", print: p("documentos"), praQue: "Os documentos de cada cliente (também no Google Drive dele).", passos: ["“Enviar documento”: escolha o cliente e o arquivo.", "Marque se o cliente pode ver no portal dele."] },
@@ -421,14 +421,14 @@ export const CAPITULOS: Capitulo[] = [
   {
     id: "financeiro",
     titulo: "Financeiro",
-    onde: "Menu → Financeiro",
+    onde: "Menu → Gestão → Financeiro",
     resumo: "Lançamentos de honorários e despesas. Só para quem tem a permissão “Financeiro”.",
     telas: [{ titulo: "Financeiro", href: "/admin/financial", print: p("financeiro"), praQue: "Controlar o que entra e sai.", passos: ["“Novo lançamento”: valor, cliente, vencimento e se já foi pago."] }],
   },
   {
     id: "ferramentas",
     titulo: "Ferramentas",
-    onde: "Menu → Ferramentas (IA, Transcrição)",
+    onde: "Menu → Gestão → Ferramentas (IA, Transcrição)",
     resumo: "O Assistente em tela grande e a transcrição de áudios.",
     telas: [
       { titulo: "IA (Assistente)", href: "/admin/ia", print: p("ia"), praQue: "O mesmo Assistente do botão redondo (Ctrl + J), em tela grande.", passos: ["Peça em português; ele consulta e faz por você, pedindo confirmação antes de mudar algo."] },
@@ -443,8 +443,8 @@ export const CAPITULOS: Capitulo[] = [
   },
   {
     id: "gestao",
-    titulo: "Gestão",
-    onde: "Menu → Gestão (Painel do Dono, Indicadores, Equipe, Integrações, Lixeira)",
+    titulo: "Administração",
+    onde: "Menu → Gestão → Administração (Painel do Dono, Indicadores, Equipe, Integrações, Lixeira)",
     resumo: "Números do escritório, a equipe e as permissões, integrações e a lixeira.",
     telas: [
       { titulo: "Painel do Dono", href: "/admin/painel", print: p("painel"), praQue: "Só para o Dr. Maurício: saúde do escritório, números, rotinas da equipe e prioridades, com resumo da IA.", passos: ["Leia o resumo do dia; os quadros abrem o detalhe de cada número."] },
@@ -463,7 +463,7 @@ export const CAPITULOS: Capitulo[] = [
 ];
 
 export const PERGUNTAS: { p: string; r: string }[] = [
-  { p: "Não estou vendo uma tela que outra pessoa vê.", r: "Cada pessoa vê só o que tem permissão. Peça ao Dr. Maurício para liberar em Gestão → Equipe." },
+  { p: "Não estou vendo uma tela que outra pessoa vê.", r: "Cada pessoa vê só o que tem permissão. Peça ao Dr. Maurício para liberar em Gestão → Administração → Equipe." },
   { p: "Preciso mudar o prazo de uma atividade.", r: "Abra a atividade e use “Pedir mudança de prazo” (nova data + justificativa). O Dr. Maurício aprova ou recusa; você recebe aviso." },
   { p: "Chegou uma publicação que não é minha.", r: "Em Publicações, clique em “Encaminhar para…” e escolha a pessoa. Ela passa a ser a responsável e recebe aviso." },
   { p: "Não recebo os avisos no celular.", r: "Abra o portal no celular e toque em “Ativar avisos no celular”; aceite as notificações quando o navegador perguntar." },

@@ -46,7 +46,13 @@ import { PERM_DA_TELA, type PermChave, type Permissoes } from "@/lib/permissoes"
 
 /** perm: permissão da tela quando ela não está em PERM_DA_TELA (subtelas novas). */
 export type NavItem = { href: string; label: string; icon: LucideIcon; todos?: boolean; soSuper?: boolean; perm?: PermChave };
-export type Secao = { id: string; label: string; icon: LucideIcon; abas: NavItem[] };
+/** grupo: a seção fica dentro de um item maior do menu (ex.: Gestão), que abre e fecha. */
+export type Secao = { id: string; label: string; icon: LucideIcon; abas: NavItem[]; grupo?: string };
+export type Grupo = { id: string; label: string; icon: LucideIcon };
+
+// Itens maiores do menu que juntam várias seções (11/11/2026, pedido do usuário):
+// Gestão = Administração + Financeiro + Arquivos + Ferramentas + Manual.
+export const GRUPOS: Grupo[] = [{ id: "gestao", label: "Gestão", icon: Settings2 }];
 
 // Menu em seções (30/10/2026, redesenho da navegação), em ordem de prioridade
 // (Distribuição, WhatsApp e Demandas logo abaixo da Área de trabalho): cada item do menu é uma
@@ -57,6 +63,19 @@ export const SECOES: Secao[] = [
   { id: "inicio", label: "Área de trabalho", icon: LayoutDashboard, abas: [{ href: "/admin", label: "Área de trabalho", icon: LayoutDashboard }] },
   { id: "distribuicao", label: "Distribuição", icon: Inbox, abas: [{ href: "/admin/distribuicao", label: "Distribuição", icon: Inbox }] },
   { id: "whatsapp", label: "WhatsApp", icon: MessageCircle, abas: [{ href: "/admin/whatsapp", label: "WhatsApp", icon: MessageCircle }] },
+  {
+    // CRM (06/11/2026): leads dos formulários e anúncios, funil e pixels
+    id: "comercial",
+    label: "Comercial",
+    icon: Target,
+    abas: [
+      { href: "/admin/comercial", label: "Funil", icon: SquareKanban, perm: "comercial" },
+      { href: "/admin/comercial/formularios", label: "Formulários", icon: ClipboardPen, perm: "comercial" },
+      { href: "/admin/comercial/visitas", label: "Visitas", icon: Radar, perm: "comercial" },
+      { href: "/admin/comercial/numeros", label: "Números", icon: BarChart3, perm: "comercial" },
+      { href: "/admin/comercial/configurar", label: "Pixels e ajustes", icon: Settings2, perm: "comercial" },
+    ],
+  },
   {
     id: "demandas",
     label: "Demandas",
@@ -89,19 +108,6 @@ export const SECOES: Secao[] = [
       { href: "/admin/clients/aniversarios", label: "Aniversários", icon: Cake, perm: "clientes" },
     ],
   },
-  {
-    // CRM (06/11/2026): leads dos formulários e anúncios, funil e pixels
-    id: "comercial",
-    label: "Comercial",
-    icon: Target,
-    abas: [
-      { href: "/admin/comercial", label: "Funil", icon: SquareKanban, perm: "comercial" },
-      { href: "/admin/comercial/formularios", label: "Formulários", icon: ClipboardPen, perm: "comercial" },
-      { href: "/admin/comercial/visitas", label: "Visitas", icon: Radar, perm: "comercial" },
-      { href: "/admin/comercial/numeros", label: "Números", icon: BarChart3, perm: "comercial" },
-      { href: "/admin/comercial/configurar", label: "Pixels e ajustes", icon: Settings2, perm: "comercial" },
-    ],
-  },
   { id: "processos", label: "Processos", icon: Gavel, abas: [{ href: "/admin/processes", label: "Processos e casos", icon: Gavel }] },
   {
     // marcas no INPI (30/10/2026), as mesmas telas do Marca Acompanhada
@@ -120,8 +126,24 @@ export const SECOES: Secao[] = [
       { href: "/admin/marcas/whatsapp", label: "WhatsApp", icon: MessageCircle, perm: "marcas" },
     ],
   },
+  // Gestão (11/11/2026): Administração, Financeiro, Arquivos, Ferramentas e Manual dentro dela
+  {
+    id: "administracao",
+    label: "Administração",
+    grupo: "gestao",
+    icon: UserCog,
+    abas: [
+      { href: "/admin/painel", label: "Painel do Dono", icon: Gauge, soSuper: true },
+      { href: "/admin/indicadores", label: "Indicadores", icon: Activity, todos: true },
+      { href: "/admin/team", label: "Equipe", icon: UserCog },
+      { href: "/admin/integracoes", label: "Integrações", icon: Plug },
+      { href: "/admin/lixeira", label: "Lixeira", icon: Trash2 },
+    ],
+  },
+  { id: "financeiro", label: "Financeiro", icon: Wallet, grupo: "gestao", abas: [{ href: "/admin/financial", label: "Financeiro", icon: Wallet }] },
   {
     id: "arquivos",
+    grupo: "gestao",
     label: "Arquivos",
     icon: FolderOpen,
     abas: [
@@ -131,9 +153,9 @@ export const SECOES: Secao[] = [
       { href: "/admin/reports", label: "Relatórios", icon: BarChart3 },
     ],
   },
-  { id: "financeiro", label: "Financeiro", icon: Wallet, abas: [{ href: "/admin/financial", label: "Financeiro", icon: Wallet }] },
   {
     id: "ferramentas",
+    grupo: "gestao",
     label: "Ferramentas",
     icon: Wrench,
     abas: [
@@ -141,20 +163,8 @@ export const SECOES: Secao[] = [
       { href: "/admin/transcricao", label: "Transcrição", icon: AudioLines, todos: true },
     ],
   },
-  {
-    id: "gestao",
-    label: "Gestão",
-    icon: Settings2,
-    abas: [
-      { href: "/admin/painel", label: "Painel do Dono", icon: Gauge, soSuper: true },
-      { href: "/admin/indicadores", label: "Indicadores", icon: Activity, todos: true },
-      { href: "/admin/team", label: "Equipe", icon: UserCog },
-      { href: "/admin/integracoes", label: "Integrações", icon: Plug },
-      { href: "/admin/lixeira", label: "Lixeira", icon: Trash2 },
-    ],
-  },
   // Manual do portal (09/11/2026): todo mundo vê
-  { id: "manual", label: "Manual", icon: LifeBuoy, abas: [{ href: "/admin/manual", label: "Manual", icon: LifeBuoy, todos: true }] },
+  { id: "manual", label: "Manual", icon: LifeBuoy, grupo: "gestao", abas: [{ href: "/admin/manual", label: "Manual", icon: LifeBuoy, todos: true }] },
 ];
 
 /** Seções com só as abas que a pessoa pode ver (seção sem nenhuma some). */

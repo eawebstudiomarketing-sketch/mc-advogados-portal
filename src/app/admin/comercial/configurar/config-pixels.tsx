@@ -112,7 +112,7 @@ export function ConfigPixels({ config, equipe }: { config: Config; equipe: { id:
             </label>
           ))}
         </div>
-        <p className="text-xs text-muted">Para o Estevão aparecer aqui, ele precisa de login no portal e da permissão “Comercial” (Gestão → Equipe).</p>
+        <p className="text-xs text-muted">Para o Estevão aparecer aqui, ele precisa de login no portal e da permissão “Comercial” (Gestão → Administração → Equipe).</p>
         <label className="flex items-center gap-2 text-sm text-foreground">
           <input type="checkbox" name="avisar_zap" defaultChecked={config.avisar_zap} className="h-4 w-4" />
           Avisar no WhatsApp de quem recebe o lead (além do aviso no portal e no celular)
