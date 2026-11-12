@@ -1,4 +1,4 @@
-import Link from "next/link";
+import { LinkMenu as Link } from "@/components/layout/link-menu";
 import { StatusRapido } from "@/components/atividade/status-rapido";
 import { Suspense } from "react";
 import { PeriodoFiltro } from "@/components/ui/periodo-filtro";
