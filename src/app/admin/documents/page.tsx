@@ -21,12 +21,15 @@ export default async function AdminDocumentsPage({
 }) {
   const { permissoes } = await exigirPermissao("documentos");
   const { page: pageParam, busca, categoria, cliente, ordem } = await searchParams;
-  const docsPage = await listDocumentsPage(
-    { semAtas: !permissoes.atas, busca, categoria: categoria === "ata" && !permissoes.atas ? undefined : categoria, clientId: cliente },
-    { page: Number(pageParam) || 1, pageSize: DOCS_PER_PAGE, ordem: ordem === "titulo" || ordem === "antigos" ? ordem : undefined }
-  );
+  const [docsPage, todosClientes] = await Promise.all([
+    listDocumentsPage(
+      { semAtas: !permissoes.atas, busca, categoria: categoria === "ata" && !permissoes.atas ? undefined : categoria, clientId: cliente },
+      { page: Number(pageParam) || 1, pageSize: DOCS_PER_PAGE, ordem: ordem === "titulo" || ordem === "antigos" ? ordem : undefined }
+    ),
+    listClients(),
+  ]);
   const documents = docsPage.items;
-  const clients = (await listClients()).map((c) => ({ id: c.id, name: c.name }));
+  const clients = todosClientes.map((c) => ({ id: c.id, name: c.name }));
   const filtrosQs = new URLSearchParams(Object.entries({ busca, categoria, cliente, ordem }).filter(([, v]) => v) as [string, string][]);
 
   return (

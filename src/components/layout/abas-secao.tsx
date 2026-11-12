@@ -1,6 +1,6 @@
 "use client";
 
-import Link from "next/link";
+import { LinkMenu as Link } from "./link-menu";
 import type { Secao } from "./secoes";
 
 /**

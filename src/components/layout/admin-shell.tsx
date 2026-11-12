@@ -1,7 +1,7 @@
 "use client";
 
 import Image from "next/image";
-import Link from "next/link";
+import { LinkMenu as Link } from "./link-menu";
 import { usePathname } from "next/navigation";
 import { Suspense, useEffect, useMemo, useState } from "react";
 import { Search, Menu, X, LogOut, UserRound, Bell, MessagesSquare, ChevronDown } from "lucide-react";

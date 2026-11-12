@@ -1,6 +1,6 @@
 "use client";
 
-import Link from "next/link";
+import { LinkMenu as Link } from "./link-menu";
 import { useEffect, useRef, useState, useSyncExternalStore } from "react";
 import { usePathname, useSearchParams } from "next/navigation";
 import { CalendarDays, FileSignature, FileText, Gavel, ListChecks, Plus, Star, Users, Wallet, Clock, X, type LucideIcon } from "lucide-react";

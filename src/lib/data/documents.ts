@@ -92,12 +92,16 @@ export async function listDocumentsPage(
     ({ data, count } = await run(page));
   }
 
-  const items = await Promise.all(
-    data.map(async (doc) => {
-      if (doc.drive_file_id) return { ...doc, downloadUrl: `/api/documents/${doc.id}/download` };
-      const { data: signed } = await supabase.storage.from("documents").createSignedUrl(doc.file_path, SIGNED_URL_TTL_SECONDS);
-      return { ...doc, downloadUrl: signed?.signedUrl ?? null };
-    })
+  // Uma assinatura em lote para a página inteira (antes era uma chamada ao Storage por documento).
+  const caminhos = data.filter((d) => !d.drive_file_id && d.file_path).map((d) => d.file_path as string);
+  const { data: assinados } = caminhos.length
+    ? await supabase.storage.from("documents").createSignedUrls(caminhos, SIGNED_URL_TTL_SECONDS)
+    : { data: [] };
+  const urlDe = new Map((assinados ?? []).map((a) => [a.path, a.signedUrl]));
+  const items = data.map((doc) =>
+    doc.drive_file_id
+      ? { ...doc, downloadUrl: `/api/documents/${doc.id}/download` }
+      : { ...doc, downloadUrl: urlDe.get(doc.file_path) ?? null }
   );
   return { items, total: count, page, totalPages };
 }
