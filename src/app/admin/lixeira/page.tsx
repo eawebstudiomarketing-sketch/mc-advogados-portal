@@ -2,6 +2,8 @@ import { exigirPermissao } from "@/lib/dal";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { TRASH_DAYS } from "@/lib/trash";
 import { RestoreButton } from "./restore-button";
+import { RestaurarAtividade } from "./restaurar-atividade";
+import { listarLixeiraAtividades } from "@/lib/lixeira-atividades";
 
 export const dynamic = "force-dynamic";
 
@@ -15,8 +17,8 @@ function whenText(iso: string): string {
   return `${f({ day: "2-digit", month: "2-digit", year: "numeric" })} às ${f({ hour: "2-digit", minute: "2-digit" })}`;
 }
 
-type Row = { id: string; batch_id: string; client_id: string; title: string; reason: string; deleted_at: string; deleted_by: string | null };
-type Batch = { id: string; clientId: string; reason: string; deletedAt: string; deletedBy: string | null; titles: string[]; count: number };
+type Row = { id: string; batch_id: string; client_id: string | null; title: string; reason: string; deleted_at: string; deleted_by: string | null };
+type Batch = { id: string; clientId: string | null; reason: string; deletedAt: string; deletedBy: string | null; titles: string[]; count: number };
 
 // Lixeira do portal: tudo que foi removido fica aqui 30 dias, agrupado pelo
 // que saiu junto. Os arquivos no Google Drive nunca são apagados pelo portal.
@@ -50,8 +52,9 @@ export default async function LixeiraPage() {
   }
   const list = [...batches.values()].sort((a, b) => b.deletedAt.localeCompare(a.deletedAt));
 
-  const clientIds = [...new Set(list.map((b) => b.clientId))];
-  const profileIds = [...new Set(list.map((b) => b.deletedBy).filter((x): x is string => !!x))];
+  const atividades = (await listarLixeiraAtividades()) ?? [];
+  const clientIds = [...new Set([...list.map((b) => b.clientId), ...atividades.map((a) => a.client_id)].filter((x): x is string => !!x))];
+  const profileIds = [...new Set([...list.map((b) => b.deletedBy), ...atividades.map((a) => a.deleted_by)].filter((x): x is string => !!x))];
   const [{ data: clients }, { data: profiles }] = await Promise.all([
     clientIds.length ? admin.from("clients").select("id, name").in("id", clientIds) : Promise.resolve({ data: [] as { id: string; name: string }[] }),
     profileIds.length ? admin.from("profiles").select("id, full_name").in("id", profileIds) : Promise.resolve({ data: [] as { id: string; full_name: string }[] }),
@@ -65,9 +68,34 @@ export default async function LixeiraPage() {
         <p className="eyebrow mb-2">Gestão · Lixeira</p>
         <h1 className="page-title">Lixeira</h1>
         <p className="text-sm text-muted">
-          Documentos removidos do portal ficam aqui por {TRASH_DAYS} dias e podem ser restaurados. Os arquivos no Google Drive nunca são apagados pelo portal.
+          Documentos e atividades removidos do portal ficam aqui por {TRASH_DAYS} dias e podem ser restaurados. Os arquivos no Google Drive nunca são apagados pelo portal.
         </p>
       </div>
+
+      {atividades.length > 0 && (
+        <section className="space-y-3">
+          <h2 className="section-title">Atividades excluídas ({atividades.length})</h2>
+          <ul className="space-y-3">
+            {atividades.map((a) => {
+              const purgeAt = new Date(new Date(a.deleted_at).getTime() + TRASH_DAYS * 86_400_000).toISOString();
+              return (
+                <li key={a.id} className="flex flex-wrap items-start justify-between gap-3 ui-card px-4 py-3">
+                  <div className="min-w-0 flex-1 text-sm">
+                    <p className="font-medium text-foreground">{a.title}</p>
+                    <p className="text-xs text-muted">
+                      {a.client_id ? (clientName.get(a.client_id) ?? "cliente excluído") : "Sem cliente"} · excluída {whenText(a.deleted_at)}
+                      {a.deleted_by && who.get(a.deleted_by) ? ` · por ${who.get(a.deleted_by)}` : ""} · some de vez em {whenText(purgeAt).split(" às ")[0]}
+                    </p>
+                    <p className="mt-0.5 text-xs text-muted">Volta com comentários, checklist, anexos e ligações.</p>
+                  </div>
+                  <RestaurarAtividade id={a.id} />
+                </li>
+              );
+            })}
+          </ul>
+          <h2 className="section-title pt-2">Documentos</h2>
+        </section>
+      )}
 
       {missing ? (
         <p className="rounded-xl border border-status-pending px-4 py-4 text-sm text-status-pending">A lixeira ainda não foi ativada no banco (migration 0012).</p>
@@ -77,7 +105,7 @@ export default async function LixeiraPage() {
         <ul className="space-y-3">
           {list.map((b) => {
             const purgeAt = new Date(new Date(b.deletedAt).getTime() + TRASH_DAYS * 86_400_000).toISOString();
-            const cName = clientName.get(b.clientId);
+            const cName = b.clientId ? clientName.get(b.clientId) : "Anexo de atividade (sem cliente)";
             return (
               <li key={b.id} className="flex flex-wrap items-start justify-between gap-3 ui-card px-4 py-3">
                 <div className="min-w-0 flex-1 text-sm">

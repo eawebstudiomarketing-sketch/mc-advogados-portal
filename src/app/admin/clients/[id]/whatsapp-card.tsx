@@ -29,9 +29,16 @@ export async function WhatsappCard({ clientId, grupos, numeros }: { clientId: st
         <h2 className="section-title flex items-center gap-2">
           <MessageCircle className="h-4 w-4 text-muted" aria-hidden /> WhatsApp do cliente
         </h2>
-        <Link href={`/admin/clients/${clientId}/edit`} className="ui-link text-xs">
-          <Pencil className="h-3.5 w-3.5" aria-hidden /> Editar grupos e números
-        </Link>
+        <div className="flex flex-wrap items-center gap-x-4 gap-y-1">
+          {lista.length > 0 && (
+            <Link href={`/admin/whatsapp?cliente=${clientId}`} className="ui-link text-xs">
+              <MessageCircle className="h-3.5 w-3.5" aria-hidden /> Abrir conversa
+            </Link>
+          )}
+          <Link href={`/admin/clients/${clientId}/edit`} className="ui-link text-xs">
+            <Pencil className="h-3.5 w-3.5" aria-hidden /> Editar grupos e números
+          </Link>
+        </div>
       </div>
       {grupos.length === 0 && numeros.length === 0 && manuais.length === 0 ? (
         <p className="mt-2 text-sm text-muted">
@@ -42,21 +49,38 @@ export async function WhatsappCard({ clientId, grupos, numeros }: { clientId: st
           {grupos.map((g) => (
             <li key={`g-${g}`} className="flex items-center gap-2">
               {achouGrupo(g) ? <CheckCircle2 className="h-4 w-4 text-status-success" aria-hidden /> : <CircleDashed className="h-4 w-4 text-muted" aria-hidden />}
-              <span className="text-foreground">Grupo “{g}”</span>
+              {(() => {
+                const c = lista.find((x) => x.is_group && txt(x.nome ?? "") === txt(g));
+                return c ? (
+                  <Link href={`/admin/whatsapp?conversa=${encodeURIComponent(c.chat_jid)}`} className="text-foreground hover:underline">
+                    Grupo “{g}”
+                  </Link>
+                ) : (
+                  <span className="text-foreground">Grupo “{g}”</span>
+                );
+              })()}
               <span className="text-xs text-muted">{achouGrupo(g) ? "vinculado" : "ainda não encontrado no WhatsApp conectado"}</span>
             </li>
           ))}
           {numeros.map((n) => (
             <li key={`n-${n}`} className="flex items-center gap-2">
               {achouNumero(n) ? <CheckCircle2 className="h-4 w-4 text-status-success" aria-hidden /> : <CircleDashed className="h-4 w-4 text-muted" aria-hidden />}
-              <span className="text-foreground">{n}</span>
+              {achouNumero(n) ? (
+                <Link href={`/admin/whatsapp?numero=${encodeURIComponent(n)}`} className="text-foreground hover:underline">
+                  {n}
+                </Link>
+              ) : (
+                <span className="text-foreground">{n}</span>
+              )}
               <span className="text-xs text-muted">{achouNumero(n) ? "vinculado" : "sem conversa ainda (o lembrete sai direto para o número)"}</span>
             </li>
           ))}
           {manuais.map((c) => (
             <li key={c.chat_jid} className="flex items-center gap-2">
               <CheckCircle2 className="h-4 w-4 text-status-success" aria-hidden />
-              <span className="text-foreground">{c.nome ?? c.chat_jid}</span>
+              <Link href={`/admin/whatsapp?conversa=${encodeURIComponent(c.chat_jid)}`} className="text-foreground hover:underline">
+                {c.nome ?? c.chat_jid}
+              </Link>
               <span className="text-xs text-muted">vinculado à mão na tela WhatsApp</span>
             </li>
           ))}

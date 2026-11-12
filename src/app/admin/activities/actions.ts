@@ -1,5 +1,6 @@
 "use server";
 
+import { excluirAtividades } from "@/lib/lixeira-atividades";
 import { registrarAnexo } from "@/lib/anexos-atividade";
 import { redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
@@ -290,13 +291,15 @@ export async function saveActivityInlineAction(formData: FormData): Promise<{ er
 }
 
 export async function deleteActivityAction(formData: FormData): Promise<void> {
-  await exigirPermissao("excluir");
+  const { profile } = await exigirPermissao("excluir");
 
   const id = formData.get("id");
   if (typeof id !== "string" || !id) return;
 
+  // 12/11/2026: vai para a Lixeira (30 dias), não some de vez; só o que a pessoa pode ver
   const supabase = await createClient();
-  await supabase.from("activities").delete().eq("id", id);
+  const { data: visivel } = await supabase.from("activities").select("id").eq("id", id).maybeSingle();
+  if (visivel) await excluirAtividades([id], profile.id);
   await cancelarPendentes(`audiencia:${id}:`).catch(() => undefined);
 
   revalidatePath("/admin/activities");
@@ -353,17 +356,19 @@ export async function bulkUpdateDeadlineAction(ids: string[], deadline: string |
 
 // Documentos anexados às atividades saem junto (cascata) e vão para a Lixeira.
 export async function bulkDeleteActivitiesAction(ids: string[]): Promise<BulkResult> {
-  await exigirPermissao("excluir");
+  const { profile } = await exigirPermissao("excluir");
   const lista = idsValidos(ids);
   if (!lista) return { ok: false, error: "Nenhuma atividade selecionada." };
 
+  // podia ver? (a exclusão passa pela chave de serviço; confere pelo acesso da pessoa)
   const supabase = await createClient();
-  const { data, error } = await supabase.from("activities").delete().in("id", lista).select("id");
-  if (error) return { ok: false, error: "Não foi possível excluir. Tente novamente." };
+  const { data: visiveis } = await supabase.from("activities").select("id").in("id", lista);
+  const r = await excluirAtividades((visiveis ?? []).map((x) => x.id), profile.id);
+  if (r.erro) return { ok: false, error: r.erro };
 
   revalidatePath("/admin/activities");
   revalidatePath("/admin");
-  return { ok: true, count: data?.length ?? 0 };
+  return { ok: true, count: r.excluidas };
 }
 
 export async function bulkArchiveActivitiesAction(ids: string[], arquivar: boolean): Promise<BulkResult> {

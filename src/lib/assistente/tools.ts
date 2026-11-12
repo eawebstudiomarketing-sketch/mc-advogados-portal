@@ -1,4 +1,5 @@
 import "server-only";
+import { excluirAtividades } from "@/lib/lixeira-atividades";
 import { AsyncLocalStorage } from "node:async_hooks";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { createAdminClient } from "@/lib/supabase/admin";
@@ -814,11 +815,12 @@ export const TOOLS: ToolDef[] = [
     description: "Exclui uma atividade. O portal pede confirmação.",
     parameters: obj({ activity_id: { type: "string" } }, ["activity_id"]),
     resumo: () => "Excluir esta atividade",
-    run: async (a) => {
+    run: async (a, ctx) => {
       const antes = await porId<{ title: string }>("activities", a.activity_id, "Atividade");
-      const { error } = await db().from("activities").delete().eq("id", String(a.activity_id));
-      if (error) throw error;
-      return { excluida: antes.title };
+      // 12/11/2026: vai para a Lixeira (30 dias)
+      const r = await excluirAtividades([String(a.activity_id)], ctx.profileId);
+      if (r.erro) throw new Error(r.erro);
+      return { excluida: antes.title, lixeira: "Fica 30 dias na Lixeira, dá para restaurar." };
     },
   },
   {

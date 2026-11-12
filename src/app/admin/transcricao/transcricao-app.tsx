@@ -19,8 +19,7 @@ import {
   Square,
   Trash2,
   Upload,
-  X,
-} from "lucide-react";
+  X, ClipboardPlus } from "lucide-react";
 import { toast } from "sonner";
 import {
   abrirNoGoogleDocsAction,
@@ -982,6 +981,21 @@ function Resultado({
           className="ui-btn-secondary px-3 py-1.5 text-sm"
         >
           <Copy className="h-4 w-4" aria-hidden /> Copiar
+        </button>
+        {/* 12/11/2026: o que saiu da conversa vira atividade sem redigitar (abre em outra aba) */}
+        <button
+          type="button"
+          onClick={() => {
+            const base = (resumo.trim() || texto.trim()).slice(0, 1800);
+            const q = new URLSearchParams({ titulo: titulo.slice(0, 120), descricao: `Da transcrição "${titulo}":
+
+${base}` });
+            window.open(`/admin/activities/new?${q}`, "_blank");
+          }}
+          disabled={!atual.trim()}
+          className="ui-btn-secondary px-3 py-1.5 text-sm"
+        >
+          <ClipboardPlus className="h-4 w-4" aria-hidden /> Criar atividade
         </button>
         <span className="mx-1 hidden h-5 w-px bg-border sm:block" aria-hidden />
         <span className="text-xs text-muted">Baixar</span>

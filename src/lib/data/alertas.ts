@@ -119,6 +119,31 @@ export async function atividadesPendentesDoProcesso(p: { id: string; numero_proc
   return data ?? [];
 }
 
+/** Todas as atividades do processo (abertas primeiro, depois as concluídas mais recentes), mesma regra de ligação acima. */
+export async function atividadesDoProcesso(p: { id: string; numero_processo: string | null }) {
+  const supabase = await createClient();
+  const [{ data: deAnd }, { data: dePub }] = await Promise.all([
+    supabase.from("andamentos").select("activity_id").eq("process_id", p.id).not("activity_id", "is", null),
+    supabase.from("publicacoes").select("activity_id").eq("process_id", p.id).not("activity_id", "is", null),
+  ]);
+  const ids = [...new Set([...(deAnd ?? []), ...(dePub ?? [])].map((x) => x.activity_id!))];
+  const filtros: string[] = [];
+  const num = (p.numero_processo ?? "").replace(/[%,()]/g, "").trim();
+  if (num.length >= 7) filtros.push(`title.ilike.%${num}%`, `description.ilike.%${num}%`);
+  if (ids.length) filtros.push(`id.in.(${ids.join(",")})`);
+  if (!filtros.length) return [];
+  const { data } = await supabase
+    .from("activities")
+    .select("id, title, deadline, status, responsaveis(nome)")
+    .is("archived_at", null)
+    .or(filtros.join(","))
+    .order("deadline", { ascending: false, nullsFirst: false })
+    .limit(60);
+  const lista = (data ?? []) as unknown as { id: string; title: string; deadline: string | null; status: string; responsaveis: { nome: string } | null }[];
+  const aberta = (s: string) => s === "aberta" || s === "em_andamento";
+  return [...lista.filter((a) => aberta(a.status)).reverse(), ...lista.filter((a) => !aberta(a.status))];
+}
+
 export type Comentario = { id: string; andamento_id: string | null; publicacao_id: string | null; autor_nome: string | null; texto: string; created_at: string };
 
 export async function comentariosDe(op: { andamentos?: string[]; publicacao?: string }): Promise<Comentario[]> {

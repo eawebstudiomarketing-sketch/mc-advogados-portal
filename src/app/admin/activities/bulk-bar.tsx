@@ -166,7 +166,7 @@ export function BulkBar({ ids, onLimpar, arquivadas = false, podeExcluir = true 
           type="button"
           disabled={pending}
           onClick={() => {
-            if (!confirm(`Excluir ${plural(ids.length)}? Documentos anexados a elas vão para a Lixeira.`)) return;
+            if (!confirm(`Excluir ${plural(ids.length)}? Elas ficam 30 dias na Lixeira.`)) return;
             rodar(() => bulkDeleteActivitiesAction(ids), (n) => `${plural(n)} ${n === 1 ? "excluída" : "excluídas"}`);
           }}
           className="inline-flex items-center gap-1.5 rounded-xl px-3 py-2 text-sm text-red-200 transition-colors hover:bg-status-danger hover:text-white disabled:opacity-50"

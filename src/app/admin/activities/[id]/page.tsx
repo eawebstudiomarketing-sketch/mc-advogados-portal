@@ -58,7 +58,7 @@ export default async function ActivityDetailPage({ params }: { params: Promise<{
           <ConfirmSubmitButton
             action={deleteActivityAction}
             hiddenFields={{ id: activity.id }}
-            confirmMessage={`Excluir a atividade "${activity.title}"?`}
+            confirmMessage={`Excluir a atividade "${activity.title}"? Ela fica 30 dias na Lixeira.`}
             label="Excluir"
             icon="trash"
           />

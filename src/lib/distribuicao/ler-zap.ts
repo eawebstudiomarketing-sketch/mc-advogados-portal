@@ -165,6 +165,7 @@ async function lerUmaVez(db: ReturnType<typeof createAdminClient>): Promise<Resu
 
   const hojeISO = new Intl.DateTimeFormat("en-CA", { timeZone: "America/Bahia" }).format(new Date());
   const r: ResultadoLeitura = { conversas: 0, mensagens: 0, sugestoes: 0 };
+  const idsNovos: string[] = [];
 
   for (const chat of chats ?? []) {
     if (chat.ler_demandas === false) continue; // desligada a pedido
@@ -286,7 +287,8 @@ async function lerUmaVez(db: ReturnType<typeof createAdminClient>): Promise<Resu
       });
     }
     if (linhasNovas.length) {
-      const { error } = await db.from("distribuicao").insert(linhasNovas);
+      const { data: criadas, error } = await db.from("distribuicao").insert(linhasNovas).select("id");
+      for (const c of criadas ?? []) idsNovos.push(c.id);
       if (error) {
         r.erro = error.message;
         break;
@@ -305,7 +307,8 @@ async function lerUmaVez(db: ReturnType<typeof createAdminClient>): Promise<Resu
         tipo: "distribuicao",
         titulo: `${r.sugestoes} demanda(s) nova(s) do WhatsApp`,
         corpo: "A IA leu os grupos dos clientes e separou pedidos para distribuir.",
-        url: "/admin/distribuicao",
+        // um pedido só: abre já no cartão dele
+        url: idsNovos.length === 1 ? `/admin/distribuicao#d-${idsNovos[0]}` : "/admin/distribuicao",
       }))
     ).catch(() => undefined);
   }

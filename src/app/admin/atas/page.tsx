@@ -3,6 +3,7 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import { AlertTriangle, Mic, NotebookPen, Plus } from "lucide-react";
 import { exigirPermissao } from "@/lib/dal";
 import { createClient } from "@/lib/supabase/server";
+import { BarraFiltros } from "@/components/ui/barra-filtros";
 import { dataHoraBr, STATUS_ROTULO, TIPOS_ATA, type StatusAta, type TipoAta } from "@/lib/atas/formato";
 
 export const metadata = { title: "Reuniões" };
@@ -22,14 +23,17 @@ const COR: Record<StatusAta, string> = {
 // Reuniões: grava (ou recebe o arquivo), transcreve e entrega a reunião (texto fiel +
 // resumo com IA). Dali, "Gerar ata" monta a ata no modelo do escritório, o advogado
 // revisa e aprova e o portal colhe as assinaturas (link + código).
-export default async function AtasPage() {
+const semAcento = (s: string) => s.normalize("NFD").replace(/[̀-ͯ]/g, "").toLowerCase();
+
+export default async function AtasPage({ searchParams }: { searchParams: Promise<{ busca?: string; status?: string; cliente?: string; tipo?: string }> }) {
+  const f = await searchParams;
   const { profile } = await exigirPermissao("atas");
   const db = (await createClient()) as unknown as SupabaseClient;
   const { data } = await db
     .from("atas")
     .select("id, titulo, tipo, status, data_reuniao, versao, profile_id, clients(name), profiles!atas_profile_id_fkey(full_name), ata_assinaturas(status, versao)")
     .order("data_reuniao", { ascending: false })
-    .limit(200);
+    .limit(f.busca || f.status || f.cliente || f.tipo ? 2000 : 200);
   type Linha = {
     id: string;
     titulo: string;
@@ -42,7 +46,16 @@ export default async function AtasPage() {
     profiles: { full_name: string } | null;
     ata_assinaturas: { status: string; versao: number }[];
   };
-  const atas = (data ?? []) as unknown as Linha[];
+  const todas = (data ?? []) as unknown as Linha[];
+  const termo = semAcento((f.busca ?? "").trim());
+  const atas = todas.filter(
+    (a) =>
+      (!termo || semAcento(`${a.titulo} ${a.clients?.name ?? ""} ${a.profiles?.full_name ?? ""}`).includes(termo)) &&
+      (!f.status || a.status === f.status) &&
+      (!f.tipo || a.tipo === f.tipo) &&
+      (!f.cliente || a.clients?.name === f.cliente)
+  );
+  const nomesClientes = [...new Set(todas.map((a) => a.clients?.name).filter((n): n is string => !!n))].sort((x, y) => x.localeCompare(y));
 
   return (
     <div>
@@ -73,7 +86,20 @@ export default async function AtasPage() {
           </Link>
         ))}
 
-      {atas.length === 0 ? (
+      {todas.length > 0 && (
+        <BarraFiltros
+          filtros={[
+            { tipo: "busca", nome: "busca", rotulo: "Buscar reunião, cliente ou pessoa" },
+            { tipo: "select", nome: "cliente", rotulo: "Cliente", todos: "Todos os clientes", opcoes: nomesClientes.map((n) => ({ valor: n, rotulo: n })) },
+            { tipo: "select", nome: "status", rotulo: "Situação", todos: "Todas as situações", opcoes: Object.entries(STATUS_ROTULO).map(([valor, rotulo]) => ({ valor, rotulo })) },
+            { tipo: "select", nome: "tipo", rotulo: "Tipo", todos: "Todos os tipos", opcoes: Object.entries(TIPOS_ATA).map(([valor, t]) => ({ valor, rotulo: t.rotulo })) },
+          ]}
+        />
+      )}
+
+      {todas.length > 0 && atas.length === 0 ? (
+        <div className="ui-card px-6 py-10 text-center text-sm text-muted">Nenhuma reunião com esses filtros.</div>
+      ) : atas.length === 0 ? (
         <div className="ui-card flex flex-col items-center px-6 py-14 text-center">
           <span className="flex h-12 w-12 items-center justify-center rounded-full bg-surface-2 text-foreground/70 ring-1 ring-border">
             <NotebookPen className="h-5 w-5" aria-hidden />

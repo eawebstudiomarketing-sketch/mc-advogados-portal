@@ -49,13 +49,29 @@ import type { PermChave } from "@/lib/permissoes";
 import { listResponsaveis, responsavelDoPerfil } from "@/lib/data/responsaveis";
 import { getHistorico } from "@/lib/data/historico";
 import { HistoricoRegistro } from "@/components/ui/historico-registro";
+import { Stamp, Wallet } from "lucide-react";
+import { listFinancialRecords } from "@/lib/data/financial";
+import { ChipPrazo } from "@/components/ui/chip-prazo";
+import { createClient } from "@/lib/supabase/server";
 
 const DOCS_PER_PAGE = 10;
+
+/** Lead do CRM que virou este cliente (e o formulário de onde veio), se houver. */
+async function origemDoCliente(clientId: string): Promise<{ id: string; origem: string; created_at: string; formulario: string | null } | null> {
+  const db = (await createClient()) as unknown as import("@supabase/supabase-js").SupabaseClient;
+  const { data } = await db.from("leads").select("id, origem, created_at, formulario_id").eq("client_id", clientId).order("created_at").limit(1);
+  const l = data?.[0] as { id: string; origem: string; created_at: string; formulario_id: string | null } | undefined;
+  if (!l) return null;
+  const form = l.formulario_id ? (await db.from("crm_formularios").select("nome").eq("id", l.formulario_id).maybeSingle()).data : null;
+  return { id: l.id, origem: l.origem, created_at: l.created_at, formulario: (form as { nome?: string } | null)?.nome ?? null };
+}
 
 const ABAS = [
   { id: "geral", label: "Visão geral", icon: LayoutGrid },
   { id: "atividades", label: "Atividades", icon: ListChecks },
   { id: "processos", label: "Processos", icon: Gavel },
+  { id: "marcas", label: "Marcas", icon: Stamp },
+  { id: "financeiro", label: "Financeiro", icon: Wallet },
   { id: "arquivos", label: "Arquivos", icon: FileText },
   { id: "onboarding", label: "Onboarding", icon: ClipboardList },
   { id: "regimento", label: "Regimento", icon: BookCheck },
@@ -110,6 +126,8 @@ export default async function AdminClientDetailPage({
   const PERM_DA_ABA: Partial<Record<Aba, PermChave>> = {
     atividades: "atividades",
     processos: "processos",
+    marcas: "marcas",
+    financeiro: "financeiro",
     onboarding: "onboarding",
     regimento: "onboarding",
     demandas: "demandas",
@@ -127,6 +145,16 @@ export default async function AdminClientDetailPage({
   const pedida = abas.find((a) => a.id === abaPedida)?.id;
   const aba: Aba = pedida ?? (docsParam && abas.some((a) => a.id === "arquivos") ? "arquivos" : "geral");
   const documents = docsPage.items;
+  // Marcas e Financeiro (12/11/2026): carregam só quando a aba está aberta
+  type MarcaCli = { processo: string; nome: string | null; apelido: string | null; tipo: string; situacao: string | null; ultimo_despacho: string | null; ultimo_despacho_data: string | null; classe: string | null };
+  const marcasCli: MarcaCli[] =
+    aba === "marcas"
+      ? (((await ((await createClient()) as unknown as import("@supabase/supabase-js").SupabaseClient).from("marcas").select("processo, nome, apelido, tipo, situacao, ultimo_despacho, ultimo_despacho_data, classe").eq("client_id", id).order("ultimo_despacho_data", { ascending: false, nullsFirst: false })).data ?? []) as MarcaCli[])
+      : [];
+  // de onde veio (CRM): o lead que virou este cliente
+  const leadOrigem = aba === "geral" ? await origemDoCliente(id) : null;
+  const financeiroCli = aba === "financeiro" ? await listFinancialRecords({ clientId: id }) : [];
+  const emAberto = financeiroCli.filter((f) => f.status !== "paid").reduce((s, f) => s + Number(f.amount), 0);
   const contar = (status: string) => activities.filter((a) => a.status === status).length;
   const pendentes = drafts.filter((d) => d.status === "rascunho").length;
   const contagem: Partial<Record<Aba, number>> = {
@@ -263,6 +291,14 @@ export default async function AdminClientDetailPage({
         {aba === "geral" && (
           <div className="space-y-6">
             {pf && <CadastroPF c={client} podeEditar={!!perm.editar_cliente} />}
+            {leadOrigem && (
+              <p className="text-sm text-muted">
+                Veio do {leadOrigem.formulario ? `formulário “${leadOrigem.formulario}”` : `CRM (${leadOrigem.origem})`} em {dataBR(leadOrigem.created_at)} ·{" "}
+                <Link href={`/admin/comercial/${leadOrigem.id}`} className="ui-link">
+                  ver o lead
+                </Link>
+              </p>
+            )}
             <div className="grid grid-cols-3 gap-3">
               <StatCard label="A fazer" value={String(contar("aberta"))} tone="pending" href={hrefAba("atividades")} />
               <StatCard label="Em andamento" value={String(contar("em_andamento"))} tone="info" href={hrefAba("atividades")} />
@@ -349,6 +385,77 @@ export default async function AdminClientDetailPage({
                       {p.profiles?.full_name && <span className="hidden text-xs text-foreground/70 sm:block">{p.profiles.full_name}</span>}
                       <StatusBadge status={p.status} />
                     </Link>
+                  </li>
+                ))}
+              </ol>
+            )}
+          </section>
+        )}
+
+        {aba === "marcas" && (
+          <section>
+            <div className="mb-3 flex items-center justify-between">
+              <h2 className="section-title">Marcas e patentes do cliente</h2>
+              <Link href="/admin/marcas/cadastrar" className="ui-link">
+                + Acompanhar marca
+              </Link>
+            </div>
+            {marcasCli.length === 0 ? (
+              <div className="ui-card flex flex-col items-center gap-1 py-12 text-center">
+                <Stamp className="h-6 w-6 text-muted" aria-hidden />
+                <p className="font-display text-base font-bold text-foreground">Nenhuma marca ligada a este cliente.</p>
+                <p className="text-xs text-muted">Na ficha da marca, escolha o cliente para ela aparecer aqui.</p>
+              </div>
+            ) : (
+              <ol className="ui-card divide-y divide-border overflow-hidden">
+                {marcasCli.map((m) => (
+                  <li key={m.processo}>
+                    <Link href={`/admin/marcas/processos/${m.processo}`} className="flex flex-wrap items-center gap-x-4 gap-y-1 px-5 py-3.5 transition-colors hover:bg-surface-2">
+                      <span className="min-w-0 flex-1">
+                        <span className="block truncate text-sm font-medium text-foreground">{m.nome?.trim() || m.apelido?.trim() || "Marca figurativa"}</span>
+                        <span className="block truncate text-xs text-muted">
+                          {[`Processo ${m.processo}`, m.tipo === "patente" ? "Patente" : m.classe ? `Classe ${m.classe}` : null, m.ultimo_despacho].filter(Boolean).join(" · ")}
+                        </span>
+                      </span>
+                      {m.situacao && <span className="rounded-full bg-surface-2 px-2.5 py-0.5 text-xs font-medium text-foreground/80">{m.situacao}</span>}
+                    </Link>
+                  </li>
+                ))}
+              </ol>
+            )}
+          </section>
+        )}
+
+        {aba === "financeiro" && (
+          <section>
+            <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
+              <h2 className="section-title">Financeiro do cliente</h2>
+              <div className="flex items-center gap-4">
+                <Link href={`/admin/financial?cliente=${client.id}`} className="ui-link">
+                  Ver no Financeiro
+                </Link>
+                <Link href={`/admin/financial/new?clientId=${client.id}`} className="ui-link">
+                  + Novo lançamento
+                </Link>
+              </div>
+            </div>
+            <div className="mb-3 grid gap-3 sm:grid-cols-2">
+              <StatCard label="Em aberto" value={formatCurrency(emAberto)} tone={emAberto > 0 ? "pending" : "default"} />
+              <StatCard label="Lançamentos" value={String(financeiroCli.length)} />
+            </div>
+            {financeiroCli.length === 0 ? (
+              <div className="ui-card flex flex-col items-center gap-1 py-12 text-center">
+                <Wallet className="h-6 w-6 text-muted" aria-hidden />
+                <p className="font-display text-base font-bold text-foreground">Nenhum lançamento deste cliente.</p>
+              </div>
+            ) : (
+              <ol className="ui-card divide-y divide-border overflow-hidden">
+                {financeiroCli.map((f) => (
+                  <li key={f.id} className="flex flex-wrap items-center gap-x-4 gap-y-1 px-5 py-3">
+                    <span className="min-w-0 flex-1 truncate text-sm text-foreground">{f.description}</span>
+                    <ChipPrazo data={f.due_date} encerrado={f.status === "paid"} />
+                    <span className="text-sm tabular-nums text-foreground/80">{formatCurrency(Number(f.amount))}</span>
+                    <StatusBadge status={f.status} />
                   </li>
                 ))}
               </ol>

@@ -797,7 +797,7 @@ export default async function PainelPage({ searchParams }: { searchParams: Promi
                 <Barras dados={w.porHora.map((v, h) => ({ rotulo: `${h}h`, valor: v }))} destaque={horaAgora} />
               </div>
             </div>
-            <Lista titulo="Clientes esperando resposta agora" vazio="Ninguém esperando há mais de 2 horas." itens={w.esperandoAgora.map((e) => ({ chave: e.conversa, texto: e.cliente ?? e.conversa, valor: `${e.horas} h`, tom: e.horas > 24 ? "danger" : "pending", href: "/admin/whatsapp" }))} />
+            <Lista titulo="Clientes esperando resposta agora" vazio="Ninguém esperando há mais de 2 horas." itens={w.esperandoAgora.map((e) => ({ chave: e.conversa, texto: e.cliente ?? e.conversa, valor: `${e.horas} h`, tom: e.horas > 24 ? "danger" : "pending", href: "jid" in e && e.jid ? `/admin/whatsapp?conversa=${encodeURIComponent(String(e.jid))}` : "/admin/whatsapp" }))} />
           </div>
         )}
 

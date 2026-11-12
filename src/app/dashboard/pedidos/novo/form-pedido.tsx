@@ -8,15 +8,15 @@ import { AudioAnswer } from "@/components/ui/audio-answer";
 
 const MAX_BYTES = 4 * 1024 * 1024;
 
-export function FormPedido() {
+export function FormPedido({ tituloInicial = "", descricaoInicial = "" }: { tituloInicial?: string; descricaoInicial?: string } = {}) {
   const router = useRouter();
   const arquivoRef = useRef<HTMLInputElement>(null);
   const [arquivo, setArquivo] = useState<File | null>(null);
   const [urgente, setUrgente] = useState(false);
   const [enviando, setEnviando] = useState(false);
   const [erro, setErro] = useState<string | null>(null);
-  const [titulo, setTitulo] = useState("");
-  const [descricao, setDescricao] = useState("");
+  const [titulo, setTitulo] = useState(tituloInicial);
+  const [descricao, setDescricao] = useState(descricaoInicial);
   const [audio, setAudio] = useState<Blob | null>(null);
   const audioUrl = useAudioUrl(audio);
 

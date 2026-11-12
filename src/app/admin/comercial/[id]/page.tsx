@@ -160,8 +160,8 @@ export default async function LeadPage({ params }: { params: Promise<{ id: strin
                   </li>
                 ))}
               </ol>
-              <Link href="/admin/whatsapp" className="ui-link mt-3 inline-block text-sm">
-                Abrir o WhatsApp do portal
+              <Link href={`/admin/whatsapp?lead=${lead.id}`} className="ui-link mt-3 inline-block text-sm">
+                Abrir esta conversa no WhatsApp do portal
               </Link>
             </section>
           )}

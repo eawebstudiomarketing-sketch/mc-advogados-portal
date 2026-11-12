@@ -23,7 +23,7 @@ type Cliente = { id: string; name: string; tipo_pessoa?: string | null };
 type Filtro = "todas" | "naoLidas" | "grupos" | "pf" | "pj" | "contatos" | "arquivadas";
 const PAGINA = 300;
 
-export function WhatsappApp({ agenteInicial, conversasIniciais, clientes }: { agenteInicial: WaAgente | null; conversasIniciais: WaChat[]; clientes: Cliente[] }) {
+export function WhatsappApp({ agenteInicial, conversasIniciais, clientes, abrirInicial = null }: { agenteInicial: WaAgente | null; conversasIniciais: WaChat[]; clientes: Cliente[]; abrirInicial?: string | null }) {
   const [supabase] = useState(() => createClient());
   const [agente, setAgente] = useState<WaAgente | null>(() => {
     if (agenteInicial?.ligado) calibrarRelogio(agenteInicial); // o servidor viu batimento recente
@@ -34,7 +34,7 @@ export function WhatsappApp({ agenteInicial, conversasIniciais, clientes }: { ag
   const [fimDaLista, setFimDaLista] = useState(conversasIniciais.length < PAGINA);
   const [arquivadas, setArquivadas] = useState<WaChat[] | null>(null);
   const [contatos, setContatos] = useState<WaContato[]>([]);
-  const [aberta, setAberta] = useState<string | null>(null);
+  const [aberta, setAberta] = useState<string | null>(abrirInicial);
   const [perfil, setPerfil] = useState(false);
   const [busca, setBusca] = useState("");
   const [doServidor, setDoServidor] = useState<WaChat[]>([]);

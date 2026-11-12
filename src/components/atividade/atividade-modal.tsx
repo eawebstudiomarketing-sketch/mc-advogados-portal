@@ -225,6 +225,15 @@ function AtividadeModal({ id, editarAoAbrir, aoSalvar, onClose }: { id: string; 
                   ) : (
                     <span className="font-medium text-foreground/70">{d.cliente ?? "Cliente"}</span>
                   )}
+                  {d.processo && (
+                    <>
+                      {" "}
+                      ·{" "}
+                      <Link href={`/admin/processes/${d.processo.id}`} onClick={onClose} className="font-medium text-navy-3 underline-offset-2 hover:underline">
+                        Processo {d.processo.numero}
+                      </Link>
+                    </>
+                  )}
                   {d.archived_at && <span className="ml-2 rounded-full bg-surface-2 px-2 py-0.5 text-[11px] font-medium">Arquivada</span>}
                 </p>
                 <h2 className="mt-0.5 text-lg font-semibold leading-snug text-foreground">{d.title}</h2>
@@ -436,7 +445,7 @@ function AtividadeModal({ id, editarAoAbrir, aoSalvar, onClose }: { id: string; 
               </>
             ) : excluir ? (
               <>
-                <p className="mr-auto text-sm text-foreground">Excluir esta atividade? Os documentos anexados vão para a Lixeira.</p>
+                <p className="mr-auto text-sm text-foreground">Excluir esta atividade? Ela e os anexos ficam 30 dias na Lixeira.</p>
                 <button type="button" onClick={() => setExcluir(false)} className="ui-btn-secondary px-3 py-2 text-sm">
                   Cancelar
                 </button>

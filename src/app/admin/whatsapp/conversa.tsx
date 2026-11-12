@@ -31,6 +31,7 @@ import {
   X,
   Zap,
   CalendarClock,
+  ClipboardPlus,
 } from "lucide-react";
 import { toast } from "sonner";
 import { createClient } from "@/lib/supabase/client";
@@ -327,6 +328,17 @@ export function Conversa({
         toast.success("Copiado.");
       },
       encaminhar: (m: Msg) => setEncaminhando(m),
+      // pedido do cliente vira atividade sem redigitar (abre em outra aba: a conversa continua aqui)
+      atividade: (m: Msg) => {
+        const texto = (m.texto ?? "").trim();
+        const quando = new Date(m.created_at).toLocaleString("pt-BR", { timeZone: "America/Bahia", day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit" });
+        const q = new URLSearchParams({
+          titulo: texto.split("\n")[0].slice(0, 90) || "Pedido pelo WhatsApp",
+          descricao: `Pedido no WhatsApp (${chat.nome ?? "conversa"}, ${quando}):\n${texto}`,
+          ...(chat.client_id ? { clientId: chat.client_id } : {}),
+        });
+        window.open(`/admin/activities/new?${q}`, "_blank");
+      },
       editar: (m: Msg) => {
         setRespondendo(null);
         setEditando(m);
@@ -335,7 +347,7 @@ export function Conversa({
       ampliar: (m: Msg) => setAmpliada(m),
       citar: (waId: string) => void pularPara({ waId }),
     }),
-    [reagir, apagar, pularPara]
+    [reagir, apagar, pularPara, chat.nome, chat.client_id]
   );
 
   /* ───── enviar ───── */
@@ -673,6 +685,7 @@ type Acoes = {
   reagir: (m: Msg, emoji: string) => void;
   copiar: (m: Msg) => void;
   encaminhar: (m: Msg) => void;
+  atividade: (m: Msg) => void;
   editar: (m: Msg) => void;
   apagar: (m: Msg) => void;
   ampliar: (m: Msg) => void;
@@ -846,6 +859,11 @@ const Balao = memo(function Balao({
             {m.texto && (
               <ItemMenu onClick={() => (setMenu(null), acoes.copiar(m))}>
                 <Copy className="h-4 w-4 text-muted" aria-hidden /> Copiar
+              </ItemMenu>
+            )}
+            {m.texto && (
+              <ItemMenu onClick={() => (setMenu(null), acoes.atividade(m))}>
+                <ClipboardPlus className="h-4 w-4 text-muted" aria-hidden /> Transformar em atividade
               </ItemMenu>
             )}
             <ItemMenu onClick={() => (setMenu(null), acoes.encaminhar(m))}>

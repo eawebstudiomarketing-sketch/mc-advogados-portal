@@ -434,7 +434,7 @@ export function ActivitiesView({
                           <ConfirmSubmitButton
                             action={deleteActivityAction}
                             hiddenFields={{ id: a.id }}
-                            confirmMessage={`Excluir a atividade "${a.title}"?`}
+                            confirmMessage={`Excluir a atividade "${a.title}"? Ela fica 30 dias na Lixeira.`}
                             label="Excluir"
                             icon="trash"
                           />

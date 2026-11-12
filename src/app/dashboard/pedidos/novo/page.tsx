@@ -2,8 +2,10 @@ import { requireRole } from "@/lib/dal";
 import { BackButton } from "@/components/nav/back-button";
 import { FormPedido } from "./form-pedido";
 
-export default async function NovoPedidoPage() {
+export default async function NovoPedidoPage({ searchParams }: { searchParams: Promise<{ processo?: string }> }) {
   await requireRole(["client"]);
+  // "Falar com o escritório sobre este processo" (12/11/2026): já vem com o número
+  const processo = ((await searchParams).processo ?? "").replace(/[^\d.\-]/g, "").slice(0, 30);
 
   return (
     <div className="mx-auto max-w-2xl">
@@ -17,7 +19,7 @@ export default async function NovoPedidoPage() {
       <p className="mt-4 max-w-lg text-[15px] leading-relaxed text-foreground/70">
         Escreva com suas palavras. O escritório recebe na hora, define quem vai cuidar e você acompanha cada etapa em Pedidos.
       </p>
-      <FormPedido />
+      <FormPedido tituloInicial={processo ? `Sobre o processo ${processo}` : ""} />
     </div>
   );
 }

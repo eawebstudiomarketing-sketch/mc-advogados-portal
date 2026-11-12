@@ -22,6 +22,7 @@ export type DemandaSerial = {
   cliente: { id: string; nome: string } | null;
   atividade: { id: string; titulo: string } | null;
   publicacao: { id: string; link: string | null } | null;
+  chatJid?: string | null;
   trechos: { texto: string; quem?: string | null; em?: string | null }[];
   criadoEm: string;
 };
@@ -108,7 +109,7 @@ export function DemandaCard({
   }
 
   return (
-    <li className="ui-card overflow-hidden">
+    <li id={`d-${d.id}`} className="ui-card scroll-mt-24 overflow-hidden target:ring-2 target:ring-gold">
       <form action={action}>
         <input type="hidden" name="id" value={d.id} />
         <input type="hidden" name="descricao" value={[d.descricao, ...d.trechos.map((t) => `${t.quem ?? "Cliente"}: ${t.texto}`)].filter(Boolean).join("\n\n")} />
@@ -172,6 +173,11 @@ export function DemandaCard({
                   </Link>
                 )}
               </details>
+            )}
+            {d.chatJid && (
+              <Link href={`/admin/whatsapp?conversa=${encodeURIComponent(d.chatJid)}`} className="ui-link mt-2 inline-flex text-xs">
+                <MessageCircle className="h-3.5 w-3.5" aria-hidden /> Abrir conversa no WhatsApp
+              </Link>
             )}
           </div>
         </div>

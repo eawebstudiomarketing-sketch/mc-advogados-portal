@@ -67,6 +67,7 @@ export default async function DistribuicaoPage({
     cliente: d.clients ? { id: d.clients.id, nome: d.clients.name } : null,
     atividade: d.activities ? { id: d.activities.id, titulo: d.activities.title } : null,
     publicacao: d.publicacoes ? { id: d.publicacoes.id, link: d.publicacoes.link } : null,
+    chatJid: d.chat_jid ?? null,
     trechos: (Array.isArray(d.trechos) ? d.trechos : []) as Trecho[],
     criadoEm: d.created_at,
   }));

@@ -212,7 +212,7 @@ async function calcularMetricasAgora(p: Periodo) {
   const esperandoAgora = [...esperando.entries()]
     // só o que ficou sem resposta nos últimos 7 dias (mais antigo que isso costuma ser um "ok, obrigado")
     .filter(([jid, desde]) => chatCliente.has(jid) && Date.now() - Date.parse(desde) > 2 * 3_600_000 && Date.now() - Date.parse(desde) < 7 * DIA)
-    .map(([jid, desde]) => ({ conversa: nomeChat.get(jid) ?? jid, cliente: nomeCliente.get(chatCliente.get(jid)!) ?? null, horas: Math.round((Date.now() - Date.parse(desde)) / 3_600_000) }))
+    .map(([jid, desde]) => ({ jid, conversa: nomeChat.get(jid) ?? jid, cliente: nomeCliente.get(chatCliente.get(jid)!) ?? null, horas: Math.round((Date.now() - Date.parse(desde)) / 3_600_000) }))
     .sort((a, b) => b.horas - a.horas)
     .slice(0, 12);
 

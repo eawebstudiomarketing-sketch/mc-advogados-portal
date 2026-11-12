@@ -1,4 +1,5 @@
-import { Gavel } from "lucide-react";
+import Link from "next/link";
+import { ChevronRight, Gavel } from "lucide-react";
 import { requireRole } from "@/lib/dal";
 import { listProcesses } from "@/lib/data/processes";
 import { EmptyState } from "@/components/ui/empty-state";
@@ -28,7 +29,8 @@ export default async function ClientProcessesPage() {
       ) : (
         <ul className="grid grid-cols-1 gap-2.5 md:grid-cols-2">
           {processos.map((p) => (
-            <li key={p.id} className="ui-card p-4">
+            <li key={p.id}>
+              <Link href={`/dashboard/processos/${p.id}`} className="ui-card block p-4 transition-colors hover:border-border-strong">
               <div className="flex items-start gap-3">
                 <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-navy/[0.07] text-navy-3">
                   <Gavel className="h-[18px] w-[18px]" aria-hidden />
@@ -40,11 +42,13 @@ export default async function ClientProcessesPage() {
                     {p.vara_tribunal ? ` · ${p.vara_tribunal}` : ""}
                   </p>
                 </div>
+                <ChevronRight className="mt-1 h-4 w-4 shrink-0 text-muted" aria-hidden />
               </div>
               <div className="mt-3 flex flex-wrap items-center gap-2 text-xs">
                 {p.fase && <span className="rounded-full bg-gold-soft px-2.5 py-1 font-medium text-gold-ink">Fase: {p.fase}</span>}
                 <span className="rounded-full bg-surface-2 px-2.5 py-1 text-muted ring-1 ring-border">Atualizado em {dataBR(p.updated_at)}</span>
               </div>
+              </Link>
             </li>
           ))}
         </ul>

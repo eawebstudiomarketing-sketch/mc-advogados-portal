@@ -1,5 +1,6 @@
 "use server";
 
+import { excluirAtividades } from "@/lib/lixeira-atividades";
 import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
 import { ehSuperAdmin, exigirPermissao, getPermissoes, requireRole } from "@/lib/dal";
@@ -44,7 +45,31 @@ export type AtividadeDetalhe = {
   pode: { excluir: boolean; verCliente: boolean; documentos: boolean; salvarModeloAviso: boolean; mudarPrazo: boolean };
   /** pedido de mudança de prazo aguardando o Dr. Maurício (05/11/2026); id vazio = de outra pessoa */
   pedidoPrazo: { id: string; prazo_novo: string | null } | null;
+  /** processo da atividade (12/11/2026): pelo andamento/publicação que a gerou ou pelo número citado */
+  processo: { id: string; numero: string } | null;
 };
+
+const soDigitos = (s: string | null | undefined) => (s ?? "").replace(/\D/g, "");
+
+async function processoDaAtividade(supabase: Awaited<ReturnType<typeof createClient>>, a: { id: string; client_id: string | null; title: string; description: string | null }) {
+  const [{ data: and }, { data: pub }] = await Promise.all([
+    supabase.from("andamentos").select("process_id").eq("activity_id", a.id).limit(1),
+    supabase.from("publicacoes").select("process_id").eq("activity_id", a.id).not("process_id", "is", null).limit(1),
+  ]);
+  let pid = and?.[0]?.process_id ?? pub?.[0]?.process_id ?? null;
+  if (pid) {
+    const { data } = await supabase.from("processes").select("id, numero_processo").eq("id", pid).maybeSingle();
+    return data ? { id: data.id, numero: data.numero_processo ?? "" } : null;
+  }
+  // número CNJ citado no título ou na descrição: procura entre os processos do cliente
+  const texto = `${a.title} ${a.description ?? ""}`;
+  const cnjs = [...texto.matchAll(/\d{7}-?\d{2}\.?\d{4}\.?\d\.?\d{2}\.?\d{4}/g)].map((m) => soDigitos(m[0]));
+  if (!cnjs.length || !a.client_id) return null;
+  const { data: procs } = await supabase.from("processes").select("id, numero_processo").eq("client_id", a.client_id);
+  const achou = (procs ?? []).find((p) => cnjs.includes(soDigitos(p.numero_processo)));
+  pid = achou?.id ?? null;
+  return achou && pid ? { id: pid, numero: achou.numero_processo ?? "" } : null;
+}
 
 export async function getActivityDetailAction(id: string): Promise<{ ok: true; data: AtividadeDetalhe } | { ok: false; error: string }> {
   const profile = await requireRole(["admin", "advogado"]);
@@ -67,6 +92,7 @@ export async function getActivityDetailAction(id: string): Promise<{ ok: true; d
     ehSuperAdmin(profile) ? getHistorico("activities", id, 20) : Promise.resolve([]),
     pedidoPendente(id).catch(() => null),
   ]);
+  const processo = await processoDaAtividade(supabase, a).catch(() => null);
 
   return {
     ok: true,
@@ -95,16 +121,19 @@ export async function getActivityDetailAction(id: string): Promise<{ ok: true; d
       docsDoCliente: docsCliente ?? [],
       responsaveis,
       pode: { excluir: !!perms?.excluir, verCliente: !!perms?.clientes, documentos: !!perms?.documentos, salvarModeloAviso: profile.role === "admin", mudarPrazo: ehSuperAdmin(profile) },
+      processo,
       pedidoPrazo: pedidoPrazo ? { id: pedidoPrazo.pedido_por === profile.id ? pedidoPrazo.id : "", prazo_novo: pedidoPrazo.prazo_novo } : null,
     },
   };
 }
 
 export async function deleteActivityInlineAction(id: string): Promise<{ error: string | null }> {
-  await exigirPermissao("excluir");
+  const { profile } = await exigirPermissao("excluir");
   const supabase = await createClient();
-  const { error } = await supabase.from("activities").delete().eq("id", id);
-  if (error) return { error: "Não foi possível excluir. Tente novamente." };
+  const { data: visivel } = await supabase.from("activities").select("id").eq("id", id).maybeSingle();
+  if (!visivel) return { error: "Atividade não encontrada." };
+  const r = await excluirAtividades([id], profile.id);
+  if (r.erro) return { error: r.erro };
   revalidatePath("/admin/activities");
   revalidatePath("/admin");
   return { error: null };

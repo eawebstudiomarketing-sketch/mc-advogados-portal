@@ -18,6 +18,9 @@ import { BackButton } from "@/components/nav/back-button";
 import { exigirPermissao } from "@/lib/dal";
 import { getHistorico } from "@/lib/data/historico";
 import { HistoricoRegistro } from "@/components/ui/historico-registro";
+import { atividadesDoProcesso } from "@/lib/data/alertas";
+import { AtividadeLink } from "@/components/atividade/atividade-modal";
+import { ChipPrazo } from "@/components/ui/chip-prazo";
 import { listPublicacoesDoProcesso, STATUS_PUBLICACAO, type PublicacaoStatus } from "@/lib/data/publicacoes";
 
 type Parte = { nome: string; papel: string; polo: "ativo" | "passivo" | "outro" };
@@ -34,12 +37,18 @@ export default async function ProcessDetailPage({ params, searchParams }: { para
   const process = await getProcess(id);
   if (!process) notFound();
 
-  const [documents, publicacoes, andamentosTodos, clientes] = await Promise.all([
+  const [documents, publicacoes, andamentosTodos, clientes, atividades] = await Promise.all([
     process.client_id ? listDocuments({ processId: id }) : Promise.resolve([]),
     listPublicacoesDoProcesso(id),
     listAndamentosDoProcesso(id, 1000),
     process.client_id ? Promise.resolve([]) : listClients(),
+    atividadesDoProcesso(process).catch(() => []),
   ]);
+  const novaAtividade = `/admin/activities/new?${new URLSearchParams({
+    ...(process.client_id ? { clientId: process.client_id } : {}),
+    descricao: `Processo nº ${process.numero_processo ?? ""}`,
+  })}`;
+  const STATUS_ATIV: Record<string, string> = { aberta: "A fazer", em_andamento: "Em andamento", concluida: "Concluída", cancelada: "Cancelada" };
   const soImportantes = sp.imp === "1";
   const filtrados = andamentosTodos.filter((a) => (!soImportantes || a.importante) && (sp.todos === "1" || a.tipo !== "tarefa"));
   const andamentos = sp.todos === "1" ? filtrados : filtrados.slice(0, 40);
@@ -189,6 +198,34 @@ export default async function ProcessDetailPage({ params, searchParams }: { para
             <p className="py-3 text-sm text-muted">Ligue o processo a um cliente para anexar documentos.</p>
           )}
         </div>
+      </div>
+
+      <div id="atividades" className="mt-4 ui-card p-5">
+        <div className="flex flex-wrap items-center justify-between gap-2">
+          <h2 className="section-title">Atividades deste processo</h2>
+          <Link href={novaAtividade} className="ui-link">
+            + Nova atividade para este processo
+          </Link>
+        </div>
+        {atividades.length === 0 ? (
+          <p className="py-3 text-sm text-muted">Nenhuma atividade ligada a este processo. As que citam o número dele ou nasceram de um andamento ou publicação aparecem aqui.</p>
+        ) : (
+          <ul className="mt-2 divide-y divide-border">
+            {atividades.map((a) => {
+              const fechada = a.status === "concluida" || a.status === "cancelada";
+              return (
+                <li key={a.id} className="flex flex-wrap items-center gap-x-3 gap-y-1 py-2.5">
+                  <AtividadeLink id={a.id} className={`min-w-0 flex-1 truncate text-sm hover:underline ${fechada ? "text-muted line-through decoration-border-strong" : "font-medium text-foreground"}`}>
+                    {a.title}
+                  </AtividadeLink>
+                  <span className="text-xs text-muted">{a.responsaveis?.nome ?? "Sem responsável"}</span>
+                  <span className="text-xs text-muted">{STATUS_ATIV[a.status] ?? a.status}</span>
+                  {a.deadline && <ChipPrazo data={a.deadline} encerrado={fechada} />}
+                </li>
+              );
+            })}
+          </ul>
+        )}
       </div>
 
       <div id="andamentos" className="mt-4 ui-card p-5">
