@@ -157,11 +157,13 @@ export default async function AdminOverviewPage({
       : []),
   ].slice(0, 7);
 
-  // ranking da equipe visível para todos (03/11/2026); quem não vê a equipe recebe só o placar, contado no servidor
+  // ranking da equipe visível para todos (03/11/2026), contado SEMPRE no servidor com todas as
+  // atividades (12/11/2026): antes quem tinha "ver equipe" contava só as atividades que o banco
+  // deixa ele ver (advogado vê só as dele), e o ranking saía diferente para cada pessoa
   const [pontosRotina, minhaRotina, atividadesPlacar] = await Promise.all([
     pontosDeRotina(somaDias(hoje, -periodo + 1)),
     meuResponsavel ? rotinaDoDia(meuResponsavel, hoje) : Promise.resolve([]),
-    verEquipe ? Promise.resolve(activities) : atividadesDoRanking(),
+    atividadesDoRanking(),
   ]);
   const linhasRanking = ranking(atividadesPlacar, pessoas, periodo, pontosRotina);
   const topClientes = clientesComMaisPendencias(activities, 8);
