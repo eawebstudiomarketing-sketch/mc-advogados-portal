@@ -9,7 +9,7 @@ const initialState: CreateTimeEntryState = { error: null };
 
 export function TimeEntryForm({ clients }: { clients: Client[] }) {
   const [state, formAction, pending] = useActionState(createTimeEntryAction, initialState);
-  const today = new Date().toISOString().slice(0, 10);
+  const today = new Intl.DateTimeFormat("en-CA", { timeZone: "America/Bahia" }).format(new Date());
 
   return (
     <form action={formAction} className="max-w-xl space-y-5 ui-card p-6">

@@ -1,5 +1,6 @@
 "use client";
 
+import { TextoComLinks } from "@/components/ui/texto-com-links";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { ArrowLeft, AtSign, Bell, CheckCheck, Hash, ListChecks, Loader2, MessageSquare, Send } from "lucide-react";
@@ -362,7 +363,7 @@ function Conversa({
                   }`}
                 >
                   {grupo && !minha && !mesmoAutor && <p className="text-[11px] font-semibold text-gold-ink">{nomeDe.get(m.autor_id) ?? "Alguém da equipe"}</p>}
-                  <p className="whitespace-pre-wrap break-words">{m.texto}</p>
+                  <p className="whitespace-pre-wrap break-words"><TextoComLinks texto={m.texto} /></p>
                   <p className={`mt-0.5 text-right text-[10px] ${minha ? "text-navy-foreground/60" : "text-muted"}`}>
                     {new Date(m.created_at).toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" })}
                   </p>

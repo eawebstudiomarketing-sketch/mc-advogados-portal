@@ -43,7 +43,7 @@ export default async function AdminContractsPage({ searchParams }: { searchParam
           </p>
         </div>
         <Link
-          href="/admin/contracts/new"
+          href={`/admin/contracts/new${f.cliente ? `?clientId=${f.cliente}` : ""}`}
           className="ui-btn"
         >
           <Plus className="h-4 w-4" aria-hidden /> Novo contrato
@@ -107,8 +107,12 @@ export default async function AdminContractsPage({ searchParams }: { searchParam
             )}
             {contracts.map((c) => (
               <tr key={c.id}>
-                <td className="px-5 py-3 font-medium text-foreground">{c.title}</td>
-                <td className="px-5 py-3 text-foreground/70">{c.clients?.name}</td>
+                <td className="px-5 py-3 font-medium text-foreground">
+                  <Link href={`/admin/contracts/${c.id}/edit`} className="hover:underline">{c.title}</Link>
+                </td>
+                <td className="px-5 py-3 text-foreground/70">
+                  {c.client_id ? <Link href={`/admin/clients/${c.client_id}`} className="hover:text-foreground hover:underline">{c.clients?.name}</Link> : c.clients?.name}
+                </td>
                 <td className="px-5 py-3 text-foreground/70">{formatDate(c.start_date)}</td>
                 <td className="px-5 py-3 tabular-nums text-foreground/70">
                   {c.value ? formatCurrency(Number(c.value)) : "—"}

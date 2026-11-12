@@ -94,7 +94,7 @@ export function textoDaRotina(nome: string, dia: string, d: DiaDaPessoa, url: st
   const linhas: string[] = [`Bom dia, ${primeiro}! ☀️`, `Sua agenda de *${semana}*:`];
 
   if (d.rotina.length) {
-    linhas.push("", "✅ *Sua rotina de hoje* (marque no portal, vale ponto)");
+    linhas.push("", "✅ *Sua rotina de hoje* (marque no portal)");
     for (const r of d.rotina) linhas.push(`☐ ${r.hora ? `${r.hora} ` : ""}${r.titulo}`);
   }
   if (d.compromissos.length) {

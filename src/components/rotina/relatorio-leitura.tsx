@@ -1,3 +1,4 @@
+import { AtividadeLink } from "@/components/atividade/atividade-modal";
 import { EditarDemanda } from "./editar-demanda";
 import { chaveResposta, SECAO_ROTULO, SECOES, type RelatorioDoDia, type Valor } from "@/lib/rotina-relatorio/tipos";
 
@@ -21,7 +22,7 @@ export function RelatorioLeitura({ relatorio }: { relatorio: RelatorioDoDia }) {
           <ul className="space-y-1.5">
             {snap.demandas.map((d) => (
               <li key={d.id} className="text-sm">
-                <span className="font-medium text-foreground">{d.titulo}</span>
+                <AtividadeLink id={d.id} className="font-medium text-foreground hover:underline">{d.titulo}</AtividadeLink>
                 <span className="text-xs text-muted"> · {d.cliente ?? "Sem cliente"} · {d.diasAtraso > 0 ? `${d.diasAtraso} d de atraso` : "vence hoje"}</span>
                 <p className="whitespace-pre-wrap text-foreground/80">{relatorio.justificativas[d.id] ?? "—"}</p>
                 <div className="mt-1">

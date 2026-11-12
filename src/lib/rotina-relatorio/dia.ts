@@ -28,7 +28,7 @@ const hora = (iso: string) => new Intl.DateTimeFormat("pt-BR", { timeZone: "Amer
 const somaUmDia = (dia: string) => new Date(Date.parse(`${dia}T12:00:00Z`) + 86_400_000).toISOString().slice(0, 10);
 const valorTexto = (v: Valor | undefined) => (v === undefined || v === null || v === "" || (Array.isArray(v) && !v.length) ? "—" : Array.isArray(v) ? v.join(", ") : String(v));
 
-type Concluida = { titulo: string; cliente: string | null };
+type Concluida = { id?: string; titulo: string; cliente: string | null };
 type PessoaDia = {
   id: string;
   nome: string;
@@ -44,12 +44,12 @@ type PessoaDia = {
 export async function concluidasNoDia(responsavelId: string, dia: string): Promise<Concluida[]> {
   const { data } = await db()
     .from("activities")
-    .select("title, clients(name)")
+    .select("id, title, clients(name)")
     .eq("responsavel_id", responsavelId)
     .eq("status", "concluida")
     .gte("concluida_em", `${dia}T00:00:00-03:00`)
     .lt("concluida_em", `${somaUmDia(dia)}T00:00:00-03:00`);
-  return (data ?? []).map((a) => ({ titulo: a.title as string, cliente: (a.clients as unknown as { name: string } | null)?.name ?? null }));
+  return (data ?? []).map((a) => ({ id: a.id as string, titulo: a.title as string, cliente: (a.clients as unknown as { name: string } | null)?.name ?? null }));
 }
 
 export async function coletarDia(dia: string): Promise<PessoaDia[]> {

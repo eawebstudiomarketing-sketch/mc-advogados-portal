@@ -4,7 +4,8 @@ import { exigirPermissao } from "@/lib/dal";
 import { FinancialRecordForm } from "./financial-record-form";
 import { BackButton } from "@/components/nav/back-button";
 
-export default async function NewFinancialRecordPage() {
+export default async function NewFinancialRecordPage({ searchParams }: { searchParams: Promise<{ clientId?: string }> }) {
+  const { clientId } = await searchParams;
   await exigirPermissao("financeiro");
   const clients = await listClients();
 
@@ -23,7 +24,7 @@ export default async function NewFinancialRecordPage() {
           antes de lançar um financeiro.
         </p>
       ) : (
-        <FinancialRecordForm clients={clients} />
+        <FinancialRecordForm clients={clients} clientId={clientId} />
       )}
     </div>
   );

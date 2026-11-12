@@ -31,7 +31,7 @@ export default async function AdminReportsPage({ searchParams }: { searchParams:
           <p className="text-sm text-muted">Relatórios em PDF gerados pro cliente acompanhar o trabalho prestado</p>
         </div>
         <Link
-          href="/admin/reports/new"
+          href={`/admin/reports/new${f.cliente ? `?clientId=${f.cliente}` : ""}`}
           className="ui-btn"
         >
           <Plus className="h-4 w-4" aria-hidden /> Gerar relatório
@@ -66,7 +66,7 @@ export default async function AdminReportsPage({ searchParams }: { searchParams:
             )}
             {reports.map((r) => (
               <tr key={r.id}>
-                <td className="px-5 py-3 font-medium text-foreground">{r.clients?.name}</td>
+                <td className="px-5 py-3 font-medium text-foreground">{r.client_id ? <Link href={`/admin/clients/${r.client_id}`} className="hover:underline">{r.clients?.name}</Link> : r.clients?.name}</td>
                 <td className="px-5 py-3 text-foreground/70">
                   {MESES[r.reference_month]} de {r.reference_year}
                 </td>

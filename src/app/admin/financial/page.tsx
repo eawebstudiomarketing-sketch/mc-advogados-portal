@@ -52,7 +52,7 @@ export default async function AdminFinancialPage({ searchParams }: { searchParam
           </p>
         </div>
         <Link
-          href="/admin/financial/new"
+          href={`/admin/financial/new${f.cliente ? `?clientId=${f.cliente}` : ""}`}
           className="ui-btn-secondary px-3 py-1.5 text-xs"
         >
           Novo lançamento
@@ -133,7 +133,7 @@ export default async function AdminFinancialPage({ searchParams }: { searchParam
             {records.map((f) => (
               <tr key={f.id}>
                 <td className="w-10 py-3 pr-0 pl-5">{f.status !== "paid" && <MarcarLinha id={f.id} rotulo={f.description} />}</td>
-                <td className="px-5 py-3 font-medium text-foreground">{f.clients?.name}</td>
+                <td className="px-5 py-3 font-medium text-foreground">{f.client_id ? <Link href={`/admin/clients/${f.client_id}`} className="hover:underline">{f.clients?.name}</Link> : f.clients?.name}</td>
                 <td className="px-5 py-3 text-foreground/70">{f.description}</td>
                 <td className="px-5 py-3"><ChipPrazo data={f.due_date} encerrado={f.status === "paid"} /></td>
                 <td className="px-5 py-3 tabular-nums text-foreground/70">{formatCurrency(Number(f.amount))}</td>

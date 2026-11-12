@@ -1,5 +1,6 @@
 "use client";
 
+import { TextoComLinks } from "@/components/ui/texto-com-links";
 import { memo, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import {
@@ -765,7 +766,7 @@ const Balao = memo(function Balao({
           <Midia m={m} onAmpliar={acoes.ampliar} onCarregou={onCarregou} />
           {m.texto && (
             <p className="break-words whitespace-pre-wrap">
-              {verOriginal && m.texto_original ? m.texto_original : m.texto}
+              <TextoComLinks texto={verOriginal && m.texto_original ? m.texto_original : m.texto} />
               <span className={`inline-block ${m.editada_em || m.apagada_em || (meu && m.quem === "ia") ? "w-32" : "w-16"}`} aria-hidden />
             </p>
           )}

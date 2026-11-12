@@ -360,9 +360,14 @@ export default async function AdminClientDetailPage({
           <section className="ui-card p-5">
             <div className="flex items-center justify-between">
               <h2 className="section-title">Documentos e contratos</h2>
-              <Link href={`/admin/documents/new?clientId=${client.id}`} className="ui-link">
-                + Adicionar documento
-              </Link>
+              <div className="flex flex-wrap gap-x-4 gap-y-1">
+                <Link href={`/admin/documents/new?clientId=${client.id}`} className="ui-link">
+                  + Adicionar documento
+                </Link>
+                <Link href={`/admin/contracts/new?clientId=${client.id}`} className="ui-link">
+                  + Novo contrato
+                </Link>
+              </div>
             </div>
             <div className="mt-3">
               <DriveSyncSection clientId={client.id} />

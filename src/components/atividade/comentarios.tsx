@@ -1,5 +1,6 @@
 "use client";
 
+import { TextoComLinks } from "@/components/ui/texto-com-links";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { MessageSquare, Pencil, Send, Trash2 } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
@@ -29,7 +30,7 @@ const iniciais = (nome: string) =>
 /** Texto com as menções (@Nome) destacadas. */
 function TextoComMencoes({ texto, equipe }: { texto: string; equipe: Membro[] }) {
   const nomes = equipe.map((m) => m.nome).sort((a, b) => b.length - a.length);
-  if (!nomes.length) return <>{texto}</>;
+  if (!nomes.length) return <TextoComLinks texto={texto} />;
   const esc = nomes.map((n) => n.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"));
   const partes = texto.split(new RegExp(`(@(?:${esc.join("|")}))`, "gi"));
   return (
@@ -40,7 +41,9 @@ function TextoComMencoes({ texto, equipe }: { texto: string; equipe: Membro[] })
             {p}
           </span>
         ) : (
-          <span key={i}>{p}</span>
+          <span key={i}>
+            <TextoComLinks texto={p} />
+          </span>
         )
       )}
     </>

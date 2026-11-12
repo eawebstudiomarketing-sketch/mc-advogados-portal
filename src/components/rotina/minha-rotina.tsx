@@ -44,7 +44,7 @@ function gruposDoDia(itens: ItemRotinaTela[]): [string, ItemRotinaTela[]][] {
   return grupos.filter(([, lista]) => lista.length > 0);
 }
 
-/** Rotina do dia na ordem de prioridade. Cada item marcado vale 1 ponto no ranking. */
+/** Rotina do dia na ordem de prioridade. (Desde 12/11/2026 a rotina não pontua no ranking.) */
 export function MinhaRotina({
   itens: inicial,
   podeMarcar,
@@ -179,7 +179,7 @@ export function MinhaRotina({
       <div className="flex items-end justify-between gap-3">
         <div>
           <p className="eyebrow flex items-center gap-1.5">
-            <ListChecks className="h-3.5 w-3.5" aria-hidden /> Rotina · +1 ponto por item
+            <ListChecks className="h-3.5 w-3.5" aria-hidden /> Rotina do dia
           </p>
           <h2 className="section-title !text-lg">{titulo}</h2>
         </div>

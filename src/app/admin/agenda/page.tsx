@@ -90,6 +90,8 @@ export default async function AgendaPage({ searchParams }: { searchParams: Promi
     </div>
   );
 
+  // dia aberto na tela (linha do tempo de um dia): os botões já levam essa data
+  const diaAberto = abaAtiva === "dia" ? (/^\d{4}-\d{2}-\d{2}$/.test(sp.dia ?? "") ? sp.dia! : hoje) : null;
   const cabecalho = (
     <div className="mb-5 flex flex-wrap items-end justify-between gap-3">
       <div>
@@ -97,10 +99,10 @@ export default async function AgendaPage({ searchParams }: { searchParams: Promi
         <h1 className="page-title">Agenda</h1>
       </div>
       <div className="flex flex-wrap gap-2">
-        <Link href="/admin/agenda/compromisso/novo" className="ui-btn">
+        <Link href={`/admin/agenda/compromisso/novo${diaAberto ? `?dia=${diaAberto}` : ""}`} className="ui-btn">
           <CalendarPlus className="h-4 w-4" aria-hidden /> Novo compromisso
         </Link>
-        <Link href="/admin/activities/new" className="ui-btn-secondary">
+        <Link href={`/admin/activities/new${diaAberto ? `?prazo=${diaAberto}` : ""}`} className="ui-btn-secondary">
           <Plus className="h-4 w-4" aria-hidden /> Nova atividade
         </Link>
       </div>

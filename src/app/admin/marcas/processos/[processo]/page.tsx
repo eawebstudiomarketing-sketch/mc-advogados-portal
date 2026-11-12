@@ -111,7 +111,19 @@ export default async function FichaMarcaPage({ params }: { params: Promise<{ pro
               </>
             )}
             {m.cfe && bloco(<p>CFE(4): {m.cfe}</p>)}
-            {(m.clients?.name || m.contato_nome) && bloco(<p>Cliente: {m.clients?.name ?? m.contato_nome}</p>)}
+            {(m.clients?.name || m.contato_nome) &&
+              bloco(
+                <p>
+                  Cliente:{" "}
+                  {m.client_id && m.clients?.name ? (
+                    <Link href={`/admin/clients/${m.client_id}`} className="font-medium text-navy-3 hover:underline">
+                      {m.clients.name}
+                    </Link>
+                  ) : (
+                    (m.clients?.name ?? m.contato_nome)
+                  )}
+                </p>
+              )}
           </div>
 
           <div className="space-y-4">

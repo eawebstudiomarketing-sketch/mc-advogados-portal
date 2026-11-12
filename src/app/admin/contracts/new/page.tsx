@@ -4,7 +4,8 @@ import { ContractForm } from "./contract-form";
 import { BackButton } from "@/components/nav/back-button";
 import { exigirPermissao } from "@/lib/dal";
 
-export default async function NewContractPage() {
+export default async function NewContractPage({ searchParams }: { searchParams: Promise<{ clientId?: string }> }) {
+  const { clientId } = await searchParams;
   await exigirPermissao("contratos");
   const clients = await listClients();
 
@@ -23,7 +24,7 @@ export default async function NewContractPage() {
           antes de criar um contrato.
         </p>
       ) : (
-        <ContractForm clients={clients} />
+        <ContractForm clients={clients} clientId={clientId} />
       )}
     </div>
   );

@@ -38,7 +38,7 @@ export async function atividadesDoRanking(): Promise<AtividadeRanking[]> {
 }
 
 /** Quem mais concluiu no período (concluida_em dentro dos últimos `dias`). */
-/** Pontos = demandas concluídas + itens de rotina feitos no período (1 ponto cada). */
+/** Pontos = só atividades concluídas no período (1 ponto cada). Desde 12/11/2026 a rotina não pontua mais. */
 export function ranking(atividades: AtividadeRanking[], pessoas: Pessoa[], dias: number, rotina: Map<string, number> = new Map()): LinhaRanking[] {
   const hoje = hojeBahia();
   const desde = Date.parse(`${somaDias(hoje, -dias + 1)}T00:00:00-03:00`);
@@ -55,7 +55,7 @@ export function ranking(atividades: AtividadeRanking[], pessoas: Pessoa[], dias:
       if (a.deadline && a.deadline < hoje) l.atrasadas++;
     }
   }
-  for (const l of linhas.values()) l.pontos = l.concluidas + l.rotina;
+  for (const l of linhas.values()) l.pontos = l.concluidas;
   return [...linhas.values()]
     .filter((l) => l.pontos || l.abertas)
     .sort((a, b) => b.pontos - a.pontos || a.atrasadas - b.atrasadas || a.nome.localeCompare(b.nome));

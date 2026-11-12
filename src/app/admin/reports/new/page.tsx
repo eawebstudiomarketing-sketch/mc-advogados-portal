@@ -4,7 +4,8 @@ import { exigirPermissao } from "@/lib/dal";
 import { ReportForm } from "./report-form";
 import { BackButton } from "@/components/nav/back-button";
 
-export default async function NewReportPage() {
+export default async function NewReportPage({ searchParams }: { searchParams: Promise<{ clientId?: string }> }) {
+  const { clientId } = await searchParams;
   await exigirPermissao("relatorios");
   const clients = await listClients();
 
@@ -23,7 +24,7 @@ export default async function NewReportPage() {
           antes de gerar um relatório.
         </p>
       ) : (
-        <ReportForm clients={clients} />
+        <ReportForm clients={clients} clientId={clientId} />
       )}
     </div>
   );

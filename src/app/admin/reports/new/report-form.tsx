@@ -1,5 +1,6 @@
 "use client";
 
+import { SeletorCliente } from "@/components/ui/seletor-cliente";
 import { useActionState } from "react";
 import { generateReportAction, type GenerateReportState } from "../actions";
 import type { Client } from "@/lib/data/clients";
@@ -8,7 +9,7 @@ const MESES = ["", "Janeiro", "Fevereiro", "Março", "Abril", "Maio", "Junho", "
 
 const initialState: GenerateReportState = { error: null };
 
-export function ReportForm({ clients }: { clients: Client[] }) {
+export function ReportForm({ clients, clientId }: { clients: Client[]; clientId?: string }) {
   const [state, formAction, pending] = useActionState(generateReportAction, initialState);
   const now = new Date();
 
@@ -18,17 +19,7 @@ export function ReportForm({ clients }: { clients: Client[] }) {
         <label htmlFor="client_id" className="ui-label">
           Cliente
         </label>
-        <select
-          id="client_id"
-          name="client_id"
-          className="ui-input"
-        >
-          {clients.map((c) => (
-            <option key={c.id} value={c.id}>
-              {c.name}
-            </option>
-          ))}
-        </select>
+        <SeletorCliente id="client_id" clients={clients} inicial={clientId} />
       </div>
 
       <div className="grid grid-cols-2 gap-4">

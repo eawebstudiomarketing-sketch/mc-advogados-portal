@@ -1,5 +1,6 @@
 "use client";
 
+import { AtividadeLink } from "@/components/atividade/atividade-modal";
 import { useEffect, useRef, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { CheckCircle2, Send } from "lucide-react";
@@ -201,7 +202,9 @@ export function RelatorioDoDia({
         {demandas.map((d) => (
           <li key={d.id} className="space-y-1.5">
             <p className="text-sm font-medium text-foreground">
-              {d.titulo}
+              <AtividadeLink id={d.id} className="hover:underline" >
+                {d.titulo}
+              </AtividadeLink>
               <span className="ml-2 text-xs font-normal text-muted">
                 {d.cliente ?? "Sem cliente"} · venceu {d.prazo.split("-").reverse().slice(0, 2).join("/")}
                 {d.diasAtraso > 0 ? ` (${d.diasAtraso} ${d.diasAtraso === 1 ? "dia" : "dias"} de atraso)` : " (vence hoje)"}

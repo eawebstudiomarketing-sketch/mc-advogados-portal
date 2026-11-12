@@ -1,3 +1,4 @@
+import { AtividadeLink } from "@/components/atividade/atividade-modal";
 import Link from "next/link";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { listPessoas } from "@/lib/data/escritorio";
@@ -181,7 +182,7 @@ export async function rotinaDaPessoa({
                       <ul className="mt-2 space-y-0.5 text-sm text-foreground/80">
                         {concluidas.slice(0, 8).map((c, k) => (
                           <li key={k} className="truncate">
-                            ✅ {c.titulo} <span className="text-xs text-muted">· {c.cliente ?? "Sem cliente"}</span>
+                            ✅ {c.id ? <AtividadeLink id={c.id} className="hover:underline">{c.titulo}</AtividadeLink> : c.titulo} <span className="text-xs text-muted">· {c.cliente ?? "Sem cliente"}</span>
                           </li>
                         ))}
                       </ul>

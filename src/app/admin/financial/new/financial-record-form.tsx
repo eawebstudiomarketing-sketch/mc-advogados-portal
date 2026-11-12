@@ -1,5 +1,6 @@
 "use client";
 
+import { SeletorCliente } from "@/components/ui/seletor-cliente";
 import { useActionState } from "react";
 import { createFinancialRecordAction, type CreateFinancialRecordState } from "../actions";
 import type { Client } from "@/lib/data/clients";
@@ -7,7 +8,7 @@ import { VoltarInput } from "@/components/nav/back-button";
 
 const initialState: CreateFinancialRecordState = { error: null };
 
-export function FinancialRecordForm({ clients }: { clients: Client[] }) {
+export function FinancialRecordForm({ clients, clientId }: { clients: Client[]; clientId?: string }) {
   const [state, formAction, pending] = useActionState(createFinancialRecordAction, initialState);
 
   return (
@@ -17,17 +18,7 @@ export function FinancialRecordForm({ clients }: { clients: Client[] }) {
         <label htmlFor="client_id" className="ui-label">
           Cliente
         </label>
-        <select
-          id="client_id"
-          name="client_id"
-          className="ui-input"
-        >
-          {clients.map((c) => (
-            <option key={c.id} value={c.id}>
-              {c.name}
-            </option>
-          ))}
-        </select>
+        <SeletorCliente id="client_id" clients={clients} inicial={clientId} />
       </div>
 
       <div>

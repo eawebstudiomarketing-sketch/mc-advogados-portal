@@ -374,7 +374,7 @@ export default async function AdminOverviewPage({
         <section className="ui-card p-5">
           <div className="mb-4 flex items-center justify-between gap-2">
             <div>
-              <p className="eyebrow">Pontos · demandas + rotina</p>
+              <p className="eyebrow">Pontos · atividades concluídas</p>
               <h2 className="section-title !text-lg">Ranking da equipe</h2>
             </div>
             <div className="inline-flex rounded-full border border-border p-0.5 text-xs">
@@ -411,7 +411,7 @@ export default async function AdminOverviewPage({
                       </div>
                       <p className="mt-1.5 w-full truncate text-center text-xs font-semibold text-foreground">{l.nome.replace(/^(Dr\.?|Dra\.?)\s+/i, "").split(" ")[0]}</p>
                       <div className={`mt-1.5 flex w-full ${altura} items-start justify-center rounded-t-xl ${pos === 0 ? "bg-navy text-white" : "bg-surface-2 text-foreground"}`}>
-                        <span className="numero-grande mt-1.5 text-xl" title={`${l.concluidas} demanda(s) + ${l.rotina} item(ns) de rotina`}>
+                        <span className="numero-grande mt-1.5 text-xl" title={`${l.concluidas} atividade(s) concluída(s)`}>
                           {l.pontos}
                         </span>
                       </div>
@@ -428,7 +428,7 @@ export default async function AdminOverviewPage({
                         <span className="eyebrow w-5">{String(i + 4).padStart(2, "0")}</span>
                         <Avatar nome={l.nome} foto={p?.foto} tamanho={26} />
                         <span className="min-w-0 flex-1 truncate text-sm text-foreground">{l.nome}</span>
-                        <span className="numero-grande text-base" title={`${l.concluidas} demanda(s) + ${l.rotina} item(ns) de rotina`}>
+                        <span className="numero-grande text-base" title={`${l.concluidas} atividade(s) concluída(s)`}>
                           {l.pontos}
                         </span>
                       </li>

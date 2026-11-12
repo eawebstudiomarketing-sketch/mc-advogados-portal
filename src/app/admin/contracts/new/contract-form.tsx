@@ -1,5 +1,6 @@
 "use client";
 
+import { SeletorCliente } from "@/components/ui/seletor-cliente";
 import { useActionState } from "react";
 import { createContractAction, type CreateContractState } from "../actions";
 import type { Client } from "@/lib/data/clients";
@@ -7,9 +8,9 @@ import { VoltarInput } from "@/components/nav/back-button";
 
 const initialState: CreateContractState = { error: null };
 
-export function ContractForm({ clients }: { clients: Client[] }) {
+export function ContractForm({ clients, clientId }: { clients: Client[]; clientId?: string }) {
   const [state, formAction, pending] = useActionState(createContractAction, initialState);
-  const today = new Date().toISOString().slice(0, 10);
+  const today = new Intl.DateTimeFormat("en-CA", { timeZone: "America/Bahia" }).format(new Date());
 
   return (
     <form action={formAction} className="max-w-xl space-y-5 ui-card p-6">
@@ -18,17 +19,7 @@ export function ContractForm({ clients }: { clients: Client[] }) {
         <label htmlFor="client_id" className="ui-label">
           Cliente
         </label>
-        <select
-          id="client_id"
-          name="client_id"
-          className="ui-input"
-        >
-          {clients.map((c) => (
-            <option key={c.id} value={c.id}>
-              {c.name}
-            </option>
-          ))}
-        </select>
+        <SeletorCliente id="client_id" clients={clients} inicial={clientId} />
       </div>
 
       <div>

@@ -40,7 +40,7 @@ export default async function AdminDocumentsPage({
           </p>
         </div>
         <Link
-          href="/admin/documents/new"
+          href={`/admin/documents/new${cliente ? `?clientId=${cliente}` : ""}`}
           className="ui-btn"
         >
           <Plus className="h-4 w-4" aria-hidden /> Enviar documento
@@ -101,7 +101,7 @@ export default async function AdminDocumentsPage({
             {documents.map((d) => (
               <tr key={d.id}>
                 <td className="px-5 py-3 font-medium text-foreground">{d.title}</td>
-                <td className="px-5 py-3 text-foreground/70">{d.clients?.name}</td>
+                <td className="px-5 py-3 text-foreground/70">{d.client_id ? <Link href={`/admin/clients/${d.client_id}`} className="hover:text-foreground hover:underline">{d.clients?.name}</Link> : d.clients?.name}</td>
                 <td className="px-5 py-3 text-foreground/70">{DOCUMENT_CATEGORY_LABEL[d.category]}</td>
                 <td className="px-5 py-3 text-foreground/70">{d.profiles?.full_name}</td>
                 <td className="px-5 py-3 text-foreground/70">
