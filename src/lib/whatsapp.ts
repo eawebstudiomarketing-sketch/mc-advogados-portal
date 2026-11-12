@@ -145,15 +145,36 @@ export async function comLinksDeMidia(msgs: WaMensagem[]): Promise<WaMensagem[]>
   return msgs.map(({ raw, ...m }) => {
     const pendente = !m.media_path && !!raw && !m.media_erro;
     if (!m.media_path) return { ...m, media_pendente: pendente };
+    const nome = nomeParaBaixar(m);
     if (m.media_path.startsWith(PREFIXO_VPS)) {
-      const nome = m.media_nome || m.media_path.split("/").pop() || "arquivo";
       return { ...m, media_url: linkVps(m.media_path), media_download_url: linkVps(m.media_path, { baixarComo: nome }) };
     }
     const link = url.get(m.media_path) ?? null;
-    // ?download= faz o Storage mandar como anexo, com o nome original
-    const baixar = link && m.media_nome ? `${link}&download=${encodeURIComponent(m.media_nome)}` : link;
+    // ?download= faz o Storage mandar como anexo (baixa em vez de abrir), com o nome
+    const baixar = link ? `${link}&download=${encodeURIComponent(nome)}` : link;
     return { ...m, media_url: link, media_download_url: baixar };
   });
+}
+
+const TIPO_ARQUIVO: Record<string, string> = { imagem: "Imagem", video: "Video", audio: "Audio", figurinha: "Figurinha", documento: "Documento" };
+const EXT_MIME: Record<string, string> = {
+  "image/jpeg": "jpg", "image/png": "png", "image/webp": "webp", "image/gif": "gif",
+  "video/mp4": "mp4", "video/3gpp": "3gp", "video/quicktime": "mov", "video/webm": "webm",
+  "audio/ogg": "ogg", "audio/mpeg": "mp3", "audio/mp4": "m4a", "audio/webm": "webm", "audio/aac": "aac",
+};
+
+/** Nome do arquivo ao baixar: o original (documento) ou no padrão do WhatsApp, ex. "WhatsApp Imagem 2026-11-12 às 10.30.15.jpg". */
+function nomeParaBaixar(m: Pick<WaMensagem, "media_nome" | "media_path" | "media_mime" | "tipo" | "wa_timestamp">): string {
+  if (m.media_nome) return m.media_nome;
+  const doCaminho = (m.media_path ?? "").split("/").pop() ?? "";
+  const ext =
+    (/\.([a-z0-9]{2,5})$/i.exec(doCaminho)?.[1] ?? EXT_MIME[(m.media_mime ?? "").split(";")[0].trim()] ?? "bin").toLowerCase();
+  const d = new Date(m.wa_timestamp);
+  const p = (n: number) => String(n).padStart(2, "0");
+  // horário da Bahia (UTC-3), não o do servidor
+  const b = new Date(d.getTime() - 3 * 3_600_000);
+  const quando = `${b.getUTCFullYear()}-${p(b.getUTCMonth() + 1)}-${p(b.getUTCDate())} às ${p(b.getUTCHours())}.${p(b.getUTCMinutes())}.${p(b.getUTCSeconds())}`;
+  return `WhatsApp ${TIPO_ARQUIVO[m.tipo] ?? "Arquivo"} ${quando}.${ext}`;
 }
 
 /** Contatos da agenda do celular (pra começar conversa nova). */

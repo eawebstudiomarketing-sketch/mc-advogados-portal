@@ -870,7 +870,7 @@ const Balao = memo(function Balao({
               <Forward className="h-4 w-4 text-muted" aria-hidden /> Encaminhar
             </ItemMenu>
             {(m.media_download_url || m.media_url) && (
-              <ItemMenu onClick={() => (setMenu(null), window.open(m.media_download_url ?? m.media_url!, "_blank"))}>
+              <ItemMenu onClick={() => (setMenu(null), baixarArquivo(m))}>
                 <Download className="h-4 w-4 text-muted" aria-hidden /> Baixar
               </ItemMenu>
             )}
@@ -905,6 +905,34 @@ function StatusEnvio({ status, erro }: { status: string; erro: string | null }) 
   return <Check className="h-3.5 w-3.5" aria-label="Enviada" />;
 }
 
+/** Baixa o arquivo sem sair da conversa (o link manda como anexo). */
+function baixarArquivo(m: Msg) {
+  const href = m.media_download_url ?? m.media_url;
+  if (!href) return;
+  const a = document.createElement("a");
+  a.href = href;
+  a.download = m.media_nome ?? "";
+  a.rel = "noreferrer";
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+}
+
+/** Botão redondo de baixar por cima da foto/vídeo (aparece ao passar o mouse; no celular fica sempre visível). */
+function BotaoBaixar({ m, rotulo }: { m: Msg; rotulo: string }) {
+  return (
+    <button
+      type="button"
+      onClick={(e) => (e.stopPropagation(), baixarArquivo(m))}
+      className="absolute right-2 top-2 flex h-8 w-8 items-center justify-center rounded-full bg-black/55 text-white opacity-100 shadow transition-opacity hover:bg-black/75 sm:opacity-0 sm:group-hover/midia:opacity-100 focus-visible:opacity-100"
+      aria-label={rotulo}
+      data-tip={rotulo}
+    >
+      <Download className="h-4 w-4" aria-hidden />
+    </button>
+  );
+}
+
 const ROTULO_MIDIA: Record<string, string> = {
   imagem: "📷 Foto",
   audio: "🎤 Áudio",
@@ -933,20 +961,39 @@ function Midia({ m, onAmpliar, onCarregou }: { m: Msg; onAmpliar: (m: Msg) => vo
   }
   if (m.tipo === "imagem" || m.tipo === "figurinha")
     return (
-      <button type="button" onClick={() => m.tipo === "imagem" && onAmpliar(m)} className="-mx-1 -mt-0.5 mb-1 block" aria-label="Ampliar imagem">
-        {/* eslint-disable-next-line @next/next/no-img-element */}
-        <img
-          src={url}
-          alt={m.tipo === "figurinha" ? "Figurinha" : "Imagem"}
-          onLoad={onCarregou}
-          className={m.tipo === "figurinha" ? "h-32 w-32 object-contain" : "max-h-80 w-full max-w-sm rounded-xl object-cover"}
-          loading="lazy"
-          decoding="async"
-        />
-      </button>
+      <span className="group/midia relative -mx-1 -mt-0.5 mb-1 block w-fit">
+        <button type="button" onClick={() => m.tipo === "imagem" && onAmpliar(m)} className="block" aria-label="Ampliar imagem">
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img
+            src={url}
+            alt={m.tipo === "figurinha" ? "Figurinha" : "Imagem"}
+            onLoad={onCarregou}
+            className={m.tipo === "figurinha" ? "h-32 w-32 object-contain" : "max-h-80 w-full max-w-sm rounded-xl object-cover"}
+            loading="lazy"
+            decoding="async"
+          />
+        </button>
+        {!m._temp && <BotaoBaixar m={m} rotulo={m.tipo === "figurinha" ? "Baixar figurinha" : "Baixar imagem"} />}
+      </span>
     );
-  if (m.tipo === "audio") return <audio controls src={url} onLoadedMetadata={onCarregou} className="mb-1 h-10 w-72 max-w-full" preload="none" />;
-  if (m.tipo === "video") return <video controls src={url} onLoadedMetadata={onCarregou} className="mb-1 max-h-80 max-w-full rounded-xl" preload="metadata" />;
+  if (m.tipo === "audio")
+    return (
+      <span className="mb-1 flex items-center gap-1">
+        <audio controls src={url} onLoadedMetadata={onCarregou} className="h-10 w-72 max-w-full" preload="none" />
+        {!m._temp && (
+          <button type="button" onClick={() => baixarArquivo(m)} className="shrink-0 rounded-full p-2 opacity-60 hover:bg-black/10 hover:opacity-100" aria-label="Baixar áudio" data-tip="Baixar áudio">
+            <Download className="h-4 w-4" aria-hidden />
+          </button>
+        )}
+      </span>
+    );
+  if (m.tipo === "video")
+    return (
+      <span className="group/midia relative mb-1 block w-fit">
+        <video controls src={url} onLoadedMetadata={onCarregou} className="block max-h-80 max-w-full rounded-xl" preload="metadata" />
+        {!m._temp && <BotaoBaixar m={m} rotulo="Baixar vídeo" />}
+      </span>
+    );
   return (
     <span className="mb-1 flex items-center gap-1 rounded-xl bg-black/5">
       <button type="button" onClick={() => onAmpliar(m)} className="flex min-w-0 flex-1 items-center gap-2.5 rounded-xl px-3 py-2.5 text-left hover:bg-black/5" title="Abrir documento">
@@ -1422,7 +1469,7 @@ function Ampliada({ m, onFechar }: { m: Msg; onFechar: () => void }) {
       <div className="flex justify-end gap-2 p-3">
         <a
           href={m.media_download_url ?? m.media_url}
-          target="_blank"
+          download={m.media_nome ?? ""}
           rel="noreferrer"
           onClick={(e) => e.stopPropagation()}
           className="flex h-10 w-10 items-center justify-center rounded-full bg-white/10 text-white hover:bg-white/20"
