@@ -50,6 +50,7 @@ import { executarOrdem } from "./ordem";
 import { AvatarWa } from "./comum";
 import { GerenciarRespostas, SugestoesRespostas, filtrarRespostas, preencherResposta, useRespostasRapidas } from "./respostas-rapidas";
 import { AgendarMensagem } from "./agendar-mensagem";
+import { lerRascunho, salvarRascunho } from "./rascunhos";
 import { EMOJIS_RAPIDOS, dataHoraCompleta, diaChave, diaCompleto, telefone, tamanhoLegivel } from "./util";
 
 const POR_PAGINA = 60;
@@ -1068,6 +1069,21 @@ function Compositor({
       }
     });
   }
+
+  // rascunho: o texto não enviado fica guardado por conversa e volta ao reabrir (16/11/2026).
+  // Salvar vem antes de carregar para o primeiro render (vazio) não apagar o rascunho guardado.
+  const rascunhoPronto = useRef(false);
+  useEffect(() => {
+    if (rascunhoPronto.current && !editando) salvarRascunho(jid, texto);
+  }, [texto, jid, editando]);
+  useEffect(() => {
+    if (!editando) {
+      const r = lerRascunho(jid);
+      if (r) setTexto(r);
+    }
+    rascunhoPronto.current = true;
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   useEffect(() => {
     const el = textoRef.current;

@@ -12,6 +12,7 @@ import { executarOrdem } from "./ordem";
 import { BarraAgente } from "./agente-barra";
 import { AvatarWa } from "./comum";
 import { Conversa, ItemMenu, Menu } from "./conversa";
+import { useRascunho } from "./rascunhos";
 import { EscolherPessoas, PerfilPainel } from "./perfil";
 import { agoraServidor, calibrarRelogio, ligadoAgora, ordenar, quando, telefone } from "./util";
 
@@ -533,6 +534,7 @@ const LinhaConversa = memo(function LinhaConversa({
 }) {
   const [menu, setMenu] = useState<DOMRect | null>(null);
   const nome = c.nome || telefone(c.chat_jid);
+  const rascunho = useRascunho(c.chat_jid);
   return (
     <div
       className={`group relative flex h-full items-center gap-3 px-3 transition-colors hover:bg-surface-2 ${ativa ? "bg-surface-2" : ""}`}
@@ -555,7 +557,14 @@ const LinhaConversa = memo(function LinhaConversa({
           <span className="truncate text-[13px] text-muted">
             {mostrarTipo && tipo === "PJ" && <span className="mr-1 rounded bg-surface-2 px-1 py-px text-[10px] font-semibold text-foreground/70">PJ</span>}
             {cliente && <span className="mr-1 rounded bg-gold-soft px-1 py-px text-[10px] font-medium text-gold-ink">{cliente}</span>}
-            {c.ultima_msg_preview ?? ""}
+            {rascunho && !ativa ? (
+              <>
+                <span className="font-semibold text-status-success">Rascunho: </span>
+                {rascunho.replace(/\s+/g, " ")}
+              </>
+            ) : (
+              (c.ultima_msg_preview ?? "")
+            )}
           </span>
           <span className="ml-auto flex shrink-0 items-center gap-1">
             {c.silenciado && <BellOff className="h-3.5 w-3.5 text-muted" aria-label="Silenciada" />}
