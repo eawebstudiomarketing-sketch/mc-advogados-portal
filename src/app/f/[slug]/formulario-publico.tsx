@@ -13,6 +13,10 @@ import { proximoIndice, type Campo, type FormConfig } from "@/lib/crm/tipos";
 // Imagens pelo otimizador do Next (AVIF no tamanho da tela), todas já carregadas.
 // Pixels: Meta (PageView, ViewContent, Lead com o mesmo eventID do servidor) e
 // Google (gtag: form_start, generate_lead e a conversão do Ads).
+// Pixel próprio (16/11/2026): os 10 eventos ficam só no portal (crm_eventos):
+// PageView, ViewContent, FormStart, FormFieldComplete, FormSubmit, Contact e
+// WhatsAppClick saem daqui; Lead, CompleteRegistration e SubmitApplication o
+// servidor grava quando o lead é salvo.
 
 type Pixels = { meta: string | null; ga4: string | null; ads: string | null; adsLabel: string | null };
 type Valor = string | string[];
@@ -76,10 +80,29 @@ export function FormularioPublico({ slug, config, pixels }: { slug: string; conf
   const entrouEm = useRef(0);
   const telaAnterior = useRef<Tela>("inicio");
   const comecou = useRef(false);
+  const jaFoi = useRef(new Set<string>());
   const armadilha = useRef<HTMLInputElement>(null);
   const campoRef = useRef<HTMLInputElement | HTMLTextAreaElement>(null);
 
   const api = useCallback((corpo: Record<string, unknown>) => fetch(`/api/f/${slug}`, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ sessao: sessao.current, ...corpo }) }), [slug]);
+
+  // pixel próprio: manda eventos (cada um uma vez por visita, menos os cliques no botão final)
+  const evento = useCallback(
+    (lista: { nome: string; pergunta?: number; campo?: string }[], beacon = false) => {
+      const novos = lista.filter((e) => {
+        if (e.nome === "Contact" || e.nome === "WhatsAppClick" || e.nome === "PageView") return true;
+        const k = `${e.nome}:${e.campo ?? ""}`;
+        if (jaFoi.current.has(k)) return false;
+        jaFoi.current.add(k);
+        return true;
+      });
+      if (!novos.length || !sessao.current) return;
+      const corpo = JSON.stringify({ sessao: sessao.current, visitante: visitante.current || sessao.current, eventos: novos });
+      if (beacon && navigator.sendBeacon) navigator.sendBeacon(`/api/f/${slug}`, new Blob([corpo], { type: "application/json" }));
+      else fetch(`/api/f/${slug}`, { method: "POST", headers: { "content-type": "application/json" }, body: corpo, keepalive: true }).catch(() => null);
+    },
+    [slug],
+  );
 
   useEffect(() => {
     try {
@@ -102,7 +125,8 @@ export function FormularioPublico({ slug, config, pixels }: { slug: string; conf
       visitante.current = sessao.current;
     }
     api({ passo: "abriu" }).catch(() => null);
-  }, [api, slug]);
+    evento([{ nome: "PageView" }, { nome: "ViewContent" }]);
+  }, [api, evento, slug]);
 
   const atual = typeof tela === "number" ? campos[tela] : null;
   const valor = atual ? respostas[atual.id] : undefined;
@@ -158,6 +182,7 @@ export function FormularioPublico({ slug, config, pixels }: { slug: string; conf
     if (comecou.current) return;
     comecou.current = true;
     api({ passo: "comecou" }).catch(() => null);
+    evento([{ nome: "FormStart" }]);
     window.gtag?.("event", "form_start", { form_id: slug });
   };
 
@@ -206,6 +231,7 @@ export function FormularioPublico({ slug, config, pixels }: { slug: string; conf
       }
       marcarInicio();
       const prox = proximoIndice(campos, tela, v);
+      evento([{ nome: "FormFieldComplete", pergunta: tela + 1, campo: c.id }, ...(prox === -1 ? [{ nome: "FormSubmit" }] : [])]);
       if (prox === -1) {
         void enviar(novo !== undefined ? { ...respostas, [c.id]: novo } : respostas);
         return;
@@ -303,7 +329,10 @@ export function FormularioPublico({ slug, config, pixels }: { slug: string; conf
         </>
       )}
       {tela === "fim" && config.final.botao && config.final.link && (
-        <a href={config.final.link} target="_blank" rel="noopener noreferrer" onClick={() => window.fbq?.("track", "Contact")} className={`${BTN} flex-1 lg:flex-none`} style={{ background: "var(--f-btn)", color: "var(--f-btn-t)" }}>
+        <a href={config.final.link} target="_blank" rel="noopener noreferrer" onClick={() => {
+            window.fbq?.("track", "Contact");
+            evento([{ nome: "Contact" }, ...(/wa\.me|whatsapp\.com/i.test(config.final.link ?? "") ? [{ nome: "WhatsAppClick" }] : [])], true);
+          }} className={`${BTN} flex-1 lg:flex-none`} style={{ background: "var(--f-btn)", color: "var(--f-btn-t)" }}>
           {config.final.botao}
           <ArrowRight className="h-5 w-5" aria-hidden />
         </a>

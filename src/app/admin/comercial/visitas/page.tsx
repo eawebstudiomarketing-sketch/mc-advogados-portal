@@ -3,7 +3,7 @@ import { CheckCircle2, Monitor, Smartphone, Tablet } from "lucide-react";
 import { exigirPermissao } from "@/lib/dal";
 import { StatCard } from "@/components/ui/stat-card";
 import { listarFormularios } from "@/lib/crm/dados";
-import { listarVisitas, SAIU, type Visita } from "@/lib/crm/visitas";
+import { EVENTOS, listarEventos, listarVisitas, ROTULO_EVENTO, SAIU, type Visita } from "@/lib/crm/visitas";
 import { AtualizarSozinho } from "./atualizar";
 
 // Pixel próprio do CRM (06/11/2026): quem entrou nos formulários, de onde veio,
@@ -61,7 +61,8 @@ export default async function VisitasPage({ searchParams }: { searchParams: Prom
   const dias = (PERIODOS as readonly number[]).includes(n) ? n : 7;
   const forms = await listarFormularios();
   const desde = new Date(agora() - dias * 86_400_000).toISOString();
-  const todas = await listarVisitas({ desde, formulario: sp.form && forms.some((f) => f.id === sp.form) ? sp.form : undefined });
+  const filtroForm = sp.form && forms.some((f) => f.id === sp.form) ? sp.form : undefined;
+  const [todas, eventos] = await Promise.all([listarVisitas({ desde, formulario: filtroForm }), listarEventos({ desde, formulario: filtroForm })]);
   const formSel = forms.find((f) => f.id === sp.form) ?? forms.find((f) => todas.some((v) => v.formulario_id === f.id)) ?? forms[0];
   const nomeForm = new Map(forms.map((f) => [f.id, f.nome]));
 
@@ -77,6 +78,14 @@ export default async function VisitasPage({ searchParams }: { searchParams: Prom
     porVisitante.set(v.visitante, n);
     vezes.set(`${v.visitante}:${v.id}`, n);
   }
+
+  // eventos do pixel próprio (16/11/2026): total e visitas diferentes de cada um
+  const contagem = EVENTOS.map((nome) => {
+    const doEvento = eventos.filter((e) => e.evento === nome);
+    return { nome, total: doEvento.length, visitas: new Set(doEvento.map((e) => e.visita)).size };
+  });
+  const baseEventos = Math.max(1, contagem[0].visitas);
+  const maxEventos = Math.max(1, ...contagem.map((c) => c.total));
 
   // funil por pergunta do formulário escolhido
   const doForm = formSel ? todas.filter((v) => v.formulario_id === formSel.id) : [];
@@ -133,6 +142,38 @@ export default async function VisitasPage({ searchParams }: { searchParams: Prom
         <StatCard label="Enviaram" value={String(enviaram)} hint={`${pct(enviaram, todas.length)} das visitas`} tone="success" />
         <StatCard label="Desistiram no meio" value={String(todas.filter((v) => comecou(v) && !v.enviou).length)} tone="pending" />
       </div>
+
+      <section className="ui-card p-5" aria-labelledby="eventos">
+        <div className="mb-4">
+          <h2 id="eventos" className="section-title">
+            Eventos
+          </h2>
+          <p className="text-sm text-muted">Cada ação de quem entra nos formulários, registrada só aqui no portal (nada vai para Meta ou Google).</p>
+        </div>
+        {eventos.length === 0 ? (
+          <p className="text-sm text-muted">Nenhum evento no período. Eles começam a aparecer na próxima visita a um formulário.</p>
+        ) : (
+          <ul className="grid gap-x-8 gap-y-3 lg:grid-cols-2">
+            {contagem.map((c) => (
+              <li key={c.nome}>
+                <div className="mb-1 flex items-baseline justify-between gap-2 text-sm">
+                  <span className="min-w-0 truncate">
+                    <span className="text-foreground">{ROTULO_EVENTO[c.nome]}</span>
+                    <span className="ml-2 font-mono text-[11px] text-muted">{c.nome}</span>
+                  </span>
+                  <span className="shrink-0 tabular-nums text-muted">
+                    <strong className="font-semibold text-foreground">{c.total}</strong>
+                    {c.nome === "FormFieldComplete" ? ` · ${c.visitas} visitas` : c.nome !== "PageView" ? ` · ${pct(c.visitas, baseEventos)} das visitas` : ` · ${c.visitas} visitas`}
+                  </span>
+                </div>
+                <div className="h-2 rounded-full bg-track">
+                  <div className={`h-full rounded-full ${["Lead", "CompleteRegistration", "SubmitApplication"].includes(c.nome) ? "bg-status-success" : "bg-navy-3"}`} style={{ width: `${(c.total / maxEventos) * 100}%` }} />
+                </div>
+              </li>
+            ))}
+          </ul>
+        )}
+      </section>
 
       <section className="ui-card p-5" aria-labelledby="funil">
         <div className="mb-4 flex flex-wrap items-center justify-between gap-2">

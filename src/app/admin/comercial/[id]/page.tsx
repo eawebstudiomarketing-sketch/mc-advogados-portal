@@ -6,7 +6,7 @@ import { PageHeader } from "@/components/ui/page-header";
 import { ConfirmSubmitButton } from "@/components/ui/confirm-submit-button";
 import { conversaDoLead, equipeComercial, eventosDoLead, formularioPorId, lerLead, listarEtapas } from "@/lib/crm/dados";
 import { linkZap, primeiroNome, telefoneBonito } from "@/lib/crm/tipos";
-import { visitasDoLead } from "@/lib/crm/visitas";
+import { eventosDasVisitas, ROTULO_EVENTO, visitasDoLead } from "@/lib/crm/visitas";
 import { excluirLeadAction } from "../actions";
 import { DadosDoLead } from "./dados-do-lead";
 import { EtapasDoLead } from "./etapas-do-lead";
@@ -26,6 +26,7 @@ export default async function LeadPage({ params }: { params: Promise<{ id: strin
   if (!lead) notFound();
   const [etapas, equipe, eventos, form, conversa] = await Promise.all([listarEtapas(), equipeComercial(), eventosDoLead(id), lead.formulario_id ? formularioPorId(lead.formulario_id) : null, conversaDoLead(lead.telefone, lead.chat_jid)]);
   const jornada = await visitasDoLead(id);
+  const eventosJornada = await eventosDasVisitas(jornada.map((v) => v.id));
   const nomes = new Map(equipe.map((p) => [p.id, p.nome]));
   const origem = Object.entries({ ...lead.utm }).filter(([, v]) => v);
   const r = lead.rastreio ?? {};
@@ -139,6 +140,17 @@ export default async function LeadPage({ params }: { params: Promise<{ id: strin
                         {[v.aparelho, v.sistema, v.cidade].filter(Boolean).join(" · ")} ·{" "}
                         {v.enviou ? "enviou" : v.passo_max < 0 ? "só viu a abertura" : `parou na pergunta ${v.passo_max + 1} de ${v.total_passos}`}
                       </p>
+                      {eventosJornada.some((e) => e.visita === v.id) && (
+                        <ul className="mt-1.5 flex flex-wrap gap-1">
+                          {eventosJornada
+                            .filter((e) => e.visita === v.id)
+                            .map((e) => (
+                              <li key={e.id} title={`${e.evento} · ${dataHora(e.criado_em)}`} className="rounded-full bg-surface-2 px-2 py-0.5 text-[11px] text-muted">
+                                {e.evento === "FormFieldComplete" ? `Respondeu a ${e.pergunta}ª` : ROTULO_EVENTO[e.evento]}
+                              </li>
+                            ))}
+                        </ul>
+                      )}
                     </div>
                   </li>
                 ))}
