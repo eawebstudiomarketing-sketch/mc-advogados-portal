@@ -43,11 +43,14 @@ export default async function AdminActivitiesPage({ searchParams }: { searchPara
   const periodo = (f.periodo && f.periodo in PERIODOS) || f.periodo === "atrasadas" ? f.periodo : undefined;
   const noPeriodo = (a: (typeof todas)[number], p = periodo) =>
     !p || (p === "atrasadas" ? !!a.deadline && a.deadline < hoje && emAberto(a) : PERIODOS[p as keyof typeof PERIODOS].ok(a.deadline));
+  // 16/11/2026 (pedido do João): por padrão só as abertas e em andamento; concluídas e
+  // canceladas aparecem escolhendo o status ou "Todos os status" no filtro.
+  const statusOk = (a: (typeof todas)[number]) => (f.status === "todos" || (!f.status && arquivadas) ? true : f.status ? a.status === f.status : emAberto(a));
+  const doStatus = todas.filter(statusOk);
   const termo = (f.busca ?? "").trim().toLowerCase();
-  const filtradas = todas.filter(
+  const filtradas = doStatus.filter(
     (a) =>
       (!termo || a.title.toLowerCase().includes(termo) || (a.description ?? "").toLowerCase().includes(termo) || (a.clients?.name ?? "").toLowerCase().includes(termo)) &&
-      (!f.status || a.status === f.status) &&
       (!f.etiqueta || (a.etiquetas ?? []).includes(f.etiqueta)) &&
       (!f.cliente || a.client_id === f.cliente) &&
       (soMinhas || !f.responsavel || (f.responsavel === "nenhum" ? !a.responsavel_id : a.responsavel_id === f.responsavel || (a.envolvidos ?? []).includes(f.responsavel))) &&
@@ -64,9 +67,9 @@ export default async function AdminActivitiesPage({ searchParams }: { searchPara
     return `/admin/activities${t ? `?${t}` : ""}`;
   };
   const atalhos = [
-    { chave: undefined, rotulo: "Todas", n: todas.length },
-    ...Object.entries(PERIODOS).map(([k, v]) => ({ chave: k, rotulo: v.rotulo, n: todas.filter((a) => noPeriodo(a, k)).length })),
-    { chave: "atrasadas", rotulo: "Atrasadas", n: todas.filter((a) => noPeriodo(a, "atrasadas")).length },
+    { chave: undefined, rotulo: "Todas", n: doStatus.length },
+    ...Object.entries(PERIODOS).map(([k, v]) => ({ chave: k, rotulo: v.rotulo, n: doStatus.filter((a) => noPeriodo(a, k)).length })),
+    { chave: "atrasadas", rotulo: "Atrasadas", n: doStatus.filter((a) => noPeriodo(a, "atrasadas")).length },
   ];
   const activities = ordenar(filtradas, f.ordem, {
     prazo: (a) => a.deadline,
@@ -83,8 +86,8 @@ export default async function AdminActivitiesPage({ searchParams }: { searchPara
           <p className="eyebrow mb-2">Demandas · Atividades</p>
           <h1 className="page-title">{arquivadas ? "Atividades arquivadas" : "Atividades"}</h1>
           <p className="text-sm text-muted">
-            {activities.length !== todas.length ? `${activities.length} de ${todas.length} · ` : ""}
-            {todas.length} {arquivadas ? (todas.length === 1 ? "arquivada" : "arquivadas") : todas.length === 1 ? "atividade ativa" : "atividades ativas"}
+            {activities.length !== doStatus.length ? `${activities.length} de ${doStatus.length} · ` : ""}
+            {doStatus.length} {arquivadas ? (doStatus.length === 1 ? "arquivada" : "arquivadas") : !f.status ? "em aberto ou em andamento" : doStatus.length === 1 ? "atividade" : "atividades"}
           </p>
         </div>
         <div className="flex flex-wrap items-center gap-2">
@@ -126,7 +129,13 @@ export default async function AdminActivitiesPage({ searchParams }: { searchPara
       <BarraFiltros
         filtros={[
           { tipo: "busca", nome: "busca", rotulo: "Buscar atividade, descrição ou cliente" },
-          { tipo: "select", nome: "status", rotulo: "Status", todos: "Todos os status", opcoes: Object.entries(ACTIVITY_STATUS_LABEL).map(([v, r]) => ({ valor: v, rotulo: r, cor: COR_STATUS[v] })) },
+          {
+            tipo: "select",
+            nome: "status",
+            rotulo: "Status",
+            todos: "Em aberto e em andamento",
+            opcoes: [...Object.entries(ACTIVITY_STATUS_LABEL).map(([v, r]) => ({ valor: v, rotulo: r, cor: COR_STATUS[v] })), { valor: "todos", rotulo: "Todos os status (inclui concluídas)" }],
+          },
           {
             tipo: "select",
             nome: "prazo",
