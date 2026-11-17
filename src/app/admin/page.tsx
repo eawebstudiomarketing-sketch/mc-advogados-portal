@@ -37,14 +37,15 @@ const horaBahia = (iso: string) => new Date(iso).toLocaleTimeString("pt-BR", { t
 export default async function AdminOverviewPage({
   searchParams,
 }: {
-  searchParams: Promise<{ periodo?: string; agenda?: string; ade?: string; aate?: string }>;
+  searchParams: Promise<{ periodo?: string; rde?: string; rate?: string; agenda?: string; ade?: string; aate?: string }>;
 }) {
   const { profile, permissoes } = await exigirPermissao("visao_geral");
   const isAdmin = profile.role === "admin";
   const verEquipe = permissoes.ver_equipe;
   const sp = await searchParams;
-  const periodo = sp.periodo === "30" ? 30 : 7;
   const hoje = hojeBahia();
+  // ranking: Esta semana (seg–dom) por padrão; links antigos ?periodo=30 viram "Este mês"
+  const rankPeriodo = lerPeriodo({ periodo: sp.periodo === "30" ? "mes" : sp.periodo, de: sp.rde, ate: sp.rate }, hoje, "semana");
   // agenda do painel: hoje, esta semana, este mês ou personalizado
   const agendaPeriodo = lerPeriodo({ periodo: sp.agenda, de: sp.ade, ate: sp.aate }, hoje);
   const etiquetasP = listEtiquetas();
@@ -161,11 +162,11 @@ export default async function AdminOverviewPage({
   // atividades (12/11/2026): antes quem tinha "ver equipe" contava só as atividades que o banco
   // deixa ele ver (advogado vê só as dele), e o ranking saía diferente para cada pessoa
   const [pontosRotina, minhaRotina, atividadesPlacar] = await Promise.all([
-    pontosDeRotina(somaDias(hoje, -periodo + 1)),
+    pontosDeRotina(rankPeriodo.de),
     meuResponsavel ? rotinaDoDia(meuResponsavel, hoje) : Promise.resolve([]),
     atividadesDoRanking(),
   ]);
-  const linhasRanking = ranking(atividadesPlacar, pessoas, periodo, pontosRotina);
+  const linhasRanking = ranking(atividadesPlacar, pessoas, rankPeriodo, pontosRotina);
   const topClientes = clientesComMaisPendencias(activities, 8);
   const maxPend = Math.max(1, ...topClientes.map((c) => c.abertas));
 
@@ -322,7 +323,7 @@ export default async function AdminOverviewPage({
               base="/admin"
               ancora="agenda"
               nomes={{ periodo: "agenda", de: "ade", ate: "aate" }}
-              manter={{ periodo: sp.periodo }}
+              manter={{ periodo: sp.periodo, rde: sp.rde, rate: sp.rate }}
             />
           </div>
           {agendaHoje.length === 0 ? (
@@ -373,26 +374,22 @@ export default async function AdminOverviewPage({
         </section>
 
         {/* ranking: pódio com foto */}
-        <section className="ui-card p-5">
+        <section id="ranking" className="ui-card scroll-mt-20 p-5">
           <div className="mb-4 flex items-center justify-between gap-2">
             <div>
               <p className="eyebrow">Pontos · atividades concluídas</p>
               <h2 className="section-title !text-lg">Ranking da equipe</h2>
             </div>
-            <div className="inline-flex rounded-full border border-border p-0.5 text-xs">
-              {[7, 30].map((p) => (
-                <Link
-                  key={p}
-                  href={`/admin?${new URLSearchParams(
-                    Object.entries({ periodo: p === 30 ? "30" : undefined, agenda: sp.agenda, ade: sp.ade, aate: sp.aate }).filter((e): e is [string, string] => !!e[1])
-                  )}`}
-                  scroll={false}
-                  className={`rounded-full px-2.5 py-1 font-semibold ${periodo === p ? "bg-navy text-white" : "text-muted hover:text-foreground"}`}
-                >
-                  {p} dias
-                </Link>
-              ))}
-            </div>
+            {(rankPeriodo.chave === "semana" || rankPeriodo.chave === "personalizado") && <span className="text-xs text-muted">{rankPeriodo.rotulo}</span>}
+          </div>
+          <div className="mb-4">
+            <PeriodoFiltro
+              atual={rankPeriodo}
+              base="/admin"
+              ancora="ranking"
+              nomes={{ periodo: "periodo", de: "rde", ate: "rate" }}
+              manter={{ agenda: sp.agenda, ade: sp.ade, aate: sp.aate }}
+            />
           </div>
           {linhasRanking.length === 0 ? (
             <p className="py-8 text-center text-sm text-muted">Ninguém pontuou neste período.</p>

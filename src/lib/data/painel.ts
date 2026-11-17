@@ -39,9 +39,12 @@ export async function atividadesDoRanking(): Promise<AtividadeRanking[]> {
 
 /** Quem mais concluiu no período (concluida_em dentro dos últimos `dias`). */
 /** Pontos = só atividades concluídas no período (1 ponto cada). Desde 12/11/2026 a rotina não pontua mais. */
-export function ranking(atividades: AtividadeRanking[], pessoas: Pessoa[], dias: number, rotina: Map<string, number> = new Map()): LinhaRanking[] {
+/** 17/11/2026: período por datas (de–até, fuso da Bahia). Antes era "últimos N dias" corridos, e a
+ *  janela andava todo dia (as concluídas de 8 dias atrás saíam e o placar "descia"). */
+export function ranking(atividades: AtividadeRanking[], pessoas: Pessoa[], periodo: { de: string; ate: string }, rotina: Map<string, number> = new Map()): LinhaRanking[] {
   const hoje = hojeBahia();
-  const desde = Date.parse(`${somaDias(hoje, -dias + 1)}T00:00:00-03:00`);
+  const desde = Date.parse(`${periodo.de}T00:00:00-03:00`);
+  const fim = Date.parse(`${somaDias(periodo.ate, 1)}T00:00:00-03:00`);
   const linhas = new Map<string, LinhaRanking>(
     pessoas.map((p) => [p.id, { responsavelId: p.id, nome: p.nome, concluidas: 0, rotina: rotina.get(p.id) ?? 0, pontos: 0, abertas: 0, atrasadas: 0 }])
   );
@@ -49,7 +52,7 @@ export function ranking(atividades: AtividadeRanking[], pessoas: Pessoa[], dias:
     if (!a.responsavel_id) continue;
     const l = linhas.get(a.responsavel_id);
     if (!l) continue;
-    if (a.status === "concluida" && a.concluida_em && Date.parse(a.concluida_em) >= desde) l.concluidas++;
+    if (a.status === "concluida" && a.concluida_em && Date.parse(a.concluida_em) >= desde && Date.parse(a.concluida_em) < fim) l.concluidas++;
     if (emAberto(a)) {
       l.abertas++;
       if (a.deadline && a.deadline < hoje) l.atrasadas++;

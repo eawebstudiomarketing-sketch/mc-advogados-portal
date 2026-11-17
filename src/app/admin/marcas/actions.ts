@@ -45,6 +45,7 @@ export type ConfigAcompanhamento = {
   colid_ignorar: string[];
   apelido: string | null;
   client_id: string | null;
+  responsavel_id?: string | null;
   contato_nome: string | null;
   contato_numero: string | null;
   observacao: string | null;
@@ -62,9 +63,7 @@ export async function salvarConfigAction(processo: string, c: ConfigAcompanhamen
   const termos: Record<string, number> = {};
   for (const [t, v] of Object.entries(c.colid_termos ?? {})) if ([1, 2, 3].includes(Number(v))) termos[t.toUpperCase()] = Number(v);
   const numero = (c.contato_numero ?? "").replace(/\D/g, "");
-  const { error } = await db()
-    .from("marcas")
-    .update({
+  const dados: Record<string, unknown> = {
       avisar_cliente: !!c.avisar_cliente,
       colidencia: !!c.colidencia,
       colid_auto: !!c.colid_auto,
@@ -78,8 +77,14 @@ export async function salvarConfigAction(processo: string, c: ConfigAcompanhamen
       contato_nome: c.contato_nome?.trim() || null,
       contato_numero: numero.length >= 10 ? numero : null,
       observacao: c.observacao?.trim() || null,
-    })
-    .eq("processo", processo);
+      responsavel_id: c.responsavel_id && /^[0-9a-f-]{36}$/i.test(c.responsavel_id) ? c.responsavel_id : null,
+  };
+  let { error } = await db().from("marcas").update(dados).eq("processo", processo);
+  // migration 0078 ainda não rodada: salva o resto sem o responsável
+  if (error && /responsavel_id/.test(error.message)) {
+    delete dados.responsavel_id;
+    ({ error } = await db().from("marcas").update(dados).eq("processo", processo));
+  }
   if (error) return { ok: false, error: "Não foi possível salvar a configuração." };
   recarregar();
   return { ok: true };

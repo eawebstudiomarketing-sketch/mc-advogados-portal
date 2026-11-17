@@ -32,6 +32,8 @@ export type Marca = {
   previsao: string | null;
   imagem: string | null;
   client_id: string | null;
+  /** 17/11/2026 (migration 0078): quem da equipe recebe o aviso de despacho no WhatsApp */
+  responsavel_id?: string | null;
   acompanhando: boolean;
   avisar_cliente: boolean;
   colidencia: boolean;

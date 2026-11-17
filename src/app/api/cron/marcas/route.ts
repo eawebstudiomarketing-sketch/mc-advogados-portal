@@ -3,6 +3,7 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import { cronAutorizado } from "@/lib/seguranca";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { processarRevista, processarRevistaPatentes, revistasRecentesINPI } from "@/lib/marcas/revista";
+import { avisarEquipeDaRevista } from "@/lib/marcas/aviso-equipe";
 import { enviarMarca, getConfigEnvio, listMarcasZap, listModelos, modeloPara, montarMensagem, statusDaMensagem } from "@/lib/marcas/zap";
 
 // Marcas (INPI), todo dia às 07h da Bahia: lê a revista nova assim que sai
@@ -24,6 +25,8 @@ export async function GET(request: Request) {
       const lida = await processarRevista(ultima.numero, { prazoMs: 150_000, pdfs: ultima.pdfs });
       saida.revista = lida;
       // patentes: só na primeira leitura da revista (depois ela vem marcada como pulada)
+      // 17/11/2026: avisa a equipe no WhatsApp (Maurício + responsável de cada marca), 1x por revista
+      saida.avisoEquipe = await avisarEquipeDaRevista(ultima.numero).catch((e: Error) => ({ erro: e.message }));
       if (!("pulada" in lida)) saida.patentes = await processarRevistaPatentes(ultima.numero, ultima.data).catch((e: Error) => ({ erro: e.message }));
     }
   } catch (e) {

@@ -4,6 +4,7 @@ import { ArrowLeft } from "lucide-react";
 import { exigirPermissao } from "@/lib/dal";
 import { getMarca, nomeDaMarca } from "@/lib/marcas/dados";
 import { listClients } from "@/lib/data/clients";
+import { listResponsaveis } from "@/lib/data/responsaveis";
 import { FormConfigurar } from "./form-configurar";
 
 // Marcas → Configurar acompanhamento (mesma tela do Marca Acompanhada):
@@ -13,7 +14,7 @@ export default async function ConfigurarMarcaPage({ searchParams }: { searchPara
   await exigirPermissao("marcas");
   const { processo } = await searchParams;
   if (!processo) notFound();
-  const [r, clientes] = await Promise.all([getMarca(processo), listClients()]);
+  const [r, clientes, equipe] = await Promise.all([getMarca(processo), listClients(), listResponsaveis()]);
   if (!r) notFound();
   const m = r.marca;
   const nome = nomeDaMarca(m);
@@ -37,6 +38,7 @@ export default async function ConfigurarMarcaPage({ searchParams }: { searchPara
         nome={nome}
         termos={termos}
         clientes={clientes.map((c) => ({ id: c.id, nome: c.name }))}
+        equipe={equipe.map((p) => ({ id: p.id, nome: p.nome }))}
         inicial={{
           avisar_cliente: m.avisar_cliente,
           colidencia: m.colidencia,
@@ -48,6 +50,7 @@ export default async function ConfigurarMarcaPage({ searchParams }: { searchPara
           colid_ignorar: m.colid_ignorar ?? [],
           apelido: m.apelido,
           client_id: m.client_id,
+          responsavel_id: m.responsavel_id ?? null,
           contato_nome: m.contato_nome,
           contato_numero: m.contato_numero,
           observacao: m.observacao,
