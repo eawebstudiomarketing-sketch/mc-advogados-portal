@@ -445,6 +445,8 @@ export async function completarMarcaBuscaAction(id: string, processo: string): P
       }
     }
   }
+  // a ficha do pePI às vezes traz a vigência no lugar do depósito (visto 17/11/2026): data futura não é depósito
+  if (det.deposito && det.deposito > new Date().toISOString().slice(0, 10)) det.deposito = null;
   await gravarNoResultado(id, (r) => {
     r.detalhes = { ...((r.detalhes as Record<string, DetalheMarca>) ?? {}), [processo]: det };
   });
