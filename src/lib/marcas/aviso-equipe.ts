@@ -2,15 +2,17 @@ import "server-only";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { enfileirarMensagem } from "@/lib/zap/fila";
-import { MAURICIO } from "@/lib/rotina-relatorio/dia";
+const GRUPO_POS_VENDA = "120363043473837312@g.us"; // PÓS VENDA & PRÉ PROTOCOLO
 
 // 17/11/2026 (pedido do Maurício no grupo "Sistemas e IA"): quando sai a revista
 // do INPI (terça) e algum processo da carteira tem despacho, a equipe recebe no
 // WhatsApp, no modelo do Astrea:
 //  - uma mensagem por processo ("Atualização de processo ... RPI X de dd/mm/aaaa. Despacho.")
 //  - um "Resumo de despachos RPI X" com todos os processos dela.
-// Recebem: o Maurício (tudo) e o responsável da equipe de cada marca (só as dele).
-// Responsável = campo "Responsável na equipe" da marca; sem ele, quem cadastrou a marca.
+// Recebem (17/11/2026, pedido dele): o NÚMERO DO ESCRITÓRIO (o do Zap do portal, wa_agent.numero;
+// cai na conversa "Você"), o grupo "PÓS VENDA & PRÉ PROTOCOLO" (tudo) e o responsável da equipe de
+// cada marca (só as dele). O Maurício NÃO recebe à parte. Responsável = campo "Responsável na equipe";
+// sem ele, quem cadastrou a marca.
 // Nada vai para cliente. Uma vez por revista (origem_ref marca-rpi:<n>:...).
 
 const db = () => createAdminClient() as unknown as SupabaseClient;
@@ -41,7 +43,11 @@ export async function avisarEquipeDaRevista(numero: number): Promise<{ pessoas: 
   const { data: equipe } = await banco.from("responsaveis").select("id, nome, telefone, profile_id");
   const pessoaPorId = new Map((equipe ?? []).map((p) => [p.id as string, p]));
   const pessoaPorPerfil = new Map((equipe ?? []).filter((p) => p.profile_id).map((p) => [p.profile_id as string, p]));
-  const mauricio = pessoaPorPerfil.get(MAURICIO);
+  const { data: agente } = await banco.from("wa_agent").select("numero").not("numero", "is", null).limit(1).maybeSingle();
+  const ESCRITORIO = "escritorio";
+  const GRUPO = "grupo-pos-venda";
+  if (agente?.numero) pessoaPorId.set(ESCRITORIO, { id: ESCRITORIO, nome: "", telefone: agente.numero, profile_id: null });
+  pessoaPorId.set(GRUPO, { id: GRUPO, nome: "", telefone: GRUPO_POS_VENDA, profile_id: null });
 
   // itens por pessoa (id do responsável)
   const porPessoa = new Map<string, Item[]>();
@@ -58,9 +64,10 @@ export async function avisarEquipeDaRevista(numero: number): Promise<{ pessoas: 
       nome: String(m.nome ?? m.apelido ?? "sem nome"),
       despacho: [...new Set(despachos)].join("; "),
     };
-    add(mauricio?.id as string | undefined, it);
+    add(ESCRITORIO, it);
+    add(GRUPO, it);
     const resp = (m.responsavel_id as string | null) ?? (m.criado_por ? (pessoaPorPerfil.get(m.criado_por as string)?.id as string | undefined) : undefined);
-    if (resp && resp !== mauricio?.id) add(resp, it);
+    if (resp) add(resp, it);
   }
 
   const data = br(String(rev?.data ?? ""));
@@ -68,9 +75,10 @@ export async function avisarEquipeDaRevista(numero: number): Promise<{ pessoas: 
   let pessoas = 0;
   for (const [pid, itens] of porPessoa) {
     const p = pessoaPorId.get(pid);
-    let tel = String(p?.telefone ?? "").replace(/\D/g, "");
+    const bruto = String(p?.telefone ?? "");
+    let tel = bruto.includes("@") ? bruto : bruto.replace(/\D/g, "");
     if (!p || tel.length < 10) continue;
-    if (tel.length <= 11) tel = `55${tel}`;
+    if (!tel.includes("@") && tel.length <= 11) tel = `55${tel}`;
     pessoas++;
     const primeiro = String(p.nome).replace(/^(Dra?\.)\s*/i, "").split(" ")[0];
     const fila = (texto: string, ref: string) =>
@@ -78,7 +86,7 @@ export async function avisarEquipeDaRevista(numero: number): Promise<{ pessoas: 
     if (itens.length <= MAX_INDIVIDUAIS) {
       for (const it of itens) {
         await fila(
-          `*Atualização de processo*\nOlá ${primeiro},\nEsta é uma notificação automática sobre uma atualização publicada pelo INPI para o processo ${it.processo}: marca "${it.nome}" (${it.processo}), RPI ${numero} de ${data}. ${it.despacho}.\n\nConsulte o processo: mcadvogados.app.br/admin/marcas/processos/${it.processo}`,
+          `*Atualização de processo*\n${primeiro ? `Olá ${primeiro},` : "Olá,"}\nEsta é uma notificação automática sobre uma atualização publicada pelo INPI para o processo ${it.processo}: marca "${it.nome}" (${it.processo}), RPI ${numero} de ${data}. ${it.despacho}.\n\nConsulte o processo: mcadvogados.app.br/admin/marcas/processos/${it.processo}`,
           it.processo
         );
       }

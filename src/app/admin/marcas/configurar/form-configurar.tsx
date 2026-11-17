@@ -113,14 +113,14 @@ export function FormConfigurar({
           <label className="block">
             <span className="ui-label">Responsável na equipe</span>
             <select value={c.responsavel_id ?? ""} onChange={(e) => muda("responsavel_id", e.target.value || null)} className="ui-input">
-              <option value="">— Só o Maurício —</option>
+              <option value="">— Ninguém (só escritório e grupo) —</option>
               {equipe.map((x) => (
                 <option key={x.id} value={x.id}>
                   {x.nome}
                 </option>
               ))}
             </select>
-            <span className="mt-1 block text-xs text-muted">Quando sair despacho na revista do INPI, ele e o Maurício recebem o aviso no WhatsApp.</span>
+            <span className="mt-1 block text-xs text-muted">Quando sair despacho na revista do INPI, ele recebe o aviso no WhatsApp, junto com o número do escritório e o grupo PÓS VENDA & PRÉ PROTOCOLO.</span>
           </label>
           <label className="block">
             <span className="ui-label">Apelido da marca (para marca figurativa)</span>
