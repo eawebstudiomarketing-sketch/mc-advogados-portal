@@ -197,6 +197,7 @@ Recebe a marca que o cliente quer depositar e onde ela será usada. Devolva:
 - classes: as classes NCL relevantes (no máximo 4, a principal primeiro) com o motivo em uma frase;
 - termos: até 3 termos para buscar anterioridades no INPI (o elemento nominativo inteiro; o termo mais distintivo isolado; se houver, a parte sem palavras genéricas de ramo). Em maiúsculas, sem acento é aceito.
 - texto_logo: se veio imagem, o texto que aparece no logo (senão vazio).
+- conceituais: 4 a 8 palavras curtas (português E inglês) do MESMO CONCEITO/NICHO da marca, que concorrentes do segmento costumam usar em marcas (ex.: para "CURVOLOGIA" em cosméticos capilares: CURL, CURLY, CACHOS, CACHEADA, CURV, ONDAS). Em maiúsculas, sem palavras genéricas de ramo como BEAUTY, COSMETICOS, STORE.
 Se a marca tem siglas, mantenha a sigla como termo.`;
 
 /** Busca com IA: classes e termos pela IA → anterioridades no pePI → parecer da IA, guardado no histórico. */
@@ -210,7 +211,7 @@ export async function buscaIAAction(e: EntradaBusca & { logo?: { mime: string; b
   // 1) classes e termos
   const partes: Part[] = [{ text: `Marca: ${nome || "(só logo)"}${e.siglas ? " (contém siglas/abreviações)" : ""}\nOnde será usada: ${e.ondeUsar}\nContexto: ${e.contexto || "-"}` }];
   if (e.logo) partes.push({ inlineData: { mimeType: e.logo.mime, data: e.logo.base64 } });
-  const plano = await generateJson<{ classes: { classe: string; motivo: string }[]; termos: string[]; texto_logo: string }>({
+  const plano = await generateJson<{ classes: { classe: string; motivo: string }[]; termos: string[]; texto_logo: string; conceituais: string[] }>({
     system: SISTEMA_PLANO,
     parts: partes,
     model: MODELOS.leitura, funcao: "marcas_busca",
@@ -220,8 +221,9 @@ export async function buscaIAAction(e: EntradaBusca & { logo?: { mime: string; b
         classes: { type: "array", items: { type: "object", properties: { classe: { type: "string" }, motivo: { type: "string" } }, required: ["classe", "motivo"] } },
         termos: { type: "array", items: { type: "string" } },
         texto_logo: { type: "string" },
+        conceituais: { type: "array", items: { type: "string" } },
       },
-      required: ["classes", "termos", "texto_logo"],
+      required: ["classes", "termos", "texto_logo", "conceituais"],
     },
   });
   if (!plano.ok) return { ok: false, error: plano.error };
@@ -272,13 +274,45 @@ export async function buscaIAAction(e: EntradaBusca & { logo?: { mime: string; b
   } catch (err) {
     return { ok: false, error: `Não foi possível consultar o INPI agora (${(err as Error).message}). Tente de novo em instantes.` };
   }
+  // 17/11/2026: como o Marca Acompanhada, também as marcas do MESMO CONCEITO/NICHO nas classes da marca
+  // (ex.: CURL, CACHOS para CURVOLOGIA), pela base própria (rápida, com filtro de classe)
+  const conceituais = [...new Set((plano.data.conceituais ?? []).map((t) => t.trim().toUpperCase()).filter((t) => t.length >= 3 && !termos.includes(t)))].slice(0, 8);
+  const porConceito = new Set<string>();
+  for (const t of conceituais) {
+    let achou = 0;
+    for (const c of classes.slice(0, 2)) {
+      if (!sobraTempo()) break;
+      const b = await consultarBase("radical", t, c.classe, 60, 10_000).catch(() => null);
+      for (const l of b?.resultados ?? []) {
+        achou++;
+        porConceito.add(l.numero);
+        if (achados.has(l.numero)) continue;
+        achados.set(l.numero, {
+          processo: l.numero,
+          codPedido: "",
+          marca: l.marca ?? "",
+          situacao: situacaoDoDespacho(l.ultimo_despacho, l.concessao),
+          titular: l.titular ?? "",
+          classes: l.classes ? l.classes.split(",").map((x) => `NCL ${x}`).join(", ") : "",
+          deposito: l.deposito,
+          apresentacao: l.apresentacao,
+          termos: [t],
+        });
+      }
+    }
+    if (achou) pesquisas.push({ termo: t, tipo: "Conceitual (mesmo nicho, nas classes da marca)", total: achou, em: new Date().toISOString(), fonte: "base própria (revistas do INPI)", processos: [...porConceito] });
+  }
   const nums = new Set(classes.map((c) => c.classe));
   const ref = nome || textoLogo || termos[0] || "";
   const candidatos = [...achados.values()]
-    .map((r) => ({ ...r, relevancia: Math.round(Math.max(...termos.map((t) => Math.max(semelhanca(t, r.marca), parecencaFonetica(t, r.marca)))) * 100) }))
+    .map((r) => {
+      const graf = Math.round(Math.max(...termos.map((t) => Math.max(semelhanca(t, r.marca), parecencaFonetica(t, r.marca)))) * 100);
+      // mesmo nicho na mesma classe: entra com no mínimo 50 (afinidade conceitual), como no MA
+      return { ...r, relevancia: porConceito.has(r.processo) ? Math.max(graf, 50) : graf };
+    })
     .filter((r) => r.relevancia >= 45 && (!nums.size || [...nums].some((n) => r.classes.includes(n))))
     .sort((a, b) => b.relevancia - a.relevancia)
-    .slice(0, 40);
+    .slice(0, 60);
   const extras = (e.extras ?? []).slice(0, 20).map((x) => ({ ...x, relevancia: 100, deposito: null, codPedido: "" }));
 
   // 3) relatório no modelo do Marca Acompanhada ("Relatório de Viabilidade de Marca", 17/11/2026)
