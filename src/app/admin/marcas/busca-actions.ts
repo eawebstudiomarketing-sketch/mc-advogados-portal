@@ -6,7 +6,7 @@ import { exigirPermissao } from "@/lib/dal";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { generateJson } from "@/lib/gemini";
 import { MODELOS } from "@/lib/ia-modelos";
-import { buscarNoInpi, buscarNomeNoInpi, buscarProcuradorNaBase, type ResultadoBusca } from "@/lib/marcas/inpi";
+import { buscarNoInpi, buscarNomeNoInpi, buscarProcuradorNaBase, fichaNoInpi, logoNoInpi, type ResultadoBusca } from "@/lib/marcas/inpi";
 import { buscarProcuradorNaCarteira } from "@/lib/marcas/procurador";
 import { consultarBase, situacaoDoDespacho } from "@/lib/marcas/base";
 import { semelhanca } from "@/lib/marcas/revista";
@@ -104,6 +104,92 @@ export type Parecer = {
 /** Uma pesquisa feita no INPI durante a Busca com IA (aparece no relatório como no pePI). */
 export type Pesquisa = { termo: string; tipo: string; total: number; em: string; fonte: string; processos: string[] };
 
+// 17/11/2026: relatório no modelo do "Relatório de Viabilidade de Marca" do Marca Acompanhada
+// (modelo em Downloads/MC Advogados/Marca Acompanhada - Relatorio de Viabilidade ….pdf).
+// Textos podem ter **negrito**.
+type Nivel = "alta" | "media" | "baixa";
+export type DetalheMarca = {
+  processo: string;
+  marca: string;
+  titular: string | null;
+  classe: string | null;
+  deposito: string | null;
+  tipo: string | null;
+  natureza: string | null;
+  situacao: string | null;
+  procurador: string | null;
+  especificacao: string | null;
+  logo: string | null;
+  fonte: "base" | "inpi" | "lista";
+};
+export type AnaliseVisual = { descricao: string[]; comparacoes: { processo: string; titulo: string; pontos: string[] }[]; fechamento: string; semLogos?: boolean };
+export type RelatorioMA = {
+  formato: "ma";
+  risco: "baixo" | "medio" | "alto";
+  resumo: { abertura: string; topicos: { titulo: string; texto: string }[]; fechamento: string };
+  principais: { processo: string; marca: string; classe: string; afinidade: Nivel; motivo: string }[];
+  principaisNota: string;
+  porClasse: { nivel: "forte" | "moderado" | "fraco"; titulo: string; introducao: string; itens: { titulo: string; processos: string[]; pontos: string[] }[]; fechamento: string }[];
+  conclusao: { pontos: { titulo: string; texto: string }[]; texto: string };
+  recomendacoes: { titulo: string; pontos: string[] }[];
+  estimativa: { indeferimento: string; oposicao: string[]; sintese: string };
+  detalhes?: Record<string, DetalheMarca>;
+  visual?: AnaliseVisual | null;
+};
+
+const SISTEMA_RELATORIO = `Você é advogado especialista em marcas (Lei 9.279/96, art. 124, incisos V, VI e XIX; prática decisória do INPI) e escreve um RELATÓRIO DE VIABILIDADE DE MARCA, em português do Brasil, no mesmo estilo do "Relatório de Viabilidade de Marca" do Marca Acompanhada: técnico, direto, frases curtas, com **negrito** nos termos e conclusões que importam.
+Recebe a marca pesquisada, uso/classe, contexto e as anterioridades encontradas no INPI (relevância 0–100 por semelhança gráfica/fonética). Avalie semelhança gráfica, fonética e ideológica (conceitual) E afinidade mercadológica. Marcas arquivadas, extintas ou indeferidas pesam pouco. Nunca invente processos: use só os da lista; sempre escreva o número entre parênteses depois do nome, ex.: CURVACEOUS (904596583).
+Monte:
+- risco: geral (baixo, medio ou alto).
+- resumo.abertura: "A marca consultada **<MARCA>** para <produtos/serviços> na classe <NN> apresenta:".
+- resumo.topicos: 2 a 4 tópicos; titulo curto em negrito (ex.: "Baixa similaridade nominativa", "Elemento distintivo relevante", "Similaridade visual moderada" — este só se houver logo) e texto de 1–2 frases.
+- resumo.fechamento: 2–3 frases sobre a prática do INPI e o risco geral, citando as anterioridades que mais pedem atenção.
+- principais: as principais anterioridades (até 10), mais relevantes primeiro: marca, classe ("Classe 3"), afinidade (alta/media/baixa) e motivo (1–3 frases: mesma classe? produtos? semelhança/diferença fonética, gráfica, conceitual).
+- principaisNota: 1–2 frases sobre as demais anterioridades (outras classes, extintas) e seu peso.
+- porClasse: grupos "forte", "moderado" e "fraco" (só os que existirem). titulo ex.: "Classe 03 (cosméticos capilares)" ou "Outras classes correlatas (35, 41, 44)"; introducao 1–2 frases; itens: cada item é uma marca ou um conjunto parecido (titulo "NOME (processo) / NOME (processo)", processos = números), com pontos no formato "Similaridade: …", "Diferenças: …", "Tendência: …" ou "Conflito: …"; fechamento 1 frase (pode ser vazio).
+- conclusao.pontos: "Nominativo", "Conceitual" e "Visual" (este só se houver logo; diga que a análise visual detalhada está na seção própria) com 1–3 frases cada; conclusao.texto: parágrafo final com a probabilidade de conflito impeditivo e as anterioridades que mais pedem atenção.
+- recomendacoes: 3 a 6 blocos com titulo (ex.: "Depósito como marca mista", "Ajustes de especificação em classe NN", "Monitoramento de oposições", "Uso consistente da marca", "Coleta de evidências de uso") e 1–3 pontos cada.
+- estimativa.indeferimento: ex.: "Nominativo: Baixo a moderado · Visual (marca mista): Moderado"; estimativa.oposicao: 1–3 frases "Por titulares de …: moderada."; estimativa.sintese: "Em síntese, **<MARCA>** é registrável com perspectiva …".`;
+
+const SISTEMA_VISUAL = `Você é especialista em marcas no INPI e escreve a seção "Análise Visual" de um relatório de viabilidade, em português do Brasil, no estilo do Marca Acompanhada.
+A 1ª imagem é o logo da marca pesquisada; depois vêm os logos das anterioridades, cada um com nome e processo.
+Devolva:
+- descricao: 2 a 4 tópicos descrevendo o logo pesquisado (forma, letra, figura, cores, tipografia).
+- comparacoes: para cada anterioridade com alguma semelhança visual relevante (no máximo 8), titulo "NOME (processo)" e pontos: descrição do logo dela, "Similaridade: …", "Diferença(s): …", "Risco visual: baixo/moderado/alto, …".
+- fechamento: 1–2 frases sobre o quanto os elementos gráficos são comuns no segmento e o peso disso no INPI.
+Use só os processos informados. Use **negrito** no nível de risco.`;
+
+const nivel = { type: "string", enum: ["alta", "media", "baixa"] };
+const texto = { type: "string" };
+const lista = { type: "array", items: texto };
+const SCHEMA_RELATORIO = {
+  type: "object",
+  properties: {
+    risco: { type: "string", enum: ["baixo", "medio", "alto"] },
+    resumo: { type: "object", properties: { abertura: texto, topicos: { type: "array", items: { type: "object", properties: { titulo: texto, texto }, required: ["titulo", "texto"] } }, fechamento: texto }, required: ["abertura", "topicos", "fechamento"] },
+    principais: { type: "array", items: { type: "object", properties: { processo: texto, marca: texto, classe: texto, afinidade: nivel, motivo: texto }, required: ["processo", "marca", "classe", "afinidade", "motivo"] } },
+    principaisNota: texto,
+    porClasse: {
+      type: "array",
+      items: {
+        type: "object",
+        properties: {
+          nivel: { type: "string", enum: ["forte", "moderado", "fraco"] },
+          titulo: texto,
+          introducao: texto,
+          itens: { type: "array", items: { type: "object", properties: { titulo: texto, processos: lista, pontos: lista }, required: ["titulo", "processos", "pontos"] } },
+          fechamento: texto,
+        },
+        required: ["nivel", "titulo", "introducao", "itens", "fechamento"],
+      },
+    },
+    conclusao: { type: "object", properties: { pontos: { type: "array", items: { type: "object", properties: { titulo: texto, texto }, required: ["titulo", "texto"] } }, texto }, required: ["pontos", "texto"] },
+    recomendacoes: { type: "array", items: { type: "object", properties: { titulo: texto, pontos: lista }, required: ["titulo", "pontos"] } },
+    estimativa: { type: "object", properties: { indeferimento: texto, oposicao: lista, sintese: texto }, required: ["indeferimento", "oposicao", "sintese"] },
+  },
+  required: ["risco", "resumo", "principais", "principaisNota", "porClasse", "conclusao", "recomendacoes", "estimativa"],
+};
+
 export type EntradaBusca = { nome: string; siglas: boolean; ondeUsar: string; contexto: string; textoLogo?: string; usarTextoLogo?: boolean; extras?: { processo: string; marca: string; classes: string; situacao: string; titular: string }[] };
 
 const SISTEMA_PLANO = `Você é especialista em registro de marcas no INPI (Brasil, Classificação de Nice NCL 12ª ed.).
@@ -112,12 +198,6 @@ Recebe a marca que o cliente quer depositar e onde ela será usada. Devolva:
 - termos: até 3 termos para buscar anterioridades no INPI (o elemento nominativo inteiro; o termo mais distintivo isolado; se houver, a parte sem palavras genéricas de ramo). Em maiúsculas, sem acento é aceito.
 - texto_logo: se veio imagem, o texto que aparece no logo (senão vazio).
 Se a marca tem siglas, mantenha a sigla como termo.`;
-
-const SISTEMA_PARECER = `Você é advogado especialista em marcas (Lei 9.279/96, art. 124, especialmente incisos V, VI e XIX) e escreve um parecer de viabilidade de registro no INPI, em português do Brasil, linguagem clara para o cliente.
-Recebe a marca pretendida, as classes e as anterioridades encontradas no INPI (com relevância 0–100 calculada por semelhança gráfica/fonética).
-Avalie colidência por semelhança gráfica, fonética e ideológica E afinidade mercadológica (mesma classe ou classes afins). Marcas arquivadas, extintas ou indeferidas pesam pouco.
-Devolva: risco geral (baixo, medio ou alto), resumo (3 a 5 frases), análise por classe (risco e comentário), as anterioridades realmente relevantes (no máximo 10, com o motivo) e recomendações práticas (2 a 5).
-Nunca invente processos: use só os da lista.`;
 
 /** Busca com IA: classes e termos pela IA → anterioridades no pePI → parecer da IA, guardado no histórico. */
 export async function buscaIAAction(e: EntradaBusca & { logo?: { mime: string; base64: string } | null }): Promise<Resp<{ id: string }>> {
@@ -201,41 +281,180 @@ export async function buscaIAAction(e: EntradaBusca & { logo?: { mime: string; b
     .slice(0, 40);
   const extras = (e.extras ?? []).slice(0, 20).map((x) => ({ ...x, relevancia: 100, deposito: null, codPedido: "" }));
 
-  // 3) parecer
-  const lista = [...extras, ...candidatos].map((r) => `${r.processo} | ${r.marca} | classe ${r.classes} | ${r.situacao} | ${r.titular} | relevância ${r.relevancia}`).join("\n");
-  const parecer = await generateJson<Parecer>({
-    system: SISTEMA_PARECER,
-    parts: [{ text: `Marca pretendida: ${ref}${e.siglas ? " (contém siglas)" : ""}\nOnde será usada: ${e.ondeUsar}\nContexto: ${e.contexto || "-"}\nClasses: ${classes.map((c) => `${c.classe} (${c.motivo})`).join("; ")}\n\nAnterioridades encontradas no INPI (${candidatos.length + extras.length}):\n${lista || "nenhuma"}` }],
-    model: MODELOS.leitura, funcao: "marcas_busca",
+  // 3) relatório no modelo do Marca Acompanhada ("Relatório de Viabilidade de Marca", 17/11/2026)
+  const lista = [...extras, ...candidatos]
+    .map((r) => `${r.processo} | ${r.marca} | classe ${r.classes} | ${r.situacao} | ${r.titular} | ${"apresentacao" in r && r.apresentacao ? r.apresentacao : "-"} | relevância ${r.relevancia}`)
+    .join("\n");
+  const rel = await generateJson<Omit<RelatorioMA, "formato">>({
+    system: SISTEMA_RELATORIO,
+    parts: [
+      {
+        text: `Marca pesquisada: ${ref}${e.siglas ? " (contém siglas)" : ""}\nUso/Classe pretendida: ${e.ondeUsar}\nContexto adicional: ${e.contexto || "-"}\nClasses: ${classes.map((c) => `${c.classe} (${c.motivo})`).join("; ")}\nTem logo: ${e.logo ? "sim (a análise visual é feita depois, com os logos das anterioridades)" : "não"}\n\nAnterioridades encontradas no INPI (${candidatos.length + extras.length}) — processo | marca | classe | situação | titular | apresentação | relevância:\n${lista || "nenhuma"}`,
+      },
+    ],
+    model: MODELOS.leitura,
+    funcao: "marcas_busca",
+    schema: SCHEMA_RELATORIO,
+  });
+  if (!rel.ok) return { ok: false, error: rel.error };
+  // só processos que vieram do INPI (a IA não inventa número)
+  const validos = new Set([...candidatos, ...extras].map((r) => r.processo));
+  const d = rel.data;
+  const relatorio: RelatorioMA = {
+    ...d,
+    formato: "ma",
+    principais: d.principais.filter((a) => validos.has(a.processo)),
+    porClasse: d.porClasse.map((g) => ({ ...g, itens: g.itens.map((i) => ({ ...i, processos: i.processos.filter((p) => validos.has(p)) })) })),
+  };
+  const id = crypto.randomUUID();
+  // logo enviado: guardado para o relatório ("Elemento visual pesquisado") e para a análise visual
+  let logoUrl: string | null = null;
+  if (e.logo) {
+    const ext = e.logo.mime.split("/")[1]?.replace("jpeg", "jpg").replace(/[^a-z0-9]/g, "") || "png";
+    const caminho = `buscas/${id}.${ext}`;
+    const up = await db().storage.from("marcas").upload(caminho, Buffer.from(e.logo.base64, "base64"), { contentType: e.logo.mime, cacheControl: "604800", upsert: true });
+    if (!up.error) logoUrl = db().storage.from("marcas").getPublicUrl(caminho).data.publicUrl;
+  }
+  const resultado = { ...relatorio, termos, encontrados: candidatos, pesquisas, classesPesquisadas: classes.map((c) => c.classe), detalhes: {}, visual: null };
+
+  const { error } = await db()
+    .from("marca_buscas")
+    .insert({ id, nome: ref, entrada: { nome, siglas: e.siglas, ondeUsar: e.ondeUsar, contexto: e.contexto, textoLogo, logoUrl, classes: classes.map((c) => c.classe) }, resultado, criado_por: profile.id });
+  if (error) return { ok: false, error: "A busca foi feita, mas não consegui guardar no histórico (a tabela marca_buscas existe? rode a migration 0062)." };
+  return { ok: true, id };
+}
+
+// ───────────── Relatório: detalhes das marcas e análise visual (2ª etapa, na página) ─────────────
+
+/** Processos citados no relatório (principais + análise por classe), na ordem em que aparecem. */
+function citados(r: RelatorioMA): string[] {
+  const out: string[] = [];
+  for (const p of [...r.principais.map((a) => a.processo), ...r.porClasse.flatMap((g) => g.itens.flatMap((i) => i.processos))]) if (!out.includes(p)) out.push(p);
+  return out.slice(0, 25);
+}
+
+async function lerBusca(id: string) {
+  const { data } = await db().from("marca_buscas").select("id, entrada, resultado").eq("id", id).maybeSingle();
+  return data as { id: string; entrada: Record<string, unknown>; resultado: RelatorioMA & { encontrados?: (ResultadoBusca & { relevancia: number })[] } } | null;
+}
+
+/** Guarda uma chave do resultado sem sobrescrever o resto (relê antes de gravar). */
+async function gravarNoResultado(id: string, muda: (r: Record<string, unknown>) => void) {
+  const b = await lerBusca(id);
+  if (!b) return;
+  const r = b.resultado as unknown as Record<string, unknown>;
+  muda(r);
+  await db().from("marca_buscas").update({ resultado: r }).eq("id", id);
+}
+
+/** O que ainda falta completar no relatório (a página chama um por um). */
+export async function pendentesRelatorioAction(id: string): Promise<{ processos: string[]; visual: boolean }> {
+  await exigirPermissao("marcas");
+  const b = await lerBusca(id);
+  if (!b || b.resultado.formato !== "ma") return { processos: [], visual: false };
+  const feitos = b.resultado.detalhes ?? {};
+  const processos = citados(b.resultado).filter((p) => !feitos[p]);
+  return { processos, visual: !!b.entrada.logoUrl && !b.resultado.visual };
+}
+
+/** Ficha (base própria das revistas; pePI se ela não tiver) + logo do INPI de uma marca citada. */
+export async function completarMarcaBuscaAction(id: string, processo: string): Promise<Resp<{ detalhe: DetalheMarca }>> {
+  await exigirPermissao("marcas");
+  if (!/^\d{9}$/.test(processo)) return { ok: false, error: "Processo inválido." };
+  const b = await lerBusca(id);
+  if (!b) return { ok: false, error: "Relatório não encontrado." };
+  const doRelatorio = b.resultado.encontrados?.find((x) => x.processo === processo);
+
+  let det: DetalheMarca = { processo, marca: doRelatorio?.marca ?? "", titular: doRelatorio?.titular ?? null, classe: doRelatorio?.classes ?? null, deposito: doRelatorio?.deposito ?? null, tipo: doRelatorio?.apresentacao ?? null, natureza: null, situacao: doRelatorio?.situacao ?? null, procurador: null, especificacao: null, logo: null, fonte: "lista" };
+  const base = await consultarBase("processo", processo, null, 1, 10_000).catch(() => null);
+  const l = base?.resultados.find((x) => x.numero === processo);
+  if (l) {
+    det = {
+      ...det,
+      marca: l.marca ?? det.marca,
+      titular: l.titular ?? det.titular,
+      classe: l.classes ? l.classes.split(",").map((c) => `NCL ${c.trim()}`).join("; ") : det.classe,
+      deposito: l.deposito ?? det.deposito,
+      tipo: l.apresentacao ?? det.tipo,
+      natureza: l.natureza,
+      situacao: situacaoDoDespacho(l.ultimo_despacho, l.concessao),
+      procurador: l.procurador,
+      especificacao: l.especificacao,
+      fonte: "base",
+    };
+  } else {
+    const f = await fichaNoInpi(processo).catch(() => null);
+    if (f) det = { ...det, marca: f.marca ?? det.marca, titular: f.titular, classe: f.classe, deposito: f.deposito, tipo: f.apresentacao, natureza: f.natureza, situacao: f.situacao, procurador: f.procurador, especificacao: f.especificacao, fonte: "inpi" };
+  }
+
+  // logo (marca nominativa não tem): guardado em marcas/logos-inpi/<processo> para as próximas buscas
+  if (!/nominativ/i.test(det.tipo ?? "")) {
+    const pasta = db().storage.from("marcas");
+    const { data: ja } = await pasta.list("logos-inpi", { search: processo, limit: 1 });
+    if (ja?.length) det.logo = pasta.getPublicUrl(`logos-inpi/${ja[0].name}`).data.publicUrl;
+    else {
+      let cod = doRelatorio?.codPedido ?? "";
+      if (!cod) cod = (await buscarNoInpi("processo", processo, { semReserva: true }).catch(() => null))?.resultados.find((x) => x.processo === processo)?.codPedido ?? "";
+      const dataUrl = cod ? await logoNoInpi(processo, cod).catch(() => null) : null;
+      const m = dataUrl?.match(/^data:(image\/[a-z+]+);base64,(.+)$/);
+      if (m) {
+        const nomeArq = `logos-inpi/${processo}.${m[1].split("/")[1].replace("jpeg", "jpg").replace("+xml", "")}`;
+        const up = await pasta.upload(nomeArq, Buffer.from(m[2], "base64"), { contentType: m[1], cacheControl: "604800", upsert: true });
+        if (!up.error) det.logo = pasta.getPublicUrl(nomeArq).data.publicUrl;
+      }
+    }
+  }
+  await gravarNoResultado(id, (r) => {
+    r.detalhes = { ...((r.detalhes as Record<string, DetalheMarca>) ?? {}), [processo]: det };
+  });
+  return { ok: true, detalhe: det };
+}
+
+/** Análise Visual: o logo enviado comparado com os logos das anterioridades (como no Marca Acompanhada). */
+export async function analiseVisualBuscaAction(id: string): Promise<Resp<{ feito: boolean }>> {
+  await exigirPermissao("marcas");
+  const b = await lerBusca(id);
+  if (!b) return { ok: false, error: "Relatório não encontrado." };
+  const logoUrl = b.entrada.logoUrl as string | undefined;
+  if (!logoUrl) return { ok: true, feito: false };
+  const baixar = async (url: string) => {
+    const r = await fetch(url, { signal: AbortSignal.timeout(15_000) }).catch(() => null);
+    if (!r?.ok) return null;
+    const tipo = r.headers.get("content-type")?.split(";")[0] ?? "image/png";
+    return { mimeType: tipo, data: Buffer.from(await r.arrayBuffer()).toString("base64") };
+  };
+  const nosso = await baixar(logoUrl);
+  if (!nosso) return { ok: false, error: "Não consegui abrir o logo enviado." };
+  const comLogo = citados(b.resultado)
+    .map((p) => b.resultado.detalhes?.[p])
+    .filter((x): x is DetalheMarca => !!x?.logo)
+    .slice(0, 10);
+  const partes: Part[] = [{ text: `Marca pesquisada: ${b.entrada.nome || "(só logo)"}. Uso: ${b.entrada.ondeUsar}. 1ª imagem = logo da marca pesquisada.` }, { inlineData: nosso }];
+  for (const d of comLogo) {
+    const img = await baixar(d.logo!);
+    if (!img) continue;
+    partes.push({ text: `Logo da anterioridade ${d.marca} (${d.processo}), classe ${d.classe ?? "-"}, ${d.situacao ?? ""}:` }, { inlineData: img });
+  }
+  const r = await generateJson<AnaliseVisual>({
+    system: SISTEMA_VISUAL,
+    parts: partes,
+    model: MODELOS.leitura,
+    funcao: "marcas_busca",
     schema: {
       type: "object",
       properties: {
-        risco: { type: "string", enum: ["baixo", "medio", "alto"] },
-        resumo: { type: "string" },
-        classes: { type: "array", items: { type: "object", properties: { classe: { type: "string" }, motivo: { type: "string" }, risco: { type: "string", enum: ["baixo", "medio", "alto"] }, comentario: { type: "string" } }, required: ["classe", "motivo", "risco", "comentario"] } },
-        anterioridades: {
-          type: "array",
-          items: {
-            type: "object",
-            properties: { processo: { type: "string" }, marca: { type: "string" }, classe: { type: "string" }, situacao: { type: "string" }, titular: { type: "string" }, relevancia: { type: "number" }, motivo: { type: "string" } },
-            required: ["processo", "marca", "classe", "situacao", "titular", "relevancia", "motivo"],
-          },
-        },
-        recomendacoes: { type: "array", items: { type: "string" } },
+        descricao: { type: "array", items: { type: "string" } },
+        comparacoes: { type: "array", items: { type: "object", properties: { processo: { type: "string" }, titulo: { type: "string" }, pontos: { type: "array", items: { type: "string" } } }, required: ["processo", "titulo", "pontos"] } },
+        fechamento: { type: "string" },
       },
-      required: ["risco", "resumo", "classes", "anterioridades", "recomendacoes"],
+      required: ["descricao", "comparacoes", "fechamento"],
     },
   });
-  if (!parecer.ok) return { ok: false, error: parecer.error };
-  // só processos que vieram do INPI (a IA não inventa número)
-  const validos = new Set([...candidatos, ...extras].map((r) => r.processo));
-  const resultado = { ...parecer.data, anterioridades: parecer.data.anterioridades.filter((a) => validos.has(a.processo)), termos, encontrados: candidatos, pesquisas, classesPesquisadas: classes.map((c) => c.classe) };
-
-  const { data, error } = await db()
-    .from("marca_buscas")
-    .insert({ nome: ref, entrada: { nome, siglas: e.siglas, ondeUsar: e.ondeUsar, contexto: e.contexto, textoLogo }, resultado, criado_por: profile.id })
-    .select("id")
-    .single();
-  if (error || !data) return { ok: false, error: "A busca foi feita, mas não consegui guardar no histórico (a tabela marca_buscas existe? rode a migration 0062)." };
-  return { ok: true, id: data.id as string };
+  if (!r.ok) return { ok: false, error: r.error };
+  const validos = new Set(comLogo.map((d) => d.processo));
+  const visual: AnaliseVisual = { ...r.data, comparacoes: r.data.comparacoes.filter((c) => validos.has(c.processo)), semLogos: comLogo.length === 0 };
+  await gravarNoResultado(id, (res) => {
+    res.visual = visual;
+  });
+  return { ok: true, feito: true };
 }

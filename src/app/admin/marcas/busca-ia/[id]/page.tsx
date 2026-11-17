@@ -4,14 +4,19 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import { ChevronRight } from "lucide-react";
 import { exigirPermissao } from "@/lib/dal";
 import { createClient } from "@/lib/supabase/server";
-import type { Parecer, Pesquisa } from "../../busca-actions";
+import type { Parecer, Pesquisa, RelatorioMA } from "../../busca-actions";
 import { BotaoImprimir } from "./botao-imprimir";
+import { CompletarRelatorio } from "./completar";
+import { RelatorioMarcaAcompanhada } from "./relatorio-ma";
 
 // Relatório de Busca (Busca com IA), 09/11/2026: a parte das pesquisas segue o
 // resultado do pePI do INPI ("RESULTADO DA PESQUISA (data às hora)", "Marca:",
 // "Foram encontrados N processos…", tabela verde/cinza com Número, Prioridade,
 // apresentação, Marca, ®, Situação, Titular, Classe); depois vem o parecer da IA.
 // Imprimir / Ctrl+P = PDF para o cliente.
+
+// a página completa os dados/logos do INPI por ações do servidor (cada uma pode levar ~1 min)
+export const maxDuration = 120;
 
 const RISCO = {
   baixo: { rotulo: "Risco baixo", cls: "bg-status-success-bg text-status-success" },
@@ -104,6 +109,37 @@ export default async function RelatorioBuscaPage({ params, searchParams }: { par
   const sb = (await createClient()) as unknown as SupabaseClient;
   const { data } = await sb.from("marca_buscas").select("*").eq("id", id).maybeSingle();
   if (!data) notFound();
+  // 17/11/2026: relatórios novos no modelo do Marca Acompanhada; os antigos continuam no formato anterior
+  if ((data.resultado as { formato?: string }).formato === "ma") {
+    const rm = data.resultado as RelatorioMA;
+    const ent = data.entrada as { ondeUsar: string; contexto: string; logoUrl?: string | null; classes?: string[] };
+    const citados: string[] = [];
+    for (const p of [...rm.principais.map((a) => a.processo), ...rm.porClasse.flatMap((g) => g.itens.flatMap((i) => i.processos))]) if (!citados.includes(p)) citados.push(p);
+    const lista = citados.slice(0, 25);
+    const faltam = lista.filter((p) => !rm.detalhes?.[p]).length;
+    const gerado = new Intl.DateTimeFormat("pt-BR", { dateStyle: "short", timeStyle: "short", timeZone: "America/Bahia" }).format(new Date(data.created_at));
+    return (
+      <div className="space-y-4">
+        <div className="flex flex-wrap items-center justify-between gap-3 print:hidden">
+          <nav className="flex items-center gap-1.5 text-[13px] text-muted" aria-label="Caminho">
+            <Link href="/admin/marcas/busca-ia" className="text-navy-3 hover:underline">
+              Busca com IA
+            </Link>
+            <ChevronRight className="h-3.5 w-3.5" aria-hidden /> Relatório de viabilidade
+          </nav>
+          <BotaoImprimir automatico={imprimir === "1" && !faltam} />
+        </div>
+        <RelatorioMarcaAcompanhada
+          r={rm}
+          nome={data.nome}
+          entrada={ent}
+          geradoEm={gerado}
+          citados={lista}
+          completando={<CompletarRelatorio id={id} total={lista.length} faltam={faltam} visualPendente={!!ent.logoUrl && !rm.visual} />}
+        />
+      </div>
+    );
+  }
   const r = data.resultado as Parecer & { termos?: string[]; encontrados?: Encontrado[]; pesquisas?: Pesquisa[]; classesPesquisadas?: string[] };
   const e = data.entrada as { nome: string; ondeUsar: string; contexto: string; textoLogo: string; siglas: boolean };
   const quando = new Intl.DateTimeFormat("pt-BR", { dateStyle: "long", timeStyle: "short", timeZone: "America/Bahia" }).format(new Date(data.created_at));
