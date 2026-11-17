@@ -243,7 +243,22 @@ export async function buscaIAAction(e: EntradaBusca & { logo?: { mime: string; b
     for (const [i, t] of termos.entries()) {
       if (i > 0) await pausa(4_000);
       // 2 páginas por termo (200 processos): termo genérico ("TOP") traz milhares e estourava o tempo
-      const r = await buscarNomeNoInpi(t, true, null, 2);
+      // 17/11/2026: INPI lento travava a busca (cada consulta espera até 110 s e a página tem 120 s).
+      // Cada termo tem no máximo 35 s no pePI (e nada depois de 60 s); depois disso vai pela base própria.
+      const pelaBase = async (): Promise<Awaited<ReturnType<typeof buscarNomeNoInpi>>> => {
+        const b = await consultarBase("radical", t, classes[0]?.classe ?? null, 200, 15_000);
+        return {
+          resultados: b.resultados.map((l) => ({ processo: l.numero, codPedido: "", marca: l.marca ?? "", situacao: situacaoDoDespacho(l.ultimo_despacho, l.concessao), titular: l.titular ?? "", classes: l.classes ? l.classes.split(",").map((x) => `NCL ${x}`).join(", ") : "", deposito: l.deposito, apresentacao: l.apresentacao })),
+          total: b.total,
+          fonte: "base",
+          revista: b.revista,
+          data: b.data,
+          motivo: "o INPI demorou demais",
+        };
+      };
+      const r = !sobraTempo()
+        ? await pelaBase()
+        : await Promise.race([buscarNomeNoInpi(t, true, null, 2), pausa(35_000).then(() => null)]).then((x) => x ?? pelaBase());
       pesquisas.push({ termo: t, tipo: "Radical", total: r.total, em: new Date().toISOString(), fonte: r.fonte === "base" ? `base própria (revistas até a RPI ${r.revista ?? "?"})` : "INPI (pePI) ao vivo", processos: r.resultados.map((x) => x.processo) });
       for (const x of r.resultados) achados.set(x.processo, { ...x, termos: [...(achados.get(x.processo)?.termos ?? []), t] });
       // termo genérico: o pePI só deu as 2 primeiras páginas. Completa com a base própria (todas as revistas

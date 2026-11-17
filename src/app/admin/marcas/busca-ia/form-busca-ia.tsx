@@ -42,6 +42,7 @@ export function FormBuscaIA() {
 
   function pesquisar() {
     start(async () => {
+      // 17/11/2026: se a página estoura o tempo (INPI lento), avisa em vez de ficar em "Buscando…" para sempre
       const r = await buscaIAAction({
         nome,
         siglas,
@@ -51,8 +52,8 @@ export function FormBuscaIA() {
         usarTextoLogo,
         logo: logo ? { mime: logo.mime, base64: logo.base64 } : null,
         extras: comCarrinho ? carrinho.map((c) => ({ processo: c.processo, marca: c.marca, classes: c.classes, situacao: c.situacao, titular: c.titular })) : [],
-      });
-      if (!r.ok) return void toast.error(r.error);
+      }).catch(() => ({ ok: false as const, error: "A busca demorou demais (o INPI está lento agora). Tente de novo em alguns minutos." }));
+      if (!r.ok) return void toast.error(r.error, { duration: 12_000 });
       toast.success("Parecer pronto");
       router.push(`/admin/marcas/busca-ia/${r.id}`);
     });

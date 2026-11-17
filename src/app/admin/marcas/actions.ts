@@ -114,6 +114,15 @@ export async function buscarCadastroAction(tipo: "processo" | "nome" | "titular"
       const r = await buscarNoInpi(tipo, t);
       ({ resultados, total } = r);
       fonte = r.fonte === "base" ? { fonte: "base", revista: r.revista, data: r.data, motivo: r.motivo } : { fonte: "inpi" };
+      // 17/11/2026: processo ainda não publicado (não está no INPI nem nas revistas) mas já cadastrado
+      // na carteira como "Aguardando publicação": mostra ele em vez de "Nenhum processo encontrado"
+      if (tipo === "processo" && !resultados.length) {
+        const { data: m } = await db().from("marcas").select("processo, nome, situacao, titular, classe, deposito, apresentacao").eq("processo", t.replace(/\D/g, "")).maybeSingle();
+        if (m) {
+          resultados = [{ processo: m.processo, codPedido: "", marca: m.nome ?? "", situacao: m.situacao ?? "", titular: m.titular ?? "", classes: m.classe ?? "", deposito: m.deposito ?? null, apresentacao: m.apresentacao ?? null }];
+          total = 1;
+        }
+      }
     }
     const { data: ja } = await db().from("marcas").select("processo").eq("acompanhando", true).in("processo", resultados.map((r) => r.processo).slice(0, 500));
     const set = new Set((ja ?? []).map((x) => x.processo));
