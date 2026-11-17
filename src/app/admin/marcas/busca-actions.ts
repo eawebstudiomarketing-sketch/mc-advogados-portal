@@ -144,9 +144,9 @@ Monte:
 - resumo.abertura: "A marca consultada **<MARCA>** para <produtos/serviços> na classe <NN> apresenta:".
 - resumo.topicos: 2 a 4 tópicos; titulo curto em negrito (ex.: "Baixa similaridade nominativa", "Elemento distintivo relevante", "Similaridade visual moderada" — este só se houver logo) e texto de 1–2 frases.
 - resumo.fechamento: 2–3 frases sobre a prática do INPI e o risco geral, citando as anterioridades que mais pedem atenção.
-- principais: as principais anterioridades (até 10), mais relevantes primeiro: marca, classe ("Classe 3"), afinidade (alta/media/baixa) e motivo (1–3 frases: mesma classe? produtos? semelhança/diferença fonética, gráfica, conceitual).
+- principais: as principais anterioridades — liste de 6 a 10 sempre que a lista tiver isso (inclua as do mesmo nicho/conceito na mesma classe, que o INPI considera pela afinidade, mesmo com nome diferente), mais relevantes primeiro: marca, classe ("Classe 3"), afinidade (alta/media/baixa) e motivo (1–3 frases: mesma classe? produtos? semelhança/diferença fonética, gráfica, conceitual).
 - principaisNota: 1–2 frases sobre as demais anterioridades (outras classes, extintas) e seu peso.
-- porClasse: grupos "forte", "moderado" e "fraco" (só os que existirem). titulo ex.: "Classe 03 (cosméticos capilares)" ou "Outras classes correlatas (35, 41, 44)"; introducao 1–2 frases; itens: cada item é uma marca ou um conjunto parecido (titulo "NOME (processo) / NOME (processo)", processos = números), com pontos no formato "Similaridade: …", "Diferenças: …", "Tendência: …" ou "Conflito: …"; fechamento 1 frase (pode ser vazio).
+- porClasse: cite em cada grupo TODAS as marcas relevantes daquele nível (normalmente 4 a 10 no total); grupos "forte", "moderado" e "fraco" (só os que existirem). titulo ex.: "Classe 03 (cosméticos capilares)" ou "Outras classes correlatas (35, 41, 44)"; introducao 1–2 frases; itens: cada item é uma marca ou um conjunto parecido (titulo "NOME (processo) / NOME (processo)", processos = números), com pontos no formato "Similaridade: …", "Diferenças: …", "Tendência: …" ou "Conflito: …"; fechamento 1 frase (pode ser vazio).
 - conclusao.pontos: "Nominativo", "Conceitual" e "Visual" (este só se houver logo; diga que a análise visual detalhada está na seção própria) com 1–3 frases cada; conclusao.texto: parágrafo final com a probabilidade de conflito impeditivo e as anterioridades que mais pedem atenção.
 - recomendacoes: 3 a 6 blocos com titulo (ex.: "Depósito como marca mista", "Ajustes de especificação em classe NN", "Monitoramento de oposições", "Uso consistente da marca", "Coleta de evidências de uso") e 1–3 pontos cada.
 - estimativa.indeferimento: ex.: "Nominativo: Baixo a moderado · Visual (marca mista): Moderado"; estimativa.oposicao: 1–3 frases "Por titulares de …: moderada."; estimativa.sintese: "Em síntese, **<MARCA>** é registrável com perspectiva …".`;
@@ -304,15 +304,22 @@ export async function buscaIAAction(e: EntradaBusca & { logo?: { mime: string; b
   }
   const nums = new Set(classes.map((c) => c.classe));
   const ref = nome || textoLogo || termos[0] || "";
-  const candidatos = [...achados.values()]
+  // classes do processo como números ("NCL(11) 3, NCL 35" → 3, 35): antes "3" casava com 35/43 por texto
+  const numsDe = (txt: string) => new Set((txt.replace(/NCL\s*\(\d+\)/gi, " ").match(/\d{1,2}/g) ?? []).map((n) => String(Number(n))));
+  const naClasse = (txt: string) => !nums.size || [...numsDe(txt)].some((n) => nums.has(String(Number(n))));
+  const avaliados = [...achados.values()]
     .map((r) => {
       const graf = Math.round(Math.max(...termos.map((t) => Math.max(semelhanca(t, r.marca), parecencaFonetica(t, r.marca)))) * 100);
       // mesmo nicho na mesma classe: entra com no mínimo 50 (afinidade conceitual), como no MA
       return { ...r, relevancia: porConceito.has(r.processo) ? Math.max(graf, 50) : graf };
     })
-    .filter((r) => r.relevancia >= 45 && (!nums.size || [...nums].some((n) => r.classes.includes(n))))
-    .sort((a, b) => b.relevancia - a.relevancia)
-    .slice(0, 60);
+    .filter((r) => r.relevancia >= 45 && naClasse(r.classes));
+  const vivo = (sit: string) => !/arquiv|extint|indefer|nul/i.test(sit);
+  const ordem = (a: { relevancia: number; situacao: string }, b: { relevancia: number; situacao: string }) => Number(vivo(b.situacao)) - Number(vivo(a.situacao)) || b.relevancia - a.relevancia;
+  // vagas separadas: parecidas no nome (35) + mesmo nicho (25), para uma não engolir a outra
+  const porNome = avaliados.filter((r) => !porConceito.has(r.processo) || r.relevancia > 50).sort(ordem).slice(0, 35);
+  const doNicho = avaliados.filter((r) => porConceito.has(r.processo) && !porNome.includes(r)).sort(ordem).slice(0, 25);
+  const candidatos = [...porNome, ...doNicho];
   const extras = (e.extras ?? []).slice(0, 20).map((x) => ({ ...x, relevancia: 100, deposito: null, codPedido: "" }));
 
   // 3) relatório no modelo do Marca Acompanhada ("Relatório de Viabilidade de Marca", 17/11/2026)
