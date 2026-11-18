@@ -30,6 +30,64 @@ function melhorFormato(): string | undefined {
   return undefined;
 }
 
+// 18/11/2026: a Talita clicou em "Começar a gravar" numa chamada do WhatsApp com fone e deu erro
+// (o aviso sumia em segundos e a reunião não foi gravada). Com fone Bluetooth em chamada, o Windows
+// costuma prender o microfone do fone no programa da chamada e o navegador recebe "NotReadableError"
+// ("Could not start audio source"). Agora: tenta outros microfones sozinho, deixa escolher o microfone,
+// explica o erro em português num quadro que não some e mostra o nível do som durante a gravação.
+type Mic = { id: string; nome: string };
+
+async function listarMics(): Promise<Mic[]> {
+  try {
+    const ds = await navigator.mediaDevices.enumerateDevices();
+    return ds
+      .filter((d) => d.kind === "audioinput" && d.deviceId !== "communications")
+      .map((d, i) => ({ id: d.deviceId, nome: d.label || `Microfone ${i + 1}` }));
+  } catch {
+    return [];
+  }
+}
+
+/** Abre o microfone escolhido; se falhar (ocupado pela chamada, sumiu…), tenta o padrão e depois cada um dos outros. */
+async function abrirMicrofone(escolhido: string): Promise<{ stream: MediaStream; nome: string; trocou: boolean }> {
+  const proc = { echoCancellation: true, noiseSuppression: true, autoGainControl: true };
+  const tentativas: MediaTrackConstraints[] = [];
+  if (escolhido) tentativas.push({ ...proc, deviceId: { exact: escolhido } });
+  tentativas.push(proc, {});
+  let primeiroErro: unknown = null;
+  const tentar = async (c: MediaTrackConstraints) => {
+    try {
+      return await navigator.mediaDevices.getUserMedia({ audio: c });
+    } catch (e) {
+      primeiroErro ??= e;
+      if ((e as { name?: string })?.name === "NotAllowedError") throw e; // permissão negada: não adianta insistir
+      return null;
+    }
+  };
+  for (const c of tentativas) {
+    const st = await tentar(c);
+    if (st) return { stream: st, nome: st.getAudioTracks()[0]?.label ?? "", trocou: !!escolhido && c.deviceId === undefined };
+  }
+  for (const m of await listarMics()) {
+    if (m.id === escolhido || m.id === "default") continue;
+    const st = await tentar({ ...proc, deviceId: { exact: m.id } });
+    if (st) return { stream: st, nome: m.nome, trocou: true };
+  }
+  throw primeiroErro ?? new Error("Nenhum microfone respondeu.");
+}
+
+/** Erro ao começar a gravar, explicado em português (fica na tela até a próxima tentativa). */
+function explicarErro(e: unknown): string {
+  const nome = (e as { name?: string })?.name ?? "";
+  const msg = e instanceof Error ? e.message : "";
+  if (nome === "NotAllowedError" || /Permission|denied/i.test(msg))
+    return "O navegador está sem permissão para usar o microfone (ou o compartilhamento da tela foi cancelado). Clique no cadeado ao lado do endereço do site, libere o Microfone e tente de novo.";
+  if (nome === "NotReadableError" || nome === "AbortError" || /Could not start|in use/i.test(msg))
+    return "O microfone está preso em outro programa. Isso é comum com fone Bluetooth durante uma chamada (WhatsApp, Teams…): o Windows deixa o microfone do fone só para a chamada. Tentei todos os microfones do computador e nenhum respondeu. Feche os programas que usam o microfone ou, numa chamada pelo computador, escolha “Reunião online” e compartilhe a Tela inteira com o áudio do sistema.";
+  if (nome === "NotFoundError" || nome === "OverconstrainedError") return "Não encontrei nenhum microfone ligado a este computador. Conecte o fone ou o microfone e tente de novo.";
+  return msg || "Não foi possível começar a gravar.";
+}
+
 export function NovaAta({ clientes, equipe, meuProfileId, clienteInicial }: { clientes: { id: string; name: string }[]; equipe: Membro[]; meuProfileId: string; clienteInicial: string | null }) {
   const router = useRouter();
   const [tipo, setTipo] = useState<TipoAta>("reuniao_cliente");
@@ -45,6 +103,15 @@ export function NovaAta({ clientes, equipe, meuProfileId, clienteInicial }: { cl
   const [modo, setModo] = useState<Modo>("presencial");
   const [arquivo, setArquivo] = useState<File | null>(null);
   const [comecando, setComecando] = useState(false);
+  const [erroInicio, setErroInicio] = useState<string | null>(null);
+  const [mics, setMics] = useState<Mic[]>([]);
+  const [micId, setMicId] = useState("");
+  useEffect(() => {
+    const ler = () => void listarMics().then(setMics);
+    ler();
+    navigator.mediaDevices?.addEventListener?.("devicechange", ler);
+    return () => navigator.mediaDevices?.removeEventListener?.("devicechange", ler);
+  }, []);
   const [gravacao, setGravacao] = useState<Gravacao | null>(null);
   const [envioArquivo, setEnvioArquivo] = useState<number | null>(null);
   useTopoAoTrocar(!!gravacao);
@@ -81,6 +148,7 @@ export function NovaAta({ clientes, equipe, meuProfileId, clienteInicial }: { cl
   async function gravar() {
     if (!navigator.mediaDevices?.getUserMedia || typeof MediaRecorder === "undefined") return void toast.error("Este navegador não grava áudio. Use o Chrome ou o Edge no computador.");
     setComecando(true);
+    setErroInicio(null);
     const streams: MediaStream[] = [];
     try {
       let tela: MediaStream | null = null;
@@ -91,10 +159,20 @@ export function NovaAta({ clientes, equipe, meuProfileId, clienteInicial }: { cl
         streams.push(tela);
         if (!tela.getAudioTracks().length) throw new Error('Faltou marcar "Compartilhar áudio" ao escolher a aba ou a tela. Tente de novo.');
       }
-      const mic = await navigator.mediaDevices.getUserMedia({ audio: { echoCancellation: true, noiseSuppression: true, autoGainControl: true } });
-      streams.push(mic);
-      let fonte: MediaStream = mic;
-      if (tela) {
+      let mic: MediaStream | null = null;
+      try {
+        const m = await abrirMicrofone(micId);
+        mic = m.stream;
+        if (m.trocou) toast.warning(`O microfone escolhido não respondeu; gravando pelo ${m.nome || "microfone padrão"}.`, { duration: 10_000 });
+        void listarMics().then(setMics);
+      } catch (e) {
+        // reunião online: dá para seguir só com o som da reunião (a voz de quem grava pode não entrar)
+        if (!tela) throw e;
+        toast.warning("O microfone não respondeu: gravando só o som da reunião. A sua voz pode não entrar.", { duration: 15_000 });
+      }
+      if (mic) streams.push(mic);
+      let fonte: MediaStream = mic ?? new MediaStream(tela!.getAudioTracks());
+      if (tela && mic) {
         // mistura microfone + som da reunião numa trilha só
         const ctx = new AudioContext();
         const destino = ctx.createMediaStreamDestination();
@@ -115,13 +193,13 @@ export function NovaAta({ clientes, equipe, meuProfileId, clienteInicial }: { cl
         fila.itens.push({ n, blob: e.data });
         void guardarPedaco(c.id, n, e.data);
       });
-      setGravacao({ ataId: c.id, inicio: Date.now(), recorder, streams, online: !!tela, fila });
+      setGravacao({ ataId: c.id, inicio: Date.now(), recorder, streams, online: !!tela, fila, fonte, semMic: !mic });
       enviador.current = { base: c.envio, ataId: c.id };
       recorder.start(PEDACO_MS);
     } catch (e) {
       streams.forEach((s) => s.getTracks().forEach((t) => t.stop()));
-      const msg = e instanceof Error ? e.message : "";
-      toast.error(/Permission|NotAllowed/i.test(msg) || (e as { name?: string })?.name === "NotAllowedError" ? "Sem permissão para gravar. Libere o microfone (e o compartilhamento) no navegador." : msg || "Não foi possível começar a gravar.");
+      setErroInicio(explicarErro(e));
+      toast.error("Não começou a gravar. Veja o motivo abaixo do botão.");
     } finally {
       setComecando(false);
     }
@@ -336,6 +414,8 @@ export function NovaAta({ clientes, equipe, meuProfileId, clienteInicial }: { cl
               <b className="text-foreground">Meet no navegador:</b> escolha a <b>aba</b> da reunião e deixe <b>“Compartilhar áudio da guia”</b> ligado.
               <br />
               <b className="text-foreground">Zoom/Teams pelo aplicativo:</b> escolha <b>“Tela inteira”</b> e ligue <b>“Compartilhar áudio do sistema”</b>.
+              <br />
+              <b className="text-foreground">Chamada do WhatsApp no computador:</b> igual: <b>“Tela inteira”</b> + <b>“Compartilhar áudio do sistema”</b>. Chamada feita <b>no celular</b> o computador não ouve: deixe no viva-voz perto do computador e grave em “Presencial”.
             </p>
           )}
 
@@ -359,6 +439,30 @@ export function NovaAta({ clientes, equipe, meuProfileId, clienteInicial }: { cl
               <button type="button" onClick={() => void gravar()} disabled={comecando} className="mt-4 inline-flex w-full items-center justify-center gap-2 rounded-xl bg-status-danger px-4 py-3 text-sm font-semibold text-white hover:opacity-90 disabled:opacity-60">
                 {comecando ? <Loader2 className="h-4 w-4 animate-spin" aria-hidden /> : <span className="h-2.5 w-2.5 rounded-full bg-white" aria-hidden />} Começar a gravar
               </button>
+              {mics.length > 1 && (
+                <label className="mt-3 block">
+                  <span className="mb-1 block text-xs font-medium text-foreground">Microfone</span>
+                  <select value={micId} onChange={(e) => setMicId(e.target.value)} className="ui-input text-xs">
+                    <option value="">Padrão do computador</option>
+                    {mics
+                      .filter((m) => m.id !== "default")
+                      .map((m) => (
+                        <option key={m.id} value={m.id}>
+                          {m.nome}
+                        </option>
+                      ))}
+                  </select>
+                  <span className="mt-1 block text-[11px] text-muted">Com fone Bluetooth numa chamada, se der erro, escolha o microfone do computador.</span>
+                </label>
+              )}
+              {erroInicio && (
+                <div role="alert" className="mt-3 flex items-start gap-2 rounded-lg bg-status-danger-bg p-3 text-xs leading-relaxed text-status-danger">
+                  <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" aria-hidden />
+                  <span>
+                    <b>Não começou a gravar.</b> {erroInicio}
+                  </span>
+                </div>
+              )}
             </>
           )}
         </section>
@@ -376,7 +480,42 @@ type Gravacao = {
   streams: MediaStream[];
   online: boolean;
   fila: { itens: { n: number; blob: Blob }[]; contador: number };
+  fonte: MediaStream;
+  semMic: boolean;
 };
+
+/** Nível do som que está entrando (0–1) e há quantos segundos está em silêncio. */
+function useNivel(stream: MediaStream) {
+  const [nivel, setNivel] = useState(0);
+  const [mudo, setMudo] = useState(0);
+  useEffect(() => {
+    let ctx: AudioContext;
+    try {
+      ctx = new AudioContext();
+    } catch {
+      return;
+    }
+    const an = ctx.createAnalyser();
+    an.fftSize = 1024;
+    ctx.createMediaStreamSource(stream).connect(an);
+    const buf = new Float32Array(an.fftSize);
+    let ultimoSom = Date.now();
+    const t = setInterval(() => {
+      an.getFloatTimeDomainData(buf);
+      let soma = 0;
+      for (const v of buf) soma += v * v;
+      const rms = Math.sqrt(soma / buf.length);
+      setNivel(Math.min(1, rms * 12));
+      if (rms > 0.004) ultimoSom = Date.now();
+      setMudo(Math.floor((Date.now() - ultimoSom) / 1000));
+    }, 250);
+    return () => {
+      clearInterval(t);
+      void ctx.close().catch(() => {});
+    };
+  }, [stream]);
+  return { nivel, mudo };
+}
 
 function Gravando({
   g,
@@ -397,6 +536,7 @@ function Gravando({
   const fila = useRef(g.fila.itens);
   const montada = useRef(false);
   const ocupado = useRef(false);
+  const { nivel, mudo } = useNivel(g.fonte);
 
   // relógio (em segundo plano o navegador atualiza mais devagar; a gravação não para)
   useEffect(() => {
@@ -554,7 +694,12 @@ function Gravando({
           {!encerrando && <span className="absolute inset-0 animate-ping rounded-full bg-status-danger/40 [animation-duration:1.8s]" aria-hidden />}
         </span>
         <p className="mt-4 font-mono text-4xl font-semibold tabular-nums">{mmss(seg)}</p>
-        <p className="mt-1 text-sm text-white/70">{encerrando ?? (g.online ? "Gravando microfone + som da reunião" : "Gravando pelo microfone")}</p>
+        <p className="mt-1 text-sm text-white/70">{encerrando ?? (g.semMic ? "Gravando só o som da reunião (sem microfone)" : g.online ? "Gravando microfone + som da reunião" : "Gravando pelo microfone")}</p>
+        {!encerrando && (
+          <div className="mt-3 h-1.5 w-48 overflow-hidden rounded-full bg-white/15" role="meter" aria-label="Nível do som" aria-valuemin={0} aria-valuemax={100} aria-valuenow={Math.round(nivel * 100)}>
+            <div className="h-full rounded-full bg-status-success transition-[width] duration-200" style={{ width: `${Math.round(nivel * 100)}%` }} />
+          </div>
+        )}
       </div>
       <div className="space-y-4 p-5 sm:p-6">
         <p className="flex items-center gap-2 text-sm text-muted">
@@ -570,6 +715,11 @@ function Gravando({
             </>
           )}
         </p>
+        {!encerrando && mudo >= 60 && (
+          <p role="alert" className="flex items-start gap-2 rounded-lg bg-status-danger-bg p-3 text-sm text-status-danger">
+            <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" aria-hidden /> Nenhum som chegando há {Math.floor(mudo / 60)} min. Confira se o microfone ou o fone certo está ligado e sem mudo. Se a chamada for no computador, ela precisa estar na tela compartilhada com o áudio do sistema.
+          </p>
+        )}
         {telaCaiu && (
           <p className="flex items-start gap-2 rounded-lg bg-status-danger-bg p-3 text-sm text-status-danger">
             <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" aria-hidden /> O compartilhamento da reunião parou: daqui pra frente só o microfone está sendo gravado.
