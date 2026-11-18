@@ -168,7 +168,8 @@ async function entrarSemFicha(p: string, profileId: string, manual: DadosManuais
   // não apaga o que já existia (marca que estava desacompanhada)
   const { data: ja } = await db().from("marcas").select("id, nome").eq("processo", p).maybeSingle();
   const { error } = ja
-    ? await db().from("marcas").update(Object.fromEntries(Object.entries(linha).filter(([k, v]) => v !== null && !(k === "nome" && ja.nome)))).eq("processo", p)
+    ? // 18/11/2026: recadastrar não troca quem cadastrou nem a origem (o teste sobrescreveu o criado_por do 945791070)
+      await db().from("marcas").update(Object.fromEntries(Object.entries(linha).filter(([k, v]) => v !== null && !["criado_por", "origem", "tipo"].includes(k) && !(k === "nome" && ja.nome)))).eq("processo", p)
     : await db().from("marcas").insert(linha);
   if (error) return { ok: false, erro: `${p}: ${error.message}` };
   if (l) return { ok: true, aviso: `${p}: o INPI está fora do ar agora (${motivoFora ?? "sem resposta"}). Entrou com os dados da revista ${l.ultima_rpi ?? ""}; a ficha completa vem na conferência.` };
