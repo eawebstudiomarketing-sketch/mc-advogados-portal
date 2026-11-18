@@ -40,6 +40,7 @@ type Msg = {
   media_path: string | null;
   media_mime: string | null;
   sender_jid: string | null;
+  sender_nome?: string | null;
   /** "ia" = mensagem automática do portal; "humano" = alguém digitou */
   quem?: string | null;
   raw: unknown;
@@ -99,7 +100,7 @@ async function conversasDoSuporte(db: ReturnType<typeof createAdminClient>): Pro
 function autor(m: Msg): string {
   if (m.from_me) return "Escritório";
   const push = (m.raw as { pushName?: string } | null)?.pushName;
-  return push || (m.sender_jid ? `+${m.sender_jid.split("@")[0]}` : "Cliente");
+  return push || m.sender_nome || (m.sender_jid ? `+${m.sender_jid.split("@")[0]}` : "Cliente");
 }
 
 function conteudo(m: Msg): string {
@@ -173,7 +174,6 @@ async function lerUmaVez(db: ReturnType<typeof createAdminClient>): Promise<Resu
   const hojeISO = new Intl.DateTimeFormat("en-CA", { timeZone: "America/Bahia" }).format(new Date());
   const r: ResultadoLeitura = { conversas: 0, mensagens: 0, sugestoes: 0 };
   const idsNovos: string[] = [];
-  const atividadesSistemas: { id: string; titulo: string; perfil: string }[] = [];
 
   for (const chat of chats ?? []) {
     if (chat.ler_demandas === false) continue; // desligada a pedido
@@ -194,7 +194,7 @@ async function lerUmaVez(db: ReturnType<typeof createAdminClient>): Promise<Resu
 
     const { data: msgs } = await db
       .from("wa_messages")
-      .select("wa_timestamp, from_me, texto, tipo, media_nome, media_path, media_mime, sender_jid, quem, raw")
+      .select("wa_timestamp, from_me, texto, tipo, media_nome, media_path, media_mime, sender_jid, sender_nome, quem, raw")
       .eq("chat_jid", chat.chat_jid)
       .gt("wa_timestamp", desde)
       .order("wa_timestamp", { ascending: false })
@@ -324,7 +324,6 @@ async function lerUmaVez(db: ReturnType<typeof createAdminClient>): Promise<Resu
           r.erro = eAt?.message ?? "não criou a atividade";
           break;
         }
-        atividadesSistemas.push({ id: criada.id, titulo: d.titulo.trim(), perfil: sup!.perfil });
         linhasNovas.push({
           origem: "whatsapp",
           client_id: null,
@@ -369,18 +368,7 @@ async function lerUmaVez(db: ReturnType<typeof createAdminClient>): Promise<Resu
     if (ultima) await db.from("wa_chats").update({ demandas_lidas_ate: ultima }).eq("chat_jid", chat.chat_jid);
   }
 
-  // grupo de sistemas: avisa o Suporte da atividade nova (sem passar pela Distribuição)
-  if (atividadesSistemas.length) {
-    await criarAvisos(
-      atividadesSistemas.map((a) => ({
-        profile_id: a.perfil,
-        tipo: "atividade",
-        titulo: `Nova atividade do grupo de sistemas: ${a.titulo}`.slice(0, 200),
-        corpo: "Criada sozinha a partir do pedido no WhatsApp.",
-        url: `/admin/activities/${a.id}`,
-      }))
-    ).catch(() => undefined);
-  }
+  // grupo de sistemas: o aviso "Você é o responsável" sai sozinho ao criar a atividade
 
   // aviso para quem pode distribuir (admins), sem travar a leitura
   if (r.sugestoes) {
