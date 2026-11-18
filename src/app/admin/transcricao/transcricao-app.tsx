@@ -46,6 +46,14 @@ import {
   type ParteExport,
 } from "@/lib/transcricao-formato";
 import { useTopoAoTrocar } from "@/lib/use-topo";
+import { apagarPedacos, gravacoesGuardadas, guardarPedaco, pedacosGuardados } from "@/lib/atas/copia-local";
+
+// 18/11/2026: uma reunião gravada aqui (Gravar agora) se perdeu ao clicar em outra tela do
+// portal: o áudio ficava só na memória da aba. Agora cada pedaço (5 s) também fica guardado
+// neste navegador (IndexedDB) até a transcrição começar; sair da tela pede confirmação e,
+// se a gravação se perder mesmo assim, a tela oferece "Recuperar".
+const PREFIXO_GRAVACAO = "transcricao-";
+const sessaoDoArquivo = new WeakMap<File, string>();
 
 const ACEITA = "audio/*,video/*,.ogg,.oga,.opus,.m4a,.mp3,.wav,.aac,.amr,.wma,.flac,.mp4,.mov,.webm,.3gp,.mkv,.avi";
 const LIMITE = 1024 ** 3;
@@ -171,6 +179,10 @@ export function TranscricaoApp({
       (pct) => setAndamento((a) => (a ? { ...a, pct } : a)),
       () => setAndamento((a) => (a ? { ...a, etapa: "preparo", pct: 100 } : a))
     );
+    if (r.ok) {
+      const sessao = sessaoDoArquivo.get(arquivo);
+      if (sessao) void apagarPedacos(sessao);
+    }
     if (!r.ok) {
       setAndamento(null);
       toast.error(r.erro ?? "Não foi possível enviar o arquivo.");
@@ -290,6 +302,34 @@ function NovaTranscricao({ onComecar, podeWhatsapp, zapInicial }: { onComecar: (
 
   useEffect(() => () => void (previa && URL.revokeObjectURL(previa)), [previa]);
 
+  // gravações deste navegador que não chegaram a ser transcritas (saiu da tela, aba fechou…)
+  const [guardadas, setGuardadas] = useState<{ id: string; partes: number; bytes: number }[]>([]);
+  useEffect(() => {
+    void gravacoesGuardadas(PREFIXO_GRAVACAO).then(setGuardadas).catch(() => {});
+  }, []);
+
+  async function recuperar(id: string) {
+    const pedacos = (await pedacosGuardados(id)).sort((a, b) => a.n - b.n);
+    if (!pedacos.length) return void toast.error("Não encontrei os pedaços desta gravação.");
+    const tipo = (pedacos[0].blob.type || "audio/webm").split(";")[0];
+    const ext = tipo.includes("mp4") ? "m4a" : tipo.includes("ogg") ? "ogg" : "webm";
+    const quando = new Date(Number(id.slice(PREFIXO_GRAVACAO.length)))
+      .toLocaleString("pt-BR", { day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit" })
+      .replace(/[/:]/g, "-")
+      .replace(", ", " ");
+    const f = new File(pedacos.map((p) => p.blob), `Gravação ${quando} (recuperada).${ext}`, { type: tipo });
+    sessaoDoArquivo.set(f, id);
+    setGuardadas((g) => g.filter((x) => x.id !== id));
+    escolher(f);
+    toast.success("Gravação recuperada. Confira o título e clique em Transcrever.");
+  }
+
+  async function descartar(id: string) {
+    if (!confirm("Apagar esta gravação deste computador? Não dá para desfazer.")) return;
+    await apagarPedacos(id);
+    setGuardadas((g) => g.filter((x) => x.id !== id));
+  }
+
   function escolher(f: File | undefined | null) {
     if (!f) return;
     const pareceMidia = f.type.startsWith("audio/") || f.type.startsWith("video/") || /\.(ogg|oga|opus|m4a|mp3|wav|aac|amr|wma|flac|mp4|mov|webm|3gp|mkv|avi)$/i.test(f.name);
@@ -365,6 +405,21 @@ function NovaTranscricao({ onComecar, podeWhatsapp, zapInicial }: { onComecar: (
           {zap.url && <audio controls src={zap.url} className="mt-3 h-10 w-full" preload="metadata" />}
         </div>
       ) : !arquivo ? (
+        <>
+        {guardadas.map((g) => (
+          <div key={g.id} role="alert" className="mt-5 flex flex-wrap items-center gap-3 rounded-2xl border border-status-pending/40 bg-status-pending-bg px-4 py-3 text-sm">
+            <AlertTriangle className="h-5 w-5 shrink-0 text-status-pending" aria-hidden />
+            <span className="min-w-0 flex-1 text-foreground">
+              Uma gravação de {new Date(Number(g.id.slice(PREFIXO_GRAVACAO.length)) || 0).toLocaleString("pt-BR", { day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit" })} (cerca de {Math.max(1, Math.round((g.partes * 5) / 60))} min, {tamanho(g.bytes)}) não chegou a ser transcrita. Ela ficou guardada neste computador.
+            </span>
+            <button type="button" onClick={() => void recuperar(g.id)} className="ui-btn px-3 py-1.5 text-xs">
+              <RotateCcw className="h-3.5 w-3.5" aria-hidden /> Recuperar
+            </button>
+            <button type="button" onClick={() => void descartar(g.id)} className="ui-btn-secondary px-3 py-1.5 text-xs">
+              Descartar
+            </button>
+          </div>
+        ))}
         <div className={`mt-5 grid gap-3 ${podeWhatsapp ? "sm:grid-cols-[1fr_auto_auto]" : "sm:grid-cols-[1fr_auto]"}`}>
           <button
             type="button"
@@ -399,6 +454,7 @@ function NovaTranscricao({ onComecar, podeWhatsapp, zapInicial }: { onComecar: (
           )}
           <input ref={inputRef} type="file" accept={ACEITA} className="hidden" onChange={(e) => escolher(e.target.files?.[0])} />
         </div>
+        </>
       ) : (
         <div className="mt-5 rounded-2xl border border-border bg-surface-2/50 p-4">
           <div className="flex items-center gap-3">
@@ -630,6 +686,27 @@ function Gravador({ onGravado }: { onGravado: (f: File) => void }) {
   }, [gravando]);
   useEffect(() => () => streamRef.current?.getTracks().forEach((t) => t.stop()), []);
 
+  // gravando: avisa ao fechar a aba e pergunta antes de ir para outra tela do portal
+  // (os pedaços já gravados ficam guardados neste computador e aparecem em "Recuperar").
+  useEffect(() => {
+    if (!gravando) return;
+    const segura = (e: BeforeUnloadEvent) => e.preventDefault();
+    const clique = (e: MouseEvent) => {
+      const a = (e.target as HTMLElement | null)?.closest?.("a[href]") as HTMLAnchorElement | null;
+      if (!a || a.target === "_blank" || a.getAttribute("href")?.startsWith("#") || e.ctrlKey || e.metaKey) return;
+      if (!confirm("A gravação está em andamento. Se sair desta tela, ela para.\n\nPara terminar, clique no botão vermelho (parar) e depois em Transcrever.\n\nSair mesmo assim? (o que já foi gravado fica guardado neste computador para recuperar)")) {
+        e.preventDefault();
+        e.stopPropagation();
+      }
+    };
+    window.addEventListener("beforeunload", segura);
+    document.addEventListener("click", clique, true);
+    return () => {
+      window.removeEventListener("beforeunload", segura);
+      document.removeEventListener("click", clique, true);
+    };
+  }, [gravando]);
+
   async function comecar() {
     if (!navigator.mediaDevices?.getUserMedia || typeof MediaRecorder === "undefined") return void toast.error("Este navegador não permite gravar áudio.");
     let stream: MediaStream;
@@ -642,15 +719,23 @@ function Gravador({ onGravado }: { onGravado: (f: File) => void }) {
     const formato = melhorFormato();
     const rec = new MediaRecorder(stream, formato ? { mimeType: formato, audioBitsPerSecond: 48_000 } : undefined);
     partes.current = [];
-    rec.ondataavailable = (e) => e.data.size && partes.current.push(e.data);
+    const sessao = `${PREFIXO_GRAVACAO}${Date.now()}`;
+    let n = 0;
+    rec.ondataavailable = (e) => {
+      if (!e.data.size) return;
+      partes.current.push(e.data);
+      void guardarPedaco(sessao, n++, e.data);
+    };
     rec.onstop = () => {
       stream.getTracks().forEach((t) => t.stop());
       const tipo = rec.mimeType || "audio/webm";
       const ext = tipo.includes("mp4") ? "m4a" : tipo.includes("ogg") ? "ogg" : "webm";
       const quando = new Date().toLocaleString("pt-BR", { day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit" }).replace(/[/:]/g, "-").replace(", ", " ");
-      onGravado(new File(partes.current, `Gravação ${quando}.${ext}`, { type: tipo.split(";")[0] }));
+      const f = new File(partes.current, `Gravação ${quando}.${ext}`, { type: tipo.split(";")[0] });
+      sessaoDoArquivo.set(f, sessao);
+      onGravado(f);
     };
-    rec.start(1000);
+    rec.start(5000);
     recRef.current = rec;
     setSeg(0);
     setGravando(true);

@@ -80,3 +80,19 @@ export async function enviarGuardados(ataId: string, base: string): Promise<{ en
   }
   return { enviados, falhas };
 }
+
+/** Gravações guardadas neste navegador cujo id começa com `prefixo` (ex.: "transcricao-"), com nº de pedaços e tamanho. */
+export async function gravacoesGuardadas(prefixo: string): Promise<{ id: string; partes: number; bytes: number }[]> {
+  const faixa = IDBKeyRange.bound(prefixo, `${prefixo}￿`);
+  const chaves = ((await comLoja("readonly", (s) => s.getAllKeys(faixa))) ?? []) as string[];
+  const blobs = ((await comLoja("readonly", (s) => s.getAll(faixa))) ?? []) as Blob[];
+  const mapa = new Map<string, { id: string; partes: number; bytes: number }>();
+  chaves.forEach((k, i) => {
+    const id = k.split(":")[0];
+    const g = mapa.get(id) ?? { id, partes: 0, bytes: 0 };
+    g.partes++;
+    g.bytes += blobs[i]?.size ?? 0;
+    mapa.set(id, g);
+  });
+  return [...mapa.values()];
+}
