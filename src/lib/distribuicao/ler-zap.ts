@@ -20,6 +20,12 @@ import { chaveFone, jidsDoFone } from "@/lib/painel/equipe-zap";
 // Suporte (profiles.suporte; o telefone vem de Responsáveis), a leitura é ao
 // contrário: os PEDIDOS são as mensagens que o escritório manda para ele, e o
 // cartão já sai com ele como responsável sugerido.
+//
+// Grupo de sistemas (18/11/2026): no grupo "Sistemas e IA" o Maurício (e quem mais
+// da equipe) pede coisas ao Suporte. Ali o pedido NÃO passa pela Distribuição: vira
+// atividade direto, com o Suporte como responsável, e o cartão fica como "aceita"
+// só para guardar de onde veio e não repetir.
+const GRUPO_SISTEMAS = /sistemas?\s+e\s+i\.?a\b/i;
 
 const MAX_MSGS = 80; // por conversa e por leitura
 const PRIMEIRA_JANELA_H = 24; // conversa nunca lida: só as últimas 24h
@@ -79,13 +85,14 @@ const SCHEMA = {
 const AUTOMATICA = /^\*MC Advogados\*|Seu código para assinar|^(Bom dia|Boa tarde|Boa noite)[^\n]{0,80}(Passando|Como vai)|segue (em anexo )?o relatório mensal/i;
 
 /** Conversas (chat_jid) dos números do Suporte → id do responsável dele. */
-async function conversasDoSuporte(db: ReturnType<typeof createAdminClient>): Promise<Map<string, { resp: string; nome: string }>> {
-  const m = new Map<string, { resp: string; nome: string }>();
+type Suporte = { resp: string; nome: string; perfil: string };
+async function conversasDoSuporte(db: ReturnType<typeof createAdminClient>): Promise<Map<string, Suporte>> {
+  const m = new Map<string, Suporte>();
   const { data: sup } = await (db as unknown as SupabaseClient).from("profiles").select("id").eq("suporte", true).eq("ativo", true);
   const ids = ((sup ?? []) as { id: string }[]).map((x) => x.id);
   if (!ids.length) return m;
   const { data: resps } = await db.from("responsaveis").select("id, nome, telefone, profile_id").in("profile_id", ids);
-  for (const r of resps ?? []) if (chaveFone(r.telefone)) for (const j of jidsDoFone(r.telefone)) m.set(j, { resp: r.id, nome: r.nome });
+  for (const r of resps ?? []) if (chaveFone(r.telefone)) for (const j of jidsDoFone(r.telefone)) m.set(j, { resp: r.id, nome: r.nome, perfil: r.profile_id! });
   return m;
 }
 
@@ -166,12 +173,22 @@ async function lerUmaVez(db: ReturnType<typeof createAdminClient>): Promise<Resu
   const hojeISO = new Intl.DateTimeFormat("en-CA", { timeZone: "America/Bahia" }).format(new Date());
   const r: ResultadoLeitura = { conversas: 0, mensagens: 0, sugestoes: 0 };
   const idsNovos: string[] = [];
+  const atividadesSistemas: { id: string; titulo: string; perfil: string }[] = [];
 
   for (const chat of chats ?? []) {
     if (chat.ler_demandas === false) continue; // desligada a pedido
-    const sup = !chat.is_group ? suporte.get(chat.chat_jid) : undefined;
-    // quem faz o pedido: o cliente (normal) ou o escritório (conversa do Suporte)
-    const ehPedido = (m: Msg) => (sup ? m.from_me && m.quem !== "ia" && !AUTOMATICA.test(m.texto ?? "") : !m.from_me);
+    // grupo de sistemas: pedidos de qualquer um para o Suporte (vira atividade direto)
+    const grupoSistemas = !!chat.is_group && GRUPO_SISTEMAS.test(chat.nome ?? "") && suporte.size > 0;
+    const sup = grupoSistemas ? [...suporte.values()][0] : !chat.is_group ? suporte.get(chat.chat_jid) : undefined;
+    const doSuporte = (m: Msg) => !!m.sender_jid && suporte.has(m.sender_jid);
+    // quem faz o pedido: o cliente (normal), o escritório (conversa do Suporte) ou
+    // qualquer um menos o próprio Suporte (grupo de sistemas)
+    const ehPedido = (m: Msg) =>
+      grupoSistemas
+        ? !doSuporte(m) && m.quem !== "ia" && !(m.from_me && AUTOMATICA.test(m.texto ?? ""))
+        : sup
+          ? m.from_me && m.quem !== "ia" && !AUTOMATICA.test(m.texto ?? "")
+          : !m.from_me;
     const desde = chat.demandas_lidas_ate ?? new Date(Date.now() - PRIMEIRA_JANELA_H * 3_600_000).toISOString();
     if (chat.ultima_msg_em && chat.ultima_msg_em <= desde) continue;
 
@@ -217,10 +234,23 @@ async function lerUmaVez(db: ReturnType<typeof createAdminClient>): Promise<Resu
     const cliente = (chat.clients as unknown as { name: string } | null)?.name ?? chat.nome ?? "cliente";
     const linhas = novas.map((m, i) => {
       const quando = new Date(m.wa_timestamp).toLocaleString("pt-BR", { timeZone: "America/Bahia", day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit" });
-      return `[${i}] ${quando} · ${sup && !m.from_me ? sup.nome : autor(m)}: ${conteudo(m)}`;
+      const quem = grupoSistemas ? (doSuporte(m) ? sup!.nome : autor(m)) : sup && !m.from_me ? sup.nome : autor(m);
+      return `[${i}] ${quando} · ${quem}: ${conteudo(m)}`;
     });
 
-    const instrucoes = sup
+    const instrucoes = grupoSistemas
+      ? [
+          "Você faz a triagem do WhatsApp do escritório MC Advogados (advocacia empresarial).",
+          `Hoje é ${hojeISO}. As mensagens abaixo são do grupo interno "${chat.nome}", onde o sócio (Maurício) e a equipe pedem coisas a ${sup!.nome}, que cuida do portal do escritório, sistemas, automações, IA, site e tecnologia.`,
+          "Mensagens marcadas [áudio] são a transcrição do que a pessoa falou num áudio: trate como se ela tivesse escrito. Imagem com legenda costuma ser print da tela com problema: use a legenda e o contexto.",
+          `Encontre só PEDIDOS DE TRABALHO para ${sup!.nome}: pedir para fazer, criar, ajustar, corrigir, melhorar, verificar ou resolver algo, ou relatar erro/problema no sistema ("não estou conseguindo…", "não está indo", print de erro). Erro relatado é pedido para resolver.`,
+          `Ignore cumprimentos, avisos, conversa sem pedido e o que ${sup!.nome} já respondeu como feito. As mensagens de ${sup!.nome} servem só de contexto.`,
+          "Junte em UMA demanda as mensagens sobre o mesmo assunto. Se não houver pedido, devolva lista vazia.",
+          `Já registradas nos últimos dias (NÃO repita nem reescreva com outras palavras): ${(pendentes ?? []).map((p) => `"${p.titulo}"`).join(", ") || "nenhuma"}.`,
+          'Área: use null. tipo: use "consultoria".',
+          'titulo: curto, começando com verbo no infinitivo, dizendo o que resolver ou fazer (ex.: "Resolver problema na exclusão de demandas", "Adicionar período personalizado ao ranking"). descricao: quem pediu e o que pediu, com os detalhes úteis, em 1 a 4 frases. prazo: só se citaram data ou prazo. mensagens: índices [n] que originaram a demanda.',
+        ]
+      : sup
       ? [
           "Você faz a triagem do WhatsApp do escritório MC Advogados (advocacia empresarial).",
           `Hoje é ${hojeISO}. As mensagens abaixo são da conversa do escritório com ${sup.nome}, do Suporte (cuida do portal, sistemas, site, marketing e tecnologia do escritório).`,
@@ -272,6 +302,47 @@ async function lerUmaVez(db: ReturnType<typeof createAdminClient>): Promise<Resu
       });
       if (doCliente.some((tr) => usadas.has(chave(tr.em)))) continue;
       doCliente.forEach((tr) => usadas.add(chave(tr.em)));
+      if (grupoSistemas) {
+        // vira atividade direto, sem Distribuição
+        const prazo = d.prazo && /^\d{4}-\d{2}-\d{2}$/.test(d.prazo) && d.prazo >= hojeISO ? d.prazo : null;
+        const { data: criada, error: eAt } = await db
+          .from("activities")
+          .insert({
+            title: d.titulo.trim().slice(0, 200),
+            description: [d.descricao?.trim(), `Pedido no grupo ${chat.nome} do WhatsApp.`].filter(Boolean).join("\n\n"),
+            area: null,
+            type: "consultoria",
+            deadline: prazo,
+            categoria: "tarefa",
+            responsavel_id: sup!.resp,
+            responsible_id: sup!.perfil,
+            client_id: null,
+          })
+          .select("id")
+          .single();
+        if (eAt || !criada) {
+          r.erro = eAt?.message ?? "não criou a atividade";
+          break;
+        }
+        atividadesSistemas.push({ id: criada.id, titulo: d.titulo.trim(), perfil: sup!.perfil });
+        linhasNovas.push({
+          origem: "whatsapp",
+          client_id: null,
+          chat_jid: chat.chat_jid,
+          titulo: d.titulo.trim().slice(0, 200),
+          descricao: d.descricao?.trim() || null,
+          area: null,
+          prioridade: ["baixa", "media", "alta"].includes(d.prioridade) ? d.prioridade : "media",
+          prazo_sugerido: prazo,
+          responsavel_sugerido: sup!.resp,
+          tipo: "consultoria",
+          trechos: trechos as unknown as never,
+          status: "aceita",
+          activity_id: criada.id,
+          tratado_em: new Date().toISOString(),
+        });
+        continue;
+      }
       linhasNovas.push({
         origem: "whatsapp",
         client_id: chat.client_id,
@@ -288,14 +359,27 @@ async function lerUmaVez(db: ReturnType<typeof createAdminClient>): Promise<Resu
     }
     if (linhasNovas.length) {
       const { data: criadas, error } = await db.from("distribuicao").insert(linhasNovas).select("id");
-      for (const c of criadas ?? []) idsNovos.push(c.id);
+      if (!grupoSistemas) for (const c of criadas ?? []) idsNovos.push(c.id);
       if (error) {
         r.erro = error.message;
         break;
       }
-      r.sugestoes += linhasNovas.length;
+      if (!grupoSistemas) r.sugestoes += linhasNovas.length;
     }
     if (ultima) await db.from("wa_chats").update({ demandas_lidas_ate: ultima }).eq("chat_jid", chat.chat_jid);
+  }
+
+  // grupo de sistemas: avisa o Suporte da atividade nova (sem passar pela Distribuição)
+  if (atividadesSistemas.length) {
+    await criarAvisos(
+      atividadesSistemas.map((a) => ({
+        profile_id: a.perfil,
+        tipo: "atividade",
+        titulo: `Nova atividade do grupo de sistemas: ${a.titulo}`.slice(0, 200),
+        corpo: "Criada sozinha a partir do pedido no WhatsApp.",
+        url: `/admin/activities/${a.id}`,
+      }))
+    ).catch(() => undefined);
   }
 
   // aviso para quem pode distribuir (admins), sem travar a leitura
