@@ -5,7 +5,7 @@ import { useEffect, useRef, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { CheckCircle2, Send } from "lucide-react";
 import { toast } from "sonner";
-import { editarRelatorioAction, enviarRelatorioAction, salvarRascunhoAction } from "@/app/admin/rotinas/relatorio-actions";
+import { editarRelatorioAction, enviarRelatorioAction, enviarRelatorioPendenteAction, salvarRascunhoAction, salvarRascunhoPendenteAction } from "@/app/admin/rotinas/relatorio-actions";
 import {
   chaveResposta,
   faltaParaEnviar,
@@ -111,6 +111,7 @@ export function RelatorioDoDia({
   edicao,
   prazo = "23:59",
   fecha = false,
+  pendente,
 }: {
   perguntas: PerguntaTela[];
   equipe: PessoaEquipe[];
@@ -126,6 +127,8 @@ export function RelatorioDoDia({
   prazo?: string;
   /** depois do prazo não aceita mais (Regras da rotina) */
   fecha?: boolean;
+  /** relatório de um dia anterior que ficou faltando (bloqueio do portal, 18/11/2026): "AAAA-MM-DD" */
+  pendente?: string;
 }) {
   const [respostas, setRespostas] = useState(inicial.respostas);
   const [justificativas, setJustificativas] = useState(inicial.justificativas);
@@ -143,12 +146,12 @@ export function RelatorioDoDia({
   useEffect(() => {
     if (!mudou.current || enviado) return;
     const t = setTimeout(async () => {
-      const r = await salvarRascunhoAction(respostas, justificativas);
+      const r = pendente ? await salvarRascunhoPendenteAction(pendente, respostas, justificativas) : await salvarRascunhoAction(respostas, justificativas);
       if (r.ok) setSalvoEm(new Date().toISOString());
       else setErro(r.error);
     }, 1200);
     return () => clearTimeout(t);
-  }, [respostas, justificativas, enviado]);
+  }, [respostas, justificativas, enviado, pendente]);
 
   const ativas = perguntas;
   const usaEquipe = ativas.some((p) => p.secao === "equipe_pessoa");
@@ -173,7 +176,7 @@ export function RelatorioDoDia({
   function enviar() {
     setErro(null);
     start(async () => {
-      const r = await enviarRelatorioAction(respostas, justificativas);
+      const r = pendente ? await enviarRelatorioPendenteAction(pendente, respostas, justificativas) : await enviarRelatorioAction(respostas, justificativas);
       if (!r.ok) return setErro(r.error);
       setEnviadoEm(new Date().toISOString());
       toast.success("Relatório enviado.");
@@ -269,7 +272,7 @@ export function RelatorioDoDia({
       <div>
         <h2 className="section-title">Relatório do dia</h2>
         <p className="mt-0.5 text-sm text-muted">
-          {edicao ? "Você pode corrigir este relatório, se quiser." : enviado ? "Relatório enviado." : prazo === "23:59" ? "Responda até as 23:59 de hoje. O rascunho é salvo sozinho." : fecha ? `Responda até as ${prazo} de hoje. Depois disso o relatório fecha. O rascunho é salvo sozinho.` : `Responda até as ${prazo} de hoje. Depois disso ainda dá para enviar até 23:59, mas fica com atraso. O rascunho é salvo sozinho.`}
+          {pendente && !enviado ? `Relatório de ${pendente.split("-").reverse().join("/")}. O rascunho é salvo sozinho.` : edicao ? "Você pode corrigir este relatório, se quiser." : enviado ? "Relatório enviado." : prazo === "23:59" ? "Responda até as 23:59 de hoje. O rascunho é salvo sozinho." : fecha ? `Responda até as ${prazo} de hoje. Depois disso o relatório fecha. O rascunho é salvo sozinho.` : `Responda até as ${prazo} de hoje. Depois disso ainda dá para enviar até 23:59, mas fica com atraso. O rascunho é salvo sozinho.`}
         </p>
       </div>
       {enviado ? (

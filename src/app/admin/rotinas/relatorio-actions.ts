@@ -11,6 +11,7 @@ import { avisarRelatorioAtrasado } from "@/lib/rotina-relatorio/atraso";
 import type { Valor } from "@/lib/rotina-relatorio/tipos";
 import { salvarRegras } from "@/lib/rotina-relatorio/regras";
 import { criarAvisos } from "@/lib/avisos";
+import { advertenciasNoMes, relatorioPendente } from "@/lib/rotina-relatorio/bloqueio";
 
 // Ações do relatório do dia (Rotinas v2). Modelos: só o admin máximo.
 // Preencher e enviar: cada pessoa, só o próprio relatório, só no dia de hoje.
@@ -177,6 +178,52 @@ export async function avisarAtividadeEditadaAction(activityId: string): Promise<
       },
     ]);
     return { ok: true, nome: r.nome?.split(" ")[0] ?? null };
+  } catch (e) {
+    return { ok: false, error: msg(e) };
+  }
+}
+
+// ───────── relatório que ficou faltando (bloqueio do portal, 18/11/2026) ─────────
+
+const dataBr = (d: string) => d.split("-").reverse().slice(0, 2).join("/");
+
+/** Confere que o dia é mesmo o relatório pendente de quem está logado. */
+async function minhaPendencia(dia: string) {
+  const profile = await requireRole(["admin", "advogado"]);
+  const p = await relatorioPendente(profile.id);
+  if (!p || p.dia !== dia) throw new Error("Este relatório não está pendente.");
+  return { profile, pendencia: p };
+}
+
+export async function salvarRascunhoPendenteAction(dia: string, respostas: Record<string, Valor>, justificativas: Record<string, string>): Promise<Resultado> {
+  try {
+    const { pendencia } = await minhaPendencia(dia);
+    await salvarRascunho(pendencia.responsavelId, dia, respostas, justificativas, { pendente: true });
+    return { ok: true };
+  } catch (e) {
+    return { ok: false, error: msg(e) };
+  }
+}
+
+export async function enviarRelatorioPendenteAction(dia: string, respostas: Record<string, Valor>, justificativas: Record<string, string>): Promise<Resultado & { faltas?: string[] }> {
+  try {
+    const { profile, pendencia } = await minhaPendencia(dia);
+    const faltas = await enviarRelatorio(pendencia.responsavelId, dia, respostas, justificativas, { pendente: true });
+    if (faltas.length) return { ok: false, error: `Ainda falta: ${faltas.join("; ")}.`, faltas };
+    after(async () => {
+      const n = await advertenciasNoMes(pendencia.responsavelId, hojeBahia().slice(0, 7)).catch(() => 0);
+      await criarAvisos([
+        {
+          profile_id: MAURICIO,
+          tipo: "relatorio_atrasado",
+          titulo: `⚠️ ${profile.full_name} enviou o relatório de ${dataBr(dia)} só hoje`,
+          corpo: `Advertência registrada: ${n} no mês. O portal ficou bloqueado até o envio.`,
+          url: "/admin/rotinas",
+        },
+      ]).catch(() => undefined);
+    });
+    revalidatePath("/admin", "layout");
+    return { ok: true };
   } catch (e) {
     return { ok: false, error: msg(e) };
   }

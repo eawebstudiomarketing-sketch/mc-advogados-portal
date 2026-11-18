@@ -12,6 +12,8 @@ import { contarDistribuicaoPendentes } from "@/lib/data/distribuicao";
 import { alertaDaRotina } from "@/lib/rotina-relatorio/alerta";
 import { novidadePendente } from "@/lib/novidades";
 import { JanelaNovidades } from "@/components/novidades/janela-novidades";
+import { relatorioPendente } from "@/lib/rotina-relatorio/bloqueio";
+import { BloqueioRelatorio } from "@/components/rotina/bloqueio-relatorio";
 
 // `rotina`: cartão da rotina de hoje aberto pelo reloginho por cima da tela (src/app/admin/@rotina).
 export default async function AdminLayout({ children, rotina }: { children: React.ReactNode; rotina: React.ReactNode }) {
@@ -19,13 +21,15 @@ export default async function AdminLayout({ children, rotina }: { children: Reac
   const permissoes = (await getPermissoes())!;
   // tudo em paralelo (desempenho, 30/10): lista leve para a busca rápida (Ctrl+K, só id e nome dos
   // clientes que a pessoa pode ver), sininho de publicações (só admin), mensagens, distribuição e o relógio da rotina
-  const [clients, publicacoesPendentes, mensagensNaoLidas, distribuicaoPendentes, alertaRotina, novidade] = await Promise.all([
+  const [clients, publicacoesPendentes, mensagensNaoLidas, distribuicaoPendentes, alertaRotina, novidade, pendencia] = await Promise.all([
     permissoes.clientes ? clientesParaBusca().catch(() => []) : Promise.resolve([] as { id: string; name: string }[]),
     profile.role === "admin" ? contarNaoTratadas().catch(() => 0) : 0,
     contarNaoLidas(profile.id).catch(() => 0),
     permissoes.distribuicao ? contarDistribuicaoPendentes().catch(() => 0) : 0,
     alertaDaRotina(profile.id).catch(() => null),
     novidadePendente(profile.id).catch(() => null),
+    // relatório do dia anterior faltando: o portal fica bloqueado até enviar (18/11/2026)
+    relatorioPendente(profile.id).catch(() => null),
   ]);
 
   return (
@@ -41,8 +45,8 @@ export default async function AdminLayout({ children, rotina }: { children: Reac
       alertaRotina={alertaRotina}
       superAdmin={ehSuperAdmin(profile)}
     >
-      {children}
-      {rotina}
+      {pendencia ? <BloqueioRelatorio pendencia={pendencia} /> : children}
+      {!pendencia && rotina}
       {/* Novidades do portal: abre sozinha uma vez para cada pessoa (04/11/2026) */}
       {novidade && <JanelaNovidades novidade={novidade} />}
     </AdminShell>

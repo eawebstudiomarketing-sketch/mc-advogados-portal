@@ -49,6 +49,17 @@ function haQuanto(iso: string) {
   return new Date(iso).toLocaleDateString("pt-BR", { timeZone: "America/Bahia", day: "2-digit", month: "2-digit" });
 }
 
+/** 18/11/2026: quanto tempo a última mensagem do WhatsApp levou para virar esta demanda. */
+function tempoParaVirar(d: DemandaSerial): { texto: string; cor: string } | null {
+  if (d.origem !== "whatsapp") return null;
+  const ems = d.trechos.map((t) => (t.em ? Date.parse(t.em) : NaN)).filter((x) => !Number.isNaN(x));
+  if (!ems.length) return null;
+  const seg = Math.max(0, Math.round((Date.parse(d.criadoEm) - Math.max(...ems)) / 1000));
+  const texto = seg < 60 ? `${seg} s` : seg < 3600 ? `${Math.round(seg / 60)} min` : seg < 86_400 ? `${Math.floor(seg / 3600)} h ${String(Math.round((seg % 3600) / 60)).padStart(2, "0")}` : `${Math.round(seg / 86_400)} d`;
+  const cor = seg <= 300 ? "bg-status-success-bg text-status-success" : seg <= 3600 ? "bg-status-pending-bg text-status-pending" : "bg-status-danger-bg text-status-danger";
+  return { texto, cor };
+}
+
 const campo = "h-9 rounded-full border border-border bg-surface px-3 text-[13px] text-foreground hover:border-border-strong focus:border-navy-3 focus:outline-none";
 
 export function DemandaCard({
@@ -124,6 +135,14 @@ export function DemandaCard({
             <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
               <span className="eyebrow">{o.rotulo}</span>
               <span className="eyebrow">· {haQuanto(d.criadoEm)}</span>
+              {(() => {
+                const t = tempoParaVirar(d);
+                return t ? (
+                  <span className={`rounded-full px-1.5 py-px text-[10px] font-semibold tabular-nums ${t.cor}`} title="Tempo da última mensagem no WhatsApp até virar esta demanda" data-tip="Tempo da mensagem até virar demanda">
+                    ⚡ {t.texto}
+                  </span>
+                ) : null;
+              })()}
               <span className="inline-flex items-center gap-1.5 text-[11px] font-medium text-foreground/70">
                 <span className={`h-1.5 w-1.5 rounded-full ${pr.cor}`} aria-hidden /> {pr.rotulo}
               </span>

@@ -15,6 +15,7 @@ import { RelatorioLeitura } from "@/components/rotina/relatorio-leitura";
 import { enviadoComAtraso } from "@/lib/rotina-relatorio/tipos";
 import { paraMin } from "@/lib/rotina-relatorio/regras-base";
 import { EditorRotina } from "./editor";
+import { diasComAdvertencia } from "@/lib/rotina-relatorio/bloqueio";
 import { EditorModelos } from "./modelos";
 
 // A rotina de uma pessoa num card no meio da tela: o dia dela (tarefas fixas +
@@ -278,12 +279,21 @@ export async function rotinaDaPessoa({
     corpo = <EditorModelos modelos={modelos} pessoas={[{ id: alvo.id, nome: alvo.nome, foto: alvo.foto, modeloId: atribuidos.get(alvo.id) ?? null }]} aprovadores={pessoas.filter((p) => p.profileId).map((p) => ({ id: p.id, nome: p.nome }))} />;
   }
 
+  // advertências do mês (relatório que ficou faltando ou só foi enviado depois do dia, 18/11/2026)
+  const advertencias = souSuper && !propria && atribuidos.has(alvo.id) ? await diasComAdvertencia(alvo.id, hoje.slice(0, 7)).catch(() => []) : [];
+
   return (
     <ModalRotina titulo={alvo.nome} subtitulo={alvo.id === eu ? "Sua rotina" : "Rotina"} fecharHref={ROTAS} voltar={modal} cabecalho={cabecalho}>
       {souSuper && !propria && (comItens.has(alvo.id) || atribuidos.has(alvo.id)) && (
         <div className="-mt-1 mb-4 flex justify-end">
           <ExcluirRotina responsavelId={alvo.id} nome={alvo.nome} />
         </div>
+      )}
+      {advertencias.length > 0 && (
+        <p className="mb-4 rounded-lg bg-status-danger-bg px-3 py-2 text-sm text-status-danger">
+          ⚠️ {advertencias.length} {advertencias.length === 1 ? "advertência" : "advertências"} neste mês por relatório não enviado no dia:{" "}
+          {advertencias.map((d) => d.split("-").reverse().slice(0, 2).join("/")).join(", ")}.
+        </p>
       )}
       {abas.length > 1 && (
       <nav className="-mt-1 mb-5 flex gap-5 border-b border-border" aria-label="Seções da rotina">

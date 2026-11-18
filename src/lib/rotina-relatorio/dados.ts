@@ -208,8 +208,10 @@ async function exigirAberto(responsavelId: string, dia: string) {
   if (prazo.fecha && minutoBahia(new Date()) >= prazo.min) throw new Error(`O relatório de hoje fechou às ${prazo.texto}.`);
 }
 
-export async function salvarRascunho(responsavelId: string, dia: string, respostas: Record<string, Valor>, justificativas: Record<string, string>) {
-  await exigirAberto(responsavelId, dia);
+// pendente (18/11/2026): o relatório de um dia anterior que ficou faltando (bloqueio do portal);
+// quem chama confere antes que o dia é mesmo o pendente da pessoa (lib/rotina-relatorio/bloqueio.ts).
+export async function salvarRascunho(responsavelId: string, dia: string, respostas: Record<string, Valor>, justificativas: Record<string, string>, opts: { pendente?: boolean } = {}) {
+  if (!opts.pendente) await exigirAberto(responsavelId, dia);
   const atual = await lerRelatorio(responsavelId, dia);
   if (atual?.status === "enviado") throw new Error("Este relatório já foi enviado.");
   const modelo = await modeloDaPessoa(responsavelId);
@@ -223,8 +225,8 @@ export async function salvarRascunho(responsavelId: string, dia: string, respost
 }
 
 /** Valida e envia. Devolve a lista do que falta (vazia = enviado). */
-export async function enviarRelatorio(responsavelId: string, dia: string, respostas: Record<string, Valor>, justificativas: Record<string, string>): Promise<string[]> {
-  await exigirAberto(responsavelId, dia);
+export async function enviarRelatorio(responsavelId: string, dia: string, respostas: Record<string, Valor>, justificativas: Record<string, string>, opts: { pendente?: boolean } = {}): Promise<string[]> {
+  if (!opts.pendente) await exigirAberto(responsavelId, dia);
   const atual = await lerRelatorio(responsavelId, dia);
   if (atual?.status === "enviado") throw new Error("Este relatório já foi enviado.");
   const modelo = await modeloDaPessoa(responsavelId);
