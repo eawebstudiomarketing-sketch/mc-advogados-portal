@@ -101,8 +101,9 @@ async function guardarLogo(processo: string, dataUrl: string): Promise<string | 
 
 /** Busca no INPI e grava (cadastrar processo / atualizar uma marca). */
 export async function sincronizarProcesso(processo: string, extra: { criado_por?: string | null; client_id?: string | null; origem?: string; comLogo?: boolean } = {}) {
-  const f = await fichaNoInpi(processo);
-  if (!f) return { ok: false as const, error: `Processo ${processo} não encontrado no INPI.` };
+  const info: { avisoInpi?: string | null } = {};
+  const f = await fichaNoInpi(processo, info);
+  if (!f) return { ok: false as const, error: `Processo ${processo} não encontrado no INPI.`, avisoInpi: info.avisoInpi ?? null };
   const logo = extra.comLogo ? await logoNoInpi(f.processo, f.codPedido).catch(() => null) : null;
   const imagem = logo ? await guardarLogo(f.processo, logo) : null;
   const id = await gravarFicha(f, { ...extra, imagem });

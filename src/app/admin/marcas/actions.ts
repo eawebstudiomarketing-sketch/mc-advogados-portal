@@ -94,7 +94,7 @@ export async function salvarConfigAction(processo: string, c: ConfigAcompanhamen
 
 export type ResultadoCadastro = ResultadoBusca & { jaRegistrado: boolean };
 
-export async function buscarCadastroAction(tipo: "processo" | "nome" | "titular" | "procurador", termo: string): Promise<{ ok: true; resultados: ResultadoCadastro[]; total: number; fonte: FonteBusca } | { ok: false; error: string }> {
+export async function buscarCadastroAction(tipo: "processo" | "nome" | "titular" | "procurador", termo: string): Promise<{ ok: true; resultados: ResultadoCadastro[]; total: number; fonte: FonteBusca; avisoInpi?: string | null } | { ok: false; error: string }> {
   await exigirPermissao("marcas");
   const t = termo.trim();
   if (t.length < 2) return { ok: false, error: "Digite um termo de busca." };
@@ -102,6 +102,7 @@ export async function buscarCadastroAction(tipo: "processo" | "nome" | "titular"
     let resultados: ResultadoBusca[] = [];
     let total = 0;
     let fonte: FonteBusca = { fonte: "inpi" };
+    let avisoInpi: string | null = null;
     if (tipo === "procurador") {
       // o pePI não busca marca por procurador: base própria (todas as revistas desde 2017) + as que o portal já conhece
       const daCarteira = await buscarProcuradorNaCarteira(t);
@@ -113,6 +114,7 @@ export async function buscarCadastroAction(tipo: "processo" | "nome" | "titular"
     } else {
       const r = await buscarNoInpi(tipo, t);
       ({ resultados, total } = r);
+      avisoInpi = r.avisoInpi ?? null;
       fonte = r.fonte === "base" ? { fonte: "base", revista: r.revista, data: r.data, motivo: r.motivo } : { fonte: "inpi" };
       // 17/11/2026: processo ainda não publicado (não está no INPI nem nas revistas) mas já cadastrado
       // na carteira como "Aguardando publicação": mostra ele em vez de "Nenhum processo encontrado"
@@ -126,7 +128,7 @@ export async function buscarCadastroAction(tipo: "processo" | "nome" | "titular"
     }
     const { data: ja } = await db().from("marcas").select("processo").eq("acompanhando", true).in("processo", resultados.map((r) => r.processo).slice(0, 500));
     const set = new Set((ja ?? []).map((x) => x.processo));
-    return { ok: true, total, fonte, resultados: resultados.map((r) => ({ ...r, jaRegistrado: set.has(r.processo) })) };
+    return { ok: true, total, fonte, avisoInpi, resultados: resultados.map((r) => ({ ...r, jaRegistrado: set.has(r.processo) })) };
   } catch (e) {
     return { ok: false, error: `Não foi possível consultar o INPI agora (${(e as Error).message}). Tente de novo em instantes.` };
   }
@@ -135,7 +137,7 @@ export async function buscarCadastroAction(tipo: "processo" | "nome" | "titular"
 export type DadosManuais = { nome?: string; classe?: string; titular?: string; client_id?: string | null; observacao?: string };
 
 /** Entra na carteira só com o que se sabe: da revista (INPI fora do ar) ou digitado (ainda não publicado). A conferência diária completa a ficha. */
-async function entrarSemFicha(p: string, profileId: string, manual: DadosManuais | undefined, motivoFora: string | null): Promise<{ ok: boolean; aviso?: string; erro?: string }> {
+async function entrarSemFicha(p: string, profileId: string, manual: DadosManuais | undefined, motivoFora: string | null, avisoInpi: string | null = null): Promise<{ ok: boolean; aviso?: string; erro?: string }> {
   const b = await consultarBase("processo", p).catch(() => null);
   const l = b?.resultados[0];
   const cls = (manual?.classe ?? "").replace(/\D/g, "");
@@ -170,7 +172,9 @@ async function entrarSemFicha(p: string, profileId: string, manual: DadosManuais
     : await db().from("marcas").insert(linha);
   if (error) return { ok: false, erro: `${p}: ${error.message}` };
   if (l) return { ok: true, aviso: `${p}: o INPI está fora do ar agora (${motivoFora ?? "sem resposta"}). Entrou com os dados da revista ${l.ultima_rpi ?? ""}; a ficha completa vem na conferência.` };
-  return { ok: true, aviso: `${p}: ainda não publicado pelo INPI. Entrou na carteira como "Aguardando publicação"${linha.nome ? ` (${linha.nome})` : ""}; quando sair na revista, a ficha completa entra sozinha e você recebe aviso.` };
+  // 18/11/2026: o mesmo AVISO que o INPI mostra para pedido ainda não publicado (confirma que o número existe)
+  if (avisoInpi) return { ok: true, aviso: `INPI: ${avisoInpi} · Entrou na carteira como "Aguardando publicação"${linha.nome ? ` (${linha.nome})` : ""}.` };
+  return { ok: true, aviso: `${p}: o INPI não reconheceu este número (confira se está certo). Entrou na carteira como "Aguardando publicação"${linha.nome ? ` (${linha.nome})` : ""}; quando sair na revista, a ficha completa entra sozinha e você recebe aviso.` };
 }
 
 /** Acompanhar um ou vários processos: lê a ficha no INPI e entra na carteira. */
@@ -197,7 +201,7 @@ export async function acompanharAction(processos: string[], manual?: DadosManuai
         erros.push(r.error);
         continue;
       }
-      const e = await entrarSemFicha(p, profile.id, manual, fora ? r.error : null);
+      const e = await entrarSemFicha(p, profile.id, manual, fora ? r.error : null, "avisoInpi" in r ? (r.avisoInpi ?? null) : null);
       if (e.ok) {
         feitos++;
         if (e.aviso) avisos.push(e.aviso);

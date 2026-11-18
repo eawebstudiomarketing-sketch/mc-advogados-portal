@@ -4,7 +4,7 @@ import Link from "next/link";
 import { useEffect, useMemo, useRef, useState, useTransition } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { toast } from "sonner";
-import { ArrowDown, ArrowUp, Database, Loader2, Plus, Search, Settings2 } from "lucide-react";
+import { ArrowDown, ArrowUp, Database, Info, Loader2, Plus, Search, Settings2 } from "lucide-react";
 import { acompanharAction, buscarCadastroAction, type DadosManuais, type ResultadoCadastro } from "../actions";
 import type { FonteBusca } from "@/lib/marcas/inpi";
 
@@ -45,6 +45,9 @@ export function BuscaCadastro({ clientes }: { clientes: { id: string; nome: stri
   const [manual, setManual] = useState("");
   const [dados, setDados] = useState<DadosManuais>({});
   const [fonte, setFonte] = useState<FonteBusca | null>(null);
+  // 18/11/2026: pedido protocolado e ainda não publicado: o mesmo AVISO que o pePI mostra
+  const [avisoInpi, setAvisoInpi] = useState<string | null>(null);
+  const formManual = useRef<HTMLElement>(null);
   const [buscando, startBusca] = useTransition();
   const [salvando, startSalvar] = useTransition();
   // vindo da prévia de um processo fora da carteira: já busca pelo número
@@ -62,6 +65,7 @@ export function BuscaCadastro({ clientes }: { clientes: { id: string; nome: stri
       }
       setResultados(r.resultados);
       setFonte(r.fonte);
+      setAvisoInpi(r.avisoInpi ?? null);
       setInfo(`${r.total || r.resultados.length} resultado(s) encontrado(s)${r.total > r.resultados.length ? ` (mostrando os primeiros ${r.resultados.length}). Refine o filtro para resultados mais específicos.` : ""}`);
       if (tipo === "processo" && !r.resultados.length) setManual(termo.replace(/\D/g, ""));
     });
@@ -156,6 +160,25 @@ export function BuscaCadastro({ clientes }: { clientes: { id: string; nome: stri
 
       {resultados && !buscando && (
         <section className="ui-card overflow-hidden">
+          {avisoInpi && (
+            <div role="status" className="border-b border-border bg-status-pending-bg px-4 py-3 text-sm">
+              <p className="flex items-start gap-2 text-foreground">
+                <Info className="mt-0.5 h-4 w-4 shrink-0 text-status-pending" aria-hidden />
+                <span>
+                  <strong>Ainda não publicado.</strong> O INPI respondeu: <span className="italic">“AVISO: {avisoInpi}”</span>
+                </span>
+              </p>
+              {resultados.length === 0 && (
+                <button
+                  type="button"
+                  onClick={() => formManual.current?.scrollIntoView({ behavior: "smooth", block: "start" })}
+                  className="ui-btn mt-3 h-8 px-3 text-xs"
+                >
+                  <Plus className="h-3.5 w-3.5" aria-hidden /> Cadastrar como aguardando publicação
+                </button>
+              )}
+            </div>
+          )}
           {fonte?.fonte === "base" && (
             <p className="flex items-start gap-2 border-b border-border bg-status-info-bg px-4 py-3 text-sm text-status-info">
               <Database className="mt-0.5 h-4 w-4 shrink-0" aria-hidden />
@@ -168,7 +191,7 @@ export function BuscaCadastro({ clientes }: { clientes: { id: string; nome: stri
             </p>
           )}
           {resultados.length === 0 ? (
-            <div className="p-6 text-center text-sm text-muted">Nenhum processo encontrado.</div>
+            !avisoInpi && <div className="p-6 text-center text-sm text-muted">Nenhum processo encontrado.</div>
           ) : (
             <>
               <div className="flex flex-wrap items-center gap-2 border-b border-border px-4 py-3">
@@ -272,7 +295,7 @@ export function BuscaCadastro({ clientes }: { clientes: { id: string; nome: stri
         </section>
       )}
 
-      <section className="ui-card p-5">
+      <section ref={formManual} className="ui-card scroll-mt-24 p-5">
         <h2 className="section-title">Cadastrar manualmente (inclusive processo ainda não publicado)</h2>
         <p className="mt-1 text-sm text-muted">
           Informe o número (9 dígitos). O portal busca a ficha no INPI; se o pedido ainda não foi publicado, ele entra na carteira como <strong>Aguardando publicação</strong> com os dados abaixo e a ficha completa entra sozinha quando sair na revista (você recebe aviso).

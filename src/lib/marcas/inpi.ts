@@ -94,7 +94,18 @@ const daBase = (b: RespostaBase): ResultadoBusca[] =>
   }));
 
 /** O pePI respondeu de verdade? (fora do ar ele devolve página sem resultado nem "nenhum resultado") */
-const pePIRespondeu = (html: string) => /Foram encontrados \d+ (processos|registros)|Nenhum resultado foi encontrado/.test(texto(html));
+// 18/11/2026: pedido protocolado e ainda não publicado: o pePI mostra só um AVISO ("consta em nosso
+// banco de dados"). Antes isso não era reconhecido, virava "INPI fora do ar" e "Nenhum processo encontrado".
+const pePIRespondeu = (html: string) => /Foram encontrados \d+ (processos|registros)|Nenhum resultado foi encontrado|consta em nosso banco de dados/.test(texto(html));
+
+/** O AVISO do pePI para pedido ainda não publicado, como o INPI escreve (ou null). */
+export function avisoNaoPublicado(html: string): string | null {
+  const t = texto(html);
+  const m = t.match(/AVISO:\s*(O pedido de registro de marca n[ºo°]\s*\d+ consta em nosso banco de dados\..*?relativas ao pedido em questão\.)/);
+  if (!m) return null;
+  const dados = t.match(/Dados atualizados até (\d{2}\/\d{2}\/\d{4}) - Nº da Revista: (\d+)/);
+  return `${m[1]}${dados ? ` (Dados atualizados até ${dados[1]} - Nº da Revista: ${dados[2]})` : ""}`;
+}
 const MAX_PAGINAS = 5; // 100 por página no pePI
 const pausa = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
@@ -130,7 +141,7 @@ function passoBusca(tipo: "processo" | "nome" | "titular", termo: string): Passo
 }
 
 /** Busca no INPI como a tela Cadastrar processos: nº do processo, nome exato da marca ou titular. */
-export async function buscarNoInpi(tipo: "processo" | "nome" | "titular", termo: string, op: { semReserva?: boolean } = {}): Promise<{ resultados: ResultadoBusca[]; total: number } & FonteBusca> {
+export async function buscarNoInpi(tipo: "processo" | "nome" | "titular", termo: string, op: { semReserva?: boolean } = {}): Promise<{ resultados: ResultadoBusca[]; total: number; avisoInpi?: string | null } & FonteBusca> {
   try {
     return { ...(await buscarNoPePI(tipo, termo)), fonte: "inpi" };
   } catch (e) {
@@ -141,7 +152,7 @@ export async function buscarNoInpi(tipo: "processo" | "nome" | "titular", termo:
   }
 }
 
-async function buscarNoPePI(tipo: "processo" | "nome" | "titular", termo: string): Promise<{ resultados: ResultadoBusca[]; total: number }> {
+async function buscarNoPePI(tipo: "processo" | "nome" | "titular", termo: string): Promise<{ resultados: ResultadoBusca[]; total: number; avisoInpi?: string | null }> {
   if (tipo === "titular") return buscarTitularNoPePI(termo);
   const r = await ponte([{ url: `${PEPI}/` }, login(), passoBusca(tipo, termo)]);
   const html = r.corpo ?? "";
@@ -150,7 +161,7 @@ async function buscarNoPePI(tipo: "processo" | "nome" | "titular", termo: string
   // conferência passou as 200 marcas sem gravar nada. Agora é erro da ponte.
   if (!pePIRespondeu(html)) throw new Error("Ponte do INPI: o pePI não devolveu a pesquisa (fora do ar ou em manutenção).");
   const total = Number(texto(html).match(/Foram encontrados (\d+) processos/)?.[1] ?? 0);
-  return { resultados: lerResultados(html), total };
+  return { resultados: lerResultados(html), total, avisoInpi: tipo === "processo" ? avisoNaoPublicado(html) : null };
 }
 
 export type FichaINPI = {
@@ -218,9 +229,11 @@ function lerFicha(html: string, processo: string, codPedido: string): FichaINPI 
 }
 
 /** Ficha completa do processo no INPI (situação real, publicações e petições). */
-export async function fichaNoInpi(processo: string): Promise<FichaINPI | null> {
-  const { resultados } = await buscarNoPePI("processo", processo);
+/** `info.avisoInpi`: quando não há ficha porque o pedido ainda não foi publicado, o AVISO do INPI. */
+export async function fichaNoInpi(processo: string, info?: { avisoInpi?: string | null }): Promise<FichaINPI | null> {
+  const { resultados, avisoInpi } = await buscarNoPePI("processo", processo);
   const achado = resultados.find((r) => r.processo === processo.replace(/\D/g, ""));
+  if (info) info.avisoInpi = avisoInpi ?? null;
   if (!achado) return null;
   // o INPI só abre a ficha depois de uma busca na mesma sessão
   const r = await ponte([{ url: `${PEPI}/` }, login(), passoBusca("processo", processo), { url: `${PEPI}/servlet/MarcasServletController?Action=detail&CodPedido=${achado.codPedido}` }]);
