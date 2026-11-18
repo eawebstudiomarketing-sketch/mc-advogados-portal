@@ -1,24 +1,26 @@
 import type { Metadata, Viewport } from "next";
-import { Lato } from "next/font/google";
+import { Lato, Playfair_Display } from "next/font/google";
 import { IscaMarca } from "./isca-marca";
 
 // Isca 1 (18/11/2026, pedido do Maurício): ferramenta grátis "Sua marca pode ser
-// registrada?". Prévia na hora (base própria do INPI, sem IA); relatório completo
+// registrada?". Prévia na hora (base própria de marcas, sem IA); relatório completo
 // pelo WhatsApp depois de deixar nome e telefone (vira lead no CRM, form isca-marca).
+// 18/11 (v2, pedido do João): sem falar de INPI/base na tela, visual com mais impacto.
 
 const lato = Lato({ subsets: ["latin"], weight: ["400", "700", "900"], variable: "--font-lato" });
+const playfair = Playfair_Display({ subsets: ["latin"], weight: ["600", "800"], style: ["normal", "italic"], variable: "--font-playfair" });
 
 export const metadata: Metadata = {
-  title: "Sua marca pode ser registrada? · MC Advogados",
-  description: "Consulta grátis: veja na hora se já existem marcas parecidas com a sua no INPI e o risco de registro.",
-  openGraph: { title: "Sua marca pode ser registrada?", description: "Consulta grátis de marcas parecidas no INPI, em segundos." },
+  title: "Sua marca está livre? · MC Advogados",
+  description: "Descubra em segundos se alguém já tem uma marca parecida com a sua.",
+  openGraph: { title: "Sua marca está livre?", description: "Descubra em segundos se alguém já tem uma marca parecida com a sua." },
 };
 
-export const viewport: Viewport = { themeColor: "#061021" };
+export const viewport: Viewport = { themeColor: "#07111f" };
 
 export default function Page() {
   return (
-    <div className={lato.variable}>
+    <div className={`${lato.variable} ${playfair.variable}`}>
       <IscaMarca />
     </div>
   );
