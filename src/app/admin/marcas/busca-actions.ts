@@ -10,7 +10,7 @@ import { buscarNoInpi, buscarNomeNoInpi, buscarProcuradorNaBase, fichaNoInpi, lo
 import { buscarProcuradorNaCarteira } from "@/lib/marcas/procurador";
 import { consultarBase, situacaoDoDespacho } from "@/lib/marcas/base";
 import { semelhanca } from "@/lib/marcas/revista";
-import { chaveFonetica, parecencaFonetica } from "@/lib/marcas/fonetica";
+import { chaveFonetica, parecencaFonetica, parecencaNome, variantesDoNome } from "@/lib/marcas/fonetica";
 
 // Busca Integrada e Busca com IA (viabilidade), as mesmas do Marca Acompanhada.
 // Tudo vai ao pePI pela ponte da VPS, com pausa entre as consultas (o INPI
@@ -139,6 +139,8 @@ export type RelatorioMA = {
 
 const SISTEMA_RELATORIO = `Você é advogado especialista em marcas (Lei 9.279/96, art. 124, incisos V, VI e XIX; prática decisória do INPI) e escreve um RELATÓRIO DE VIABILIDADE DE MARCA, em português do Brasil, no mesmo estilo do "Relatório de Viabilidade de Marca" do Marca Acompanhada: técnico, direto, frases curtas, com **negrito** nos termos e conclusões que importam.
 Recebe a marca pesquisada, uso/classe, contexto e as anterioridades encontradas no INPI (relevância 0–100 por semelhança gráfica/fonética). Avalie semelhança gráfica, fonética e ideológica (conceitual) E afinidade mercadológica. Marcas arquivadas, extintas ou indeferidas pesam pouco. Nunca invente processos: use só os da lista; sempre escreva o número entre parênteses depois do nome, ex.: CURVACEOUS (904596583).
+Cada anterioridade diz "por quê" foi achada. As de "nome parecido" são o centro da análise. As de "mesmo nicho (nome diferente)" só entram se houver semelhança conceitual real; nunca as trate como colidência só por estarem na mesma classe.
+Olhe o CONJUNTO: se várias marcas na classe compartilham radicais, sílabas ou o som do nome (ex.: para PLLIF: PLIF, PLIFF, LIFF, LIFE, PL…), o risco pode vir da SOMA desses sinais. Explique isso como o Marca Acompanhada: o INPI pode entender que a marca se insere num "campo de marcas" já saturado e de baixa distintividade, mesmo sem um bloqueio evidente.
 Monte:
 - risco: geral (baixo, medio ou alto).
 - resumo.abertura: "A marca consultada **<MARCA>** para <produtos/serviços> na classe <NN> apresenta:".
@@ -289,6 +291,36 @@ export async function buscaIAAction(e: EntradaBusca & { logo?: { mime: string; b
   } catch (err) {
     return { ok: false, error: `Não foi possível consultar o INPI agora (${(err as Error).message}). Tente de novo em instantes.` };
   }
+  // 18/11/2026: a busca da PLLIF só achou o nome exato e as vagas ficaram com o nicho (GROWTH…),
+  // marcas só com a classe igual. Como o Marca Acompanhada ("PL/PLL/LIF/LIFE/LIFF/PLIF"), agora busca
+  // também as grafias e radicais próximos do nome (PLIF, PLIFF, PLIFE, PLEEF, LIFF, LIFE…) na base
+  // própria, em cada classe da marca (consultas rápidas, 4 de cada vez).
+  const variantes = [...new Set(termos.slice(0, 2).flatMap((t) => variantesDoNome(t)))].filter((v) => !termos.includes(v)).slice(0, 12);
+  const consultas = variantes.flatMap((v) => (classes.length ? classes.slice(0, 3).map((c) => ({ v, classe: c.classe as string | null })) : [{ v, classe: null as string | null }]));
+  const porVariante = new Map<string, string[]>();
+  for (let i = 0; i < consultas.length && sobraTempo(); i += 4) {
+    const lote = await Promise.all(consultas.slice(i, i + 4).map((q) => consultarBase("radical", q.v, q.classe, 200, 8_000).then((b) => ({ q, b })).catch(() => null)));
+    for (const x of lote) {
+      if (!x) continue;
+      for (const l of x.b.resultados) {
+        porVariante.set(x.q.v, [...(porVariante.get(x.q.v) ?? []), l.numero]);
+        if (achados.has(l.numero)) continue;
+        achados.set(l.numero, {
+          processo: l.numero,
+          codPedido: "",
+          marca: l.marca ?? "",
+          situacao: situacaoDoDespacho(l.ultimo_despacho, l.concessao),
+          titular: l.titular ?? "",
+          classes: l.classes ? l.classes.split(",").map((x) => `NCL ${x}`).join(", ") : "",
+          deposito: l.deposito,
+          apresentacao: l.apresentacao,
+          termos: [x.q.v],
+        });
+      }
+    }
+  }
+  for (const [v, procs] of porVariante) pesquisas.push({ termo: v, tipo: "Variação fonética/gráfica (nas classes da marca)", total: procs.length, em: new Date().toISOString(), fonte: "base própria (revistas do INPI)", processos: [...new Set(procs)] });
+
   // 17/11/2026: como o Marca Acompanhada, também as marcas do MESMO CONCEITO/NICHO nas classes da marca
   // (ex.: CURL, CACHOS para CURVOLOGIA), pela base própria (rápida, com filtro de classe)
   const conceituais = [...new Set((plano.data.conceituais ?? []).map((t) => t.trim().toUpperCase()).filter((t) => t.length >= 3 && !termos.includes(t)))].slice(0, 8);
@@ -324,28 +356,29 @@ export async function buscaIAAction(e: EntradaBusca & { logo?: { mime: string; b
   const naClasse = (txt: string) => !nums.size || [...numsDe(txt)].some((n) => nums.has(String(Number(n))));
   const avaliados = [...achados.values()]
     .map((r) => {
-      const graf = Math.round(Math.max(...termos.map((t) => Math.max(semelhanca(t, r.marca), parecencaFonetica(t, r.marca)))) * 100);
+      // parecença com o NOME pesquisado (marca inteira, cada palavra e palavras vizinhas; grafia e som)
+      const graf = Math.round(Math.max(...[ref, ...termos].filter(Boolean).map((t) => Math.max(semelhanca(t, r.marca), parecencaFonetica(t, r.marca), parecencaNome(t, r.marca)))) * 100);
       // mesmo nicho na mesma classe: entra com no mínimo 50 (afinidade conceitual), como no MA
       return { ...r, relevancia: porConceito.has(r.processo) ? Math.max(graf, 50) : graf };
     })
     .filter((r) => r.relevancia >= 45 && naClasse(r.classes));
   const vivo = (sit: string) => !/arquiv|extint|indefer|nul/i.test(sit);
   const ordem = (a: { relevancia: number; situacao: string }, b: { relevancia: number; situacao: string }) => Number(vivo(b.situacao)) - Number(vivo(a.situacao)) || b.relevancia - a.relevancia;
-  // vagas separadas: parecidas no nome (35) + mesmo nicho (25), para uma não engolir a outra
-  const porNome = avaliados.filter((r) => !porConceito.has(r.processo) || r.relevancia > 50).sort(ordem).slice(0, 35);
-  const doNicho = avaliados.filter((r) => porConceito.has(r.processo) && !porNome.includes(r)).sort(ordem).slice(0, 25);
+  // vagas separadas: parecidas no nome (até 40) + mesmo nicho (até 10, complemento: só a classe em comum não é colidência)
+  const porNome = avaliados.filter((r) => !porConceito.has(r.processo) || r.relevancia > 50).sort(ordem).slice(0, 40);
+  const doNicho = avaliados.filter((r) => porConceito.has(r.processo) && !porNome.includes(r)).sort(ordem).slice(0, 10);
   const candidatos = [...porNome, ...doNicho];
   const extras = (e.extras ?? []).slice(0, 20).map((x) => ({ ...x, relevancia: 100, deposito: null, codPedido: "" }));
 
   // 3) relatório no modelo do Marca Acompanhada ("Relatório de Viabilidade de Marca", 17/11/2026)
   const lista = [...extras, ...candidatos]
-    .map((r) => `${r.processo} | ${r.marca} | classe ${r.classes} | ${r.situacao} | ${r.titular} | ${"apresentacao" in r && r.apresentacao ? r.apresentacao : "-"} | relevância ${r.relevancia}`)
+    .map((r) => `${r.processo} | ${r.marca} | classe ${r.classes} | ${r.situacao} | ${r.titular} | ${"apresentacao" in r && r.apresentacao ? r.apresentacao : "-"} | relevância ${r.relevancia} | ${"termos" in r && porConceito.has(r.processo) && r.relevancia <= 50 ? "mesmo nicho (nome diferente)" : "nome parecido"}`)
     .join("\n");
   const rel = await generateJson<Omit<RelatorioMA, "formato">>({
     system: SISTEMA_RELATORIO,
     parts: [
       {
-        text: `Marca pesquisada: ${ref}${e.siglas ? " (contém siglas)" : ""}\nUso/Classe pretendida: ${e.ondeUsar}\nContexto adicional: ${e.contexto || "-"}\nClasses: ${classes.map((c) => `${c.classe} (${c.motivo})`).join("; ")}\nTem logo: ${e.logo ? "sim (a análise visual é feita depois, com os logos das anterioridades)" : "não"}\n\nAnterioridades encontradas no INPI (${candidatos.length + extras.length}) — processo | marca | classe | situação | titular | apresentação | relevância:\n${lista || "nenhuma"}`,
+        text: `Marca pesquisada: ${ref}${e.siglas ? " (contém siglas)" : ""}\nUso/Classe pretendida: ${e.ondeUsar}\nContexto adicional: ${e.contexto || "-"}\nClasses: ${classes.map((c) => `${c.classe} (${c.motivo})`).join("; ")}\nTem logo: ${e.logo ? "sim (a análise visual é feita depois, com os logos das anterioridades)" : "não"}\n\nAnterioridades encontradas no INPI (${candidatos.length + extras.length}) — processo | marca | classe | situação | titular | apresentação | relevância | por quê:\n${lista || "nenhuma"}`,
       },
     ],
     model: MODELOS.leitura,
