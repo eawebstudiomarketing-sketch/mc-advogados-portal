@@ -66,7 +66,7 @@ function Medidor({ risco }: { risco: Previa["risco"] }) {
       <path d={arco(2, 58)} stroke="#41c28a" strokeWidth="16" fill="none" strokeLinecap="round" opacity={risco === "baixo" ? 1 : 0.28} />
       <path d={arco(62, 118)} stroke="#f0b23e" strokeWidth="16" fill="none" strokeLinecap="round" opacity={risco === "medio" ? 1 : 0.28} />
       <path d={arco(122, 178)} stroke="#ef5a4f" strokeWidth="16" fill="none" strokeLinecap="round" opacity={risco === "alto" ? 1 : 0.28} />
-      <g style={{ transform: `rotate(${ang}deg)`, transformOrigin: "100px 100px", transition: "transform 1.1s cubic-bezier(.22,1.4,.36,1)" }}>
+      <g style={{ transform: `rotate(${ang}deg)`, transformOrigin: "100px 100px", transition: "transform 1.1s cubic-bezier(.22,1,.36,1)" }}>
         <line x1="100" y1="100" x2="100" y2="34" stroke="#0b1626" strokeWidth="5" strokeLinecap="round" />
       </g>
       <circle cx="100" cy="100" r="10" fill="#0b1626" />
