@@ -21,19 +21,28 @@ type Dados = {
 
 const db = () => createAdminClient() as unknown as SupabaseClient;
 
+// 18/11/2026: a consulta "head" não acusava a tabela faltando (a 0076 não estava
+// rodada), o portal tentava guardar na Lixeira, falhava e cancelava a exclusão sem
+// avisar ("não consigo excluir as atividades"). Agora confere com leitura normal,
+// só guarda "existe" (se faltar, confere de novo na próxima) e, se guardar falhar
+// porque a tabela não existe, exclui como antes.
 let tabelaExiste: boolean | null = null;
 async function temLixeira(): Promise<boolean> {
-  if (tabelaExiste !== null) return tabelaExiste;
-  const { error } = await db().from("activities_trash").select("id", { head: true, count: "exact" }).limit(1);
+  if (tabelaExiste) return true;
+  const { error } = await db().from("activities_trash").select("id").limit(1);
   tabelaExiste = !error;
   return tabelaExiste;
 }
+const tabelaFaltando = (e: { code?: string; message?: string } | null) =>
+  !!e && (e.code === "PGRST205" || e.code === "42P01" || /activities_trash/.test(e.message ?? ""));
 
 /** Exclui as atividades guardando cópia na Lixeira por 30 dias. Devolve quantas saíram. */
 export async function excluirAtividades(ids: string[], por: string | null): Promise<{ excluidas: number; erro: string | null }> {
   if (!ids.length) return { excluidas: 0, erro: null };
   const c = db();
+  let guardou = false;
   if (await temLixeira()) {
+    guardou = true;
     const { data: ativs } = await c.from("activities").select("*").in("id", ids);
     for (const a of (ativs ?? []) as Record<string, unknown>[]) {
       const id = String(a.id);
@@ -54,13 +63,23 @@ export async function excluirAtividades(ids: string[], por: string | null): Prom
       const { error } = await c
         .from("activities_trash")
         .upsert({ id, title: String(a.title ?? "Atividade"), client_id: (a.client_id as string | null) ?? null, dados, deleted_by: por, deleted_at: new Date().toISOString() });
-      if (error) return { excluidas: 0, erro: "Não foi possível guardar na Lixeira. Nada foi excluído." };
+      if (error && tabelaFaltando(error)) {
+        tabelaExiste = false;
+        guardou = false;
+        break; // sem Lixeira: exclui como antes
+      }
+      if (error) {
+        console.error("lixeira de atividades:", error.message);
+        await c.from("activities_trash").delete().in("id", ids);
+        return { excluidas: 0, erro: "Não foi possível guardar na Lixeira. Nada foi excluído." };
+      }
     }
   }
   const { data, error } = await c.from("activities").delete().in("id", ids).select("id");
   if (error) {
+    console.error("excluir atividades:", error.message);
     // não excluiu: tira a cópia que acabou de entrar na lixeira
-    if (tabelaExiste) await c.from("activities_trash").delete().in("id", ids);
+    if (guardou) await c.from("activities_trash").delete().in("id", ids);
     return { excluidas: 0, erro: "Não foi possível excluir. Tente novamente." };
   }
   return { excluidas: data?.length ?? 0, erro: null };
