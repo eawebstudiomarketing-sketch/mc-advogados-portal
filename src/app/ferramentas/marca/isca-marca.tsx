@@ -120,7 +120,6 @@ export function IscaMarca() {
   // enquanto procura, mostra o que está fazendo (passo a passo)
   useEffect(() => {
     if (!carregando || previa) return;
-    setPasso(0);
     const t = setInterval(() => setPasso((p) => Math.min(p + 1, PASSOS.length - 1)), 700);
     return () => clearInterval(t);
   }, [carregando, previa]);
@@ -132,6 +131,7 @@ export function IscaMarca() {
     if (!ramo) return setErro("Escolha o ramo do seu negócio.");
     setPrevia(null);
     setEnviado(false);
+    setPasso(0);
     setCarregando(true);
     api({ passo: "comecou" });
     evento(["FormStart"]);
