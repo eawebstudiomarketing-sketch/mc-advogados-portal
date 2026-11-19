@@ -1,5 +1,5 @@
 import { getEscritorioConfig } from "@/lib/data/escritorio";
-import { notFound } from "next/navigation";
+import { AtividadeIndisponivel } from "@/components/atividade/atividade-indisponivel";
 import { getActivity } from "@/lib/data/activities";
 import { listResponsaveis } from "@/lib/data/responsaveis";
 import { listEtiquetas } from "@/lib/data/etiquetas";
@@ -12,7 +12,7 @@ export default async function EditActivityPage({ params }: { params: Promise<{ i
   const { profile } = await exigirPermissao("atividades");
   const { id } = await params;
   const [activity, responsaveis, etiquetas, pedido] = await Promise.all([getActivity(id), listResponsaveis(), listEtiquetas(), pedidoPendente(id).catch(() => null)]);
-  if (!activity) notFound();
+  if (!activity) return <AtividadeIndisponivel id={id} />;
 
   return (
     <div>

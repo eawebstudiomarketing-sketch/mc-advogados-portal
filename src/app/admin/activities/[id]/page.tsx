@@ -1,7 +1,7 @@
 import { BackButton } from "@/components/nav/back-button";
 import { nomeResponsavel } from "@/lib/responsavel-nome";
 import Link from "next/link";
-import { notFound } from "next/navigation";
+import { AtividadeIndisponivel } from "@/components/atividade/atividade-indisponivel";
 import { getActivity } from "@/lib/data/activities";
 import { anexosDaAtividade } from "@/lib/anexos-atividade";
 import { AnexosAtividade } from "@/components/atividade/anexos-atividade";
@@ -23,7 +23,7 @@ export default async function ActivityDetailPage({ params }: { params: Promise<{
   const { id } = await params;
 
   const activity = await getActivity(id);
-  if (!activity) notFound();
+  if (!activity) return <AtividadeIndisponivel id={id} />;
 
   const [anexos, etiquetas, responsaveis] = await Promise.all([anexosDaAtividade(id, profile.id), listEtiquetas(), listResponsaveis()]);
   const envolvidos = (activity.envolvidos ?? []).map((e) => responsaveis.find((r) => r.id === e)?.nome).filter(Boolean);
