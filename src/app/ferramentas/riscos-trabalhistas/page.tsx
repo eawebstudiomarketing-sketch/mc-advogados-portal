@@ -12,5 +12,5 @@ export const metadata: Metadata = {
 };
 
 export default function Page() {
-  return <IscaRiscos />;
+  return <IscaRiscos foto="/brand/equipe-mc.webp" />;
 }

@@ -4,7 +4,6 @@ import { useRef, useState } from "react";
 import { diagnosticar, PERGUNTAS, TAMANHOS, type Diagnostico, type Resposta } from "@/lib/iscas/riscos";
 import { BotaoOuro, BotaoZap, CaixaLead, COR_NIVEL, Medidor, Moldura, OURO, Titulo, useIsca } from "../comum";
 
-const SLUG = "isca-riscos";
 
 const NIVEL = {
   baixo: { rotulo: "Risco baixo", titulo: "Sua empresa está bem cuidada.", texto: "Poucos pontos de atenção. Vale manter a rotina em dia e revisar o que apareceu." },
@@ -12,8 +11,10 @@ const NIVEL = {
   alto: { rotulo: "Risco alto", titulo: "Sua empresa está exposta.", texto: "Os pontos que apareceram são os que mais geram condenação. Corrigir agora sai muito mais barato do que depois." },
 } as const;
 
-export function IscaRiscos() {
-  const { evento, comecou, enviarLead, armadilha } = useIsca(SLUG, PERGUNTAS.length + 1);
+// 19/11/2026: o mesmo diagnóstico substitui o quiz antigo /f/riscos-juridicos (pedido do Maurício),
+// com a foto da equipe no início; lá o lead vai para o formulário riscos-juridicos.
+export function IscaRiscos({ slug = "isca-riscos", foto }: { slug?: string; foto?: string }) {
+  const { evento, comecou, enviarLead, armadilha } = useIsca(slug, PERGUNTAS.length + 1);
   // -1 = início; 0 = tamanho; 1..n = perguntas; n+1 = resultado
   const [tela, setTela] = useState(-1);
   const [tamanho, setTamanho] = useState("");
@@ -64,6 +65,13 @@ export function IscaRiscos() {
 
       {tela === -1 && (
         <>
+          {foto && (
+            <div className="relative -mx-4 -mt-4 mb-8 overflow-hidden sm:mx-0 sm:rounded-[28px]">
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img src={foto} alt="Equipe da MC Advogados" className="aspect-[1080/760] w-full object-cover object-top" />
+              <div className="absolute inset-x-0 bottom-0 h-1/2 bg-gradient-to-t from-[#07111f] to-transparent" aria-hidden />
+            </div>
+          )}
           <Titulo antes={<>Sua empresa está</>} destaque="protegida" depois="?" sub="12 perguntas rápidas de sim ou não. No fim você vê onde está o risco de processo trabalhista." />
           <div className="mt-8 space-y-3">
             <BotaoOuro type="button" onClick={comecar}>
