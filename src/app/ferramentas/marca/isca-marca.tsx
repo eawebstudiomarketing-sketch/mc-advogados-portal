@@ -275,7 +275,7 @@ export function IscaMarca() {
                   </ul>
                   {previa.total > previa.parecidas.length && (
                     <p className="mt-3 text-[14px] text-[#0b1626]/60">
-                      E mais {previa.total - previa.parecidas.length} {previa.total - previa.parecidas.length === 1 ? "marca parecida" : "marcas parecidas"} com menor grau de semelhança.
+                      E mais {previa.total - previa.parecidas.length} {previa.total - previa.parecidas.length === 1 ? "marca parecida" : "marcas parecidas"} no relatório completo.
                     </p>
                   )}
                 </>
