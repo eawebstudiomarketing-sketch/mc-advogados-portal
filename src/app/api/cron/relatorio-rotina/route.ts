@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { cronAutorizado } from "@/lib/seguranca";
 import { enviarRelatorioDoDia } from "@/lib/rotina-relatorio/dia";
+import { registrarAdvertencias } from "@/lib/rotina-relatorio/advertencias";
 
 // Fim do dia: manda ao Maurício o HTML das rotinas e demandas do dia que fechou
 // (GitHub Actions às 00:05 da Bahia, .github/workflows/relatorio-rotina.yml).
@@ -18,5 +19,7 @@ export async function GET(request: Request) {
   const url = new URL(request.url);
   const dia = /^\d{4}-\d{2}-\d{2}$/.test(url.searchParams.get("dia") ?? "") ? url.searchParams.get("dia")! : ontemBahia();
   const r = await enviarRelatorioDoDia(dia, { forcar: url.searchParams.get("forcar") === "1" });
-  return NextResponse.json({ ok: true, ...r });
+  // grava as advertências de quem não enviou o relatório de ontem (19/11/2026)
+  const adv = await registrarAdvertencias().then((x) => ({ advertencias: x.calculadas.length, advertenciasSalvas: x.tabela })).catch((e) => ({ advertenciasErro: String(e) }));
+  return NextResponse.json({ ok: true, ...r, ...adv });
 }

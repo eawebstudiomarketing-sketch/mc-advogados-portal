@@ -9,6 +9,8 @@ import { indicadoresDe, type Indicadores } from "@/lib/painel/individual";
 import { resumoDaPessoa } from "@/lib/painel/individual-ia";
 import { LinhaCriadasConcluidas } from "@/components/painel/graficos";
 import { KpiCard } from "@/components/painel/graficos2";
+import { listarAdvertencias } from "@/lib/rotina-relatorio/advertencias";
+import { ListaAdvertencias } from "@/components/rotina/lista-advertencias";
 
 
 const num = (n: number | null, c = 1) => (n === null ? "—" : n.toLocaleString("pt-BR", { maximumFractionDigits: c }));
@@ -130,6 +132,10 @@ export async function ConteudoIndicadores({ sp, base = "/admin/indicadores", fix
             <Lista titulo="Entregues recentemente" vazio="Nenhuma entrega no período." itens={ind.atividades.entreguesLista.map((x) => ({ id: x.id, titulo: x.titulo, apoio: `${x.cliente ?? "Sem cliente"} · ${num(x.dias)} d do pedido à entrega` }))} />
           </div>
 
+          <Suspense fallback={null}>
+            <Advertencias profileId={alvoId} meu={meu} />
+          </Suspense>
+
           <section aria-label="Trabalho no sistema" className="space-y-3">
             <h2 className="section-title">No sistema</h2>
             <div className="grid grid-cols-2 gap-3 md:grid-cols-5">
@@ -205,4 +211,22 @@ function CartaoIa({ carregando, erro, resumo }: { carregando?: boolean; erro?: s
 async function ResumoIa({ ind }: { ind: Indicadores }) {
   const r = await resumoDaPessoa(ind);
   return r.ok ? <CartaoIa resumo={r.resumo} /> : <CartaoIa erro={r.error} />;
+}
+
+/** Advertências da pessoa por relatório do dia não enviado (19/11/2026). Só aparece para quem tem modelo de relatório. */
+async function Advertencias({ profileId, meu }: { profileId: string; meu: boolean }) {
+  const db = createAdminClient() as unknown as SupabaseClient;
+  const { data: resp } = await db.from("responsaveis").select("id, rotina_modelo_id").eq("profile_id", profileId).maybeSingle();
+  if (!resp?.rotina_modelo_id) return null;
+  const { itens } = await listarAdvertencias(resp.id as string).catch(() => ({ itens: [] }));
+  const hoje = new Intl.DateTimeFormat("en-CA", { timeZone: "America/Bahia" }).format(new Date());
+  return (
+    <section aria-label="Advertências" id="advertencias" className="space-y-3">
+      <div>
+        <h2 className="section-title">Advertências</h2>
+        <p className="mt-0.5 text-sm text-muted">{meu ? "Cada dia em que você não enviou o relatório no próprio dia fica registrado aqui, mesmo que tenha enviado depois." : "Dias em que a pessoa não enviou o relatório no próprio dia."}</p>
+      </div>
+      <ListaAdvertencias itens={itens} mesAtual={hoje.slice(0, 7)} />
+    </section>
+  );
 }

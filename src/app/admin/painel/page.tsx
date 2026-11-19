@@ -19,6 +19,8 @@ import { LateralGerente, type CompromissoLateral } from "@/components/painel/lat
 import { QuadroAbertasAntigas, QuadroCarga, QuadroCriadasConcluidas, QuadroPorTipo } from "@/components/painel/quadros";
 import { RotinasDoDia } from "@/components/painel/rotinas-do-dia";
 import { notasDeRotina } from "@/lib/rotina-relatorio/dados";
+import { listarAdvertencias } from "@/lib/rotina-relatorio/advertencias";
+import { ListaAdvertencias } from "@/components/rotina/lista-advertencias";
 import { CartoesResponsaveis, FichaPessoa, type EventoLinha } from "@/components/painel/responsaveis";
 
 export const metadata = { title: "Painel do Dono" };
@@ -32,6 +34,7 @@ const ABAS = [
   { id: "resumo", rotulo: "Resumo" },
   { id: "responsaveis", rotulo: "Responsáveis" },
   { id: "rotinas", rotulo: "Rotinas" },
+  { id: "advertencias", rotulo: "Advertências" },
   { id: "clientes", rotulo: "Clientes" },
   { id: "prazos", rotulo: "Prazos e Agenda" },
   { id: "processos", rotulo: "Processos e Publicações" },
@@ -869,6 +872,8 @@ export default async function PainelPage({ searchParams }: { searchParams: Promi
 
         {aba === "rotinas" && <RotinasDoDia dia={sp.dia} />}
 
+        {aba === "advertencias" && <AbaAdvertencias />}
+
         {aba === "financeiro" && fin && (
           <div className="space-y-4">
             {fin.vazio && <p className="rounded-lg border border-border bg-surface-2 px-4 py-3 text-sm text-muted">Ainda não há lançamentos no Financeiro do portal. Os números aparecem aqui assim que os honorários forem lançados em Gestão › Financeiro.</p>}
@@ -941,5 +946,16 @@ export default async function PainelPage({ searchParams }: { searchParams: Promi
         )}
       </div>
     </PainelBase>
+  );
+}
+
+/** Advertências por relatório do dia não enviado, de toda a equipe (gravadas em rotina_advertencias, 19/11/2026). */
+async function AbaAdvertencias() {
+  const { itens, salvas } = await listarAdvertencias();
+  return (
+    <Bloco titulo="Advertências" apoio="Cada dia de relatório que passou sem a pessoa enviar o relatório no próprio dia vira uma advertência e fica registrada aqui, mesmo depois de ela enviar atrasado.">
+      {!salvas && <p className="mb-4 rounded-lg border border-border bg-surface-2 px-4 py-3 text-sm text-muted">Mostrando o cálculo na hora: falta rodar a migration 0079 para as advertências ficarem gravadas.</p>}
+      <ListaAdvertencias itens={itens} equipe mesAtual={hojeBahia().slice(0, 7)} />
+    </Bloco>
   );
 }
